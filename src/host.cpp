@@ -368,13 +368,13 @@ Host::~Host() { delete impl; }
 
 // TODO escape-quote strings
 
-bool Host::effect_add(const char* const uri, const int16_t instance_number)
+bool Host::add(const char* const uri, const int16_t instance_number)
 {
     const QString message(QString::fromUtf8("add \"%1\" %2").arg(uri).arg(instance_number));
     return impl->writeMessageAndWait(message);
 }
 
-bool Host::effect_remove(const int16_t instance_number)
+bool Host::remove(const int16_t instance_number)
 {
     const QString message(QString::fromUtf8("remove %1").arg(instance_number));
     return impl->writeMessageAndWait(message);

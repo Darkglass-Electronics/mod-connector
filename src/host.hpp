@@ -6,215 +6,126 @@
 #include <cstdint>
 #include <string>
 
-struct Host
-{
+/**
+ * TODO document me
+ */
+struct Host {
    /**
     * string describing the last error, in case any operation fails.
     * will also be set during initialization in case of mod-host connection failure.
     */
     std::string last_error;
 
-   /**
-    * add an LV2 plugin encapsulated as a jack client
+   /* add an LV2 plugin encapsulated as a jack client
     * @a instance_number must be any value between 0 ~ 9990, inclusively
-    @code
-    effect_add("http://lv2plug.in/plugins/eg-amp", 0);
-    @endcode
     */
-    bool effect_add(const char* uri, int16_t instance_number);
+    bool add(const char* uri, int16_t instance_number);
  
    /**
     * remove an LV2 plugin instance (and also the jack client)
-    @code
-    effect_remove(0);
-    @endcode
     */
-    bool effect_remove(int16_t instance_number);
+    bool remove(int16_t instance_number);
 
    /**
     * load a preset state of an effect instance
-    @code
-    preset_load(0, "http://drobilla.net/plugins/mda/presets#JX10-moogcury-lite");
-    @endcode
     */
     bool preset_load(int16_t instance_number, const char* preset_uri);
 
    /**
     * save a preset state of an effect instance
-    @code
-    preset_save(0, "My Preset", "/home/user/.lv2/my-presets.lv2", "mypreset.ttl");
-    @endcode
     */
     bool preset_save(int16_t instance_number, const char* preset_name, const char* dir, const char* file_name);
 
    /**
     * show the preset information of requested URI
-    @code
-    preset_show("http://drobilla.net/plugins/mda/presets#EPiano-bright");
-    @endcode
     */
     std::string preset_show(const char* preset_uri);
 
    /**
     * connect two jack ports
-    @code
-    connect("system:capture_1", "effect_0:in");
-    @endcode
     */
     bool connect(const char* origin_port, const char* destination_port);
 
    /**
     * disconnect two jack ports
-    @code
-    disconnect("system:capture_1", "effect_0:in");
-    @endcode
     */
     bool disconnect(const char* origin_port, const char* destination_port);
 
    /**
     * toggle effect processing
-    @code
-    // bypass effect
-    bypass(0, true);
-
-    // process effect
-    bypass(0, false);
-    @endcode
     */
     bool bypass(int16_t instance_number, bool bypass_value);
 
    /**
     * set the value of a control port
-    @code
-    param_set(0, "gain", 2.5);
-    @endcode
     */
     bool param_set(int16_t instance_number, const char* param_symbol, float param_value);
 
    /**
     * get the value of a control port
-    @code
-    param_get(0, "gain");
-    @endcode
     */
     bool param_get(int16_t instance_number, const char* param_symbol);
 
    /**
     * monitor a control port according to a condition
-    @code
-    param_monitor(0, "gain", ">", 2.5);
-    @endcode
     */
     bool param_monitor(int16_t instance_number, const char* param_symbol, const char* cond_op, float value);
 
    /**
     * set the value of a patch property
-    @code
-    patch_set(0, "http://kxstudio.sf.net/carla/file/audio", "/home/user/Music/nyan.wav");
-    @endcode
     */
     bool patch_set(int16_t instance_number, const char* property_uri, const char* value);
 
    /**
     * get the value of a patch property
-    @code
-    patch_get(0, "http://kxstudio.sf.net/carla/file/audio");
-    @endcode
     */
     // TODO proper return type
     bool patch_get(int16_t instance_number, const char* property_uri);
 
    /**
     * get the licensee name for a commercial plugin
-    @code
-    licensee(0);
-    @endcode
     */
     bool licensee(int16_t instance_number);
 
    /**
     * set the global beats per minute transport value
-    @code
-    set_bpm(120);
-    @endcode
     */
     bool set_bpm(double beats_per_minute);
 
    /**
     * set the global beats per bar transport value
-    @code
-    set_bpb(4);
-    @endcode
     */
     bool set_bpb(double beats_per_bar);
 
    /**
     * open a socket port for monitoring parameter changes
-    @code
-    // start monitoring
-    monitor("localhost", 12345, true);
-
-    // stop monitoring
-    monitor("localhost", 12345, false);
-    @endcode
     */
     bool monitor(const char* addr, int port, bool status);
 
    /**
     * request monitoring of an output control port (in the feedback port)
-    @code
-    monitor_output(0, "meter");
-    @endcode
     */
     bool monitor_output(int16_t instance_number, const char* param_symbol);
 
+   /**
+    * start MIDI learn for a control port
+    */
+    bool midi_learn(int16_t instance_number, const char* param_symbol, float minimum, float maximum);
+
+   /**
+    * map a MIDI controller to a control port
+    */
+    bool midi_map(int16_t instance_number, const char* param_symbol, uint8_t midi_channel, uint8_t midi_cc, float minimum, float maximum);
+
+   /**
+    * unmap the MIDI controller from a control port
+    */
+    bool midi_unmap(int16_t instance_number, const char* param_symbol);
+
 #if 0
-#define MIDI_LEARN           "midi_learn %i %s %f %f"
-#define MIDI_MAP             "midi_map %i %s %i %i %f %f"
-#define MIDI_UNMAP           "midi_unmap %i %s"
-
-   /**
-    * xxxxxx
-    @code
-    xxxxxx(0, "xxxx");
-    @endcode
-    */
-    bool xxxxxx(int16_t instance_number, const char* preset_uri);
-
-    midi_learn <instance_number> <param_symbol> <minimum> <maximum>
-        * start MIDI learn for a parameter
-        e.g.: midi_learn 0 gain 0.0 1.0
-
-   /**
-    * xxxxxx
-    @code
-    xxxxxx(0, "xxxx");
-    @endcode
-    */
-    bool xxxxxx(int16_t instance_number, const char* preset_uri);
-
-    midi_map <instance_number> <param_symbol> <midi_channel> <midi_cc> <minimum> <maximum>
-        * map a MIDI controller to a parameter
-        e.g.: midi_map 0 gain 0 7 0.0 1.0
-
-   /**
-    * xxxxxx
-    @code
-    xxxxxx(0, "xxxx");
-    @endcode
-    */
-    bool xxxxxx(int16_t instance_number, const char* preset_uri);
-
-    midi_unmap <instance_number> <param_symbol>
-        * unmap the MIDI controller from a parameter
-        e.g.: unmap 0 gain
-
 #define MONITOR_MIDI_PROGRAM "monitor_midi_program %i %i"
    /**
     * xxxxxx
-    @code
-    xxxxxx(0, "xxxx");
-    @endcode
     */
     bool xxxxxx(int16_t instance_number, const char* preset_uri);
 
@@ -224,9 +135,6 @@ struct Host
 
    /**
     * xxxxxx
-    @code
-    xxxxxx(0, "xxxx");
-    @endcode
     */
     bool xxxxxx(int16_t instance_number, const char* preset_uri);
 
@@ -241,9 +149,6 @@ struct Host
 #define CC_UNMAP             "cc_unmap %i %s"
    /**
     * xxxxxx
-    @code
-    xxxxxx(0, "xxxx");
-    @endcode
     */
     bool xxxxxx(int16_t instance_number, const char* preset_uri);
 
@@ -253,9 +158,6 @@ struct Host
 
    /**
     * xxxxxx
-    @code
-    xxxxxx(0, "xxxx");
-    @endcode
     */
     bool xxxxxx(int16_t instance_number, const char* preset_uri);
 
@@ -268,9 +170,6 @@ struct Host
 
    /**
     * xxxxxx
-    @code
-    xxxxxx(0, "xxxx");
-    @endcode
     */
     bool xxxxxx(int16_t instance_number, const char* preset_uri);
 
@@ -280,9 +179,6 @@ struct Host
 
    /**
     * xxxxxx
-    @code
-    xxxxxx(0, "xxxx");
-    @endcode
     */
     bool xxxxxx(int16_t instance_number, const char* preset_uri);
 
@@ -296,9 +192,6 @@ struct Host
 
    /**
     * return current jack cpu load
-    @code
-    cpu_load();
-    @endcode
     */
     float cpu_load();
 
@@ -308,9 +201,6 @@ struct Host
 
    /**
     * xxxxxx
-    @code
-    xxxxxx(0, "xxxx");
-    @endcode
     */
     bool xxxxxx(int16_t instance_number, const char* preset_uri);
 
@@ -321,9 +211,6 @@ struct Host
 
    /**
     * xxxxxx
-    @code
-    xxxxxx(0, "xxxx");
-    @endcode
     */
     bool xxxxxx(int16_t instance_number, const char* preset_uri);
 
@@ -334,9 +221,6 @@ struct Host
 
    /**
     * xxxxxx
-    @code
-    xxxxxx(0, "xxxx");
-    @endcode
     */
     bool xxxxxx(int16_t instance_number, const char* preset_uri);
 
@@ -346,9 +230,6 @@ struct Host
 
    /**
     * xxxxxx
-    @code
-    xxxxxx(0, "xxxx");
-    @endcode
     */
     bool xxxxxx(int16_t instance_number, const char* preset_uri);
 
@@ -365,9 +246,6 @@ struct Host
 
    /**
     * xxxxxx
-    @code
-    xxxxxx(0, "xxxx");
-    @endcode
     */
     bool xxxxxx(int16_t instance_number, const char* preset_uri);
 
@@ -378,9 +256,6 @@ struct Host
 
    /**
     * xxxxxx
-    @code
-    xxxxxx(0, "xxxx");
-    @endcode
     */
     bool xxxxxx(int16_t instance_number, const char* preset_uri);
 
