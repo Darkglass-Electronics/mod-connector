@@ -6,6 +6,8 @@
 #include <cstdint>
 #include <string>
 
+// TODO s/parameter/control port/
+
 /**
  * TODO document me
  */
@@ -122,8 +124,9 @@ struct Host {
     */
     bool midi_unmap(int16_t instance_number, const char* param_symbol);
 
-#if 0
 #define MONITOR_MIDI_PROGRAM "monitor_midi_program %i %i"
+
+#if 0
    /**
     * xxxxxx
     */
@@ -143,129 +146,81 @@ struct Host {
         e.g.: set_midi_program_change_pedalboard_snapshot_channel 1 4 to enable listening for preset changes on channel 5
 #endif
 
-#if 0
-#define CC_MAP               "cc_map %i %s %i %i %s %f %f %f %i %i %s %i ..."
+   /**
+    * map a Control Chain actuator to a control port
+    */
+    bool cc_map(int16_t instance_number, const char* param_symbol,
+                int device_id, int actuator_id, const char* label,
+                float value, float minimum, float maximum, int steps, const char* unit,
+                unsigned int scalepoints_count, struct { const char* label; float value; }* scalepoints);
+
 #define CC_VALUE_SET         "cc_value_set %i %s %f"
-#define CC_UNMAP             "cc_unmap %i %s"
-   /**
-    * xxxxxx
-    */
-    bool xxxxxx(int16_t instance_number, const char* preset_uri);
-
-    cc_map <instance_number> <param_symbol> <device_id> <actuator_id> <label> <value> <minimum> <maximum> <steps> <unit> <scalepoints_count> <scalepoints...>
-        * map a Control Chain actuator to a parameter
-        e.g.: cc_map 0 gain 0 1 "Gain" 0.0 -24.0 3.0 33 "dB" 0
 
    /**
-    * xxxxxx
+    * unmap the Control Chain actuator from a control port
+    // FIXME unmap 0 gain (in docs)
     */
-    bool xxxxxx(int16_t instance_number, const char* preset_uri);
-
-    cc_unmap <instance_number> <param_symbol>
-        * unmap the Control Chain actuator from a parameter
-        e.g.: unmap 0 gain
-
-#define CV_MAP               "cv_map %i %s %s %f %f %s"
-#define CV_UNMAP             "cv_unmap %i %s"
+    bool cc_unmap(int16_t instance_number, const char* param_symbol);
 
    /**
-    * xxxxxx
+    * map a CV source port to a parameter, operational-mode being one of '-', '+', 'b' or '='
     */
-    bool xxxxxx(int16_t instance_number, const char* preset_uri);
-
-    cv_map <instance_number> <param_symbol> <source_port_name> <minimum> <maximum> <operational-mode>
-        * map a CV source port to a parameter, operational-mode being one of '-', '+', 'b' or '='
-        e.g.: cv_map 0 gain "AMS CV Source:CV Out 1" -24.0 3.0 =
+    bool cv_map(int16_t instance_number, const char* param_symbol, const char* source_port_name, float minimum, float maximum, char operational_mode);
 
    /**
-    * xxxxxx
+    * unmap the CV source port actuator from a parameter
     */
-    bool xxxxxx(int16_t instance_number, const char* preset_uri);
-
-    cv_unmap <instance_number> <param_symbol>
-        * unmap the CV source port actuator from a parameter
-        e.g.: cv_unmap 0 gain
+    bool cv_unmap(int16_t instance_number, const char* param_symbol);
 
 #define HMI_MAP              "hmi_map %i %s %i %i %i %i %i %s %f %f %i"
 #define HMI_UNMAP            "hmi_unmap %i %s"
-#endif
 
    /**
     * return current jack cpu load
     */
     float cpu_load();
 
-#if 0
-#define LOAD_COMMANDS        "load %s"
-#define SAVE_COMMANDS        "save %s"
+   /**
+    * load a history command file
+    * dummy way to save/load workspace state
+    */
+    bool load(const char* file_name);
 
    /**
-    * xxxxxx
+    * saves the history of typed commands
+    * dummy way to save/load workspace state
     */
-    bool xxxxxx(int16_t instance_number, const char* preset_uri);
-
-    load <file_name>
-        * load a history command file
-        * dummy way to save/load workspace state
-        e.g.: load my_setup
+    bool save(const char* file_name);
 
    /**
-    * xxxxxx
+    * add a bundle to the running lv2 world
     */
-    bool xxxxxx(int16_t instance_number, const char* preset_uri);
-
-    save <file_name>
-        * saves the history of typed commands
-        * dummy way to save/load workspace state
-        e.g.: save my_setup
+    bool bundle_add(const char* bundle_path);
 
    /**
-    * xxxxxx
+    * remove a bundle from the running lv2 world
     */
-    bool xxxxxx(int16_t instance_number, const char* preset_uri);
+    bool bundle_remove(const char* bundle_path);
 
-    bundle_add <bundle_path>
-        * add a bundle to the running lv2 world
-        e.g.: bundle_add /path/to/bundle.lv2
-
-   /**
-    * xxxxxx
-    */
-    bool xxxxxx(int16_t instance_number, const char* preset_uri);
-
-    bundle_remove <bundle_path>
-        * remove a bundle from the running lv2 world
-        e.g.: bundle_remove /path/to/bundle.lv2
-
-#define BUNDLE_ADD           "bundle_add %s"
+// FIXME
 #define BUNDLE_REMOVE        "bundle_remove %s %s"
+
 #define STATE_LOAD           "state_load %s"
 #define STATE_SAVE           "state_save %s"
 #define STATE_TMPDIR         "state_tmpdir %s"
-#define FEATURE_ENABLE       "feature_enable %s %i"
 
-   /**
-    * xxxxxx
+  /**
+    * enable or disable a feature
+    * current features are "link", "processing" and "midi_clock_slave"
     */
-    bool xxxxxx(int16_t instance_number, const char* preset_uri);
+    bool feature_enable(const char* feature, bool enable);
 
-    feature_enable <feature> <enable>
-        * enable or disable a feature
-        e.g.: feature_enable link 1
-        current features are "link", "processing" and "midi_clock_slave"
-
-   /**
-    * xxxxxx
+  /**
+    * change the current transport state
     */
-    bool xxxxxx(int16_t instance_number, const char* preset_uri);
+    bool transport(bool rolling, double beats_per_bar, double beats_per_minute);
 
-    transport <rolling> <beats_per_bar> <beats_per_minute>
-        * change the current transport state
-        e.g.: transport 1 4 120
-
-#define TRANSPORT            "transport %i %f %f"
 #define TRANSPORT_SYNC       "transport_sync %s"
-#endif
 
     Host();
     ~Host();
