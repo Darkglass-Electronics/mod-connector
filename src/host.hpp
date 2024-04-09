@@ -28,6 +28,7 @@ struct Host {
  
    /**
     * remove an LV2 plugin instance (and also the jack client)
+    * when instance_number is -1 all plugins will be removed
     */
     bool remove(int16_t instance_number);
 
@@ -109,6 +110,7 @@ struct Host {
 
    /**
     * map a MIDI controller to a control port
+    * a non-standard @a midi_cc value of 131 (0x83) is used for pitchbend
     */
     bool midi_map(int16_t instance_number, const char* param_symbol, uint8_t midi_channel, uint8_t midi_cc, float minimum, float maximum);
 
@@ -209,7 +211,8 @@ struct Host {
 
   /**
     * enable or disable a feature
-    * current features are "link", "processing" and "midi_clock_slave"
+    * feature can be one of "aggregated-midi", "freewheeling" or "processing"
+    * the "aggregated-midi" feature requires the use of jack2 and mod-midi-merger to be installed system-wide
     */
     bool feature_enable(const char* feature, bool enable);
 
