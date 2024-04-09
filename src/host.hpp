@@ -6,7 +6,10 @@
 #include <cstdint>
 #include <string>
 
-// TODO s/parameter/control port/
+struct cc_scalepoint {
+    const char* label;
+    float value;
+};
 
 /**
  * TODO document me
@@ -90,22 +93,12 @@ struct Host {
     bool licensee(int16_t instance_number);
 
    /**
-    * set the global beats per minute transport value
-    */
-    bool set_bpm(double beats_per_minute);
-
-   /**
-    * set the global beats per bar transport value
-    */
-    bool set_bpb(double beats_per_bar);
-
-   /**
     * open a socket port for monitoring parameter changes
     */
     bool monitor(const char* addr, int port, bool status);
 
    /**
-    * request monitoring of an output control port (in the feedback port)
+    * request monitoring of an output control port (on the feedback port)
     */
     bool monitor_output(int16_t instance_number, const char* param_symbol);
 
@@ -124,27 +117,10 @@ struct Host {
     */
     bool midi_unmap(int16_t instance_number, const char* param_symbol);
 
-#define MONITOR_MIDI_PROGRAM "monitor_midi_program %i %i"
-
-#if 0
    /**
-    * xxxxxx
+    * listen to MIDI program change messages (on the feedback port)
     */
-    bool xxxxxx(int16_t instance_number, const char* preset_uri);
-
-    set_midi_program_change_pedalboard_bank_channel <enable> <midi_channel>
-        * set the MIDI channel which changes pedalboard banks on MIDI program change. <midi_channel> is in the range of [0,15].
-        e.g.: set_midi_program_change_pedalboard_bank_channel 1 5 to enable listening for bank changes on channel 6
-
-   /**
-    * xxxxxx
-    */
-    bool xxxxxx(int16_t instance_number, const char* preset_uri);
-
-    set_midi_program_change_pedalboard_snapshot_channel <enable> <midi_channel>
-        * set the MIDI channel which changes pedalboard snapshots on MIDI program change. <midi_channel> is in the range of [0,15].
-        e.g.: set_midi_program_change_pedalboard_snapshot_channel 1 4 to enable listening for preset changes on channel 5
-#endif
+    bool monitor_midi_program(uint8_t midi_channel, bool enable);
 
    /**
     * map a Control Chain actuator to a control port
@@ -152,28 +128,40 @@ struct Host {
     bool cc_map(int16_t instance_number, const char* param_symbol,
                 int device_id, int actuator_id, const char* label,
                 float value, float minimum, float maximum, int steps, const char* unit,
-                unsigned int scalepoints_count, struct { const char* label; float value; }* scalepoints);
-
-#define CC_VALUE_SET         "cc_value_set %i %s %f"
+                unsigned int scalepoints_count, const cc_scalepoint* scalepoints);
 
    /**
     * unmap the Control Chain actuator from a control port
-    // FIXME unmap 0 gain (in docs)
     */
     bool cc_unmap(int16_t instance_number, const char* param_symbol);
 
    /**
-    * map a CV source port to a parameter, operational-mode being one of '-', '+', 'b' or '='
+    * set the value of a mapped Control Chain actuator
+    */
+    bool cc_value_set(int16_t instance_number, const char* param_symbol, float value);
+
+   /**
+    * map a CV source port to a control port, operational-mode being one of '-', '+', 'b' or '='
     */
     bool cv_map(int16_t instance_number, const char* param_symbol, const char* source_port_name, float minimum, float maximum, char operational_mode);
 
    /**
-    * unmap the CV source port actuator from a parameter
+    * unmap the CV source port actuator from a control port
     */
     bool cv_unmap(int16_t instance_number, const char* param_symbol);
 
-#define HMI_MAP              "hmi_map %i %s %i %i %i %i %i %s %f %f %i"
-#define HMI_UNMAP            "hmi_unmap %i %s"
+   /**
+    * report an HMI assignment to an effect instance, using the MOD Audio's HMI LV2 extension
+    * @see https://github.com/moddevices/mod-lv2-extensions/blob/main/mod-hmi.lv2/mod-hmi.h
+    */
+    bool hmi_map(int16_t instance_number, const char* param_symbol,
+                 int hw_id, int page, int subpage,
+                 int caps, int flags, const char* label, float minimum, float maximum, int steps);
+
+   /**
+    * report an HMI unassignment to an effect instance
+    */
+    bool hmi_unmap(int16_t instance_number, const char* param_symbol);
 
    /**
     * return current jack cpu load
@@ -200,14 +188,24 @@ struct Host {
    /**
     * remove a bundle from the running lv2 world
     */
-    bool bundle_remove(const char* bundle_path);
+    bool bundle_remove(const char* bundle_path, const char* resource = nullptr);
 
-// FIXME
-#define BUNDLE_REMOVE        "bundle_remove %s %s"
+   /**
+    * load a custom effect state from a directory
+    * (everything that is not from a control port, like files)
+    */
+    bool state_load(const char* dir);
 
-#define STATE_LOAD           "state_load %s"
-#define STATE_SAVE           "state_save %s"
-#define STATE_TMPDIR         "state_tmpdir %s"
+   /**
+    * save a custom effect state into a directory
+    * (everything that is not from a control port, like files)
+    */
+    bool state_save(const char* dir);
+
+   /**
+    * set the temporary directory to use when effects request a directory to save state into
+    */
+    bool state_tmpdir(const char* dir);
 
   /**
     * enable or disable a feature
@@ -215,12 +213,26 @@ struct Host {
     */
     bool feature_enable(const char* feature, bool enable);
 
+   /**
+    * set the global beats per minute transport value
+    */
+    bool set_bpm(double beats_per_minute);
+
+   /**
+    * set the global beats per bar transport value
+    */
+    bool set_bpb(double beats_per_bar);
+
   /**
-    * change the current transport state
+    * change the global transport state
     */
     bool transport(bool rolling, double beats_per_bar, double beats_per_minute);
 
-#define TRANSPORT_SYNC       "transport_sync %s"
+  /**
+    * change the transport sync mode
+    * @a mode can be one of "none", "link" or "midi"
+    */
+    bool transport_sync(const char* mode);
 
     Host();
     ~Host();
