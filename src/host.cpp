@@ -128,13 +128,6 @@ static const char* host_error_code_to_string(const int code)
 
 struct Host::Impl : QObject
 {
-    std::string& last_error;
-
-    struct {
-        QTcpSocket out;
-        QTcpSocket feedback;
-    } sockets;
-
     Impl(std::string& last_error)
         : last_error(last_error)
     {
@@ -339,32 +332,21 @@ private slots:
         reportFeedbackReady();
     }
 
-#if 0
+private:
+    std::string& last_error;
 
-    void slot_timer()
-    {
-        HostResp resp;
-        if (!writeMessageAndWait("cpu_load", &resp))
-            return;
-
-        fprintf(stdout, "got cpu_load resp: %d %f\n", resp.code, resp.data.f);
-
-        effect_remove(-1);
-        effect_add("urn:distrho:a-delay", 0);
-
-        // QTimer::singleShot(1000, this, &Host::slot_timer);
-    }
-    #endif
+    struct {
+        QTcpSocket out;
+        QTcpSocket feedback;
+    } sockets;
 };
 
-// void Host::close()
-// {
-//     sockets.out.disconnectFromHost();
-//     sockets.feedback.disconnectFromHost();
-// }
+// --------------------------------------------------------------------------------------------------------------------
 
 Host::Host() : impl(new Impl(last_error)) {}
 Host::~Host() { delete impl; }
+
+// --------------------------------------------------------------------------------------------------------------------
 
 // TODO escape-quote strings
 
@@ -411,3 +393,5 @@ float Host::cpu_load()
     HostResponse resp;
     return impl->writeMessageAndWait(message, kHostResponseFloat, &resp) ? resp.data.f : 0.f;
 }
+
+// --------------------------------------------------------------------------------------------------------------------

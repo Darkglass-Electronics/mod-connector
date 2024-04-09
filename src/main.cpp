@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 #include "host.hpp"
+#include "websocket.hpp"
 
 #include <QCoreApplication>
 
@@ -29,6 +30,13 @@ int main(int argc, char* argv[])
     fprintf(stdout, "cpu_load resp '%f'\n", host.cpu_load());
     fprintf(stdout, "cpu_load resp '%f'\n", host.cpu_load());
     fprintf(stdout, "cpu_load resp '%f'\n", host.cpu_load());
+
+    WebSocket websocket;
+    if (! websocket.listen(13371))
+    {
+        fprintf(stderr, "Failed to initialize websocket connection: %s\n", websocket.last_error.c_str());
+        return 1;
+    }
 
     return app.exec();
 }
