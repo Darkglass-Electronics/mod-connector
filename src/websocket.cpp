@@ -3,12 +3,9 @@
 
 #include "websocket.hpp"
 
-#include <QtCore/QObject>
+#include <QtCore/QCoreApplication>
+#include <QtWebSockets/QWebSocket>
 #include <QtWebSockets/QWebSocketServer>
-
-#include <QCoreApplication>
-
-#include <unistd.h>
 
 // --------------------------------------------------------------------------------------------------------------------
 
@@ -16,20 +13,28 @@ struct WebSocket::Impl : QObject
 {
     Impl(std::string& last_error)
         : last_error(last_error),
-          ws("", QWebSocketServer::NonSecureMode)
+          ws_server("", QWebSocketServer::NonSecureMode)
     {
-        connect(&ws, &QWebSocketServer::closed, this, &WebSocket::Impl::slot_closed);
-        connect(&ws, &QWebSocketServer::newConnection, this, &WebSocket::Impl::slot_newConnection);
-//         connect(&ws, &QAbstractSocket::readyRead, this, &WebSocket::Impl::slot_readyRead);
+        connect(&ws_server, &QWebSocketServer::closed, this, &WebSocket::Impl::slot_closed);
+        connect(&ws_server, &QWebSocketServer::newConnection, this, &WebSocket::Impl::slot_newConnection);
+    }
+
+    ~Impl()
+    {
+        for (QWebSocket* conn : conns)
+        {
+            conn->close();
+            conn->deleteLater();
+        }
     }
 
     bool listen(const uint16_t port)
     {
         last_error.clear();
         
-        if (! ws.listen(QHostAddress::Any, port))
+        if (! ws_server.listen(QHostAddress::Any, port))
         {
-            last_error = ws.errorString().toStdString();
+            last_error = ws_server.errorString().toStdString();
             return false;
         }
 
@@ -37,6 +42,7 @@ struct WebSocket::Impl : QObject
     }
 
     // ----------------------------------------------------------------------------------------------------------------
+    // server slots
 
 private slots:
     void slot_closed()
@@ -45,22 +51,74 @@ private slots:
 
     void slot_newConnection()
     {
+        printf("slot_newConnection\n");
+
         QWebSocket* conn;
         
-        while ((conn = ws.nextPendingConnection()) != nullptr)
+        while ((conn = ws_server.nextPendingConnection()) != nullptr)
+        {
             conns.append(conn);
+            connect(conn, &QWebSocket::connected, this, &WebSocket::Impl::slot_connected);
+            connect(conn, &QWebSocket::disconnected, this, &WebSocket::Impl::slot_disconnected);
+            connect(conn, &QWebSocket::textMessageReceived, this, &WebSocket::Impl::slot_textMessageReceived);
+
+            conn->ping();
+        }
+
+        if (timerId == 0)
+            timerId = startTimer(1000);
     }
 
-    void slot_readyRead()
+    // ----------------------------------------------------------------------------------------------------------------
+    // connection slots
+
+    void slot_connected()
     {
+        printf("connected\n");
+    }
+
+    void slot_disconnected()
+    {
+        printf("disconnected\n");
+
+        if (QWebSocket* const conn = reinterpret_cast<QWebSocket*>(sender()))
+            conns.remove(conns.indexOf(conn));
+
+        if (conns.empty() && timerId != 0)
+        {
+            killTimer(timerId);
+            timerId = 0;
+        }
+    }
+
+    void slot_textMessageReceived(const QString& message)
+    {
+        printf("slot_textMessageReceived '%s'\n", message.toUtf8().constData());
+
+        // init message, report current state
+        if (message == "init")
+        {
+        }
     }
 
     // ----------------------------------------------------------------------------------------------------------------
 
 private:
     std::string& last_error;
-    QWebSocketServer ws;
+    int timerId = 0;
+    QWebSocketServer ws_server;
     QList<QWebSocket*> conns;
+
+    void timerEvent(QTimerEvent* const event)
+    {
+        if (event->timerId() == timerId)
+        {
+            for (QWebSocket* conn : conns)
+                conn->ping();
+        }
+
+        QObject::timerEvent(event);
+    }
 };
 
 // --------------------------------------------------------------------------------------------------------------------
