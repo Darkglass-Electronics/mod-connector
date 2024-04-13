@@ -2,9 +2,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 #include "host.hpp"
+#include "lv2.hpp"
 #include "websocket.hpp"
 
 #include <QCoreApplication>
+#include <cstdint>
 
 int main(int argc, char* argv[])
 {
@@ -36,6 +38,18 @@ int main(int argc, char* argv[])
     {
         fprintf(stderr, "Failed to initialize websocket connection: %s\n", websocket.last_error.c_str());
         return 1;
+    }
+
+    Lv2World lv2world;
+    const uint32_t pcount = lv2world.get_plugin_count();
+    for (uint32_t i=0; i<pcount; ++i)
+    {
+        const Lv2Plugin* const plugin = lv2world.get_plugin(i);
+        if (plugin == nullptr)
+            continue;
+        fprintf(stdout, "plugin %d/%d:\n", i + 1, pcount);
+        fprintf(stdout, "\turi: %s\n", plugin->uri.c_str());
+        fprintf(stdout, "\tname: %s\n", plugin->name.c_str());
     }
 
     return app.exec();

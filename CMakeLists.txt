@@ -19,6 +19,8 @@ set_property(GLOBAL PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 
 find_package(PkgConfig REQUIRED)
 find_package(Qt6 COMPONENTS REQUIRED Core Network WebSockets)
+pkg_check_modules(lilv REQUIRED IMPORTED_TARGET lilv-0)
+pkg_check_modules(lv2 REQUIRED IMPORTED_TARGET lv2)
 
 #######################################################################################################################
 # Setup Chibi target
@@ -44,6 +46,8 @@ target_include_directories(mod-connector
 
 target_link_libraries(mod-connector
   PUBLIC
+    PkgConfig::lilv
+    PkgConfig::lv2
     Qt6::Core
     Qt6::Network
     Qt6::WebSockets
@@ -52,6 +56,7 @@ target_link_libraries(mod-connector
 target_sources(mod-connector
   PRIVATE
     src/host.cpp
+    src/lv2.cpp
     src/main.cpp
     src/websocket.cpp
 )
