@@ -13,6 +13,7 @@ enum Lv2Category {
     kLv2CategoryNone = 0,
     kLv2CategoryFilter,
     kLv2CategoryUtility,
+    kLv2CategoryCount
 };
 
 enum Lv2Flags {
@@ -62,4 +63,5 @@ private:
     Impl* const impl;
 };
 
+const char* lv2_category_name(Lv2Category category);
 void lv2_plugin_to_json(const Lv2Plugin* plugin, QJsonObject& json);

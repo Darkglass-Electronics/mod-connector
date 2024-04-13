@@ -12,6 +12,32 @@
 #include <QtWebSockets/QWebSocket>
 
 // --------------------------------------------------------------------------------------------------------------------
+// utility function that copies nested objects without deleting old values
+
+static void copyJsonObjectValue(QJsonObject& dst, const QJsonObject& src)
+{
+    for (const QString& key : src.keys())
+    {
+        const QJsonValue& value(src[key]);
+
+        if (value.isObject())
+        {
+            QJsonObject obj;
+            if (dst.contains(key))
+                obj = dst[key].toObject();
+
+            copyJsonObjectValue(obj, src[key].toObject());
+
+            dst[key] = obj;
+        }
+        else
+        {
+            dst[key] = src[key];
+        }
+    }
+}
+
+// --------------------------------------------------------------------------------------------------------------------
 
 struct Connector : WebSocketServer::Callbacks
 {
@@ -69,6 +95,12 @@ struct Connector : WebSocketServer::Callbacks
             }
 
             state["plugins"] = plugins;
+
+            QJsonArray categories;
+            for (uint32_t i = 0; i < kLv2CategoryCount; ++i)
+                categories.append(lv2_category_name(static_cast<Lv2Category>(i)));
+
+            state["categories"] = categories;
         }
 
         ws->sendTextMessage(QJsonDocument(state).toJson(QJsonDocument::Compact));
@@ -84,13 +116,7 @@ struct Connector : WebSocketServer::Callbacks
             if (state.contains("state"))
                 stateObj = state["state"].toObject();
 
-            const QJsonObject msgStateObj = msgObj["state"].toObject();
-
-            for (const QString& key : msgStateObj.keys())
-            {
-                // TODO nested
-                stateObj[key] = msgStateObj[key];
-            }
+            copyJsonObjectValue(stateObj, msgObj["state"].toObject());
 
             state["state"] = stateObj;
         }

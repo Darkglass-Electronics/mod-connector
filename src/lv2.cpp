@@ -334,23 +334,28 @@ const Lv2Plugin* Lv2World::get_plugin(const uint32_t index) const
 
 // --------------------------------------------------------------------------------------------------------------------
 
+const char* lv2_category_name(Lv2Category category)
+{
+    switch (category)
+    {
+    case kLv2CategoryNone:
+        return "None";
+    case kLv2CategoryFilter:
+        return "Filter";
+    case kLv2CategoryUtility:
+        return "Utility";
+    case kLv2CategoryCount:
+        break;
+    }
+
+    return "";
+}
+
 void lv2_plugin_to_json(const Lv2Plugin* plugin, QJsonObject& json)
 {
     json["uri"] = QString::fromStdString(plugin->uri);
     json["name"] = QString::fromStdString(plugin->name);
-
-    switch (plugin->category)
-    {
-    case kLv2CategoryNone:
-        json["category"] = "none";
-        break;
-    case kLv2CategoryFilter:
-        json["category"] = "filter";
-        break;
-    case kLv2CategoryUtility:
-        json["category"] = "utility";
-        break;
-    }
+    json["category"] = lv2_category_name(plugin->category);
 
     QJsonArray ports;
 
