@@ -2,26 +2,28 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 #include "websocket.hpp"
+#include "lv2.hpp"
 
-#include <QtCore/QCoreApplication>
+#include <QtCore/QTimerEvent>
 #include <QtWebSockets/QWebSocket>
 #include <QtWebSockets/QWebSocketServer>
 
 // --------------------------------------------------------------------------------------------------------------------
 
-struct WebSocket::Impl : QObject
+struct WebSocketServer::Impl : QObject
 {
-    Impl(std::string& last_error)
-        : last_error(last_error),
-          ws_server("", QWebSocketServer::NonSecureMode)
+    Impl(Callbacks* const callbacks, std::string& last_error)
+        : callbacks(callbacks),
+          last_error(last_error),
+          wsServer("", QWebSocketServer::NonSecureMode)
     {
-        connect(&ws_server, &QWebSocketServer::closed, this, &WebSocket::Impl::slot_closed);
-        connect(&ws_server, &QWebSocketServer::newConnection, this, &WebSocket::Impl::slot_newConnection);
+        connect(&wsServer, &QWebSocketServer::closed, this, &WebSocketServer::Impl::slot_closed);
+        connect(&wsServer, &QWebSocketServer::newConnection, this, &WebSocketServer::Impl::slot_newConnection);
     }
 
     ~Impl()
     {
-        for (QWebSocket* conn : conns)
+        for (QWebSocket* conn : wsConns)
         {
             conn->close();
             conn->deleteLater();
@@ -32,9 +34,9 @@ struct WebSocket::Impl : QObject
     {
         last_error.clear();
         
-        if (! ws_server.listen(QHostAddress::Any, port))
+        if (! wsServer.listen(QHostAddress::Any, port))
         {
-            last_error = ws_server.errorString().toStdString();
+            last_error = wsServer.errorString().toStdString();
             return false;
         }
 
@@ -53,19 +55,19 @@ private slots:
     {
         printf("slot_newConnection\n");
 
-        QWebSocket* conn;
+        QWebSocket* ws;
         
-        while ((conn = ws_server.nextPendingConnection()) != nullptr)
+        while ((ws = wsServer.nextPendingConnection()) != nullptr)
         {
-            conns.append(conn);
-            connect(conn, &QWebSocket::connected, this, &WebSocket::Impl::slot_connected);
-            connect(conn, &QWebSocket::disconnected, this, &WebSocket::Impl::slot_disconnected);
-            connect(conn, &QWebSocket::textMessageReceived, this, &WebSocket::Impl::slot_textMessageReceived);
+            wsConns.append(ws);
+            connect(ws, &QWebSocket::connected, this, &WebSocketServer::Impl::slot_connected);
+            connect(ws, &QWebSocket::disconnected, this, &WebSocketServer::Impl::slot_disconnected);
+            connect(ws, &QWebSocket::textMessageReceived, this, &WebSocketServer::Impl::slot_textMessageReceived);
 
-            conn->ping();
+            callbacks->newWebSocketConnection(ws);
         }
 
-        if (timerId == 0)
+        if (! wsConns.empty() && timerId == 0)
             timerId = startTimer(1000);
     }
 
@@ -81,10 +83,10 @@ private slots:
     {
         printf("disconnected\n");
 
-        if (QWebSocket* const conn = reinterpret_cast<QWebSocket*>(sender()))
-            conns.remove(conns.indexOf(conn));
+        if (QWebSocket* const conn = dynamic_cast<QWebSocket*>(sender()))
+            wsConns.remove(wsConns.indexOf(conn));
 
-        if (conns.empty() && timerId != 0)
+        if (wsConns.empty() && timerId != 0)
         {
             killTimer(timerId);
             timerId = 0;
@@ -93,27 +95,24 @@ private slots:
 
     void slot_textMessageReceived(const QString& message)
     {
-        printf("slot_textMessageReceived '%s'\n", message.toUtf8().constData());
-
-        // init message, report current state
-        if (message == "init")
-        {
-        }
+        callbacks->messageReceived(message);
     }
 
     // ----------------------------------------------------------------------------------------------------------------
 
 private:
+    Callbacks* const callbacks;
     std::string& last_error;
+    Lv2World lv2world;
     int timerId = 0;
-    QWebSocketServer ws_server;
-    QList<QWebSocket*> conns;
+    QList<QWebSocket*> wsConns;
+    QWebSocketServer wsServer;
 
-    void timerEvent(QTimerEvent* const event)
+    void timerEvent(QTimerEvent* const event) override
     {
         if (event->timerId() == timerId)
         {
-            for (QWebSocket* conn : conns)
+            for (QWebSocket* conn : wsConns)
                 conn->ping();
         }
 
@@ -123,10 +122,12 @@ private:
 
 // --------------------------------------------------------------------------------------------------------------------
 
-WebSocket::WebSocket() : impl(new Impl(last_error)) {}
-WebSocket::~WebSocket() { delete impl; }
+WebSocketServer::WebSocketServer(Callbacks* const callbacks)
+    : impl(new Impl(callbacks, last_error)) {}
 
-bool WebSocket::listen(const uint16_t port)
+WebSocketServer::~WebSocketServer() { delete impl; }
+
+bool WebSocketServer::listen(const uint16_t port)
 {
     return impl->listen(port);
 }

@@ -7,6 +7,8 @@
 #include <string>
 #include <vector>
 
+class QJsonObject;
+
 enum Lv2Category {
     kLv2CategoryNone = 0,
     kLv2CategoryFilter,
@@ -59,3 +61,5 @@ private:
     struct Impl;
     Impl* const impl;
 };
+
+void lv2_plugin_to_json(const Lv2Plugin* plugin, QJsonObject& json);

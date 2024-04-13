@@ -11,6 +11,9 @@
 #include <lv2/atom/atom.h>
 #include <lv2/morph/morph.h>
 
+#include <QtCore/QJsonArray>
+#include <QtCore/QJsonObject>
+
 #define MOD__CVPort "http://moddevices.com/ns/mod#CVPort"
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -327,6 +330,58 @@ uint32_t Lv2World::get_plugin_count() const noexcept
 const Lv2Plugin* Lv2World::get_plugin(const uint32_t index) const
 {
     return impl->getPlugin(index);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void lv2_plugin_to_json(const Lv2Plugin* plugin, QJsonObject& json)
+{
+    json["uri"] = QString::fromStdString(plugin->uri);
+    json["name"] = QString::fromStdString(plugin->name);
+
+    switch (plugin->category)
+    {
+    case kLv2CategoryNone:
+        json["category"] = "none";
+        break;
+    case kLv2CategoryFilter:
+        json["category"] = "filter";
+        break;
+    case kLv2CategoryUtility:
+        json["category"] = "utility";
+        break;
+    }
+
+    QJsonArray ports;
+
+    for (size_t i = 0; i < plugin->ports.size(); ++i)
+    {
+        QJsonObject port;
+        const Lv2Port& lv2port(plugin->ports[i]);
+
+        port["uri"] = QString::fromStdString(plugin->uri);
+        port["name"] = QString::fromStdString(plugin->name);
+
+        QJsonArray flags;
+        if (lv2port.flags & Lv2PortIsAudio)
+            flags.append("audio");
+        if (lv2port.flags & Lv2PortIsControl)
+            flags.append("control");
+        if (lv2port.flags & Lv2PortIsOutput)
+            flags.append("output");
+        if (lv2port.flags & Lv2ParameterToggled)
+            flags.append("toggled");
+        if (lv2port.flags & Lv2ParameterInteger)
+            flags.append("integer");
+        port["flags"] = flags;
+
+        if (lv2port.flags & Lv2PortIsControl)
+        {
+            port["default"] = lv2port.def;
+            port["minimum"] = lv2port.min;
+            port["maximum"] = lv2port.max;
+        }
+    }
 }
 
 // --------------------------------------------------------------------------------------------------------------------
