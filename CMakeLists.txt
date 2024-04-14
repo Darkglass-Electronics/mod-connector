@@ -23,7 +23,7 @@ pkg_check_modules(lilv REQUIRED IMPORTED_TARGET lilv-0)
 pkg_check_modules(lv2 REQUIRED IMPORTED_TARGET lv2)
 
 #######################################################################################################################
-# Setup Chibi target
+# Setup connector target
 
 add_executable(mod-connector)
 
@@ -32,11 +32,6 @@ set_target_properties(mod-connector
     AUTOMOC ON
     AUTOUIC ON
     AUTORCC ON
-)
-
-target_compile_definitions(mod-connector
-  PRIVATE
-    BUILDING_CARLA
 )
 
 target_include_directories(mod-connector

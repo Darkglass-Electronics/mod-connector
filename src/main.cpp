@@ -6,9 +6,11 @@
 #include "websocket.hpp"
 
 #include <QtCore/QCoreApplication>
+#include <QtCore/QFile>
 #include <QtCore/QJsonArray>
 #include <QtCore/QJsonDocument>
 #include <QtCore/QJsonObject>
+#include <QtCore/QTimer>
 #include <QtWebSockets/QWebSocket>
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -39,12 +41,14 @@ static void copyJsonObjectValue(QJsonObject& dst, const QJsonObject& src)
 
 // --------------------------------------------------------------------------------------------------------------------
 
-struct Connector : WebSocketServer::Callbacks
+struct Connector : QObject,
+                   WebSocketServer::Callbacks
 {
     Host host;
     Lv2World lv2world;
     WebSocketServer wsServer;
     bool ok = false;
+    bool verboseLogs = false;
 
     // keep current state in memory
     QJsonObject state;
@@ -71,8 +75,18 @@ struct Connector : WebSocketServer::Callbacks
             return;
         }
 
+        if (const char* const log = std::getenv("MOD_LOG"))
+        {
+            if (std::atoi(log) != 0)
+                verboseLogs = true;
+        }
+
         ok = true;
         state["type"] = "state";
+
+        QFile stateFile("state.json");
+        if (stateFile.open(QIODevice::ReadOnly|QIODevice::Text))
+            state["state"] = QJsonDocument::fromJson(stateFile.readAll()).object();
     }
 
     void newWebSocketConnection(QWebSocket* const ws) override
@@ -119,7 +133,38 @@ struct Connector : WebSocketServer::Callbacks
             copyJsonObjectValue(stateObj, msgObj["state"].toObject());
 
             state["state"] = stateObj;
+
+            if (verboseLogs)
+            {
+                puts(QJsonDocument(stateObj).toJson().constData());
+            }
+
+            saveStateLater();
         }
+    }
+
+    // ----------------------------------------------------------------------------------------------------------------
+    // feedback port handling
+
+    bool stateChangedRecently = false;
+
+    void saveStateLater()
+    {
+        if (stateChangedRecently)
+            return;
+
+        stateChangedRecently = true;
+        QTimer::singleShot(1000, this, &Connector::slot_saveStateNow);
+    }
+
+private slots:
+    void slot_saveStateNow()
+    {
+        stateChangedRecently = false;
+
+        QFile stateFile("state.json");
+        if (stateFile.open(QIODevice::WriteOnly|QIODevice::Truncate|QIODevice::Text))
+            stateFile.write(QJsonDocument(state["state"].toObject()).toJson());
     }
 };
 

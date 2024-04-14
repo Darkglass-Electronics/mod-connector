@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 #include "websocket.hpp"
-#include "lv2.hpp"
 
 #include <QtCore/QTimerEvent>
 #include <QtWebSockets/QWebSocket>
@@ -12,9 +11,9 @@
 
 struct WebSocketServer::Impl : QObject
 {
-    Impl(Callbacks* const callbacks, std::string& last_error)
+    Impl(Callbacks* const callbacks, std::string& lastError)
         : callbacks(callbacks),
-          last_error(last_error),
+          lastError(lastError),
           wsServer("", QWebSocketServer::NonSecureMode)
     {
         connect(&wsServer, &QWebSocketServer::closed, this, &WebSocketServer::Impl::slot_closed);
@@ -32,11 +31,11 @@ struct WebSocketServer::Impl : QObject
 
     bool listen(const uint16_t port)
     {
-        last_error.clear();
+        lastError.clear();
         
         if (! wsServer.listen(QHostAddress::Any, port))
         {
-            last_error = wsServer.errorString().toStdString();
+            lastError = wsServer.errorString().toStdString();
             return false;
         }
 
@@ -56,7 +55,7 @@ private slots:
         printf("slot_newConnection\n");
 
         QWebSocket* ws;
-        
+
         while ((ws = wsServer.nextPendingConnection()) != nullptr)
         {
             wsConns.append(ws);
@@ -102,8 +101,7 @@ private slots:
 
 private:
     Callbacks* const callbacks;
-    std::string& last_error;
-    Lv2World lv2world;
+    std::string& lastError;
     int timerId = 0;
     QList<QWebSocket*> wsConns;
     QWebSocketServer wsServer;

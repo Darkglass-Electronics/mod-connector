@@ -131,6 +131,15 @@ struct Host::Impl : QObject
     Impl(std::string& last_error)
         : last_error(last_error)
     {
+        if (const char* const dev = std::getenv("MOD_DEV_HOST"))
+        {
+            if (std::atoi(dev) != 0)
+            {
+                dummyDevMode = true;
+                return;
+            }
+        }
+
         int port;
         if (const char* const portEnv = std::getenv("MOD_DEVICE_HOST_PORT"))
         {
@@ -188,6 +197,27 @@ struct Host::Impl : QObject
                              const HostResponseType respType = kHostResponseNone,
                              HostResponse* const resp = nullptr)
     {
+        if (dummyDevMode)
+        {
+            if (resp != nullptr)
+            {
+                *resp = {};
+                resp->code = SUCCESS;
+                switch (respType)
+                {
+                case kHostResponseNone:
+                    break;
+                case kHostResponseString:
+                    resp->data.s = strdup("");
+                    break;
+                case kHostResponseFloat:
+                    resp->data.f = 0.f;
+                    break;
+                }
+            }
+            return true;
+        }
+
         if (sockets.out.state() != QAbstractSocket::ConnectedState)
         {
             last_error = "mod-host socket is not connected";
@@ -334,6 +364,7 @@ private slots:
 
 private:
     std::string& last_error;
+    bool dummyDevMode = false;
 
     struct {
         QTcpSocket out;

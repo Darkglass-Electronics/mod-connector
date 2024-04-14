@@ -12,6 +12,7 @@ class QJsonObject;
 enum Lv2Category {
     kLv2CategoryNone = 0,
     kLv2CategoryFilter,
+    kLv2CategoryReverb,
     kLv2CategoryUtility,
     kLv2CategoryCount
 };
@@ -28,7 +29,7 @@ struct Lv2Port {
     std::string symbol;
     std::string name;
     uint32_t flags = 0;
-    float def = 0.5f;
+    float def = 0.f;
     float min = 0.f;
     float max = 1.f;
 };

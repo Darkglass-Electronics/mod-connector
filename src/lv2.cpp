@@ -135,6 +135,8 @@ struct Lv2World::Impl
                             continue;
                         else if (std::strcmp(cat, "FilterPlugin") == 0)
                             retplugin->category = kLv2CategoryFilter;
+                        else if (std::strcmp(cat, "ReverbPlugin") == 0)
+                            retplugin->category = kLv2CategoryReverb;
                         else if (std::strcmp(cat, "UtilityPlugin") == 0)
                             retplugin->category = kLv2CategoryUtility;
                     }
@@ -285,9 +287,18 @@ struct Lv2World::Impl
                                 retport.max = retport.min + 1.f;
 
                             if (xdefault != nullptr)
+                            {
                                 retport.def = lilv_node_as_float(lilv_nodes_get_first(xdefault));
+
+                                if (retport.def < retport.min)
+                                    retport.def = retport.min;
+                                else if (retport.def > retport.max)
+                                    retport.def = retport.max;
+                            }
                             else
+                            {
                                 retport.def = retport.min;
+                            }
                         }
 
                         lilv_nodes_free(xminimum);
@@ -342,6 +353,8 @@ const char* lv2_category_name(Lv2Category category)
         return "None";
     case kLv2CategoryFilter:
         return "Filter";
+    case kLv2CategoryReverb:
+        return "Reverb";
     case kLv2CategoryUtility:
         return "Utility";
     case kLv2CategoryCount:
@@ -364,8 +377,8 @@ void lv2_plugin_to_json(const Lv2Plugin* plugin, QJsonObject& json)
         QJsonObject port;
         const Lv2Port& lv2port(plugin->ports[i]);
 
-        port["uri"] = QString::fromStdString(plugin->uri);
-        port["name"] = QString::fromStdString(plugin->name);
+        port["symbol"] = QString::fromStdString(lv2port.symbol);
+        port["name"] = QString::fromStdString(lv2port.name);
 
         QJsonArray flags;
         if (lv2port.flags & Lv2PortIsAudio)
@@ -386,7 +399,11 @@ void lv2_plugin_to_json(const Lv2Plugin* plugin, QJsonObject& json)
             port["minimum"] = lv2port.min;
             port["maximum"] = lv2port.max;
         }
+
+        ports.append(port);
     }
+
+    json["ports"] = ports;
 }
 
 // --------------------------------------------------------------------------------------------------------------------
