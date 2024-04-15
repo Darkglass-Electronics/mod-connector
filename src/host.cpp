@@ -3,9 +3,11 @@
 
 #include "host.hpp"
 
-#include <QStringList>
-#include <QTcpSocket>
-#include <QTimer>
+#include <QtCore/QIODevice>
+#include <QtCore/QStringList>
+#include <QtCore/QTimer>
+#include <QtNetwork/QHostAddress>
+#include <QtNetwork/QTcpSocket>
 
 // --------------------------------------------------------------------------------------------------------------------
 
@@ -162,7 +164,11 @@ struct Host::Impl : QObject
         QObject::connect(&sockets.feedback, &QAbstractSocket::readyRead, this, &Host::Impl::slot_readyRead);
 
         sockets.out.connectToHost(QHostAddress::LocalHost, port);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
         sockets.feedback.connectToHost(QHostAddress::LocalHost, port + 1, QIODeviceBase::ReadOnly);
+#else
+        sockets.feedback.connectToHost(QHostAddress::LocalHost, port + 1, QIODevice::ReadOnly);
+#endif
 
         if (! sockets.out.waitForConnected())
         {
@@ -296,7 +302,11 @@ struct Host::Impl : QObject
             return true;
 
         // need response data
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
         const QStringList respdatasplit(respdata.split(' ', Qt::KeepEmptyParts));
+#else
+        const QStringList respdatasplit(respdata.split(' ', QString::KeepEmptyParts));
+#endif
         fprintf(stdout, "test2 '%s'\n", respdatasplit[0].toUtf8().constData());
 
         *resp = {};

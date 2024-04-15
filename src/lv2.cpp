@@ -8,8 +8,14 @@
 #include <unordered_map>
 
 #include <lilv/lilv.h>
+
+#ifdef HAVE_LV2_1_18
 #include <lv2/atom/atom.h>
 #include <lv2/morph/morph.h>
+#else
+#include <lv2/lv2plug.in/ns/ext/atom/atom.h>
+#include <lv2/lv2plug.in/ns/ext/morph/morph.h>
+#endif
 
 #include <QtCore/QJsonArray>
 #include <QtCore/QJsonObject>

@@ -83,7 +83,7 @@ private slots:
         printf("disconnected\n");
 
         if (QWebSocket* const conn = dynamic_cast<QWebSocket*>(sender()))
-            wsConns.remove(wsConns.indexOf(conn));
+            wsConns.removeAt(wsConns.indexOf(conn));
 
         if (wsConns.empty() && timerId != 0)
         {
