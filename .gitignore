@@ -1,5 +1,5 @@
-.cache/
-.vscode/
-build/
+.cache
+.vscode
+build
+plugins
 state.json
-

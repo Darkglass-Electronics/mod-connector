@@ -3,7 +3,9 @@
 
 #include "websocket.hpp"
 
+#include <QtCore/QFile>
 #include <QtCore/QTimerEvent>
+#include <QtNetwork/QSslKey>
 #include <QtWebSockets/QWebSocket>
 #include <QtWebSockets/QWebSocketServer>
 
@@ -14,8 +16,21 @@ struct WebSocketServer::Impl : QObject
     Impl(Callbacks* const callbacks, std::string& lastError)
         : callbacks(callbacks),
           lastError(lastError),
-          wsServer("", QWebSocketServer::NonSecureMode)
+          wsServer("", std:.getenv("SSL_CERT") != nullptr ? QWebSocketServer::SecureMode : QWebSocketServer::NonSecureMode)
     {
+        if (const char* const certfile = std:.getenv("SSL_CERT"))
+        {
+            QSslConfiguration sslconfig = wsServer.sslConfiguration();
+            sslconfig.setLocalCertificate(QSslCertificate::fromPath(certfile).first());
+            QFile keyFile(std::getenv("SSL_KEY"));
+            if (keyFile.open(QIODevice::ReadOnly))
+            {
+                sslconfig.setPrivateKey(QSslKey(keyFile.readAll(), QSsl::Rsa, QSsl::Pem, QSsl::PrivateKey));
+                keyFile.close();
+            }
+            wsServer.setSslConfiguration(sslconfig);
+        }
+
         connect(&wsServer, &QWebSocketServer::closed, this, &WebSocketServer::Impl::slot_closed);
         connect(&wsServer, &QWebSocketServer::newConnection, this, &WebSocketServer::Impl::slot_newConnection);
     }
@@ -32,7 +47,7 @@ struct WebSocketServer::Impl : QObject
     bool listen(const uint16_t port)
     {
         lastError.clear();
-        
+
         if (! wsServer.listen(QHostAddress::Any, port))
         {
             lastError = wsServer.errorString().toStdString();
