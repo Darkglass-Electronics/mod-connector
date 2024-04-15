@@ -16,12 +16,13 @@ struct WebSocketServer::Impl : QObject
     Impl(Callbacks* const callbacks, std::string& lastError)
         : callbacks(callbacks),
           lastError(lastError),
-          wsServer("", std:.getenv("SSL_CERT") != nullptr ? QWebSocketServer::SecureMode : QWebSocketServer::NonSecureMode)
+          wsServer("", std::getenv("SSL_CERT") != nullptr ? QWebSocketServer::SecureMode : QWebSocketServer::NonSecureMode)
     {
-        if (const char* const certfile = std:.getenv("SSL_CERT"))
+        if (const char* const certfile = std::getenv("SSL_CERT"))
         {
             QSslConfiguration sslconfig = wsServer.sslConfiguration();
-            sslconfig.setLocalCertificate(QSslCertificate::fromPath(certfile).first());
+            // sslconfig.setProtocol(QSsl::TlsV1_1);
+            sslconfig.setLocalCertificateChain(QSslCertificate::fromPath(certfile));
             QFile keyFile(std::getenv("SSL_KEY"));
             if (keyFile.open(QIODevice::ReadOnly))
             {

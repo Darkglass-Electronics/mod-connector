@@ -5,6 +5,7 @@ After=network.target
 
 [Service]
 Type=notify
+#EnvironmentFile=/home/falktx/builds/mod-connector/ssl.env
 Environment=LV2_PATH="/home/falktx/builds/mod-connector/plugins"
 Environment=MOD_DEV_HOST=1
 Environment=MOD_LOG=1
