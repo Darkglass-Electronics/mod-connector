@@ -19,11 +19,10 @@ set_property(GLOBAL PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(lilv REQUIRED IMPORTED_TARGET lilv-0)
-pkg_check_modules(systemd REQUIRED IMPORTED_TARGET libsystemd)
+pkg_check_modules(systemd IMPORTED_TARGET libsystemd)
 
 pkg_check_modules(lv2_1_18 QUIET IMPORTED_TARGET lv2>=1.18)
 if (lv2_1_18_FOUND)
-  add_compile_definitions(HAVE_LV2_1_18)
   add_library(PkgConfig::lv2 ALIAS PkgConfig::lv2_1_18)
 else()
   pkg_check_modules(lv2 REQUIRED IMPORTED_TARGET lv2)
@@ -51,6 +50,12 @@ set_target_properties(mod-connector
     AUTOMOC ON
     AUTOUIC ON
     AUTORCC ON
+)
+
+target_compile_definitions(mod-connector
+  PRIVATE
+    $<$<BOOL:lv2_1_18_FOUND>:HAVE_LV2_1_18>
+    $<$<BOOL:systemd_FOUND>:HAVE_SYSTEMD>
 )
 
 target_include_directories(mod-connector

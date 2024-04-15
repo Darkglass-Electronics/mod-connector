@@ -13,7 +13,9 @@
 #include <QtCore/QTimer>
 #include <QtWebSockets/QWebSocket>
 
+#ifdef HAVE_SYSTEMD
 #include <systemd/sd-daemon.h>
+#endif
 
 // --------------------------------------------------------------------------------------------------------------------
 // utility function that copies nested objects without deleting old values
@@ -54,6 +56,10 @@ struct Connector : QObject,
 
     // keep current state in memory
     QJsonObject state;
+    struct {
+        QString bank = "1";
+        QString preset = "1";
+    } current;
 
     Connector()
         : host(),
@@ -88,7 +94,10 @@ struct Connector : QObject,
 
         QFile stateFile("state.json");
         if (stateFile.open(QIODevice::ReadOnly|QIODevice::Text))
+        {
             state["state"] = QJsonDocument::fromJson(stateFile.readAll()).object();
+            handleStateChanges(state["state"].toObject());
+        }
     }
 
     void newWebSocketConnection(QWebSocket* const ws) override
@@ -132,21 +141,82 @@ struct Connector : QObject,
             if (state.contains("state"))
                 stateObj = state["state"].toObject();
 
-            copyJsonObjectValue(stateObj, msgObj["state"].toObject());
-
-            state["state"] = stateObj;
-
             if (verboseLogs)
             {
                 puts(QJsonDocument(stateObj).toJson().constData());
             }
 
+            const QJsonObject msgStateObj(msgObj["state"].toObject());
+            copyJsonObjectValue(stateObj, msgStateObj);
+
+            state["state"] = stateObj;
+
+            handleStateChanges(msgStateObj);
             saveStateLater();
         }
     }
 
+    void loadCurrent()
+    {
+        host.remove(-1);
+        handleStateChanges(state["state"].toObject());
+    }
+
+    void handleStateChanges(const QJsonObject& stateObj)
+    {
+        if (stateObj.contains("bank"))
+        {
+            const QString newbank = stateObj["bank"].toString();
+
+            if (current.bank != newbank)
+            {
+                current.bank = newbank;
+                current.preset = "1";
+                loadCurrent();
+            }
+        }
+
+        const QJsonObject bank(stateObj["banks"].toObject()[current.bank].toObject());
+        if (bank.isEmpty())
+            return;
+
+        if (bank.contains("preset"))
+        {
+            const QString newpreset = bank["preset"].toString();
+
+            if (current.preset != newpreset)
+            {
+                current.preset = newpreset;
+                loadCurrent();
+            }
+        }
+
+        const QJsonObject chains(bank["presets"].toObject()[current.preset].toObject()["chain"].toObject());
+        if (chains.isEmpty())
+            return;
+
+        for (const QString& c : chains.keys())
+        {
+            const QJsonObject chain(chains[c].toObject());
+
+            // add/remove plugin if changing "uri"
+            if (chain.contains("uri"))
+            {
+                const QString uri = chain["uri"].toString();
+                const int cid = c.toInt();
+
+                host.remove(cid);
+
+                if (uri != "-")
+                    host.add(uri.toUtf8().constData(), cid);
+            }
+        }
+
+        puts(QJsonDocument(chains).toJson().constData());
+    }
+
     // ----------------------------------------------------------------------------------------------------------------
-    // feedback port handling
+    // delayed save handling
 
     bool stateChangedRecently = false;
 
@@ -181,8 +251,10 @@ int main(int argc, char* argv[])
 
     Connector connector;
 
+#ifdef HAVE_SYSTEMD
     if (connector.ok)
         sd_notify(0, "READY=1");
+#endif
 
     return connector.ok ? app.exec() : 1;
 }
