@@ -13,6 +13,8 @@
 #include <QtCore/QTimer>
 #include <QtWebSockets/QWebSocket>
 
+#include <systemd/sd-daemon.h>
+
 // --------------------------------------------------------------------------------------------------------------------
 // utility function that copies nested objects without deleting old values
 
@@ -178,6 +180,10 @@ int main(int argc, char* argv[])
     app.setOrganizationName("Darkglass");
 
     Connector connector;
+
+    if (connector.ok)
+        sd_notify(0, "READY=1");
+
     return connector.ok ? app.exec() : 1;
 }
 

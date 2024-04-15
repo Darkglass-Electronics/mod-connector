@@ -1,0 +1,16 @@
+[Unit]
+Description=mod-connector
+After=syslog.target
+After=network.target
+
+[Service]
+Type=notify
+Environment=LV2_PATH="/home/falktx/builds/mod-connector/plugins"
+Environment=MOD_DEV_HOST=1
+Environment=MOD_LOG=1
+WorkingDirectory=/home/falktx/builds/mod-connector
+ExecStart=/home/falktx/builds/mod-connector/build/mod-connector
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

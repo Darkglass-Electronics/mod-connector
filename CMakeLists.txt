@@ -19,6 +19,7 @@ set_property(GLOBAL PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(lilv REQUIRED IMPORTED_TARGET lilv-0)
+pkg_check_modules(systemd REQUIRED IMPORTED_TARGET libsystemd)
 
 pkg_check_modules(lv2_1_18 QUIET IMPORTED_TARGET lv2>=1.18)
 if (lv2_1_18_FOUND)
@@ -61,6 +62,7 @@ target_link_libraries(mod-connector
   PUBLIC
     PkgConfig::lilv
     PkgConfig::lv2
+    PkgConfig::systemd
     Qt::Core
     Qt::Network
     Qt::WebSockets
