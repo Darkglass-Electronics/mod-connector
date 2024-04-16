@@ -93,11 +93,14 @@ struct Lv2World::Impl
 
     const Lv2Plugin* getPlugin(const uint32_t index)
     {
-        const std::string& uri(pluginuris[index]);
+        return getPluginByURI(pluginuris[index].c_str());
+    }
 
+    const Lv2Plugin* getPluginByURI(const char* const uri)
+    {
         if (pluginscache[uri] == nullptr)
         {
-            LilvNode* const urinode = lilv_new_uri(world, uri.c_str());
+            LilvNode* const urinode = lilv_new_uri(world, uri);
 
             if (urinode == nullptr)
             {
@@ -347,6 +350,11 @@ uint32_t Lv2World::get_plugin_count() const noexcept
 const Lv2Plugin* Lv2World::get_plugin(const uint32_t index) const
 {
     return impl->getPlugin(index);
+}
+
+const Lv2Plugin* Lv2World::get_plugin_by_uri(const char* const uri) const
+{
+    return impl->getPluginByURI(uri);
 }
 
 // --------------------------------------------------------------------------------------------------------------------

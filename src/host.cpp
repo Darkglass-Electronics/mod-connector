@@ -428,6 +428,36 @@ std::string Host::preset_show(const char* const preset_uri)
     return ret;
 }
 
+bool Host::connect(const char* origin_port, const char* destination_port)
+{
+    const QString message(QString::fromUtf8("connect \"%1\" \"%2\"").arg(origin_port).arg(destination_port));
+    return impl->writeMessageAndWait(message);
+}
+
+bool Host::disconnect(const char* origin_port, const char* destination_port)
+{
+    const QString message(QString::fromUtf8("disconnect \"%1\" \"%2\"").arg(origin_port).arg(destination_port));
+    return impl->writeMessageAndWait(message);
+}
+
+bool Host::bypass(int16_t instance_number, bool bypass_value)
+{
+    const QString message(QString::fromUtf8("bypass %1 %2").arg(instance_number).arg(bypass_value ? 1 : 0));
+    return impl->writeMessageAndWait(message);
+}
+
+bool Host::param_set(int16_t instance_number, const char* param_symbol, float param_value)
+{
+    const QString message(QString::fromUtf8("param_set %1 \"%2\" %3").arg(instance_number).arg(param_symbol).arg(param_value));
+    return impl->writeMessageAndWait(message);
+}
+
+bool Host::param_get(int16_t instance_number, const char* param_symbol)
+{
+    const QString message(QString::fromUtf8("param_get %1 \"%2\"").arg(instance_number).arg(param_symbol));
+    return impl->writeMessageAndWait(message);
+}
+
 float Host::cpu_load()
 {
     const QString message(QString::fromUtf8("cpu_load"));

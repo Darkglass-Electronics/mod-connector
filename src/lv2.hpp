@@ -56,6 +56,11 @@ struct Lv2World {
     */
     const Lv2Plugin* get_plugin(uint32_t index) const;
 
+   /* get the plugin with a known uri
+    * can return null in case of error or the plugin requires unsupported features
+    */
+    const Lv2Plugin* get_plugin_by_uri(const char* uri) const;
+
     Lv2World();
     ~Lv2World();
 
