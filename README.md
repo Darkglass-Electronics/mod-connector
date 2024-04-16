@@ -40,7 +40,33 @@ Connecting clients will receive the current state as json with this data model:
         }
     ],
     "state": {
-        // received & stored state follows here
+        "bank": 1,
+        "banks": {
+            "1": {
+                "preset": 1,
+                "presets": {
+                    "1": {
+                        "chain": {
+                            "1": {
+                                "binding": "1",
+                                "name": "Gain",
+                                "parameters": {
+                                    "1": {
+                                        "maximum": -20,
+                                        "minimum": 20,
+                                        "name": "Gain",
+                                        "symbol": "gain",
+                                        "value": 0
+                                    },
+                                    // ...
+                                },
+                                "uri": "http://kxstudio.sf.net/carla/plugins/audiogain"
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 ```
@@ -60,7 +86,7 @@ The build dependencies are:
 - cmake >= 3.15
 - lilv
 - LV2
-- Qt with QtWebsockes (either Qt5 or Qt6)
+- Qt with QtWebsockets (either Qt5 or Qt6)
 - systemd (optional, enables "notify" systemd event)
 
 ## Environment
