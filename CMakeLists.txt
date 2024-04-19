@@ -54,8 +54,8 @@ set_target_properties(mod-connector
 
 target_compile_definitions(mod-connector
   PRIVATE
-    $<$<BOOL:lv2_1_18_FOUND>:HAVE_LV2_1_18>
-    $<$<BOOL:systemd_FOUND>:HAVE_SYSTEMD>
+    $<$<BOOL:${lv2_1_18_FOUND}>:HAVE_LV2_1_18>
+    $<$<BOOL:${systemd_FOUND}>:HAVE_SYSTEMD>
 )
 
 target_include_directories(mod-connector
@@ -67,7 +67,7 @@ target_link_libraries(mod-connector
   PUBLIC
     PkgConfig::lilv
     PkgConfig::lv2
-    PkgConfig::systemd
+    $<$<BOOL:${systemd_FOUND}>:PkgConfig::systemd>
     Qt::Core
     Qt::Network
     Qt::WebSockets
