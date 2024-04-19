@@ -219,7 +219,7 @@ struct Connector : QObject,
                 size_t srci = 0;
                 for (size_t i = 0; i < plugin->ports.size(); ++i)
                 {
-                    if ((plugin->ports[i].flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != (Lv2PortIsAudio|Lv2PortIsOutput))
+                    if ((plugin->ports[i].flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != Lv2PortIsAudio)
                         continue;
 
                     ++srci;
@@ -326,7 +326,7 @@ struct Connector : QObject,
                 size_t srci = 0;
                 for (size_t i = 0; i < plugin->ports.size(); ++i)
                 {
-                    if ((plugin->ports[i].flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != (Lv2PortIsAudio|Lv2PortIsOutput))
+                    if ((plugin->ports[i].flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != Lv2PortIsAudio)
                         continue;
 
                     ++srci;
