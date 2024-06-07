@@ -12,9 +12,11 @@
 #ifdef HAVE_LV2_1_18
 #include <lv2/atom/atom.h>
 #include <lv2/morph/morph.h>
+#include <lv2/port-props/port-props.h>
 #else
 #include <lv2/lv2plug.in/ns/ext/atom/atom.h>
 #include <lv2/lv2plug.in/ns/ext/morph/morph.h>
+#include <lv2/lv2plug.in/ns/ext/port-props/port-props.h>
 #endif
 
 #include <QtCore/QJsonArray>
@@ -91,7 +93,7 @@ struct Lv2World::Impl
         return pluginuris.size();
     }
 
-    const Lv2Plugin* getPlugin(const uint32_t index)
+    const Lv2Plugin* getPluginByIndex(const uint32_t index)
     {
         return getPluginByURI(pluginuris[index].c_str());
     }
@@ -278,6 +280,8 @@ struct Lv2World::Impl
                                     retport.flags |= Lv2ParameterToggled;
                                 else if (std::strcmp(propuri, LV2_CORE__integer) == 0)
                                     retport.flags |= Lv2ParameterInteger;
+                                else if (std::strcmp(propuri, LV2_PORT_PROPS__notOnGUI) == 0)
+                                    retport.flags |= Lv2ParameterHidden;
                             }
 
                             lilv_nodes_free(nodes);
@@ -347,9 +351,9 @@ uint32_t Lv2World::get_plugin_count() const noexcept
     return impl->getPluginCount();
 }
 
-const Lv2Plugin* Lv2World::get_plugin(const uint32_t index) const
+const Lv2Plugin* Lv2World::get_plugin_by_index(const uint32_t index) const
 {
-    return impl->getPlugin(index);
+    return impl->getPluginByIndex(index);
 }
 
 const Lv2Plugin* Lv2World::get_plugin_by_uri(const char* const uri) const

@@ -23,6 +23,7 @@ enum Lv2Flags {
     Lv2PortIsOutput     = 1 << 3,
     Lv2ParameterToggled = 1 << 4,
     Lv2ParameterInteger = 1 << 5,
+    Lv2ParameterHidden  = 1 << 6,
 };
 
 struct Lv2Port {
@@ -54,7 +55,7 @@ struct Lv2World {
    /* get the plugin @a index
     * can return null in case of error or the plugin requires unsupported features
     */
-    const Lv2Plugin* get_plugin(uint32_t index) const;
+    const Lv2Plugin* get_plugin_by_index(uint32_t index) const;
 
    /* get the plugin with a known uri
     * can return null in case of error or the plugin requires unsupported features

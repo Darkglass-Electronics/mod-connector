@@ -123,7 +123,7 @@ struct Connector : QObject,
             {
                 for (uint32_t i=0; i<pcount; ++i)
                 {
-                    if (const Lv2Plugin* const plugin = lv2world.get_plugin(i))
+                    if (const Lv2Plugin* const plugin = lv2world.get_plugin_by_index(i))
                     {
                         QJsonObject jsonObj;
                         lv2_plugin_to_json(plugin, jsonObj);
