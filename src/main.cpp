@@ -167,15 +167,15 @@ struct Connector : QObject,
             if (stateJson.contains("state"))
                 stateObj = stateJson["state"].toObject();
 
-            if (verboseLogs)
-            {
-                puts(QJsonDocument(stateObj).toJson().constData());
-            }
-
             const QJsonObject msgStateObj(msgObj["state"].toObject());
             copyJsonObjectValue(stateObj, msgStateObj);
 
             stateJson["state"] = stateObj;
+
+            if (verboseLogs)
+            {
+                puts(QJsonDocument(msgStateObj).toJson().constData());
+            }
 
             handleStateChanges(msgStateObj);
             saveStateLater();
@@ -429,9 +429,18 @@ struct Connector : QObject,
 
             if (current.bank != newbank)
             {
+                printf("DEBUG: bank changed to %d\n", newbank);
                 current.bank = newbank;
                 bankchanged = true;
             }
+            else
+            {
+                printf("DEBUG: bank remains as %d\n", newbank);
+            }
+        }
+        else
+        {
+            printf("DEBUG: state has no current bank info\n");
         }
 
         const QJsonObject banks(stateObj["banks"].toObject());
@@ -444,12 +453,16 @@ struct Connector : QObject,
             // if we are changing the current bank, send changes to mod-host
             const bool islive = !bankchanged && current.bank == bankidi;
 
+            printf("DEBUG: now handling bank %d, live %d\n", bankidi, islive);
+
             const QJsonObject blocks(bank["blocks"].toObject());
             for (const QString& blockid : blocks.keys())
             {
                 const QJsonObject block(blocks[blockid].toObject());
                 const int blockidi = blockid.toInt() - 1;
                 auto& blockdata(bankdata.blocks[blockidi]);
+
+                printf("DEBUG: now handling block %d\n", blockidi);
 
                 if (block.contains("uri"))
                 {
@@ -463,10 +476,23 @@ struct Connector : QObject,
 
                         if (uri != "-")
                         {
-                            host.add(uri.toUtf8().constData(), blockidi);
+                            if (host.add(uri.toUtf8().constData(), blockidi))
+                                printf("DEBUG: block %d loaded plugin %s\n", blockidi, uri.toUtf8().constData());
+                            else
+                                printf("DEBUG: block %d failed loaded plugin %s: %s\n",
+                                       blockidi, uri.toUtf8().constData(), host.last_error.c_str());
+
                             hostDisconnectForNewBlock(blockidi);
                         }
+                        else
+                        {
+                            printf("DEBUG: block %d has no plugin\n", blockidi);
+                        }
                     }
+                }
+                else
+                {
+                    printf("DEBUG: block %d has no URI\n", blockidi);
                 }
 
                 if (block.contains("parameters"))

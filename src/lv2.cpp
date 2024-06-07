@@ -409,6 +409,8 @@ void lv2_plugin_to_json(const Lv2Plugin* plugin, QJsonObject& json)
             flags.append("toggled");
         if (lv2port.flags & Lv2ParameterInteger)
             flags.append("integer");
+        if (lv2port.flags & Lv2ParameterHidden)
+            flags.append("hidden");
         port["flags"] = flags;
 
         if (lv2port.flags & Lv2PortIsControl)

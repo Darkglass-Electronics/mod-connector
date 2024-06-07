@@ -279,8 +279,8 @@ struct Host::Impl : QObject
             return false;
         }
 
-        // skip first 5 bytes "resp "
-        respdata.remove(0, 5);
+        // skip first 5 bytes "resp " and null terminator
+        respdata.remove(0, 5).remove(respdata.length() - 1, respdata.length());
 
         // parse response error code
         bool ok = false;
@@ -291,7 +291,7 @@ struct Host::Impl : QObject
             last_error = "failed to parse mod-host response error code";
             return false;
         }
-        if (respcode != SUCCESS)
+        if (respcode < 0)
         {
             last_error = host_error_code_to_string(respcode);
             return false;

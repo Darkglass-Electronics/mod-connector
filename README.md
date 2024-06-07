@@ -21,17 +21,17 @@ Connecting clients will receive the current state as json with this data model:
                 {
                     "symbol": "in",
                     "name": "In",
-                    "flag": ["audio"]
+                    "flags": ["audio"]
                 },
                 {
                     "symbol": "out",
                     "name": "Out",
-                    "flag": ["audio","output"]
+                    "flags": ["audio","output"]
                 },
                 {
                     "symbol": "param",
                     "name": "Param",
-                    "flag": ["control"],
+                    "flags": ["control"],
                     "default": 0.0,
                     "minimum": 0.0,
                     "maximum": 1.0,
@@ -65,6 +65,28 @@ Connecting clients will receive the current state as json with this data model:
     }
 }
 ```
+
+The plugin category can be one of these values:
+
+- "None"
+- "Filter"
+- "Reverb"
+- "Utility"
+
+The plugin port flags will contain at least one of these types:
+
+- "audio"
+- "control"
+
+Additionally they can also contain "output" flag.
+For audio ports this means an audio output (otherwise it is an audio input).
+For control ports this means a meter-like output value, basically a read-only value which cannot be changed by the host or UI.
+
+Additional flags are available for control ports:
+
+- "toggled" (on/off switch based on minimum and maximum values, minimum = off and maximum = on)
+- "integer" (port values are always real, integer numbers)
+- "hidden" (port value can be read and/or changed but should not be displayed to the user)
 
 ## Building
 
