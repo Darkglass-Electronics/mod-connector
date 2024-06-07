@@ -59,16 +59,13 @@ struct Connector : QObject,
     struct {
         int bank = 0;
         struct {
-            int preset = 0;
             struct {
+                QString uri = "-";
                 struct {
-                    QString uri = "-";
-                    struct {
-                        QString symbol = "-";
-                        float value;
-                    } parameters[6];
-                } chain[6];
-            } presets[3];
+                    QString symbol = "-";
+                    float value;
+                } parameters[6];
+            } chain[6];
         } banks[6];
     } current;
 
@@ -176,11 +173,10 @@ struct Connector : QObject,
         host.remove(-1);
 
         const auto& bankdata(current.banks[current.bank]);
-        const auto& presetdata(bankdata.presets[bankdata.preset]);
 
         for (int c=0; c<6; ++c)
         {
-            const auto& chaindata(presetdata.chain[c]);
+            const auto& chaindata(bankdata.chain[c]);
             if (chaindata.uri == "-")
                 continue;
             host.add(chaindata.uri.toUtf8().constData(), c);
@@ -202,11 +198,10 @@ struct Connector : QObject,
     void hostConnectBetweenBlocks()
     {
         const auto& bankdata(current.banks[current.bank]);
-        const auto& presetdata(bankdata.presets[bankdata.preset]);
 
         bool loaded[6];
         for (int c = 0; c < 6; ++c)
-            loaded[c] = presetdata.chain[c].uri != "-";
+            loaded[c] = bankdata.chain[c].uri != "-";
 
         // first plugin
         for (int c = 0; c < 6; ++c)
@@ -214,7 +209,7 @@ struct Connector : QObject,
             if (! loaded[c])
                 continue;
 
-            if (const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(presetdata.chain[c].uri.toUtf8().constData()))
+            if (const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(bankdata.chain[c].uri.toUtf8().constData()))
             {
                 size_t srci = 0;
                 for (size_t i = 0; i < plugin->ports.size(); ++i)
@@ -238,7 +233,7 @@ struct Connector : QObject,
             if (! loaded[c])
                 continue;
 
-            if (const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(presetdata.chain[c].uri.toUtf8().constData()))
+            if (const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(bankdata.chain[c].uri.toUtf8().constData()))
             {
                 size_t dsti = 0;
                 for (size_t i = 0; i < plugin->ports.size(); ++i)
@@ -267,8 +262,8 @@ struct Connector : QObject,
                 if (! loaded[c2])
                     continue;
 
-                const Lv2Plugin* const plugin1 = lv2world.get_plugin_by_uri(presetdata.chain[c1].uri.toUtf8().constData());
-                const Lv2Plugin* const plugin2 = lv2world.get_plugin_by_uri(presetdata.chain[c2].uri.toUtf8().constData());
+                const Lv2Plugin* const plugin1 = lv2world.get_plugin_by_uri(bankdata.chain[c1].uri.toUtf8().constData());
+                const Lv2Plugin* const plugin2 = lv2world.get_plugin_by_uri(bankdata.chain[c2].uri.toUtf8().constData());
 
                 if (plugin1 != nullptr && plugin2 != nullptr)
                 {
@@ -308,11 +303,10 @@ struct Connector : QObject,
     void hostDisconnectForNewBlock(const int chainidi)
     {
         const auto& bankdata(current.banks[current.bank]);
-        const auto& presetdata(bankdata.presets[bankdata.preset]);
 
         bool loaded[6];
         for (int c = 0; c < 6; ++c)
-            loaded[c] = presetdata.chain[c].uri != "-";
+            loaded[c] = bankdata.chain[c].uri != "-";
         loaded[chainidi] = false;
 
         // first plugin
@@ -321,7 +315,7 @@ struct Connector : QObject,
             if (! loaded[c])
                 continue;
 
-            if (const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(presetdata.chain[c].uri.toUtf8().constData()))
+            if (const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(bankdata.chain[c].uri.toUtf8().constData()))
             {
                 size_t srci = 0;
                 for (size_t i = 0; i < plugin->ports.size(); ++i)
@@ -345,7 +339,7 @@ struct Connector : QObject,
             if (! loaded[c])
                 continue;
 
-            if (const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(presetdata.chain[c].uri.toUtf8().constData()))
+            if (const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(bankdata.chain[c].uri.toUtf8().constData()))
             {
                 size_t dsti = 0;
                 for (size_t i = 0; i < plugin->ports.size(); ++i)
@@ -374,8 +368,8 @@ struct Connector : QObject,
                 if (! loaded[c2])
                     continue;
 
-                const Lv2Plugin* const plugin1 = lv2world.get_plugin_by_uri(presetdata.chain[c1].uri.toUtf8().constData());
-                const Lv2Plugin* const plugin2 = lv2world.get_plugin_by_uri(presetdata.chain[c2].uri.toUtf8().constData());
+                const Lv2Plugin* const plugin1 = lv2world.get_plugin_by_uri(bankdata.chain[c1].uri.toUtf8().constData());
+                const Lv2Plugin* const plugin2 = lv2world.get_plugin_by_uri(bankdata.chain[c2].uri.toUtf8().constData());
 
                 if (plugin1 != nullptr && plugin2 != nullptr)
                 {
@@ -411,7 +405,7 @@ struct Connector : QObject,
 
     void handleStateChanges(const QJsonObject& stateObj)
     {
-        bool presetchanged = false;
+        bool bankchanged = false;
         bool chainchanged = false;
 
         if (stateObj.contains("bank"))
@@ -421,7 +415,7 @@ struct Connector : QObject,
             if (current.bank != newbank)
             {
                 current.bank = newbank;
-                presetchanged = true;
+                bankchanged = true;
             }
         }
 
@@ -432,81 +426,58 @@ struct Connector : QObject,
             const int bankidi = bankid.toInt() - 1;
             auto& bankdata(current.banks[bankidi]);
 
-            if (bank.contains("preset"))
+            // if we are changing the current bank, send changes to mod-host
+            const bool islive = !bankchanged && current.bank == bankidi;
+
+            const QJsonObject chains(bank["chain"].toObject());
+            for (const QString& chainid : chains.keys())
             {
-                const int newpreset = bank["preset"].toInt() - 1;
+                const QJsonObject chain(chains[chainid].toObject());
+                const int chainidi = chainid.toInt() - 1;
+                auto& chaindata(bankdata.chain[chainidi]);
 
-                if (bankdata.preset != newpreset)
+                if (chain.contains("uri"))
                 {
-                    bankdata.preset = newpreset;
+                    const QString uri = chain["uri"].toString();
+                    chaindata.uri = uri;
 
-                    if (current.bank == bankidi)
-                        presetchanged = true;
-                }
-            }
-
-            const QJsonObject presets(bank["presets"].toObject());
-            for (const QString& presetid : presets.keys())
-            {
-                const QJsonObject preset(presets[presetid].toObject());
-                const int presetidi = presetid.toInt() - 1;
-                auto& presetdata(bankdata.presets[presetidi]);
-
-                // if we are changing the current bank and current preset, send changes to mod-host
-                const bool islive = !presetchanged
-                    && current.bank == bankidi
-                    && current.banks[current.bank].preset == presetidi;
-
-                const QJsonObject chains(preset["chain"].toObject());
-                for (const QString& chainid : chains.keys())
-                {
-                    const QJsonObject chain(chains[chainid].toObject());
-                    const int chainidi = chainid.toInt() - 1;
-                    auto& chaindata(presetdata.chain[chainidi]);
-
-                    if (chain.contains("uri"))
+                    if (islive)
                     {
-                        const QString uri = chain["uri"].toString();
-                        chaindata.uri = uri;
+                        chainchanged = true;
+                        host.remove(chainidi);
 
-                        if (islive)
+                        if (uri != "-")
                         {
-                            chainchanged = true;
-                            host.remove(chainidi);
-
-                            if (uri != "-")
-                            {
-                                host.add(uri.toUtf8().constData(), chainidi);
-                                hostDisconnectForNewBlock(chainidi);
-                            }
+                            host.add(uri.toUtf8().constData(), chainidi);
+                            hostDisconnectForNewBlock(chainidi);
                         }
                     }
+                }
 
-                    if (chain.contains("parameters"))
+                if (chain.contains("parameters"))
+                {
+                    const QJsonObject parameters(chain["parameters"].toObject());
+                    for (const QString& parameterid : parameters.keys())
                     {
-                        const QJsonObject parameters(chain["parameters"].toObject());
-                        for (const QString& parameterid : parameters.keys())
+                        const QJsonObject parameter(parameters[parameterid].toObject());
+                        const int parameteridi = parameterid.toInt() - 1;
+                        auto& parameterdata(chaindata.parameters[parameteridi]);
+
+                        if (parameter.contains("symbol"))
                         {
-                            const QJsonObject parameter(parameters[parameterid].toObject());
-                            const int parameteridi = parameterid.toInt() - 1;
-                            auto& parameterdata(chaindata.parameters[parameteridi]);
+                            const QString symbol = parameter["symbol"].toString();
+                            parameterdata.symbol = symbol;
+                        }
 
-                            if (parameter.contains("symbol"))
+                        if (parameter.contains("value"))
+                        {
+                            const float value = parameter["value"].toDouble();
+                            parameterdata.value = value;
+
+                            if (islive)
                             {
-                                const QString symbol = parameter["symbol"].toString();
-                                parameterdata.symbol = symbol;
-                            }
-
-                            if (parameter.contains("value"))
-                            {
-                                const float value = parameter["value"].toDouble();
-                                parameterdata.value = value;
-
-                                if (islive)
-                                {
-                                    const QString symbol = parameterdata.symbol;
-                                    host.param_set(chainidi, symbol.toUtf8().constData(), value);
-                                }
+                                const QString symbol = parameterdata.symbol;
+                                host.param_set(chainidi, symbol.toUtf8().constData(), value);
                             }
                         }
                     }
@@ -516,7 +487,7 @@ struct Connector : QObject,
 
         // puts(QJsonDocument(chains).toJson().constData());
 
-        if (presetchanged)
+        if (bankchanged)
             loadCurrent();
         else if (chainchanged)
             hostConnectBetweenBlocks();
