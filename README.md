@@ -43,7 +43,7 @@ Connecting clients will receive the current state as json with this data model:
         "bank": 1,
         "banks": {
             "1": {
-                "chain": {
+                "blocks": {
                     "1": {
                         "binding": "1",
                         "name": "Gain",
