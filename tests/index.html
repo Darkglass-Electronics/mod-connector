@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>mod-connector</title>
+    <style>
+      body {
+        display: flex;
+        flex-direction: row;
+        flex-wrap: nowrap;
+/*         justify-content: space-evenly; */
+        margin: 0;
+        padding: 10px;
+      }
+      .div-panel {
+        margin: 0;
+        padding: 0;
+        min-width: 300px;
+        height: calc(100vh - 20px);
+        overflow: scroll;
+        display: flex;
+        flex-direction: column;
+      }
+      h1 {
+        margin: 0;
+        padding: 0;
+        background: green;
+        min-width: 180px;
+      }
+      .div-metadata h1,
+      .div-state h1 {
+        position: fixed;
+      }
+      pre {
+        margin: 0;
+        padding: 0;
+        margin-top: 50px;
+      }
+    </style>
+    <script src="./websocket.js"></script>
+    <script>
+      window.onload = function() {
+        wsconnect();
+
+        document.getElementById("action-clear").onclick = function() {
+          const blocks = {
+            "1": { "name": "-", "uri": "-" },
+            "2": { "name": "-", "uri": "-" },
+            "3": { "name": "-", "uri": "-" },
+            "4": { "name": "-", "uri": "-" },
+            "5": { "name": "-", "uri": "-" },
+            "6": { "name": "-", "uri": "-" },
+          }
+          if (ws_send_blocks(blocks)) {
+            g_state.banks[1].blocks = blocks;
+            update_state()
+          }
+        }
+        document.getElementById("action-add").onclick = function() {
+          const plugin = g_metadata.plugins[parseInt(Math.random() * (g_metadata.plugins.length - 1))];
+          let nextblock = 1;
+          while (g_state.banks[1].blocks[nextblock] && g_state.banks[1].blocks[nextblock].uri != "-") {
+            if (++nextblock > 6) {
+                return;
+            }
+          }
+          const blocks = {
+            [nextblock]: {
+              "name": plugin.name,
+              "uri": plugin.uri,
+              "parameters": {
+              }
+            }
+          }
+          if (ws_send_blocks(blocks)) {
+            g_state.banks[1].blocks[nextblock] = blocks[nextblock];
+            update_state()
+          }
+        }
+        document.getElementById("action-remove").onclick = function() {
+          let lastblock = 6;
+          while (! g_state.banks[1].blocks[lastblock] || g_state.banks[1].blocks[lastblock].uri == "-") {
+            if (--lastblock == 0) {
+              return;
+            }
+          }
+          const blocks = {
+            [lastblock]: {
+              "name": "-",
+              "uri": "-",
+            }
+          }
+          if (ws_send_blocks(blocks)) {
+            g_state.banks[1].blocks[lastblock] = blocks[lastblock];
+            update_state()
+          }
+        }
+      }
+      function update_metadata() {
+        document.getElementById("metadata").textContent = JSON.stringify(g_metadata, null, 2)
+      }
+      function update_state() {
+        document.getElementById("state").textContent = JSON.stringify(g_state, null, 2)
+      }
+    </script>
+  </head>
+  <body>
+    <div class="div-panel div-metadata">
+      <h1>Metadata</h1>
+      <pre id="metadata"></pre>
+    </div>
+    <div class="div-panel">
+      <div class="div-actions">
+        <h1>Actions</h1>
+        <div>
+          <br>
+          <button id="action-clear">Clear</button>
+          <button id="action-add">Add block</button>
+          <button id="action-remove">Remove block</button>
+          <br>
+          &nbsp;
+        </div>
+      </div>
+      <div class="div-state">
+        <h1>State</h1>
+        <pre id="state"></pre>
+      </div>
+    </div>
+  </body>
+</html>
