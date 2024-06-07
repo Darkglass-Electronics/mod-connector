@@ -67,8 +67,8 @@ function wsconnect() {
             }
 
             // update page to display retrieved content
-            update_metadata(g_metadata)
-            update_state(g_state)
+            update_metadata()
+            update_state()
             break;
         }
     }
