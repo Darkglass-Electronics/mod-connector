@@ -16,8 +16,13 @@ struct WebSocketServer::Impl : QObject
     Impl(Callbacks* const callbacks, std::string& lastError)
         : callbacks(callbacks),
           lastError(lastError),
+         #ifndef QT_NO_SSL
           wsServer("", std::getenv("SSL_CERT") != nullptr ? QWebSocketServer::SecureMode : QWebSocketServer::NonSecureMode)
+         #else
+          wsServer("", QWebSocketServer::NonSecureMode)
+         #endif
     {
+       #ifndef QT_NO_SSL
         if (const char* const certfile = std::getenv("SSL_CERT"))
         {
             QSslConfiguration sslconfig = wsServer.sslConfiguration();
@@ -31,6 +36,7 @@ struct WebSocketServer::Impl : QObject
             }
             wsServer.setSslConfiguration(sslconfig);
         }
+       #endif
 
         connect(&wsServer, &QWebSocketServer::closed, this, &WebSocketServer::Impl::slot_closed);
         connect(&wsServer, &QWebSocketServer::newConnection, this, &WebSocketServer::Impl::slot_newConnection);
