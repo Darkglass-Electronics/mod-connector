@@ -109,7 +109,14 @@ struct Lv2World::Impl
             }
 
             const LilvPlugin* const plugin = lilv_plugins_get_by_uri(plugins, urinode);
+
             lilv_node_free(urinode);
+
+            if (plugin == nullptr)
+            {
+                last_error = "Invalid Plugin";
+                return nullptr;
+            }
 
             Lv2Plugin* const retplugin = new Lv2Plugin;
 
