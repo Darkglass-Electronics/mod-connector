@@ -23,7 +23,7 @@
 
 // --------------------------------------------------------------------------------------------------------------------
 
-struct Connector {
+struct HostConnector {
     Host host;
     Lv2World lv2world;
     bool ok = false;
@@ -41,7 +41,7 @@ struct Connector {
         } banks[NUM_BANKS];
     } current;
 
-    Connector();
+    HostConnector();
 
     // load state as saved in the `current` struct
     void loadCurrent();

@@ -46,7 +46,7 @@ static void copyJsonObjectValue(QJsonObject& dst, const QJsonObject& src)
 // --------------------------------------------------------------------------------------------------------------------
 
 struct WebSocketConnector : QObject,
-                            Connector,
+                            HostConnector,
                             WebSocketServer::Callbacks
 {
     WebSocketServer wsServer;
@@ -56,7 +56,7 @@ struct WebSocketConnector : QObject,
     QJsonObject stateJson;
 
     WebSocketConnector()
-        : Connector(),
+        : HostConnector(),
           wsServer(this)
     {
         if (! ok)
@@ -306,7 +306,7 @@ int main(int argc, char* argv[])
     app.setApplicationVersion("0.0.1");
     app.setOrganizationName("Darkglass");
 
-    Connector connector;
+    WebSocketConnector connector;
 
 #ifdef HAVE_SYSTEMD
     if (connector.ok)

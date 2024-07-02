@@ -3,11 +3,40 @@
 
 #include "connector.hpp"
 
-#include <QtCore/QString>
+#include <cstdarg>
+
+// --------------------------------------------------------------------------------------------------------------------
+// utility function that formats a std::string via `vsnprintf`
+
+#ifdef __MINGW32__
+__attribute__((format(__MINGW_PRINTF_FORMAT, 1, 2)))
+#else
+__attribute__((format(printf, 1, 2)))
+#endif
+std::string format(const char* format, ...)
+{
+    std::string ret;
+
+    va_list args, args2;
+    va_start(args, format);
+    va_copy(args2, args);
+
+    const int size = std::vsnprintf(NULL, 0, format, args);
+    if (size > 0)
+    {
+        ret.resize(size + 1);
+        std::vsnprintf(&ret[0], size + 1, format, args2);
+    }
+
+    va_end(args);
+    va_end(args2);
+
+    return ret;
+}
 
 // --------------------------------------------------------------------------------------------------------------------
 
-Connector::Connector()
+HostConnector::HostConnector()
 {
     if (! host.last_error.empty())
     {
@@ -21,7 +50,7 @@ Connector::Connector()
 // --------------------------------------------------------------------------------------------------------------------
 // load state as saved in the `current` struct
 
-void Connector::loadCurrent()
+void HostConnector::loadCurrent()
 {
     host.remove(-1);
 
@@ -50,7 +79,7 @@ void Connector::loadCurrent()
 // common function to connect all the blocks as needed
 // TODO cleanup duplicated code with function below
 
-void Connector::hostConnectBetweenBlocks()
+void HostConnector::hostConnectBetweenBlocks()
 {
     const auto& bankdata(current.banks[current.bank]);
 
@@ -66,15 +95,15 @@ void Connector::hostConnectBetweenBlocks()
 
         if (const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(bankdata.blocks[b].uri.c_str()))
         {
-            size_t srci = 0;
+            int srci = 0;
             for (size_t i = 0; i < plugin->ports.size(); ++i)
             {
                 if ((plugin->ports[i].flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != Lv2PortIsAudio)
                     continue;
 
                 ++srci;
-                const std::string origin(QString("system:capture_%1").arg(srci).toStdString());
-                const std::string target(QString("effect_%1:%2").arg(b).arg(plugin->ports[i].symbol.c_str()).toStdString());
+                const std::string origin(format("system:capture_%d", srci));
+                const std::string target(format("effect_%d:%s", b, plugin->ports[i].symbol.c_str()));
                 host.connect(origin.c_str(), target.c_str());
             }
         }
@@ -90,15 +119,15 @@ void Connector::hostConnectBetweenBlocks()
 
         if (const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(bankdata.blocks[b].uri.c_str()))
         {
-            size_t dsti = 0;
+            int dsti = 0;
             for (size_t i = 0; i < plugin->ports.size(); ++i)
             {
                 if ((plugin->ports[i].flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != (Lv2PortIsAudio|Lv2PortIsOutput))
                     continue;
 
                 ++dsti;
-                const std::string origin(QString("effect_%1:%2").arg(b).arg(plugin->ports[i].symbol.c_str()).toStdString());
-                const std::string target(QString("mod-monitor:in_%1").arg(dsti).toStdString());
+                const std::string origin(format("effect_%d:%s", b, plugin->ports[i].symbol.c_str()));
+                const std::string target(format("mod-monitor:in_%d", dsti));
                 host.connect(origin.c_str(), target.c_str());
             }
         }
@@ -122,7 +151,7 @@ void Connector::hostConnectBetweenBlocks()
 
             if (plugin1 != nullptr && plugin2 != nullptr)
             {
-                size_t srci = 0;
+                int srci = 0;
                 for (size_t i = 0; i < plugin1->ports.size(); ++i)
                 {
                     if ((plugin1->ports[i].flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != (Lv2PortIsAudio|Lv2PortIsOutput))
@@ -140,8 +169,8 @@ void Connector::hostConnectBetweenBlocks()
                         if (srci != ++dstj)
                             continue;
 
-                        const std::string origin(QString("effect_%1:%2").arg(b1).arg(plugin1->ports[i].symbol.c_str()).toStdString());
-                        const std::string target(QString("effect_%1:%2").arg(b2).arg(plugin2->ports[j].symbol.c_str()).toStdString());
+                        const std::string origin(format("effect_%d:%s", b1, plugin1->ports[i].symbol.c_str()));
+                        const std::string target(format("effect_%d:%s", b2, plugin2->ports[j].symbol.c_str()));
                         host.connect(origin.c_str(), target.c_str());
                     }
                 }
@@ -157,7 +186,7 @@ void Connector::hostConnectBetweenBlocks()
 // TODO cleanup duplicated code with function above
 // FIXME this logic can be made much better, but this is for now just a testing tool anyhow
 
-void Connector::hostDisconnectForNewBlock(const int blockidi)
+void HostConnector::hostDisconnectForNewBlock(const int blockidi)
 {
     const auto& bankdata(current.banks[current.bank]);
 
@@ -174,15 +203,15 @@ void Connector::hostDisconnectForNewBlock(const int blockidi)
 
         if (const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(bankdata.blocks[b].uri.c_str()))
         {
-            size_t srci = 0;
+            int srci = 0;
             for (size_t i = 0; i < plugin->ports.size(); ++i)
             {
                 if ((plugin->ports[i].flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != Lv2PortIsAudio)
                     continue;
 
                 ++srci;
-                const std::string origin(QString("system:capture_%1").arg(srci).toStdString());
-                const std::string target(QString("effect_%1:%2").arg(b).arg(plugin->ports[i].symbol.c_str()).toStdString());
+                const std::string origin(format("system:capture_%d", srci));
+                const std::string target(format("effect_%d:%s", b, plugin->ports[i].symbol.c_str()));
                 host.disconnect(origin.c_str(), target.c_str());
             }
         }
@@ -198,15 +227,15 @@ void Connector::hostDisconnectForNewBlock(const int blockidi)
 
         if (const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(bankdata.blocks[b].uri.c_str()))
         {
-            size_t dsti = 0;
+            int dsti = 0;
             for (size_t i = 0; i < plugin->ports.size(); ++i)
             {
                 if ((plugin->ports[i].flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != (Lv2PortIsAudio|Lv2PortIsOutput))
                     continue;
 
                 ++dsti;
-                const std::string origin(QString("effect_%1:%2").arg(b).arg(plugin->ports[i].symbol.c_str()).toStdString());
-                const std::string target(QString("mod-monitor:in_%1").arg(dsti).toStdString());
+                const std::string origin(format("effect_%d:%s", b, plugin->ports[i].symbol.c_str()));
+                const std::string target(format("mod-monitor:in_%d", dsti));
                 host.disconnect(origin.c_str(), target.c_str());
             }
         }
@@ -230,7 +259,7 @@ void Connector::hostDisconnectForNewBlock(const int blockidi)
 
             if (plugin1 != nullptr && plugin2 != nullptr)
             {
-                size_t srci = 0;
+                int srci = 0;
                 for (size_t i = 0; i < plugin1->ports.size(); ++i)
                 {
                     if ((plugin1->ports[i].flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != (Lv2PortIsAudio|Lv2PortIsOutput))
@@ -248,8 +277,8 @@ void Connector::hostDisconnectForNewBlock(const int blockidi)
                         if (srci != ++dstj)
                             continue;
 
-                        const std::string origin(QString("effect_%1:%2").arg(b1).arg(plugin1->ports[i].symbol.c_str()).toStdString());
-                        const std::string target(QString("effect_%1:%2").arg(b2).arg(plugin2->ports[j].symbol.c_str()).toStdString());
+                        const std::string origin(format("effect_%d:%s", b1, plugin1->ports[i].symbol.c_str()));
+                        const std::string target(format("effect_%d:%s", b2, plugin2->ports[j].symbol.c_str()));
                         host.disconnect(origin.c_str(), target.c_str());
                     }
                 }
