@@ -56,19 +56,19 @@ void HostConnector::loadCurrent()
 
     const auto& bankdata(current.banks[current.bank]);
 
-    for (int c = 0; c < NUM_BLOCKS_IN_BANK; ++c)
+    for (int b = 0; b < NUM_BLOCKS_IN_BANK; ++b)
     {
-        const auto& blockdata(bankdata.blocks[c]);
+        const auto& blockdata(bankdata.blocks[b]);
         if (blockdata.uri == "-")
             continue;
-        host.add(blockdata.uri.c_str(), c);
+        host.add(blockdata.uri.c_str(), b);
 
         for (int p = 0; p < NUM_PARAMS_PER_BLOCK; ++p)
         {
             const auto& parameterdata(blockdata.parameters[p]);
             if (parameterdata.symbol == "-")
                 continue;
-            host.param_set(c, parameterdata.symbol.c_str(), parameterdata.value);
+            host.param_set(b, parameterdata.symbol.c_str(), parameterdata.value);
         }
     }
 
