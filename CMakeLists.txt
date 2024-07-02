@@ -75,6 +75,7 @@ target_link_libraries(mod-connector
 
 target_sources(mod-connector
   PRIVATE
+    src/connector.cpp
     src/host.cpp
     src/lv2.cpp
     src/main.cpp
