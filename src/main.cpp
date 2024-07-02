@@ -45,6 +45,52 @@ static void copyJsonObjectValue(QJsonObject& dst, const QJsonObject& src)
 
 // --------------------------------------------------------------------------------------------------------------------
 
+static void lv2_plugin_to_json(const Lv2Plugin* const plugin, QJsonObject& json)
+{
+    json["uri"] = QString::fromStdString(plugin->uri);
+    json["name"] = QString::fromStdString(plugin->name);
+    json["category"] = lv2_category_name(plugin->category);
+
+    QJsonArray ports;
+
+    for (size_t i = 0; i < plugin->ports.size(); ++i)
+    {
+        QJsonObject port;
+        const Lv2Port& lv2port(plugin->ports[i]);
+
+        port["symbol"] = QString::fromStdString(lv2port.symbol);
+        port["name"] = QString::fromStdString(lv2port.name);
+
+        QJsonArray flags;
+        if (lv2port.flags & Lv2PortIsAudio)
+            flags.append("audio");
+        if (lv2port.flags & Lv2PortIsControl)
+            flags.append("control");
+        if (lv2port.flags & Lv2PortIsOutput)
+            flags.append("output");
+        if (lv2port.flags & Lv2ParameterToggled)
+            flags.append("toggled");
+        if (lv2port.flags & Lv2ParameterInteger)
+            flags.append("integer");
+        if (lv2port.flags & Lv2ParameterHidden)
+            flags.append("hidden");
+        port["flags"] = flags;
+
+        if (lv2port.flags & Lv2PortIsControl)
+        {
+            port["default"] = lv2port.def;
+            port["minimum"] = lv2port.min;
+            port["maximum"] = lv2port.max;
+        }
+
+        ports.append(port);
+    }
+
+    json["ports"] = ports;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 struct WebSocketConnector : QObject,
                             HostConnector,
                             WebSocketServer::Callbacks
