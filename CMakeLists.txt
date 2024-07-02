@@ -56,6 +56,7 @@ target_compile_definitions(mod-connector
   PRIVATE
     $<$<BOOL:${lv2_1_18_FOUND}>:HAVE_LV2_1_18>
     $<$<BOOL:${systemd_FOUND}>:HAVE_SYSTEMD>
+    WITH_QT
 )
 
 target_include_directories(mod-connector
@@ -79,6 +80,7 @@ target_sources(mod-connector
     src/host.cpp
     src/lv2.cpp
     src/main.cpp
+    src/utils.cpp
     src/websocket.cpp
 )
 

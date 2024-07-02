@@ -1,13 +1,19 @@
 // SPDX-FileCopyrightText: 2024 Filipe Coelho <falktx@darkglass.com>
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: ISC
 
 #include "host.hpp"
+#include "utils.hpp"
 
+#include <cstring>
+
+// TODO do not use Qt on this file
+#ifdef WITH_QT
 #include <QtCore/QIODevice>
 #include <QtCore/QStringList>
 #include <QtCore/QTimer>
 #include <QtNetwork/QHostAddress>
 #include <QtNetwork/QTcpSocket>
+#endif
 
 // --------------------------------------------------------------------------------------------------------------------
 
@@ -128,7 +134,10 @@ static const char* host_error_code_to_string(const int code)
 
 // --------------------------------------------------------------------------------------------------------------------
 
-struct Host::Impl : QObject
+struct Host::Impl
+#ifdef WITH_QT
+: QObject
+#endif
 {
     Impl(std::string& last_error)
         : last_error(last_error)
@@ -158,8 +167,8 @@ struct Host::Impl : QObject
             port = 5555;
         }
 
-// TODO QAbstractSocket::LowDelayOption
-
+#ifdef WITH_QT
+        // TODO QAbstractSocket::LowDelayOption
         QObject::connect(&sockets.out, &QAbstractSocket::connected, this, &Host::Impl::slot_connected);
         QObject::connect(&sockets.feedback, &QAbstractSocket::readyRead, this, &Host::Impl::slot_readyRead);
 
@@ -183,6 +192,10 @@ struct Host::Impl : QObject
             close();
             return;
         }
+#else
+        last_error = "TODO without Qt";
+        dummyDevMode = true;
+#endif
     }
 
     ~Impl()
@@ -192,14 +205,16 @@ struct Host::Impl : QObject
 
     void close()
     {
+#ifdef WITH_QT
         sockets.out.close();
         sockets.feedback.close();
+#endif
     }
 
     // ----------------------------------------------------------------------------------------------------------------
     // message handling
 
-    bool writeMessageAndWait(const QString& message,
+    bool writeMessageAndWait(const std::string& message,
                              const HostResponseType respType = kHostResponseNone,
                              HostResponse* const resp = nullptr)
     {
@@ -224,6 +239,7 @@ struct Host::Impl : QObject
             return true;
         }
 
+#ifdef WITH_QT
         if (sockets.out.state() != QAbstractSocket::ConnectedState)
         {
             last_error = "mod-host socket is not connected";
@@ -231,7 +247,7 @@ struct Host::Impl : QObject
         }
 
         // write message to buffer
-        sockets.out.write(message.toUtf8());
+        sockets.out.write(message.c_str());
 
         // wait until message is written
         if (! sockets.out.waitForBytesWritten(1000))
@@ -323,6 +339,7 @@ struct Host::Impl : QObject
             resp->data.f = std::atof(respdatasplit[1].toUtf8().constData());
             break;
         }
+#endif
 
         return true;
     }
@@ -330,6 +347,7 @@ struct Host::Impl : QObject
     // ----------------------------------------------------------------------------------------------------------------
     // feedback port handling
 
+#ifdef WITH_QT
 private:
     bool willReceiveMoreFeedbackMessages = false;
 
@@ -371,15 +389,18 @@ private slots:
     {
         reportFeedbackReady();
     }
+#endif
 
 private:
     std::string& last_error;
     bool dummyDevMode = false;
 
+#ifdef WITH_QT
     struct {
         QTcpSocket out;
         QTcpSocket feedback;
     } sockets;
+#endif
 };
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -393,34 +414,29 @@ Host::~Host() { delete impl; }
 
 bool Host::add(const char* const uri, const int16_t instance_number)
 {
-    const QString message(QString::fromUtf8("add \"%1\" %2").arg(uri).arg(instance_number));
-    return impl->writeMessageAndWait(message);
+    return impl->writeMessageAndWait(format("add \"%s\" %d", uri, instance_number));
 }
 
 bool Host::remove(const int16_t instance_number)
 {
-    const QString message(QString::fromUtf8("remove %1").arg(instance_number));
-    return impl->writeMessageAndWait(message);
+    return impl->writeMessageAndWait(format("remove %d", instance_number));
 }
 
 bool Host::preset_load(const int16_t instance_number, const char* const preset_uri)
 {
-    const QString message(QString::fromUtf8("preset_load %1 \"%2\"").arg(instance_number).arg(preset_uri));
-    return impl->writeMessageAndWait(message);
+    return impl->writeMessageAndWait(format("preset_load %d \"%s\"", instance_number, preset_uri));
 }
 
 bool Host::preset_save(const int16_t instance_number, const char* const preset_name, const char* const dir, const char* const file_name)
 {
-    const QString message(QString::fromUtf8("preset_save %1 \"%2\" \"%3\" \"%4\"").arg(instance_number).arg(preset_name).arg(dir).arg(file_name));
-    return impl->writeMessageAndWait(message);
+    return impl->writeMessageAndWait(format("preset_save %d \"%s\" \"%s\" \"%s\"", instance_number, preset_name, dir, file_name));
 }
 
 std::string Host::preset_show(const char* const preset_uri)
 {
-    const QString message(QString::fromUtf8("preset_show \"%1\"").arg(preset_uri));
-
     HostResponse resp;
-    if (! impl->writeMessageAndWait(message, kHostResponseString, &resp))
+    if (! impl->writeMessageAndWait(format("preset_show \"%s\"", preset_uri),
+                                    kHostResponseString, &resp))
         return {};
 
     const std::string ret(resp.data.s);
@@ -430,39 +446,34 @@ std::string Host::preset_show(const char* const preset_uri)
 
 bool Host::connect(const char* origin_port, const char* destination_port)
 {
-    const QString message(QString::fromUtf8("connect \"%1\" \"%2\"").arg(origin_port).arg(destination_port));
-    return impl->writeMessageAndWait(message);
+    return impl->writeMessageAndWait(format("connect \"%s\" \"%s\"", origin_port, destination_port));
 }
 
 bool Host::disconnect(const char* origin_port, const char* destination_port)
 {
-    const QString message(QString::fromUtf8("disconnect \"%1\" \"%2\"").arg(origin_port).arg(destination_port));
-    return impl->writeMessageAndWait(message);
+    return impl->writeMessageAndWait(format("disconnect \"%s\" \"%s\"", origin_port, destination_port));
 }
 
 bool Host::bypass(int16_t instance_number, bool bypass_value)
 {
-    const QString message(QString::fromUtf8("bypass %1 %2").arg(instance_number).arg(bypass_value ? 1 : 0));
-    return impl->writeMessageAndWait(message);
+    return impl->writeMessageAndWait(format("bypass %d %d", instance_number, bypass_value ? 1 : 0));
 }
 
 bool Host::param_set(int16_t instance_number, const char* param_symbol, float param_value)
 {
-    const QString message(QString::fromUtf8("param_set %1 \"%2\" %3").arg(instance_number).arg(param_symbol).arg(param_value));
-    return impl->writeMessageAndWait(message);
+    return impl->writeMessageAndWait(format("param_set %d \"%s\" %f", instance_number, param_symbol, param_value));
 }
 
 bool Host::param_get(int16_t instance_number, const char* param_symbol)
 {
-    const QString message(QString::fromUtf8("param_get %1 \"%2\"").arg(instance_number).arg(param_symbol));
-    return impl->writeMessageAndWait(message);
+    return impl->writeMessageAndWait(format("param_get %d \"%s\"", instance_number, param_symbol));
 }
 
 float Host::cpu_load()
 {
-    const QString message(QString::fromUtf8("cpu_load"));
     HostResponse resp;
-    return impl->writeMessageAndWait(message, kHostResponseFloat, &resp) ? resp.data.f : 0.f;
+    return impl->writeMessageAndWait("cpu_load",
+                                     kHostResponseFloat, &resp) ? resp.data.f : 0.f;
 }
 
 // --------------------------------------------------------------------------------------------------------------------
