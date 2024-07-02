@@ -204,7 +204,7 @@ struct WebSocketConnector : QObject,
 
                 if (block.contains("uri"))
                 {
-                    const QString uri = block["uri"].toString();
+                    const std::string uri = block["uri"].toString().toStdString();
                     blockdata.uri = uri;
 
                     if (islive)
@@ -214,11 +214,11 @@ struct WebSocketConnector : QObject,
 
                         if (uri != "-")
                         {
-                            if (host.add(uri.toUtf8().constData(), blockidi))
-                                printf("DEBUG: block %d loaded plugin %s\n", blockidi, uri.toUtf8().constData());
+                            if (host.add(uri.c_str(), blockidi))
+                                printf("DEBUG: block %d loaded plugin %s\n", blockidi, uri.c_str());
                             else
                                 printf("DEBUG: block %d failed loaded plugin %s: %s\n",
-                                        blockidi, uri.toUtf8().constData(), host.last_error.c_str());
+                                        blockidi, uri.c_str(), host.last_error.c_str());
 
                             hostDisconnectForNewBlock(blockidi);
                         }
@@ -244,7 +244,7 @@ struct WebSocketConnector : QObject,
 
                         if (parameter.contains("symbol"))
                         {
-                            const QString symbol = parameter["symbol"].toString();
+                            const std::string symbol = parameter["symbol"].toString().toStdString();
                             parameterdata.symbol = symbol;
                         }
 
@@ -255,8 +255,8 @@ struct WebSocketConnector : QObject,
 
                             if (islive)
                             {
-                                const QString symbol = parameterdata.symbol;
-                                host.param_set(blockidi, symbol.toUtf8().constData(), value);
+                                const std::string symbol = parameterdata.symbol;
+                                host.param_set(blockidi, symbol.c_str(), value);
                             }
                         }
                     }

@@ -32,14 +32,14 @@ void Connector::loadCurrent()
         const auto& blockdata(bankdata.blocks[c]);
         if (blockdata.uri == "-")
             continue;
-        host.add(blockdata.uri.toUtf8().constData(), c);
+        host.add(blockdata.uri.c_str(), c);
 
         for (int p = 0; p < NUM_PARAMS_PER_BLOCK; ++p)
         {
             const auto& parameterdata(blockdata.parameters[p]);
             if (parameterdata.symbol == "-")
                 continue;
-            host.param_set(c, parameterdata.symbol.toUtf8().constData(), parameterdata.value);
+            host.param_set(c, parameterdata.symbol.c_str(), parameterdata.value);
         }
     }
 
@@ -64,7 +64,7 @@ void Connector::hostConnectBetweenBlocks()
         if (! loaded[b])
             continue;
 
-        if (const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(bankdata.blocks[b].uri.toUtf8().constData()))
+        if (const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(bankdata.blocks[b].uri.c_str()))
         {
             size_t srci = 0;
             for (size_t i = 0; i < plugin->ports.size(); ++i)
@@ -73,9 +73,9 @@ void Connector::hostConnectBetweenBlocks()
                     continue;
 
                 ++srci;
-                const QString origin(QString("system:capture_%1").arg(srci));
-                const QString target(QString("effect_%1:%2").arg(b).arg(plugin->ports[i].symbol.c_str()));
-                host.connect(origin.toUtf8().constData(), target.toUtf8().constData());
+                const std::string origin(QString("system:capture_%1").arg(srci).toStdString());
+                const std::string target(QString("effect_%1:%2").arg(b).arg(plugin->ports[i].symbol.c_str()).toStdString());
+                host.connect(origin.c_str(), target.c_str());
             }
         }
 
@@ -88,7 +88,7 @@ void Connector::hostConnectBetweenBlocks()
         if (! loaded[b])
             continue;
 
-        if (const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(bankdata.blocks[b].uri.toUtf8().constData()))
+        if (const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(bankdata.blocks[b].uri.c_str()))
         {
             size_t dsti = 0;
             for (size_t i = 0; i < plugin->ports.size(); ++i)
@@ -97,9 +97,9 @@ void Connector::hostConnectBetweenBlocks()
                     continue;
 
                 ++dsti;
-                const QString origin(QString("effect_%1:%2").arg(b).arg(plugin->ports[i].symbol.c_str()));
-                const QString target(QString("mod-monitor:in_%1").arg(dsti));
-                host.connect(origin.toUtf8().constData(), target.toUtf8().constData());
+                const std::string origin(QString("effect_%1:%2").arg(b).arg(plugin->ports[i].symbol.c_str()).toStdString());
+                const std::string target(QString("mod-monitor:in_%1").arg(dsti).toStdString());
+                host.connect(origin.c_str(), target.c_str());
             }
         }
 
@@ -117,8 +117,8 @@ void Connector::hostConnectBetweenBlocks()
             if (! loaded[b2])
                 continue;
 
-            const Lv2Plugin* const plugin1 = lv2world.get_plugin_by_uri(bankdata.blocks[b1].uri.toUtf8().constData());
-            const Lv2Plugin* const plugin2 = lv2world.get_plugin_by_uri(bankdata.blocks[b2].uri.toUtf8().constData());
+            const Lv2Plugin* const plugin1 = lv2world.get_plugin_by_uri(bankdata.blocks[b1].uri.c_str());
+            const Lv2Plugin* const plugin2 = lv2world.get_plugin_by_uri(bankdata.blocks[b2].uri.c_str());
 
             if (plugin1 != nullptr && plugin2 != nullptr)
             {
@@ -140,9 +140,9 @@ void Connector::hostConnectBetweenBlocks()
                         if (srci != ++dstj)
                             continue;
 
-                        const QString origin(QString("effect_%1:%2").arg(b1).arg(plugin1->ports[i].symbol.c_str()));
-                        const QString target(QString("effect_%1:%2").arg(b2).arg(plugin2->ports[j].symbol.c_str()));
-                        host.connect(origin.toUtf8().constData(), target.toUtf8().constData());
+                        const std::string origin(QString("effect_%1:%2").arg(b1).arg(plugin1->ports[i].symbol.c_str()).toStdString());
+                        const std::string target(QString("effect_%1:%2").arg(b2).arg(plugin2->ports[j].symbol.c_str()).toStdString());
+                        host.connect(origin.c_str(), target.c_str());
                     }
                 }
             }
@@ -172,7 +172,7 @@ void Connector::hostDisconnectForNewBlock(const int blockidi)
         if (! loaded[b])
             continue;
 
-        if (const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(bankdata.blocks[b].uri.toUtf8().constData()))
+        if (const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(bankdata.blocks[b].uri.c_str()))
         {
             size_t srci = 0;
             for (size_t i = 0; i < plugin->ports.size(); ++i)
@@ -181,9 +181,9 @@ void Connector::hostDisconnectForNewBlock(const int blockidi)
                     continue;
 
                 ++srci;
-                const QString origin(QString("system:capture_%1").arg(srci));
-                const QString target(QString("effect_%1:%2").arg(b).arg(plugin->ports[i].symbol.c_str()));
-                host.disconnect(origin.toUtf8().constData(), target.toUtf8().constData());
+                const std::string origin(QString("system:capture_%1").arg(srci).toStdString());
+                const std::string target(QString("effect_%1:%2").arg(b).arg(plugin->ports[i].symbol.c_str()).toStdString());
+                host.disconnect(origin.c_str(), target.c_str());
             }
         }
 
@@ -196,7 +196,7 @@ void Connector::hostDisconnectForNewBlock(const int blockidi)
         if (! loaded[b])
             continue;
 
-        if (const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(bankdata.blocks[b].uri.toUtf8().constData()))
+        if (const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(bankdata.blocks[b].uri.c_str()))
         {
             size_t dsti = 0;
             for (size_t i = 0; i < plugin->ports.size(); ++i)
@@ -205,9 +205,9 @@ void Connector::hostDisconnectForNewBlock(const int blockidi)
                     continue;
 
                 ++dsti;
-                const QString origin(QString("effect_%1:%2").arg(b).arg(plugin->ports[i].symbol.c_str()));
-                const QString target(QString("mod-monitor:in_%1").arg(dsti));
-                host.disconnect(origin.toUtf8().constData(), target.toUtf8().constData());
+                const std::string origin(QString("effect_%1:%2").arg(b).arg(plugin->ports[i].symbol.c_str()).toStdString());
+                const std::string target(QString("mod-monitor:in_%1").arg(dsti).toStdString());
+                host.disconnect(origin.c_str(), target.c_str());
             }
         }
 
@@ -225,8 +225,8 @@ void Connector::hostDisconnectForNewBlock(const int blockidi)
             if (! loaded[b2])
                 continue;
 
-            const Lv2Plugin* const plugin1 = lv2world.get_plugin_by_uri(bankdata.blocks[b1].uri.toUtf8().constData());
-            const Lv2Plugin* const plugin2 = lv2world.get_plugin_by_uri(bankdata.blocks[b2].uri.toUtf8().constData());
+            const Lv2Plugin* const plugin1 = lv2world.get_plugin_by_uri(bankdata.blocks[b1].uri.c_str());
+            const Lv2Plugin* const plugin2 = lv2world.get_plugin_by_uri(bankdata.blocks[b2].uri.c_str());
 
             if (plugin1 != nullptr && plugin2 != nullptr)
             {
@@ -248,9 +248,9 @@ void Connector::hostDisconnectForNewBlock(const int blockidi)
                         if (srci != ++dstj)
                             continue;
 
-                        const QString origin(QString("effect_%1:%2").arg(b1).arg(plugin1->ports[i].symbol.c_str()));
-                        const QString target(QString("effect_%1:%2").arg(b2).arg(plugin2->ports[j].symbol.c_str()));
-                        host.disconnect(origin.toUtf8().constData(), target.toUtf8().constData());
+                        const std::string origin(QString("effect_%1:%2").arg(b1).arg(plugin1->ports[i].symbol.c_str()).toStdString());
+                        const std::string target(QString("effect_%1:%2").arg(b2).arg(plugin2->ports[j].symbol.c_str()).toStdString());
+                        host.disconnect(origin.c_str(), target.c_str());
                     }
                 }
             }

@@ -6,8 +6,6 @@
 #include "host.hpp"
 #include "lv2.hpp"
 
-#include <QtCore/QString>
-
 // --------------------------------------------------------------------------------------------------------------------
 // default configuration
 
@@ -34,9 +32,9 @@ struct Connector {
         int bank = 0;
         struct {
             struct {
-                QString uri = "-";
+                std::string uri = "-";
                 struct {
-                    QString symbol = "-";
+                    std::string symbol = "-";
                     float value;
                 } parameters[NUM_PARAMS_PER_BLOCK];
             } blocks[NUM_BLOCKS_IN_BANK];
