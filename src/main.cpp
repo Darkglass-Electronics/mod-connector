@@ -9,6 +9,7 @@
 #include <QtCore/QFile>
 #include <QtCore/QJsonArray>
 #include <QtCore/QJsonDocument>
+#include <QtCore/QJsonObject>
 #include <QtCore/QTimer>
 #include <QtWebSockets/QWebSocket>
 
@@ -44,11 +45,15 @@ static void copyJsonObjectValue(QJsonObject& dst, const QJsonObject& src)
 
 // --------------------------------------------------------------------------------------------------------------------
 
-struct WebSocketConnector : Connector,
+struct WebSocketConnector : QObject,
+                            Connector,
                             WebSocketServer::Callbacks
 {
     WebSocketServer wsServer;
     bool verboseLogs = false;
+
+    // keep current state in memory
+    QJsonObject stateJson;
 
     WebSocketConnector()
         : Connector(),
@@ -79,6 +84,15 @@ struct WebSocketConnector : Connector,
         }
 
         ok = true;
+
+        stateJson["type"] = "state";
+
+        QFile stateFile("state.json");
+        if (stateFile.open(QIODevice::ReadOnly|QIODevice::Text))
+        {
+            stateJson["state"] = QJsonDocument::fromJson(stateFile.readAll()).object();
+            handleStateChanges(stateJson["state"].toObject());
+        }
     }
 
     // handle new websocket connection
@@ -138,6 +152,124 @@ struct WebSocketConnector : Connector,
             handleStateChanges(msgStateObj);
             saveStateLater();
         }
+    }
+
+    // ----------------------------------------------------------------------------------------------------------------
+
+    void handleStateChanges(const QJsonObject& stateObj)
+    {
+        bool bankchanged = false;
+        bool blockschanged = false;
+
+        if (stateObj.contains("bank"))
+        {
+            const int newbank = stateObj["bank"].toInt() - 1;
+
+            if (current.bank != newbank)
+            {
+                printf("DEBUG: bank changed to %d\n", newbank);
+                current.bank = newbank;
+                bankchanged = true;
+            }
+            else
+            {
+                printf("DEBUG: bank remains as %d\n", newbank);
+            }
+        }
+        else
+        {
+            printf("DEBUG: state has no current bank info\n");
+        }
+
+        const QJsonObject banks(stateObj["banks"].toObject());
+        for (const QString& bankid : banks.keys())
+        {
+            const QJsonObject bank(banks[bankid].toObject());
+            const int bankidi = bankid.toInt() - 1;
+            auto& bankdata(current.banks[bankidi]);
+
+            // if we are changing the current bank, send changes to mod-host
+            const bool islive = !bankchanged && current.bank == bankidi;
+
+            printf("DEBUG: now handling bank %d, live %d\n", bankidi, islive);
+
+            const QJsonObject blocks(bank["blocks"].toObject());
+            for (const QString& blockid : blocks.keys())
+            {
+                const QJsonObject block(blocks[blockid].toObject());
+                const int blockidi = blockid.toInt() - 1;
+                auto& blockdata(bankdata.blocks[blockidi]);
+
+                printf("DEBUG: now handling block %d\n", blockidi);
+
+                if (block.contains("uri"))
+                {
+                    const QString uri = block["uri"].toString();
+                    blockdata.uri = uri;
+
+                    if (islive)
+                    {
+                        blockschanged = true;
+                        host.remove(blockidi);
+
+                        if (uri != "-")
+                        {
+                            if (host.add(uri.toUtf8().constData(), blockidi))
+                                printf("DEBUG: block %d loaded plugin %s\n", blockidi, uri.toUtf8().constData());
+                            else
+                                printf("DEBUG: block %d failed loaded plugin %s: %s\n",
+                                        blockidi, uri.toUtf8().constData(), host.last_error.c_str());
+
+                            hostDisconnectForNewBlock(blockidi);
+                        }
+                        else
+                        {
+                            printf("DEBUG: block %d has no plugin\n", blockidi);
+                        }
+                    }
+                }
+                else
+                {
+                    printf("DEBUG: block %d has no URI\n", blockidi);
+                }
+
+                if (block.contains("parameters"))
+                {
+                    const QJsonObject parameters(block["parameters"].toObject());
+                    for (const QString& parameterid : parameters.keys())
+                    {
+                        const QJsonObject parameter(parameters[parameterid].toObject());
+                        const int parameteridi = parameterid.toInt() - 1;
+                        auto& parameterdata(blockdata.parameters[parameteridi]);
+
+                        if (parameter.contains("symbol"))
+                        {
+                            const QString symbol = parameter["symbol"].toString();
+                            parameterdata.symbol = symbol;
+                        }
+
+                        if (parameter.contains("value"))
+                        {
+                            const float value = parameter["value"].toDouble();
+                            parameterdata.value = value;
+
+                            if (islive)
+                            {
+                                const QString symbol = parameterdata.symbol;
+                                host.param_set(blockidi, symbol.toUtf8().constData(), value);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // puts(QJsonDocument(blocks).toJson().constData());
+
+        if (bankchanged)
+            loadCurrent();
+        else if (blockschanged)
+            hostConnectBetweenBlocks();
     }
 
     // ----------------------------------------------------------------------------------------------------------------

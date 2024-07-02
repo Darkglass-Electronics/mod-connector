@@ -6,7 +6,7 @@
 #include "host.hpp"
 #include "lv2.hpp"
 
-#include <QtCore/QJsonObject>
+#include <QtCore/QString>
 
 // --------------------------------------------------------------------------------------------------------------------
 // default configuration
@@ -25,14 +25,11 @@
 
 // --------------------------------------------------------------------------------------------------------------------
 
-struct Connector : QObject
-{
+struct Connector {
     Host host;
     Lv2World lv2world;
     bool ok = false;
 
-    // keep current state in memory
-    QJsonObject stateJson;
     struct {
         int bank = 0;
         struct {
@@ -59,8 +56,6 @@ struct Connector : QObject
     // TODO cleanup duplicated code with function above
     // FIXME this logic can be made much better, but this is for now just a testing tool anyhow
     void hostDisconnectForNewBlock(int blockidi);
-
-    void handleStateChanges(const QJsonObject& stateObj);
 };
 
 // --------------------------------------------------------------------------------------------------------------------
