@@ -7,7 +7,7 @@
 #include <string>
 #include <vector>
 
-class QJsonObject;
+// --------------------------------------------------------------------------------------------------------------------
 
 enum Lv2Category {
     kLv2CategoryNone = 0,
@@ -70,5 +70,31 @@ private:
     Impl* const impl;
 };
 
-const char* lv2_category_name(Lv2Category category);
+// --------------------------------------------------------------------------------------------------------------------
+
+static constexpr inline
+const char* lv2_category_name(Lv2Category category)
+{
+    switch (category)
+    {
+    case kLv2CategoryNone:
+        return "None";
+    case kLv2CategoryFilter:
+        return "Filter";
+    case kLv2CategoryReverb:
+        return "Reverb";
+    case kLv2CategoryUtility:
+        return "Utility";
+    case kLv2CategoryCount:
+        break;
+    }
+
+    return "";
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+class QJsonObject;
 void lv2_plugin_to_json(const Lv2Plugin* plugin, QJsonObject& json);
+
+// --------------------------------------------------------------------------------------------------------------------

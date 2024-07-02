@@ -19,9 +19,6 @@
 #include <lv2/lv2plug.in/ns/ext/port-props/port-props.h>
 #endif
 
-#include <QtCore/QJsonArray>
-#include <QtCore/QJsonObject>
-
 #define MOD__CVPort "http://moddevices.com/ns/mod#CVPort"
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -58,6 +55,7 @@ struct Lv2World::Impl
 {
     Impl(std::string& last_error)
         : last_error(last_error),
+          world(lilv_world_new()),
           ns(world)
     {
         lilv_world_load_all(world);
@@ -331,7 +329,7 @@ struct Lv2World::Impl
 private:
     std::string& last_error;
 
-    LilvWorld* const world = lilv_world_new();
+    LilvWorld* const world = nullptr;
     const LilvPlugins* plugins = nullptr;
 
     Lv2NamespaceDefinitions ns;
@@ -363,24 +361,8 @@ const Lv2Plugin* Lv2World::get_plugin_by_uri(const char* const uri) const
 
 // --------------------------------------------------------------------------------------------------------------------
 
-const char* lv2_category_name(Lv2Category category)
-{
-    switch (category)
-    {
-    case kLv2CategoryNone:
-        return "None";
-    case kLv2CategoryFilter:
-        return "Filter";
-    case kLv2CategoryReverb:
-        return "Reverb";
-    case kLv2CategoryUtility:
-        return "Utility";
-    case kLv2CategoryCount:
-        break;
-    }
-
-    return "";
-}
+#include <QtCore/QJsonArray>
+#include <QtCore/QJsonObject>
 
 void lv2_plugin_to_json(const Lv2Plugin* plugin, QJsonObject& json)
 {
