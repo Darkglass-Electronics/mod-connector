@@ -193,7 +193,7 @@ struct Host::Impl
             return;
         }
 #else
-        last_error = "TODO without Qt";
+        // last_error = "TODO without Qt";
         dummyDevMode = true;
 #endif
     }

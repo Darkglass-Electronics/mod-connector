@@ -58,13 +58,21 @@ if(PROJECT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
 
   target_compile_definitions(mod-connector
     PRIVATE
+      $<$<BOOL:${lv2_1_18_FOUND}>:HAVE_LV2_1_18>
       $<$<BOOL:${systemd_FOUND}>:HAVE_SYSTEMD>
       # TODO remove this once host.cpp does not need Qt anymore
       WITH_QT
   )
 
+  target_include_directories(mod-connector
+    PRIVATE
+      src
+  )
+
   target_link_libraries(mod-connector
     PRIVATE
+      PkgConfig::lilv
+      PkgConfig::lv2
       $<$<BOOL:${systemd_FOUND}>:PkgConfig::systemd>
       Qt::Core
       Qt::Network
@@ -73,7 +81,11 @@ if(PROJECT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
 
   target_sources(mod-connector
     PRIVATE
+      src/connector.cpp
+      src/host.cpp
+      src/lv2.cpp
       src/main.cpp
+      src/utils.cpp
       src/websocket.cpp
   )
 
@@ -81,34 +93,32 @@ else()
 
   # building as interface library
   add_library(mod-connector INTERFACE)
+  add_library(mod::connector ALIAS mod-connector)
+
+  target_compile_definitions(mod-connector
+    INTERFACE
+      $<$<BOOL:${lv2_1_18_FOUND}>:HAVE_LV2_1_18>
+  )
+
+  target_include_directories(mod-connector
+    INTERFACE
+      src
+  )
+
+  target_link_libraries(mod-connector
+    INTERFACE
+      PkgConfig::lilv
+      PkgConfig::lv2
+  )
+
+  target_sources(mod-connector
+    INTERFACE
+      src/connector.cpp
+      src/host.cpp
+      src/lv2.cpp
+      src/utils.cpp
+  )
 
 endif()
-
-#######################################################################################################################
-# Setup connector target
-
-target_compile_definitions(mod-connector
-  PRIVATE
-    $<$<BOOL:${lv2_1_18_FOUND}>:HAVE_LV2_1_18>
-)
-
-target_include_directories(mod-connector
-  PRIVATE
-    src
-)
-
-target_link_libraries(mod-connector
-  PRIVATE
-    PkgConfig::lilv
-    PkgConfig::lv2
-)
-
-target_sources(mod-connector
-  PRIVATE
-    src/connector.cpp
-    src/host.cpp
-    src/lv2.cpp
-    src/utils.cpp
-)
 
 #######################################################################################################################
