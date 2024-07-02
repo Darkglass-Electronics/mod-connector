@@ -104,6 +104,7 @@ struct Lv2World::Impl
 
             if (urinode == nullptr)
             {
+                last_error = "Invalid URI";
                 return nullptr;
             }
 
@@ -364,7 +365,7 @@ const Lv2Plugin* Lv2World::get_plugin_by_uri(const char* const uri) const
 #include <QtCore/QJsonArray>
 #include <QtCore/QJsonObject>
 
-void lv2_plugin_to_json(const Lv2Plugin* plugin, QJsonObject& json)
+void lv2_plugin_to_json(const Lv2Plugin* const plugin, QJsonObject& json)
 {
     json["uri"] = QString::fromStdString(plugin->uri);
     json["name"] = QString::fromStdString(plugin->name);
