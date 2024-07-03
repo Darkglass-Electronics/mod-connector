@@ -234,75 +234,83 @@ struct WebSocketConnector : QObject,
             const int bankidi = bankid.toInt() - 1;
             auto& bankdata(current.banks[bankidi]);
 
-            // if we are changing the current bank, send changes to mod-host
-            const bool islive = !bankchanged && current.bank == bankidi;
-
-            printf("DEBUG: now handling bank %d, live %d\n", bankidi, islive);
-
-            const QJsonObject blocks(bank["blocks"].toObject());
-            for (const QString& blockid : blocks.keys())
+            const QJsonObject presets(bank["presets"].toObject());
+            for (const QString& presetid : presets.keys())
             {
-                const QJsonObject block(blocks[blockid].toObject());
-                const int blockidi = blockid.toInt() - 1;
-                auto& blockdata(bankdata.blocks[blockidi]);
+                const QJsonObject preset(presets[presetid].toObject());
+                const int presetidi = presetid.toInt() - 1;
+                auto& presetdata(bankdata.presets[presetidi]);
 
-                printf("DEBUG: now handling block %d\n", blockidi);
+                // if we are changing the current preset, send changes to mod-host
+                const bool islive = !bankchanged && current.bank == bankidi && current.preset == presetidi;
 
-                if (block.contains("uri"))
+                printf("DEBUG: now handling bank %d, live %d\n", bankidi, islive);
+
+                const QJsonObject blocks(bank["blocks"].toObject());
+                for (const QString& blockid : blocks.keys())
                 {
-                    const std::string uri = block["uri"].toString().toStdString();
-                    blockdata.uri = uri;
+                    const QJsonObject block(blocks[blockid].toObject());
+                    const int blockidi = blockid.toInt() - 1;
+                    auto& blockdata(presetdata.blocks[blockidi]);
 
-                    if (islive)
+                    printf("DEBUG: now handling block %d\n", blockidi);
+
+                    if (block.contains("uri"))
                     {
-                        blockschanged = true;
-                        host.remove(blockidi);
+                        const std::string uri = block["uri"].toString().toStdString();
+                        blockdata.uri = uri;
 
-                        if (uri != "-")
+                        if (islive)
                         {
-                            if (host.add(uri.c_str(), blockidi))
-                                printf("DEBUG: block %d loaded plugin %s\n", blockidi, uri.c_str());
+                            blockschanged = true;
+                            host.remove(blockidi);
+
+                            if (uri != "-")
+                            {
+                                if (host.add(uri.c_str(), blockidi))
+                                    printf("DEBUG: block %d loaded plugin %s\n", blockidi, uri.c_str());
+                                else
+                                    printf("DEBUG: block %d failed loaded plugin %s: %s\n",
+                                            blockidi, uri.c_str(), host.last_error.c_str());
+
+                                hostDisconnectForNewBlock(blockidi);
+                            }
                             else
-                                printf("DEBUG: block %d failed loaded plugin %s: %s\n",
-                                        blockidi, uri.c_str(), host.last_error.c_str());
-
-                            hostDisconnectForNewBlock(blockidi);
-                        }
-                        else
-                        {
-                            printf("DEBUG: block %d has no plugin\n", blockidi);
+                            {
+                                printf("DEBUG: block %d has no plugin\n", blockidi);
+                            }
                         }
                     }
-                }
-                else
-                {
-                    printf("DEBUG: block %d has no URI\n", blockidi);
-                }
-
-                if (block.contains("parameters"))
-                {
-                    const QJsonObject parameters(block["parameters"].toObject());
-                    for (const QString& parameterid : parameters.keys())
+                    else
                     {
-                        const QJsonObject parameter(parameters[parameterid].toObject());
-                        const int parameteridi = parameterid.toInt() - 1;
-                        auto& parameterdata(blockdata.parameters[parameteridi]);
+                        printf("DEBUG: block %d has no URI\n", blockidi);
+                    }
 
-                        if (parameter.contains("symbol"))
+                    if (block.contains("parameters"))
+                    {
+                        const QJsonObject parameters(block["parameters"].toObject());
+                        for (const QString& parameterid : parameters.keys())
                         {
-                            const std::string symbol = parameter["symbol"].toString().toStdString();
-                            parameterdata.symbol = symbol;
-                        }
+                            const QJsonObject parameter(parameters[parameterid].toObject());
+                            const int parameteridi = parameterid.toInt() - 1;
+                            auto& parameterdata(blockdata.parameters[parameteridi]);
 
-                        if (parameter.contains("value"))
-                        {
-                            const float value = parameter["value"].toDouble();
-                            parameterdata.value = value;
-
-                            if (islive)
+                            if (parameter.contains("symbol"))
                             {
-                                const std::string symbol = parameterdata.symbol;
-                                host.param_set(blockidi, symbol.c_str(), value);
+                                const std::string symbol = parameter["symbol"].toString().toStdString();
+                                parameterdata.symbol = symbol;
+                            }
+
+                            if (parameter.contains("value"))
+                            {
+                                const float value = parameter["value"].toDouble();
+                                parameterdata.value = value;
+
+                                if (islive)
+                                {
+                                    const std::string symbol = parameterdata.symbol;
+                                    host.param_set(blockidi, symbol.c_str(), value);
+                                }
                             }
                         }
                     }

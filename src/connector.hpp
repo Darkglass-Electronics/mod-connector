@@ -13,8 +13,12 @@
 #define NUM_BANKS 6
 #endif
 
-#ifndef NUM_BLOCKS_IN_BANK
-#define NUM_BLOCKS_IN_BANK 6
+#ifndef NUM_PRESETS_PER_BANK
+#define NUM_PRESETS_PER_BANK 3
+#endif
+
+#ifndef NUM_BLOCKS_PER_PRESET
+#define NUM_BLOCKS_PER_PRESET 6
 #endif
 
 #ifndef NUM_PARAMS_PER_BLOCK
@@ -30,14 +34,17 @@ struct HostConnector {
 
     struct {
         int bank = 0;
+        int preset = 0; // NOTE resets to 0 on bank change
         struct {
             struct {
-                std::string uri = "-";
                 struct {
-                    std::string symbol = "-";
-                    float value;
-                } parameters[NUM_PARAMS_PER_BLOCK];
-            } blocks[NUM_BLOCKS_IN_BANK];
+                    std::string uri = "-";
+                    struct {
+                        std::string symbol = "-";
+                        float value;
+                    } parameters[NUM_PARAMS_PER_BLOCK];
+                } blocks[NUM_BLOCKS_PER_PRESET];
+            } presets[NUM_PRESETS_PER_BANK];
         } banks[NUM_BANKS];
     } current;
 

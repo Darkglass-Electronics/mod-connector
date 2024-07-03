@@ -25,10 +25,11 @@ void HostConnector::loadCurrent()
     host.remove(-1);
 
     const auto& bankdata(current.banks[current.bank]);
+    const auto& presetdata(bankdata.presets[current.preset]);
 
-    for (int b = 0; b < NUM_BLOCKS_IN_BANK; ++b)
+    for (int b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
     {
-        const auto& blockdata(bankdata.blocks[b]);
+        const auto& blockdata(presetdata.blocks[b]);
         if (blockdata.uri == "-")
             continue;
         host.add(blockdata.uri.c_str(), b);
@@ -52,18 +53,19 @@ void HostConnector::loadCurrent()
 void HostConnector::hostConnectBetweenBlocks()
 {
     const auto& bankdata(current.banks[current.bank]);
+    const auto& presetdata(bankdata.presets[current.preset]);
 
-    bool loaded[NUM_BLOCKS_IN_BANK];
-    for (int b = 0; b < NUM_BLOCKS_IN_BANK; ++b)
-        loaded[b] = bankdata.blocks[b].uri != "-";
+    bool loaded[NUM_BLOCKS_PER_PRESET];
+    for (int b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
+        loaded[b] = presetdata.blocks[b].uri != "-";
 
     // first plugin
-    for (int b = 0; b < NUM_BLOCKS_IN_BANK; ++b)
+    for (int b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
     {
         if (! loaded[b])
             continue;
 
-        if (const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(bankdata.blocks[b].uri.c_str()))
+        if (const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(presetdata.blocks[b].uri.c_str()))
         {
             int srci = 0;
             for (size_t i = 0; i < plugin->ports.size(); ++i)
@@ -82,12 +84,12 @@ void HostConnector::hostConnectBetweenBlocks()
     }
 
     // last plugin
-    for (int b = NUM_BLOCKS_IN_BANK - 1; b >= 0; --b)
+    for (int b = NUM_BLOCKS_PER_PRESET - 1; b >= 0; --b)
     {
         if (! loaded[b])
             continue;
 
-        if (const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(bankdata.blocks[b].uri.c_str()))
+        if (const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(presetdata.blocks[b].uri.c_str()))
         {
             int dsti = 0;
             for (size_t i = 0; i < plugin->ports.size(); ++i)
@@ -106,18 +108,18 @@ void HostConnector::hostConnectBetweenBlocks()
     }
 
     // between plugins
-    for (int b1 = 0; b1 < NUM_BLOCKS_IN_BANK - 1; ++b1)
+    for (int b1 = 0; b1 < NUM_BLOCKS_PER_PRESET - 1; ++b1)
     {
         if (! loaded[b1])
             continue;
 
-        for (int b2 = b1 + 1; b2 < NUM_BLOCKS_IN_BANK; ++b2)
+        for (int b2 = b1 + 1; b2 < NUM_BLOCKS_PER_PRESET; ++b2)
         {
             if (! loaded[b2])
                 continue;
 
-            const Lv2Plugin* const plugin1 = lv2world.get_plugin_by_uri(bankdata.blocks[b1].uri.c_str());
-            const Lv2Plugin* const plugin2 = lv2world.get_plugin_by_uri(bankdata.blocks[b2].uri.c_str());
+            const Lv2Plugin* const plugin1 = lv2world.get_plugin_by_uri(presetdata.blocks[b1].uri.c_str());
+            const Lv2Plugin* const plugin2 = lv2world.get_plugin_by_uri(presetdata.blocks[b2].uri.c_str());
 
             if (plugin1 != nullptr && plugin2 != nullptr)
             {
@@ -159,19 +161,20 @@ void HostConnector::hostConnectBetweenBlocks()
 void HostConnector::hostDisconnectForNewBlock(const int blockidi)
 {
     const auto& bankdata(current.banks[current.bank]);
+    const auto& presetdata(bankdata.presets[current.preset]);
 
-    bool loaded[NUM_BLOCKS_IN_BANK];
-    for (int b = 0; b < NUM_BLOCKS_IN_BANK; ++b)
-        loaded[b] = bankdata.blocks[b].uri != "-";
+    bool loaded[NUM_BLOCKS_PER_PRESET];
+    for (int b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
+        loaded[b] = presetdata.blocks[b].uri != "-";
     loaded[blockidi] = false;
 
     // first plugin
-    for (int b = 0; b < NUM_BLOCKS_IN_BANK; ++b)
+    for (int b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
     {
         if (! loaded[b])
             continue;
 
-        if (const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(bankdata.blocks[b].uri.c_str()))
+        if (const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(presetdata.blocks[b].uri.c_str()))
         {
             int srci = 0;
             for (size_t i = 0; i < plugin->ports.size(); ++i)
@@ -190,12 +193,12 @@ void HostConnector::hostDisconnectForNewBlock(const int blockidi)
     }
 
     // last plugin
-    for (int b = NUM_BLOCKS_IN_BANK - 1; b >= 0; --b)
+    for (int b = NUM_BLOCKS_PER_PRESET - 1; b >= 0; --b)
     {
         if (! loaded[b])
             continue;
 
-        if (const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(bankdata.blocks[b].uri.c_str()))
+        if (const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(presetdata.blocks[b].uri.c_str()))
         {
             int dsti = 0;
             for (size_t i = 0; i < plugin->ports.size(); ++i)
@@ -214,18 +217,18 @@ void HostConnector::hostDisconnectForNewBlock(const int blockidi)
     }
 
     // between plugins
-    for (int b1 = 0; b1 < NUM_BLOCKS_IN_BANK - 1; ++b1)
+    for (int b1 = 0; b1 < NUM_BLOCKS_PER_PRESET - 1; ++b1)
     {
         if (! loaded[b1])
             continue;
 
-        for (int b2 = b1 + 1; b2 < NUM_BLOCKS_IN_BANK; ++b2)
+        for (int b2 = b1 + 1; b2 < NUM_BLOCKS_PER_PRESET; ++b2)
         {
             if (! loaded[b2])
                 continue;
 
-            const Lv2Plugin* const plugin1 = lv2world.get_plugin_by_uri(bankdata.blocks[b1].uri.c_str());
-            const Lv2Plugin* const plugin2 = lv2world.get_plugin_by_uri(bankdata.blocks[b2].uri.c_str());
+            const Lv2Plugin* const plugin1 = lv2world.get_plugin_by_uri(presetdata.blocks[b1].uri.c_str());
+            const Lv2Plugin* const plugin2 = lv2world.get_plugin_by_uri(presetdata.blocks[b2].uri.c_str());
 
             if (plugin1 != nullptr && plugin2 != nullptr)
             {

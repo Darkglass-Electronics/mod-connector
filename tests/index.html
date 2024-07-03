@@ -54,14 +54,14 @@
             "6": { "name": "-", "uri": "-" },
           }
           if (ws_send_blocks(blocks)) {
-            g_state.banks[1].blocks = blocks;
+            g_state.banks[1].presets[1].blocks = blocks;
             update_state()
           }
         }
         document.getElementById("action-add").onclick = function() {
           const plugin = g_metadata.plugins[parseInt(Math.random() * (g_metadata.plugins.length - 1))];
           let nextblock = 1;
-          while (g_state.banks[1].blocks[nextblock] && g_state.banks[1].blocks[nextblock].uri != "-") {
+          while (g_state.banks[1].presets[1].blocks[nextblock] && g_state.banks[1].presets[1].blocks[nextblock].uri != "-") {
             if (++nextblock > 6) {
                 return;
             }
@@ -75,13 +75,13 @@
             }
           }
           if (ws_send_blocks(blocks)) {
-            g_state.banks[1].blocks[nextblock] = blocks[nextblock];
+            g_state.banks[1].presets[1].blocks[nextblock] = blocks[nextblock];
             update_state()
           }
         }
         document.getElementById("action-remove").onclick = function() {
           let lastblock = 6;
-          while (! g_state.banks[1].blocks[lastblock] || g_state.banks[1].blocks[lastblock].uri == "-") {
+          while (! g_state.banks[1].presets[1].blocks[lastblock] || g_state.banks[1].presets[1].blocks[lastblock].uri == "-") {
             if (--lastblock == 0) {
               return;
             }
@@ -93,7 +93,7 @@
             }
           }
           if (ws_send_blocks(blocks)) {
-            g_state.banks[1].blocks[lastblock] = blocks[lastblock];
+            g_state.banks[1].presets[1].blocks[lastblock] = blocks[lastblock];
             update_state()
           }
         }
