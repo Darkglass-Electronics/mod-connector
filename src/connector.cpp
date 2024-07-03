@@ -4,6 +4,8 @@
 #include "connector.hpp"
 #include "utils.hpp"
 
+#include <cstring>
+
 // --------------------------------------------------------------------------------------------------------------------
 
 HostConnector::HostConnector()
@@ -18,7 +20,7 @@ HostConnector::HostConnector()
 }
 
 // --------------------------------------------------------------------------------------------------------------------
-// load state as saved in the `current` struct
+// load host state as saved in the `current` struct
 
 void HostConnector::loadCurrent()
 {
@@ -30,20 +32,124 @@ void HostConnector::loadCurrent()
     for (int b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
     {
         const auto& blockdata(presetdata.blocks[b]);
-        if (blockdata.uri == "-")
+        if (blockdata.uri.empty() || blockdata.uri == "-")
             continue;
         host.add(blockdata.uri.c_str(), b);
 
-        for (int p = 0; p < NUM_PARAMS_PER_BLOCK; ++p)
+        for (int p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
         {
             const auto& parameterdata(blockdata.parameters[p]);
-            if (parameterdata.symbol == "-")
+            if (parameterdata.symbol.empty() || parameterdata.symbol == "-")
                 continue;
             host.param_set(b, parameterdata.symbol.c_str(), parameterdata.value);
         }
     }
 
     hostConnectBetweenBlocks();
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+// replace a block with another lv2 plugin (referenced by its URI)
+// passing null or empty string as the URI means clearing the block
+
+void HostConnector::replaceBlock(const int bank, const int preset, const int block, const char* const uri)
+{
+    if (bank < 0 || bank >= NUM_BANKS)
+        return;
+    if (preset < 0 || preset >= NUM_PRESETS_PER_BANK)
+        return;
+    if (block < 0 || block >= NUM_BLOCKS_PER_PRESET)
+        return;
+
+    auto& blockdata(current.banks[bank].presets[preset].blocks[block]);
+    const bool islive = current.bank == bank && current.preset == preset;
+
+    if (uri != nullptr && *uri != '\0' && std::strcmp(uri, "-") != 0)
+    {
+        blockdata.uri = uri;
+
+        if (const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(uri))
+        {
+            int p = 0;
+            for (size_t i = 0; i < plugin->ports.size(); ++i)
+            {
+                if ((plugin->ports[i].flags & Lv2PortIsControl) == 0)
+                    continue;
+                if (plugin->ports[i].flags & (Lv2PortIsOutput|Lv2ParameterHidden))
+                    continue;
+
+                blockdata.parameters[p] = {
+                    .symbol = plugin->ports[i].symbol,
+                    .value = plugin->ports[i].def,
+                };
+
+                if (++p >= MAX_PARAMS_PER_BLOCK)
+                    break;
+            }
+
+            for (; p < MAX_PARAMS_PER_BLOCK; ++p)
+                blockdata.parameters[p] = {};
+        }
+        else
+        {
+            for (int p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                blockdata.parameters[p] = {};
+        }
+
+        if (islive)
+        {
+            // TODO mod-host replace command, reducing 1 roundtrip
+            host.remove(block);
+
+            if (host.add(uri, block))
+                printf("DEBUG: block %d loaded plugin %s\n", block, uri);
+            else
+                printf("DEBUG: block %d failed loaded plugin %s: %s\n", block, uri, host.last_error.c_str());
+
+            hostDisconnectForNewBlock(block);
+        }
+    }
+    else
+    {
+        if (islive)
+            host.remove(block);
+
+        blockdata = {};
+    }
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+// convenience call to replace a block for the current preset
+
+void HostConnector::replaceBlockInActivePreset(const int block, const char* const uri)
+{
+    replaceBlock(current.bank, current.preset, block, uri);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+// convenience method for quickly switching to another bank
+// NOTE resets active preset to 0
+
+void HostConnector::switchBank(const int bank)
+{
+    if (current.bank == bank || bank < 0 || bank >= NUM_BANKS)
+        return;
+
+    current.bank = bank;
+    current.preset = 0;
+    loadCurrent();
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+// convenience method for quickly switching to another preset within the current bank
+
+void HostConnector::switchPreset(const int preset)
+{
+    if (current.preset == preset || preset < 0 || preset >= NUM_PRESETS_PER_BANK)
+        return;
+
+    current.preset = preset;
+    loadCurrent();
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -57,7 +163,7 @@ void HostConnector::hostConnectBetweenBlocks()
 
     bool loaded[NUM_BLOCKS_PER_PRESET];
     for (int b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
-        loaded[b] = presetdata.blocks[b].uri != "-";
+        loaded[b] = !presetdata.blocks[b].uri.empty() && presetdata.blocks[b].uri != "-";
 
     // first plugin
     for (int b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
@@ -165,7 +271,7 @@ void HostConnector::hostDisconnectForNewBlock(const int blockidi)
 
     bool loaded[NUM_BLOCKS_PER_PRESET];
     for (int b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
-        loaded[b] = presetdata.blocks[b].uri != "-";
+        loaded[b] = !presetdata.blocks[b].uri.empty() && presetdata.blocks[b].uri != "-";
     loaded[blockidi] = false;
 
     // first plugin
