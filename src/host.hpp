@@ -237,6 +237,13 @@ struct Host {
     */
     bool transport_sync(const char* mode);
 
+  /**
+    * report feedback port ready for more messages
+    */
+    bool output_data_ready();
+
+    bool poll_feedback();
+
     Host();
     ~Host();
 

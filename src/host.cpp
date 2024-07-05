@@ -6,13 +6,16 @@
 
 #include <cstring>
 
-// TODO do not use Qt on this file
-#ifdef WITH_QT
-#include <QtCore/QIODevice>
-#include <QtCore/QStringList>
-#include <QtCore/QTimer>
-#include <QtNetwork/QHostAddress>
-#include <QtNetwork/QTcpSocket>
+#ifdef _WIN32
+#include <winsock2.h>
+#else
+#include <fcntl.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <unistd.h>
+#define closesocket close
+#define INVALID_SOCKET -1
+typedef int SOCKET;
 #endif
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -135,9 +138,6 @@ static const char* host_error_code_to_string(const int code)
 // --------------------------------------------------------------------------------------------------------------------
 
 struct Host::Impl
-#ifdef WITH_QT
-: QObject
-#endif
 {
     Impl(std::string& last_error)
         : last_error(last_error)
@@ -167,35 +167,62 @@ struct Host::Impl
             port = 5555;
         }
 
-#ifdef WITH_QT
-        // TODO QAbstractSocket::LowDelayOption
-        QObject::connect(&sockets.out, &QAbstractSocket::connected, this, &Host::Impl::slot_connected);
-        QObject::connect(&sockets.feedback, &QAbstractSocket::readyRead, this, &Host::Impl::slot_readyRead);
-
-        sockets.out.connectToHost(QHostAddress::LocalHost, port);
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-        sockets.feedback.connectToHost(QHostAddress::LocalHost, port + 1, QIODeviceBase::ReadOnly);
-#else
-        sockets.feedback.connectToHost(QHostAddress::LocalHost, port + 1, QIODevice::ReadOnly);
-#endif
-
-        if (! sockets.out.waitForConnected())
+       #ifdef _WIN32
+        WSADATA wsaData;
+        if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
         {
-            last_error = sockets.out.errorString().toStdString();
-            close();
+            last_error = "WSAStartup failed";
             return;
         }
 
-        if (! sockets.feedback.waitForConnected())
+        if (LOBYTE(wsaData.wVersion) != 2 || HIBYTE(wsaData.wVersion) != 2)
         {
-            last_error = sockets.feedback.errorString().toStdString();
-            close();
+            last_error = "WSAStartup version mismatch";
+            WSACleanup();
             return;
         }
-#else
-        // last_error = "TODO without Qt";
-        dummyDevMode = true;
-#endif
+       #endif
+
+        if ((sockets.out = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET)
+        {
+            last_error = "output socket error";
+            return;
+        }
+
+        if ((sockets.feedback = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET)
+        {
+            last_error = "feedback socket error";
+            ::closesocket(sockets.out);
+            sockets.out = INVALID_SOCKET;
+            return;
+        }
+
+       #ifndef _WIN32
+        /* increase socket size */
+        const int size = 131071;
+        setsockopt(sockets.out, SOL_SOCKET, SO_RCVBUF, &size, sizeof(size));
+        setsockopt(sockets.feedback, SOL_SOCKET, SO_RCVBUF, &size, sizeof(size));
+       #endif
+
+        /* Startup the socket struct */
+        struct sockaddr_in serv_addr = {};
+        serv_addr.sin_family = AF_INET;
+        serv_addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+
+        /* Try assign the server address */
+        serv_addr.sin_port = htons(port);
+        if (::connect(sockets.out, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0)
+        {
+            last_error = "output socket connect error";
+            return;
+        }
+
+        serv_addr.sin_port = htons(port + 1);
+        if (::connect(sockets.feedback, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0)
+        {
+            last_error = "feedback socket connect error";
+            return;
+        }
     }
 
     ~Impl()
@@ -205,10 +232,20 @@ struct Host::Impl
 
     void close()
     {
-#ifdef WITH_QT
-        sockets.out.close();
-        sockets.feedback.close();
-#endif
+        if (sockets.out == INVALID_SOCKET)
+            return;
+
+        // make local copies so that we can invalidate these vars first
+        const SOCKET outsock = sockets.out;
+        const SOCKET fbsock = sockets.feedback;
+        sockets.out = sockets.feedback = INVALID_SOCKET;
+
+        ::closesocket(outsock);
+        ::closesocket(fbsock);
+
+       #ifdef _WIN32
+        WSACleanup();
+       #endif
     }
 
     // ----------------------------------------------------------------------------------------------------------------
@@ -239,107 +276,173 @@ struct Host::Impl
             return true;
         }
 
-#ifdef WITH_QT
-        if (sockets.out.state() != QAbstractSocket::ConnectedState)
+        if (sockets.out == INVALID_SOCKET)
         {
             last_error = "mod-host socket is not connected";
             return false;
         }
 
-        // write message to buffer
-        sockets.out.write(message.c_str());
-
-        // wait until message is written
-        if (! sockets.out.waitForBytesWritten(1000))
+        // write message to socket
         {
-            last_error = sockets.out.errorString().toStdString();
-            return false;
-        }
+            const char* buffer = message.c_str();
+            size_t msgsize = message.size() + 1;
+            int ret;
 
-        // wait for message response
-        if (! sockets.out.waitForReadyRead(1000))
-        {
-            last_error = sockets.out.errorString().toStdString();
-            return false;
-        }
-
-        // special handling for string replies, read all incoming data
-        if (respType == kHostResponseString)
-        {
-            const QByteArray data(sockets.out.readAll());
-
-            if (resp != nullptr)
+            while (msgsize > 0)
             {
-                resp->code = SUCCESS;
-                resp->data.s = strdup(data.constData());
+                ret = ::send(sockets.out, buffer, msgsize, 0);
+                if (ret < 0)
+                {
+                    last_error = "send error";
+                    return false;
+                }
+
+                msgsize -= ret;
+                buffer += ret;
+            }
+        }
+
+        // retrieve response
+        {
+            // use stack buffer first, in case of small messages
+            char stackbuffer[128];
+            char* buffer = stackbuffer;
+            size_t buffersize = sizeof(stackbuffer) / sizeof(stackbuffer[0]);
+            size_t written = 0;
+            last_error.clear();
+
+            for (int r;;)
+            {
+                r = recv(sockets.out, buffer + written, 1, 0);
+
+                /* Data received */
+                if (r == 1)
+                {
+                    // null terminator, stop
+                    if (buffer[written] == '\0')
+                        break;
+
+                    // increase buffer by 2x for longer messages
+                    if (++written == buffersize)
+                    {
+                        buffersize *= 2;
+
+                        if (stackbuffer == buffer)
+                        {
+                            buffer = static_cast<char*>(std::malloc(buffersize));
+                            std::memcpy(buffer, stackbuffer, sizeof(stackbuffer));
+                        }
+                        else
+                        {
+                            buffer = static_cast<char*>(std::realloc(buffer, buffersize));
+                        }
+                    }
+                }
+                /* Error */
+                else if (r < 0)
+                {
+                    last_error = "read error";
+                    break;
+                }
+                /* Client disconnected */
+                else
+                {
+                    last_error = "disconnected";
+                    break;
+                }
             }
 
-            return true;
+            if (! last_error.empty())
+            {   
+                if (stackbuffer != buffer)
+                    std::free(buffer);
+
+                return false;
+            }
+
+            // special handling for string replies, read all incoming data
+            if (respType == kHostResponseString)
+            {
+                if (resp != nullptr)
+                {
+                    resp->code = SUCCESS;
+                    resp->data.s = buffer;
+                }
+                else
+                {
+                    if (stackbuffer != buffer)
+                        std::free(buffer);
+                }
+
+                return true;
+            }
+
+            if (buffer[0] == '\0')
+            {
+                last_error = "mod-host reply is empty";
+                return false;
+            }
+            if (std::strncmp(buffer, "resp ", 5) != 0)
+            {
+                last_error = "mod-host reply is malformed (missing resp prefix)";
+                return false;
+            }
+            if (buffer[5] == '\0')
+            {
+                last_error = "mod-host reply is incomplete (less than 6 characters)";
+                return false;
+            }
+
+            char* const respbuffer = buffer + 5;
+            const char* respdata;
+            if (char* respargs = std::strchr(respbuffer, ' '))
+            {
+                *respargs = '\0';
+                respdata = respargs + 1;
+            }
+            else
+            {
+                respdata = nullptr;
+            }
+
+            // parse response error code
+            // bool ok = false;
+            const int respcode = std::atoi(respbuffer);
+
+            // printf("got resp %d '%s' '%s'\n", respcode, respbuffer, respdata);
+
+            /*
+            if (! ok)
+            {
+                last_error = "failed to parse mod-host response error code";
+                return false;
+            }
+            */
+            if (respcode < 0)
+            {
+                last_error = host_error_code_to_string(respcode);
+                return false;
+            }
+
+            // stop here if not wanting response data
+            if (resp == nullptr)
+                return true;
+
+            *resp = {};
+            resp->code = respcode;
+
+            switch (respType)
+            {
+            case kHostResponseNone:
+            case kHostResponseString:
+                break;
+            case kHostResponseFloat:
+                resp->data.f = respdata != nullptr
+                             ? std::atof(respdata)
+                             : 0.f;
+                break;
+            }
         }
-
-        // read and validate regular response
-        QString respdata(sockets.out.readLine());
-        if (respdata.isEmpty())
-        {
-            last_error = "mod-host reply is empty";
-            return false;
-        }
-        if (respdata.length() < 6) // "resp x"
-        {
-            last_error = "mod-host reply is incomplete (less than 6 characters)";
-            return false;
-        }
-        if (! respdata.startsWith("resp "))
-        {
-            last_error = "mod-host reply is malformed (missing resp prefix)";
-            return false;
-        }
-
-        // skip first 5 bytes "resp " and null terminator
-        respdata.remove(0, 5).remove(respdata.length() - 1, respdata.length());
-
-        // parse response error code
-        bool ok = false;
-        const int respcode = respdata.left(respdata.indexOf(' ', 1)).toInt(&ok);
-
-        if (! ok)
-        {
-            last_error = "failed to parse mod-host response error code";
-            return false;
-        }
-        if (respcode < 0)
-        {
-            last_error = host_error_code_to_string(respcode);
-            return false;
-        }
-
-        // stop here if not wanting response data
-        if (resp == nullptr)
-            return true;
-
-        // need response data
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-        const QStringList respdatasplit(respdata.split(' ', Qt::KeepEmptyParts));
-#else
-        const QStringList respdatasplit(respdata.split(' ', QString::KeepEmptyParts));
-#endif
-        fprintf(stdout, "test2 '%s'\n", respdatasplit[0].toUtf8().constData());
-
-        *resp = {};
-        resp->code = respcode;
-
-        switch (respType)
-        {
-        case kHostResponseNone:
-        case kHostResponseString:
-            break;
-        case kHostResponseFloat:
-        //     // resp.data.f = respdata2[1].toFloat();
-        //     // resp.data.f = QLocale::c().toDouble(respdata2[1]);
-            resp->data.f = std::atof(respdatasplit[1].toUtf8().constData());
-            break;
-        }
-#endif
 
         return true;
     }
@@ -347,60 +450,113 @@ struct Host::Impl
     // ----------------------------------------------------------------------------------------------------------------
     // feedback port handling
 
-#ifdef WITH_QT
-private:
-    bool willReceiveMoreFeedbackMessages = false;
-
-    void reportFeedbackReady()
+    bool poll()
     {
-        if (willReceiveMoreFeedbackMessages)
-            return;
+        last_error.clear();
 
-        willReceiveMoreFeedbackMessages = true;
-        QTimer::singleShot(100, this, &Host::Impl::slot_reportFeedbackReady);
+        while (_poll()) {}
+
+        return last_error.empty();
     }
 
-private slots:
-    void slot_readyRead()
+    bool _poll()
     {
-        for (;;)
+        // set non-blocking mode, so we can poke to see if there are any messages
+       #ifdef _WIN32
+        const unsigned long nonblocking = 1;
+        ::ioctlsocket(sockets.feedback, FIONBIO, &nonblocking);
+       #else
+        const int socketflags = ::fcntl(sockets.feedback, F_GETFL);
+        ::fcntl(sockets.feedback, F_SETFL, socketflags | O_NONBLOCK);
+       #endif
+
+        // read first byte
+        char firstbyte = '\0';
+        int r = recv(sockets.feedback, &firstbyte, 1, 0);
+
+        // set blocking mode again, so we block-wait until message is fully delivered
+       #ifdef _WIN32
+        const unsigned long blocking = 0;
+        ::ioctlsocket(sockets.feedback, FIONBIO, &blocking);
+       #else
+        ::fcntl(sockets.feedback, F_SETFL, socketflags & ~O_NONBLOCK);
+       #endif
+
+        // nothing to read, quit
+        if (r == 0)
+            return false;
+
+        if (r < 0)
         {
-            const QString data(sockets.feedback.readLine(0));
-
-            if (data.isEmpty())
-                break;
-
-            fprintf(stdout, "got feedback: '%s'\n", data.toUtf8().constData());
+            last_error = "read error";
+            return false;
         }
 
-        reportFeedbackReady();
-    }
+        // use stack buffer first, in case of small messages
+        char stackbuffer[128] = { firstbyte, };
+        char* buffer = stackbuffer;
+        size_t buffersize = sizeof(stackbuffer) / sizeof(stackbuffer[0]);
+        size_t read = 1;
 
-    void slot_reportFeedbackReady()
-    {
-        willReceiveMoreFeedbackMessages = false;
-        writeMessageAndWait("output_data_ready");
+        for (;;)
+        {
+            r = recv(sockets.feedback, buffer + read, 1, 0);
+
+            /* Data received */
+            if (r == 1)
+            {
+                // null terminator, stop
+                if (buffer[read] == '\0')
+                    break;
+
+                // increase buffer by 2x for longer messages
+                if (++read == buffersize)
+                {
+                    buffersize *= 2;
+
+                    if (stackbuffer == buffer)
+                    {
+                        buffer = static_cast<char*>(std::malloc(buffersize));
+                        std::memcpy(buffer, stackbuffer, sizeof(stackbuffer));
+                    }
+                    else
+                    {
+                        buffer = static_cast<char*>(std::realloc(buffer, buffersize));
+                    }
+                }
+            }
+            /* Error */
+            else if (r < 0)
+            {
+                last_error = "read error";
+                break;
+            }
+            /* Client disconnected */
+            else
+            {
+                last_error = "disconnected";
+                break;
+            }
+        }
+
+        printf("got feedback '%s'\n", buffer);
+
+        if (stackbuffer != buffer)
+            std::free(buffer);
+
+        return true;
     }
 
     // ----------------------------------------------------------------------------------------------------------------
-
-private slots:
-    void slot_connected()
-    {
-        reportFeedbackReady();
-    }
-#endif
 
 private:
     std::string& last_error;
     bool dummyDevMode = false;
 
-#ifdef WITH_QT
     struct {
-        QTcpSocket out;
-        QTcpSocket feedback;
+        SOCKET out = INVALID_SOCKET;
+        SOCKET feedback = INVALID_SOCKET;
     } sockets;
-#endif
 };
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -474,6 +630,26 @@ float Host::cpu_load()
     HostResponse resp;
     return impl->writeMessageAndWait("cpu_load",
                                      kHostResponseFloat, &resp) ? resp.data.f : 0.f;
+}
+
+bool Host::transport(const bool rolling, const double beats_per_bar, const double beats_per_minute)
+{
+    return impl->writeMessageAndWait(format("transport %d %f %f", rolling, beats_per_bar, beats_per_minute));
+}
+
+bool Host::transport_sync(const char* const mode)
+{
+    return impl->writeMessageAndWait(format("transport_sync \"%s\"", mode));
+}
+
+bool Host::output_data_ready()
+{
+    return impl->writeMessageAndWait("output_data_ready");
+}
+
+bool Host::poll_feedback()
+{
+    return impl->poll();
 }
 
 // --------------------------------------------------------------------------------------------------------------------
