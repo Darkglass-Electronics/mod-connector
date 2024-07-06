@@ -409,7 +409,7 @@ struct Host::Impl
             // bool ok = false;
             const int respcode = std::atoi(respbuffer);
 
-            // printf("got resp %d '%s' '%s'\n", respcode, respbuffer, respdata);
+            // printf("wrote '%s', got resp %d '%s' '%s'\n", message.c_str(), respcode, respbuffer, respdata);
 
             /*
             if (! ok)
@@ -570,7 +570,7 @@ Host::~Host() { delete impl; }
 
 bool Host::add(const char* const uri, const int16_t instance_number)
 {
-    return impl->writeMessageAndWait(format("add \"%s\" %d", uri, instance_number));
+    return impl->writeMessageAndWait(format("add %s %d", uri, instance_number));
 }
 
 bool Host::remove(const int16_t instance_number)
@@ -580,7 +580,7 @@ bool Host::remove(const int16_t instance_number)
 
 bool Host::preset_load(const int16_t instance_number, const char* const preset_uri)
 {
-    return impl->writeMessageAndWait(format("preset_load %d \"%s\"", instance_number, preset_uri));
+    return impl->writeMessageAndWait(format("preset_load %d %s", instance_number, preset_uri));
 }
 
 bool Host::preset_save(const int16_t instance_number, const char* const preset_name, const char* const dir, const char* const file_name)
@@ -591,7 +591,7 @@ bool Host::preset_save(const int16_t instance_number, const char* const preset_n
 std::string Host::preset_show(const char* const preset_uri)
 {
     HostResponse resp;
-    if (! impl->writeMessageAndWait(format("preset_show \"%s\"", preset_uri),
+    if (! impl->writeMessageAndWait(format("preset_show %s", preset_uri),
                                     kHostResponseString, &resp))
         return {};
 
@@ -617,12 +617,12 @@ bool Host::bypass(int16_t instance_number, bool bypass_value)
 
 bool Host::param_set(int16_t instance_number, const char* param_symbol, float param_value)
 {
-    return impl->writeMessageAndWait(format("param_set %d \"%s\" %f", instance_number, param_symbol, param_value));
+    return impl->writeMessageAndWait(format("param_set %d %s %f", instance_number, param_symbol, param_value));
 }
 
 bool Host::param_get(int16_t instance_number, const char* param_symbol)
 {
-    return impl->writeMessageAndWait(format("param_get %d \"%s\"", instance_number, param_symbol));
+    return impl->writeMessageAndWait(format("param_get %d %s", instance_number, param_symbol));
 }
 
 float Host::cpu_load()

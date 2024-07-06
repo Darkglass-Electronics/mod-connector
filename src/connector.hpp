@@ -44,6 +44,7 @@ struct HostConnector {
         struct {
             struct {
                 struct {
+                    std::string binding;
                     std::string uri;
                     struct {
                         std::string symbol;
@@ -56,6 +57,12 @@ struct HostConnector {
 
     // constructor, initializes connection to mod-host and sets `ok` to true if successful
     HostConnector();
+
+    // load state from a file and store it in the `current` struct
+    bool loadStateFromFile(const char* filename);
+
+    // save host state as stored in the `current` struct into a file
+    bool saveStateToFile(const char* filename) const;
 
     // load host state as stored in the `current` struct
     void loadCurrent();

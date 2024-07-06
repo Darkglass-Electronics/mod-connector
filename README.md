@@ -11,6 +11,7 @@ Connecting clients will receive the current state as json with this data model:
 
 ```
 {
+    "version": 0,
     "type": "state",
     "plugins": [
         {
@@ -37,30 +38,34 @@ Connecting clients will receive the current state as json with this data model:
                     "maximum": 1.0,
                 }
             ]
-        }
+        },
+        // ...
     ],
     "state": {
         "bank": 1,
         "banks": {
             "1": {
-                "blocks": {
+                "presets": {
                     "1": {
-                        "binding": "1",
-                        "name": "Gain",
-                        "parameters": {
+                        "blocks": {
                             "1": {
-                                "maximum": -20,
-                                "minimum": 20,
-                                "name": "Gain",
-                                "symbol": "gain",
-                                "value": 0
+                                "binding": "gain",
+                                "uri": "http://kxstudio.sf.net/carla/plugins/audiogain",
+                                "parameters": {
+                                    "1": {
+                                        "symbol": "gain",
+                                        "value": 0
+                                    },
+                                    // ...
+                                }
                             },
                             // ...
-                        },
-                        "uri": "http://kxstudio.sf.net/carla/plugins/audiogain"
-                    }
+                        }
+                    },
+                    // ...
                 }
-            }
+            },
+            // ...
         }
     }
 }

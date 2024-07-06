@@ -2,9 +2,27 @@
 // SPDX-License-Identifier: ISC
 
 #include "connector.hpp"
+#include "json.hpp"
 #include "utils.hpp"
 
 #include <cstring>
+#include <fstream>
+
+#define JSON_STATE_VERSION_CURRENT 0
+#define JSON_STATE_VERSION_MIN_SUPPORTED 0
+#define JSON_STATE_VERSION_MAX_SUPPORTED 0
+
+// --------------------------------------------------------------------------------------------------------------------
+
+static bool isNullURI(const char* const uri)
+{
+    return uri == nullptr || uri[0] == '\0' || (uri[0] == '-' && uri[1] == '\0');
+}
+
+static bool isNullURI(const std::string& uri)
+{
+    return uri.empty() || uri == "-";
+}
 
 // --------------------------------------------------------------------------------------------------------------------
 
@@ -20,6 +38,243 @@ HostConnector::HostConnector()
 }
 
 // --------------------------------------------------------------------------------------------------------------------
+// load state from a file and store it in the `current` struct
+
+bool HostConnector::loadStateFromFile(const char* const filename)
+{
+    std::ifstream f(filename);
+    nlohmann::json j;
+
+    try {
+        j = nlohmann::json::parse(f);
+    } catch (...) {
+        return false;
+    }
+
+    if (! (j.contains("state") && j.contains("type") && j.contains("version")))
+        return false;
+
+    try {
+        if (j["type"].get<std::string>() != "state")
+        {
+            fprintf(stderr, "HostConnector::loadStateFromFile failed: file is not state type\n");
+            return false;
+        }
+        
+        const int version = j["version"].get<int>();
+        if (version < JSON_STATE_VERSION_MIN_SUPPORTED || version > JSON_STATE_VERSION_MAX_SUPPORTED)
+        {
+            fprintf(stderr, "HostConnector::loadStateFromFile failed: version mismatch\n");
+            return false;
+        }
+
+        j = j["state"].get<nlohmann::json>();
+    } catch (...) {
+        return false;
+    }
+
+    if (j.contains("bank"))
+    {
+        current.bank = j["bank"].get<int>() - 1;
+
+        if (current.bank < 0 || current.bank >= NUM_BANKS)
+            current.bank = 0;
+    }
+    else
+    {
+        current.bank = 0;
+    }
+
+    current.preset = 0;
+
+    if (! j.contains("banks"))
+    {
+        // full reset
+        for (int b = 0; b < NUM_BANKS; ++b)
+            current.banks[b] = {};
+        return true;
+    }
+
+    auto& jbanks = j["banks"];
+    for (int b = 0; b < NUM_BANKS; ++b)
+    {
+        auto& bank = current.banks[b];
+        const std::string jbankid = std::to_string(b + 1);
+
+        if (! jbanks.contains(jbankid))
+        {
+            // reset bank
+            bank = {};
+            continue;
+        }
+
+        auto& jbank = jbanks[jbankid];
+        if (! jbank.contains("presets"))
+        {
+            // reset bank
+            bank = {};
+            continue;
+        }
+
+        auto& jpresets = jbank["presets"];
+        for (int pr = 0; pr < NUM_PRESETS_PER_BANK; ++pr)
+        {
+            auto& preset = bank.presets[pr];
+            const std::string jpresetid = std::to_string(pr + 1);
+
+            if (! jbanks.contains(jbankid))
+            {
+                // reset preset
+                preset = {};
+                continue;
+            }
+
+            auto& jpreset = jpresets[jpresetid];
+            if (! jpreset.contains("blocks"))
+            {
+                // reset preset
+                preset = {};
+                continue;
+            }
+
+            auto& jblocks = jpreset["blocks"];
+            for (int bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
+            {
+                auto& block = preset.blocks[bl];
+                const std::string jblockid = std::to_string(bl + 1);
+
+                if (! jblocks.contains(jblockid))
+                {
+                    // reset block
+                    block = {};
+                    continue;
+                }
+
+                auto& jblock = jblocks[jblockid];
+                if (! jblock.contains("uri"))
+                {
+                    // reset block
+                    block = {};
+                    continue;
+                }
+
+                block.uri = jblock["uri"].get<std::string>();
+
+                try {
+                    block.binding = jblock["binding"].get<std::string>();
+                } catch (...) {
+                    block.binding = "-";
+                }
+
+                if (! jblock.contains("parameters"))
+                {
+                    // reset parameters
+                    for (int p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                        block.parameters[p] = {};
+                    continue;
+                }
+
+                auto& jparams = jblock["parameters"];
+                for (int p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                {
+                    auto& param = block.parameters[p];
+                    const std::string jparamid = std::to_string(p + 1);
+
+                    if (! jparams.contains(jparamid))
+                    {
+                        // reset param
+                        param = {};
+                        continue;
+                    }
+
+                    auto& jparam = jparams[jparamid];
+                    if (! (jparam.contains("symbol") && jparam.contains("value")))
+                    {
+                        // reset preset
+                        preset = {};
+                        continue;
+                    }
+
+                    param.symbol = jparam["symbol"].get<std::string>();
+                    param.value = jparam["value"].get<double>();
+                }
+            }
+        }
+    }
+
+    return true;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+// save host state as stored in the `current` struct into a file
+
+bool HostConnector::saveStateToFile(const char* const filename) const
+{
+    nlohmann::json j;
+    try {
+        j["version"] = JSON_STATE_VERSION_CURRENT;
+        j["type"] = "state";
+        j["state"] = {
+            { "bank", current.bank + 1 },
+            { "banks", nlohmann::json::object({}) },
+        };
+
+        auto& jbanks = j["state"]["banks"];
+        for (int b = 0; b < NUM_BANKS; ++b)
+        {
+            auto& bank = current.banks[b];
+            const std::string jbankid = std::to_string(b + 1);
+            jbanks[jbankid]["presets"] = nlohmann::json::object({});
+
+            auto& jpresets = jbanks[jbankid]["presets"];
+            for (int pr = 0; pr < NUM_PRESETS_PER_BANK; ++pr)
+            {
+                auto& preset = bank.presets[pr];
+                const std::string jpresetid = std::to_string(pr + 1);
+                jpresets[jpresetid]["blocks"] = nlohmann::json::object({});
+
+                auto& jblocks = jpresets[jpresetid]["blocks"];
+                for (int bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
+                {
+                    auto& block = preset.blocks[bl];
+
+                    if (isNullURI(block.uri))
+                        continue;
+
+                    const std::string jblockid = std::to_string(bl + 1);
+                    jblocks[jblockid] = {
+                        { "binding", isNullURI(block.binding) ? "-" : block.binding },
+                        { "uri", isNullURI(block.uri) ? "-" : block.uri },
+                        { "parameters", nlohmann::json::object({}) },
+                    };
+
+                    auto& jparams = jblocks[jblockid]["parameters"];
+                    for (int p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                    {
+                        auto& param = block.parameters[p];
+
+                        if (isNullURI(param.symbol))
+                            continue;
+
+                        const std::string jparamid = std::to_string(p + 1);
+                        jparams[jparamid] = {
+                            { "symbol", param.symbol },
+                            { "value", param.value },
+                        };
+                    }
+                }
+            }
+        }
+    } catch (...) {
+        return false;
+    }
+
+    std::ofstream o(filename);
+    o << std::setw(2) << j << std::endl;
+    return true;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
 // load host state as saved in the `current` struct
 
 void HostConnector::loadCurrent()
@@ -32,14 +287,14 @@ void HostConnector::loadCurrent()
     for (int b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
     {
         const auto& blockdata(presetdata.blocks[b]);
-        if (blockdata.uri.empty() || blockdata.uri == "-")
+        if (isNullURI(blockdata.uri))
             continue;
         host.add(blockdata.uri.c_str(), b);
 
         for (int p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
         {
             const auto& parameterdata(blockdata.parameters[p]);
-            if (parameterdata.symbol.empty() || parameterdata.symbol == "-")
+            if (isNullURI(parameterdata.symbol))
                 continue;
             host.param_set(b, parameterdata.symbol.c_str(), parameterdata.value);
         }
@@ -64,7 +319,7 @@ void HostConnector::replaceBlock(const int bank, const int preset, const int blo
     auto& blockdata(current.banks[bank].presets[preset].blocks[block]);
     const bool islive = current.bank == bank && current.preset == preset;
 
-    if (uri != nullptr && *uri != '\0' && std::strcmp(uri, "-") != 0)
+    if (! isNullURI(uri))
     {
         blockdata.uri = uri;
 
@@ -163,7 +418,7 @@ void HostConnector::hostConnectBetweenBlocks()
 
     bool loaded[NUM_BLOCKS_PER_PRESET];
     for (int b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
-        loaded[b] = !presetdata.blocks[b].uri.empty() && presetdata.blocks[b].uri != "-";
+        loaded[b] = !isNullURI(presetdata.blocks[b].uri);
 
     // first plugin
     for (int b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
@@ -271,7 +526,7 @@ void HostConnector::hostDisconnectForNewBlock(const int blockidi)
 
     bool loaded[NUM_BLOCKS_PER_PRESET];
     for (int b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
-        loaded[b] = !presetdata.blocks[b].uri.empty() && presetdata.blocks[b].uri != "-";
+        loaded[b] = !isNullURI(presetdata.blocks[b].uri);
     loaded[blockidi] = false;
 
     // first plugin
