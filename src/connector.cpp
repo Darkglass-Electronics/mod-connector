@@ -190,8 +190,8 @@ bool HostConnector::loadStateFromFile(const char* const filename)
                     auto& jparam = jparams[jparamid];
                     if (! (jparam.contains("symbol") && jparam.contains("value")))
                     {
-                        // reset preset
-                        preset = {};
+                        // reset param
+                        param = {};
                         continue;
                     }
 
