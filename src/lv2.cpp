@@ -25,16 +25,18 @@
 
 struct Lv2NamespaceDefinitions {
     LilvNode* const lv2core_default;
+    LilvNode* const lv2core_designation;
     LilvNode* const lv2core_minimum;
     LilvNode* const lv2core_maximum;
     LilvNode* const lv2core_portProperty;
     LilvNode* const rdf_type;
 
     Lv2NamespaceDefinitions(LilvWorld* const world)
-        : lv2core_default(lilv_new_uri(world, LILV_NS_LV2 "default")),
-          lv2core_minimum(lilv_new_uri(world, LILV_NS_LV2 "minimum")),
-          lv2core_maximum(lilv_new_uri(world, LILV_NS_LV2 "maximum")),
-          lv2core_portProperty(lilv_new_uri(world, LILV_NS_LV2 "portProperty")),
+        : lv2core_default(lilv_new_uri(world, LV2_CORE__default)),
+          lv2core_designation(lilv_new_uri(world, LV2_CORE__designation)),
+          lv2core_minimum(lilv_new_uri(world, LV2_CORE__minimum)),
+          lv2core_maximum(lilv_new_uri(world, LV2_CORE__maximum)),
+          lv2core_portProperty(lilv_new_uri(world, LV2_CORE__portProperty)),
           rdf_type(lilv_new_uri(world, LILV_NS_RDF "type"))
     {
     }
@@ -53,8 +55,8 @@ struct Lv2NamespaceDefinitions {
 
 struct Lv2World::Impl
 {
-    Impl(std::string& last_error)
-        : last_error(last_error),
+    Impl(std::string& last_error_)
+        : last_error(last_error_),
           world(lilv_world_new()),
           ns(world)
     {
@@ -291,6 +293,18 @@ struct Lv2World::Impl
                             }
 
                             lilv_nodes_free(nodes);
+                        }
+
+                        if (LilvNodes* const xdesignation = lilv_port_get_value(plugin, port, ns.lv2core_designation))
+                        {
+                            const char* const designation = lilv_node_as_string(lilv_nodes_get_first(xdesignation));
+
+                            if (std::strcmp(designation, LV2_CORE__enabled) == 0)
+                                retport.designation = kLv2DesignationEnabled;
+
+                            // TODO define quick pot URI and spec
+
+                            lilv_nodes_free(xdesignation);
                         }
 
                         LilvNodes* const xminimum = lilv_port_get_value(plugin, port, ns.lv2core_minimum);

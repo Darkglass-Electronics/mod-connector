@@ -17,6 +17,12 @@ enum Lv2Category {
     kLv2CategoryCount
 };
 
+enum Lv2Designation {
+    kLv2DesignationNone = 0,
+    kLv2DesignationEnabled,
+    kLv2DesignationQuickPot,
+};
+
 enum Lv2Flags {
     Lv2PortIsAudio      = 1 << 1,
     Lv2PortIsControl    = 1 << 2,
@@ -30,6 +36,7 @@ struct Lv2Port {
     std::string symbol;
     std::string name;
     uint32_t flags = 0;
+    Lv2Designation designation = kLv2DesignationNone;
     float def = 0.f;
     float min = 0.f;
     float max = 1.f;

@@ -332,6 +332,8 @@ void HostConnector::replaceBlock(const int bank, const int preset, const int blo
                     continue;
                 if (plugin->ports[i].flags & (Lv2PortIsOutput|Lv2ParameterHidden))
                     continue;
+                if (plugin->ports[i].designation == kLv2DesignationEnabled)
+                    continue;
 
                 blockdata.parameters[p] = {
                     .symbol = plugin->ports[i].symbol,
