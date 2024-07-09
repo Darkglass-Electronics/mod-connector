@@ -60,8 +60,6 @@ if(PROJECT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     PRIVATE
       $<$<BOOL:${lv2_1_18_FOUND}>:HAVE_LV2_1_18>
       $<$<BOOL:${systemd_FOUND}>:HAVE_SYSTEMD>
-      # TODO remove this once host.cpp does not need Qt anymore
-      WITH_QT
   )
 
   target_include_directories(mod-connector
