@@ -139,8 +139,8 @@ static const char* host_error_code_to_string(const int code)
 
 struct Host::Impl
 {
-    Impl(std::string& last_error)
-        : last_error(last_error)
+    Impl(std::string& last_error_)
+        : last_error(last_error_)
     {
         if (const char* const dev = std::getenv("MOD_DEV_HOST"))
         {
