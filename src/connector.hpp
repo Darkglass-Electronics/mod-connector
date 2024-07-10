@@ -60,12 +60,14 @@ struct HostConnector {
 
     // load state from a file and store it in the `current` struct
     // automatically calls loadCurrent() if the file contains valid state, otherwise does nothing
+    // returning false means the current chain was unchanged
     bool loadStateFromFile(const char* filename);
 
     // save host state as stored in the `current` struct into a file
     bool saveStateToFile(const char* filename) const;
 
     // reorder a block into a new position
+    // returning false means the current chain was unchanged
     bool reorderBlock(int block, int dest);
 
     // replace a block with another lv2 plugin (referenced by its URI)
@@ -76,12 +78,14 @@ struct HostConnector {
     // convenience call to replace a block for the current bank + preset
     bool replaceBlock(int block, const char* uri);
 
-    // convenience method for quickly switching to another bank
+    // switch to another bank
     // NOTE resets active preset to 0
-    void switchBank(int bank);
+    // returning false means the current chain was unchanged
+    bool switchBank(int bank);
 
-    // convenience method for quickly switching to another preset within the current bank
-    void switchPreset(int preset);
+    // switch to another preset within the current bank
+    // returning false means the current chain was unchanged
+    bool switchPreset(int preset);
 
 protected:
     // load host state as stored in the `current` struct

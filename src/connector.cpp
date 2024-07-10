@@ -402,26 +402,28 @@ bool HostConnector::replaceBlock(const int block, const char* const uri)
 // convenience method for quickly switching to another bank
 // NOTE resets active preset to 0
 
-void HostConnector::switchBank(const int bank)
+bool HostConnector::switchBank(const int bank)
 {
     if (current.bank == bank || bank < 0 || bank >= NUM_BANKS)
-        return;
+        return false;
 
     current.bank = bank;
     current.preset = 0;
     hostLoadCurrent();
+    return true;
 }
 
 // --------------------------------------------------------------------------------------------------------------------
 // convenience method for quickly switching to another preset within the current bank
 
-void HostConnector::switchPreset(const int preset)
+bool HostConnector::switchPreset(const int preset)
 {
     if (current.preset == preset || preset < 0 || preset >= NUM_PRESETS_PER_BANK)
-        return;
+        return false;
 
     current.preset = preset;
     hostLoadCurrent();
+    return true;
 }
 
 // --------------------------------------------------------------------------------------------------------------------
