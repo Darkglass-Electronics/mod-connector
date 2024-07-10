@@ -44,7 +44,7 @@ struct HostConnector {
         struct {
             struct {
                 struct {
-                    std::string binding;
+                    int binding = -1;
                     std::string uri;
                     struct {
                         std::string symbol;
@@ -59,20 +59,22 @@ struct HostConnector {
     HostConnector();
 
     // load state from a file and store it in the `current` struct
+    // automatically calls loadCurrent() if the file contains valid state, otherwise does nothing
     bool loadStateFromFile(const char* filename);
 
     // save host state as stored in the `current` struct into a file
     bool saveStateToFile(const char* filename) const;
 
-    // load host state as stored in the `current` struct
-    void loadCurrent();
+    // reorder a block into a new position
+    bool reorderBlock(int block, int dest);
 
     // replace a block with another lv2 plugin (referenced by its URI)
     // passing null or empty string as the URI means clearing the block
-    void replaceBlock(int bank, int preset, int block, const char* uri);
+    // returning false means the block was unchanged
+    bool replaceBlock(int bank, int preset, int block, const char* uri);
 
-    // convenience call to replace a block for the current preset
-    void replaceBlockInActivePreset(int block, const char* uri);
+    // convenience call to replace a block for the current bank + preset
+    bool replaceBlock(int block, const char* uri);
 
     // convenience method for quickly switching to another bank
     // NOTE resets active preset to 0
@@ -82,6 +84,9 @@ struct HostConnector {
     void switchPreset(int preset);
 
 protected:
+    // load host state as stored in the `current` struct
+    void hostLoadCurrent();
+
     // common function to connect all the blocks as needed
     // TODO cleanup duplicated code with function below
     void hostConnectBetweenBlocks();

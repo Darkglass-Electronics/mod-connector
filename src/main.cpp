@@ -321,7 +321,7 @@ struct WebSocketConnector : QObject,
         // puts(QJsonDocument(blocks).toJson().constData());
 
         if (bankchanged)
-            loadCurrent();
+            hostLoadCurrent();
         else if (blockschanged)
             hostConnectBetweenBlocks();
     }
