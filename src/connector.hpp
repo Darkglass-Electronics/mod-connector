@@ -73,14 +73,11 @@ struct HostConnector {
     // replace a block with another lv2 plugin (referenced by its URI)
     // passing null or empty string as the URI means clearing the block
     // returning false means the block was unchanged
-    bool replaceBlock(int bank, int preset, int block, const char* uri);
-
-    // convenience call to replace a block for the current bank + preset
     bool replaceBlock(int block, const char* uri);
 
     // switch to another bank
-    // NOTE resets active preset to 0
     // returning false means the current chain was unchanged
+    // NOTE resets active preset to 0
     bool switchBank(int bank);
 
     // switch to another preset within the current bank

@@ -39,6 +39,7 @@ HostConnector::HostConnector()
 
 // --------------------------------------------------------------------------------------------------------------------
 // load state from a file and store it in the `current` struct
+// returning false means the current chain was unchanged
 
 bool HostConnector::loadStateFromFile(const char* const filename)
 {
@@ -279,6 +280,7 @@ bool HostConnector::saveStateToFile(const char* const filename) const
 
 // --------------------------------------------------------------------------------------------------------------------
 // reorder a block into a new position
+// returning false means the current chain was unchanged
 
 bool HostConnector::reorderBlock(const int block, const int dest)
 {
@@ -305,18 +307,14 @@ bool HostConnector::reorderBlock(const int block, const int dest)
 // --------------------------------------------------------------------------------------------------------------------
 // replace a block with another lv2 plugin (referenced by its URI)
 // passing null or empty string as the URI means clearing the block
+// returning false means the block was unchanged
 
-bool HostConnector::replaceBlock(const int bank, const int preset, const int block, const char* const uri)
+bool HostConnector::replaceBlock(const int block, const char* const uri)
 {
-    if (bank < 0 || bank >= NUM_BANKS)
-        return false;
-    if (preset < 0 || preset >= NUM_PRESETS_PER_BANK)
-        return false;
     if (block < 0 || block >= NUM_BLOCKS_PER_PRESET)
         return false;
 
-    auto& blockdata(current.banks[bank].presets[preset].blocks[block]);
-    const bool islive = current.bank == bank && current.preset == preset;
+    auto& blockdata(current.banks[current.bank].presets[current.preset].blocks[block]);
 
     if (! isNullURI(uri))
     {
@@ -325,8 +323,7 @@ bool HostConnector::replaceBlock(const int bank, const int preset, const int blo
             return false;
 
         // we only do changes after verifying that the requested plugin exists
-        if (islive)
-            host.remove(block);
+        host.remove(block);
 
         blockdata.binding = -1;
         blockdata.uri = uri;
@@ -363,27 +360,22 @@ bool HostConnector::replaceBlock(const int bank, const int preset, const int blo
         for (; p < MAX_PARAMS_PER_BLOCK; ++p)
             blockdata.parameters[p] = {};
 
-        if (islive)
+        if (host.add(uri, block))
         {
-            if (host.add(uri, block))
-            {
-                printf("DEBUG: block %d loaded plugin %s\n", block, uri);
-            }
-            else
-            {
-                printf("DEBUG: block %d failed to load plugin %s: %s\n", block, uri, host.last_error.c_str());
-                blockdata = {};
-            }
-
-            // FIXME needed?
-            hostDisconnectForNewBlock(block);
+            printf("DEBUG: block %d loaded plugin %s\n", block, uri);
         }
+        else
+        {
+            printf("DEBUG: block %d failed to load plugin %s: %s\n", block, uri, host.last_error.c_str());
+            blockdata = {};
+        }
+
+        // FIXME needed?
+        hostDisconnectForNewBlock(block);
     }
     else
     {
-        if (islive)
-            host.remove(block);
-
+        host.remove(block);
         blockdata = {};
     }
 
@@ -391,15 +383,8 @@ bool HostConnector::replaceBlock(const int bank, const int preset, const int blo
 }
 
 // --------------------------------------------------------------------------------------------------------------------
-// convenience call to replace a block for the current bank + preset
-
-bool HostConnector::replaceBlock(const int block, const char* const uri)
-{
-    return replaceBlock(current.bank, current.preset, block, uri);
-}
-
-// --------------------------------------------------------------------------------------------------------------------
 // convenience method for quickly switching to another bank
+// returning false means the current chain was unchanged
 // NOTE resets active preset to 0
 
 bool HostConnector::switchBank(const int bank)
@@ -415,6 +400,7 @@ bool HostConnector::switchBank(const int bank)
 
 // --------------------------------------------------------------------------------------------------------------------
 // convenience method for quickly switching to another preset within the current bank
+// returning false means the current chain was unchanged
 
 bool HostConnector::switchPreset(const int preset)
 {
