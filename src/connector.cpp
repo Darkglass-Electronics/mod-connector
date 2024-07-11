@@ -163,8 +163,16 @@ bool HostConnector::loadStateFromFile(const char* const filename)
 
                 block.uri = jblock["uri"].get<std::string>();
 
+                const Lv2Plugin* const plugin = !isNullURI(block.uri)
+                                              ? lv2world.get_plugin_by_uri(block.uri.c_str())
+                                              : nullptr;
+
                 try {
                     block.binding = jblock["binding"].get<int>();
+
+                    if (block.binding < 0 || block.binding >= MAX_PARAMS_PER_BLOCK)
+                        block.binding = -1;
+
                 } catch (...) {
                     block.binding = -1;
                 }
@@ -200,6 +208,27 @@ bool HostConnector::loadStateFromFile(const char* const filename)
 
                     param.symbol = jparam["symbol"].get<std::string>();
                     param.value = jparam["value"].get<double>();
+
+                    bool hasRanges = false;
+                    if (plugin != nullptr)
+                    {
+                        for (size_t i = 0; i < plugin->ports.size(); ++i)
+                        {
+                            if (plugin->ports[i].symbol != param.symbol)
+                                continue;
+
+                            hasRanges = true;
+                            param.minimum = plugin->ports[i].min;
+                            param.maximum = plugin->ports[i].max;
+                            break;
+                        }
+                    }
+
+                    if (! hasRanges)
+                    {
+                        param.minimum = std::min(0.f, param.value);
+                        param.maximum = std::min(1.f, param.value);
+                    }
                 }
             }
         }
@@ -291,17 +320,36 @@ bool HostConnector::reorderBlock(const int block, const int dest)
     if (block == dest)
         return false;
 
+    auto& blocks(current.banks[current.bank].presets[current.preset].blocks);
+
+    // NOTE this is a very crude quick implementation
+    // just removing all plugins and adding them again after reordering
+    // it is not meant to be the final implementation, just something quick for experimentation
+    host.remove(-1);
+
     // moving block backwards to the left
+    // a b c d e! f
+    // a b c e! d f
+    // a b e! c d f
+    // a e! b c d f
     if (block > dest)
     {
+        for (int i = block; i > dest; --i)
+            std::swap(blocks[i], blocks[i - 1]);
     }
     // moving block forward to the right
+    // a b! c d e f
+    // a c b! d e f
+    // a c d b! e f
+    // a c d e b! f
     else
     {
+        for (int i = block; i < dest; ++i)
+            std::swap(blocks[i], blocks[i + 1]);
     }
 
-    // TODO
-    return false;
+    hostLoadCurrent();
+    return true;
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -351,6 +399,8 @@ bool HostConnector::replaceBlock(const int block, const char* const uri)
             blockdata.parameters[p] = {
                 .symbol = plugin->ports[i].symbol,
                 .value = plugin->ports[i].def,
+                .minimum = plugin->ports[i].min,
+                .maximum = plugin->ports[i].max,
             };
 
             if (++p >= MAX_PARAMS_PER_BLOCK)
@@ -410,6 +460,26 @@ bool HostConnector::switchPreset(const int preset)
     current.preset = preset;
     hostLoadCurrent();
     return true;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+// set the value of a block parameter
+
+void HostConnector::hostUpdateParameterValue(int block, int index)
+{
+    if (block < 0 || block >= NUM_BLOCKS_PER_PRESET)
+        return;
+    if (index < 0 || index >= MAX_PARAMS_PER_BLOCK)
+        return;
+
+    auto& blockdata(current.banks[current.bank].presets[current.preset].blocks[block]);
+
+    if (isNullURI(blockdata.uri))
+        return;
+
+    auto& paramdata(blockdata.parameters[index]);
+
+    host.param_set(block, paramdata.symbol.c_str(), paramdata.value);
 }
 
 // --------------------------------------------------------------------------------------------------------------------

@@ -49,6 +49,8 @@ struct HostConnector {
                     struct {
                         std::string symbol;
                         float value;
+                        // convenience meta-data, not stored in json state
+                        float minimum, maximum;
                     } parameters[MAX_PARAMS_PER_BLOCK];
                 } blocks[NUM_BLOCKS_PER_PRESET];
             } presets[NUM_PRESETS_PER_BANK];
@@ -83,6 +85,11 @@ struct HostConnector {
     // switch to another preset within the current bank
     // returning false means the current chain was unchanged
     bool switchPreset(int preset);
+
+    // WIP details below this point
+
+    // update the host value of a block parameter
+    void hostUpdateParameterValue(int block, int index);
 
 protected:
     // load host state as stored in the `current` struct
