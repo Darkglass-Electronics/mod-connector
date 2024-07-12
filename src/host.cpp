@@ -303,7 +303,16 @@ struct Host::Impl
         }
 
         // retrieve response
+        if (nonBlockingMode)
         {
+            assert(resp == nullptr);
+
+            ++numNonBlockingOps;
+        }
+        else
+        {
+            assert(numNonBlockingOps == 0);
+
             // use stack buffer first, in case of small messages
             char stackbuffer[128];
             char* buffer = stackbuffer;
@@ -447,6 +456,39 @@ struct Host::Impl
         return true;
     }
 
+    bool wait()
+    {
+        char c;
+        int r;
+        last_error.clear();
+
+        while (numNonBlockingOps != 0)
+        {
+            r = recv(sockets.out, &c, 1, 0);
+
+            /* Data received */
+            if (r == 1)
+            {
+                if (c == '\0')
+                    --numNonBlockingOps;
+            }
+            /* Error */
+            else if (r < 0)
+            {
+                last_error = "read error";
+                return false;
+            }
+            /* Client disconnected */
+            else
+            {
+                last_error = "disconnected";
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     // ----------------------------------------------------------------------------------------------------------------
     // feedback port handling
 
@@ -552,17 +594,37 @@ struct Host::Impl
 private:
     std::string& last_error;
     bool dummyDevMode = false;
+    bool nonBlockingMode = false;
+    uint16_t numNonBlockingOps = 0;
 
     struct {
         SOCKET out = INVALID_SOCKET;
         SOCKET feedback = INVALID_SOCKET;
     } sockets;
+
+    friend class NonBlockingScope;
 };
 
 // --------------------------------------------------------------------------------------------------------------------
 
 Host::Host() : impl(new Impl(last_error)) {}
 Host::~Host() { delete impl; }
+
+// --------------------------------------------------------------------------------------------------------------------
+
+Host::NonBlockingScope::NonBlockingScope(Host& host_)
+    : host(host_)
+{
+    assert(! host.impl->nonBlockingMode);
+
+    host.impl->nonBlockingMode = true;
+}
+
+Host::NonBlockingScope::~NonBlockingScope()
+{
+    host.impl->nonBlockingMode = false;
+    host.impl->wait();
+}
 
 // --------------------------------------------------------------------------------------------------------------------
 

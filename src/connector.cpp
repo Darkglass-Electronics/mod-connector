@@ -234,6 +234,7 @@ bool HostConnector::loadStateFromFile(const char* const filename)
         }
     }
 
+    const Host::NonBlockingScope hnbs(host);
     hostLoadCurrent();
     return true;
 }
@@ -314,11 +315,22 @@ bool HostConnector::saveStateToFile(const char* const filename) const
 bool HostConnector::reorderBlock(const int block, const int dest)
 {
     if (block < 0 || block >= NUM_BLOCKS_PER_PRESET)
+    {
+        fprintf(stderr, "HostConnector::reorderBlock(%d, %d) - out of bounds block, rejected\n", block, dest);
         return false;
+    }
     if (dest < 0 || dest >= NUM_BLOCKS_PER_PRESET)
+    {
+        fprintf(stderr, "HostConnector::reorderBlock(%d, %d) - out of bounds dest, rejected\n", block, dest);
         return false;
+    }
     if (block == dest)
+    {
+        fprintf(stderr, "HostConnector::reorderBlock(%d, %d) - block == dest, rejected\n", block, dest);
         return false;
+    }
+
+    const Host::NonBlockingScope hnbs(host);
 
     auto& blocks(current.banks[current.bank].presets[current.preset].blocks);
 
@@ -360,7 +372,12 @@ bool HostConnector::reorderBlock(const int block, const int dest)
 bool HostConnector::replaceBlock(const int block, const char* const uri)
 {
     if (block < 0 || block >= NUM_BLOCKS_PER_PRESET)
+    {
+        fprintf(stderr, "HostConnector::replaceBlock(%d, %s) - out of bounds block, rejected\n", block, uri);
         return false;
+    }
+
+    const Host::NonBlockingScope hnbs(host);
 
     auto& blockdata(current.banks[current.bank].presets[current.preset].blocks[block]);
 
@@ -368,7 +385,10 @@ bool HostConnector::replaceBlock(const int block, const char* const uri)
     {
         const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(uri);
         if (plugin == nullptr)
+        {
+            fprintf(stderr, "HostConnector::replaceBlock(%d, %s) - plugin not available, rejected\n", block, uri);
             return false;
+        }
 
         // we only do changes after verifying that the requested plugin exists
         host.remove(block);
@@ -420,8 +440,8 @@ bool HostConnector::replaceBlock(const int block, const char* const uri)
             blockdata = {};
         }
 
-        // FIXME needed?
         hostDisconnectForNewBlock(block);
+        hostConnectBetweenBlocks();
     }
     else
     {
@@ -444,6 +464,8 @@ bool HostConnector::switchBank(const int bank)
 
     current.bank = bank;
     current.preset = 0;
+
+    const Host::NonBlockingScope hnbs(host);
     hostLoadCurrent();
     return true;
 }
@@ -458,6 +480,8 @@ bool HostConnector::switchPreset(const int preset)
         return false;
 
     current.preset = preset;
+
+    const Host::NonBlockingScope hnbs(host);
     hostLoadCurrent();
     return true;
 }
@@ -497,6 +521,7 @@ void HostConnector::hostLoadCurrent()
         const auto& blockdata(presetdata.blocks[b]);
         if (isNullURI(blockdata.uri))
             continue;
+
         host.add(blockdata.uri.c_str(), b);
 
         for (int p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
