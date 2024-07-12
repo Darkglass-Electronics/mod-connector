@@ -4,6 +4,7 @@
 #include "host.hpp"
 #include "utils.hpp"
 
+#include <cassert>
 #include <cstring>
 
 #ifdef _WIN32
