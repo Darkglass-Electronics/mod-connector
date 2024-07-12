@@ -43,6 +43,7 @@ struct HostConnector {
         int preset = 0; // NOTE resets to 0 on bank change
         struct {
             struct {
+                std::string name;
                 struct {
                     int binding = -1;
                     std::string uri;
