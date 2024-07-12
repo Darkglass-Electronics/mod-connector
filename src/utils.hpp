@@ -6,6 +6,21 @@
 #include <string>
 
 // --------------------------------------------------------------------------------------------------------------------
+// check if an URI is null
+
+static inline
+bool isNullURI(const char* const uri)
+{
+    return uri == nullptr || uri[0] == '\0' || (uri[0] == '-' && uri[1] == '\0');
+}
+
+static inline
+bool isNullURI(const std::string& uri)
+{
+    return uri.empty() || uri == "-";
+}
+
+// --------------------------------------------------------------------------------------------------------------------
 // utility function that formats a std::string via `vsnprintf`
 
 #ifdef __MINGW32__

@@ -14,18 +14,6 @@
 
 // --------------------------------------------------------------------------------------------------------------------
 
-static bool isNullURI(const char* const uri)
-{
-    return uri == nullptr || uri[0] == '\0' || (uri[0] == '-' && uri[1] == '\0');
-}
-
-static bool isNullURI(const std::string& uri)
-{
-    return uri.empty() || uri == "-";
-}
-
-// --------------------------------------------------------------------------------------------------------------------
-
 HostConnector::HostConnector()
 {
     if (! host.last_error.empty())
