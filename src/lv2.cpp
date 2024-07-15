@@ -44,6 +44,7 @@ struct Lv2NamespaceDefinitions {
     void free()
     {
         lilv_node_free(lv2core_default);
+        lilv_node_free(lv2core_designation);
         lilv_node_free(lv2core_minimum);
         lilv_node_free(lv2core_maximum);
         lilv_node_free(lv2core_portProperty);
