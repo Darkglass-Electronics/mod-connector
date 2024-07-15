@@ -16,7 +16,7 @@ std::string format(const char* format, ...)
     va_start(args, format);
     va_copy(args2, args);
 
-    const int size = std::vsnprintf(NULL, 0, format, args);
+    const int size = std::vsnprintf(nullptr, 0, format, args);
     if (size > 0)
     {
         ret.resize(size + 1);
