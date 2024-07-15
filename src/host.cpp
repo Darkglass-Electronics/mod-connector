@@ -309,6 +309,8 @@ struct Host::Impl
             assert(resp == nullptr);
 
             ++numNonBlockingOps;
+
+            // fprintf(stderr, "Host::writeMessageAndWait() '%s' | %d\n", message.c_str(), numNonBlockingOps);
         }
         else
         {
@@ -463,6 +465,8 @@ struct Host::Impl
         int r;
         last_error.clear();
 
+        // fprintf(stderr, "Host::wait() begin %d ------------------------------\n", numNonBlockingOps);
+
         while (numNonBlockingOps != 0)
         {
             r = recv(sockets.out, &c, 1, 0);
@@ -470,8 +474,13 @@ struct Host::Impl
             /* Data received */
             if (r == 1)
             {
+                // fprintf(stderr, "%c", c);
+
                 if (c == '\0')
+                {
                     --numNonBlockingOps;
+                    // fprintf(stderr, "\nHost::wait() next %d ------------------------------\n", numNonBlockingOps);
+                }
             }
             /* Error */
             else if (r < 0)
@@ -487,6 +496,7 @@ struct Host::Impl
             }
         }
 
+        // fprintf(stderr, "Host::wait() end %d ------------------------------\n", numNonBlockingOps);
         return true;
     }
 
