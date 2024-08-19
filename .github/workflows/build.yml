@@ -1,0 +1,59 @@
+name: build
+
+on: [push, pull_request]
+
+env:
+  DEBIAN_FRONTEND: noninteractive
+
+jobs:
+  linux-qt5:
+    strategy:
+      matrix:
+        image:
+          - debian:12
+          - ubuntu:22.04
+          - ubuntu:24.04
+        pkgs:
+          - libqt5websockets5-dev
+          - libqt5websockets5-dev libsystemd-dev
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ matrix.image }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: install dependencies
+        shell: bash
+        run: |
+          apt-get update -qq
+          apt-get install -yqq cmake g++ liblilv-dev lv2-dev pkg-config ${{ matrix.pkgs }}
+      - name: build
+        shell: bash
+        run: |
+          cmake -S . -B build
+          cmake --build build -j
+
+  linux-qt6:
+    strategy:
+      matrix:
+        image:
+          - debian:12
+          - ubuntu:22.04
+          - ubuntu:24.04
+        pkgs:
+          - libqt6websockets6-dev
+          - libqt6websockets6-dev libsystemd-dev
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ matrix.image }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: install dependencies
+        shell: bash
+        run: |
+          apt-get update -qq
+          apt-get install -yqq cmake g++ liblilv-dev lv2-dev pkg-config ${{ matrix.pkgs }}
+      - name: build
+        shell: bash
+        run: |
+          cmake -S . -B build
+          cmake --build build -j

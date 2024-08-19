@@ -19,6 +19,10 @@
 #include <lv2/lv2plug.in/ns/ext/port-props/port-props.h>
 #endif
 
+#ifndef LV2_CORE__enabled
+#define LV2_CORE__enabled LV2_CORE_PREFIX "#enabled"
+#endif
+
 #define MOD__CVPort "http://moddevices.com/ns/mod#CVPort"
 
 // --------------------------------------------------------------------------------------------------------------------
