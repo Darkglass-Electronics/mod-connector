@@ -651,6 +651,16 @@ bool Host::remove(const int16_t instance_number)
     return impl->writeMessageAndWait(format("remove %d", instance_number));
 }
 
+bool Host::activate(int16_t instance_number, bool activate_value)
+{
+    return impl->writeMessageAndWait(format("activate %d %d", instance_number, activate_value ? 1 : 0));
+}
+
+bool Host::preload(const char* const uri, int16_t instance_number)
+{
+    return impl->writeMessageAndWait(format("preload %s %d", uri, instance_number));
+}
+
 bool Host::preset_load(const int16_t instance_number, const char* const preset_uri)
 {
     return impl->writeMessageAndWait(format("preset_load %d %s", instance_number, preset_uri));
@@ -703,6 +713,11 @@ float Host::cpu_load()
     HostResponse resp;
     return impl->writeMessageAndWait("cpu_load",
                                      kHostResponseFloat, &resp) ? resp.data.f : 0.f;
+}
+
+bool Host::feature_enable(const char* const feature, const bool enable)
+{
+    return impl->writeMessageAndWait(format("feature_enable %s %d", feature, enable ? 1 : 0));
 }
 
 bool Host::transport(const bool rolling, const double beats_per_bar, const double beats_per_minute)

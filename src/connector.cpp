@@ -365,9 +365,10 @@ bool HostConnector::replaceBlock(const int block, const char* const uri)
         return false;
     }
 
-    const Host::NonBlockingScope hnbs(host);
-
+    const int instance = 100 * current.preset + block;
     auto& blockdata(current.banks[current.bank].presets[current.preset].blocks[block]);
+
+    const Host::NonBlockingScope hnbs(host);
 
     if (! isNullURI(uri))
     {
@@ -379,7 +380,7 @@ bool HostConnector::replaceBlock(const int block, const char* const uri)
         }
 
         // we only do changes after verifying that the requested plugin exists
-        host.remove(block);
+        host.remove(instance);
 
         blockdata.binding = -1;
         blockdata.uri = uri;
@@ -418,7 +419,7 @@ bool HostConnector::replaceBlock(const int block, const char* const uri)
         for (; p < MAX_PARAMS_PER_BLOCK; ++p)
             blockdata.parameters[p] = {};
 
-        if (host.add(uri, block))
+        if (host.add(uri, instance))
         {
             printf("DEBUG: block %d loaded plugin %s\n", block, uri);
         }
@@ -433,7 +434,7 @@ bool HostConnector::replaceBlock(const int block, const char* const uri)
     }
     else
     {
-        host.remove(block);
+        host.remove(instance);
         blockdata = {};
     }
 
@@ -467,10 +468,48 @@ bool HostConnector::switchPreset(const int preset)
     if (current.preset == preset || preset < 0 || preset >= NUM_PRESETS_PER_BANK)
         return false;
 
+    const auto& bankdata(current.banks[current.bank]);
+    const int oldpreset = current.preset;
     current.preset = preset;
 
     const Host::NonBlockingScope hnbs(host);
-    hostLoadCurrent();
+
+    // step 1: fade out
+    // TODO
+
+    // step 2: deactivate all plugins in old preset
+    {
+        const auto& presetdata(bankdata.presets[oldpreset]);
+
+        for (int b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
+        {
+            const auto& blockdata(presetdata.blocks[b]);
+            if (isNullURI(blockdata.uri))
+                continue;
+
+            const int instance = 100 * oldpreset + b;
+            host.activate(instance, 0);
+        }
+    }
+
+    // step 3: deactivate all plugins in old preset
+    {
+        const auto& presetdata(bankdata.presets[preset]);
+
+        for (int b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
+        {
+            const auto& blockdata(presetdata.blocks[b]);
+            if (isNullURI(blockdata.uri))
+                continue;
+
+            const int instance = 100 * preset + b;
+            host.activate(instance, 1);
+        }
+    }
+
+    // step 4: fade in
+    // TODO
+
     return true;
 }
 
@@ -484,6 +523,7 @@ void HostConnector::hostUpdateParameterValue(int block, int index)
     if (index < 0 || index >= MAX_PARAMS_PER_BLOCK)
         return;
 
+    const int instance = 100 * current.preset + block;
     auto& blockdata(current.banks[current.bank].presets[current.preset].blocks[block]);
 
     if (isNullURI(blockdata.uri))
@@ -491,7 +531,7 @@ void HostConnector::hostUpdateParameterValue(int block, int index)
 
     auto& paramdata(blockdata.parameters[index]);
 
-    host.param_set(block, paramdata.symbol.c_str(), paramdata.value);
+    host.param_set(instance, paramdata.symbol.c_str(), paramdata.value);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -499,29 +539,41 @@ void HostConnector::hostUpdateParameterValue(int block, int index)
 
 void HostConnector::hostLoadCurrent()
 {
+    host.feature_enable("processing", false);
     host.remove(-1);
 
     const auto& bankdata(current.banks[current.bank]);
-    const auto& presetdata(bankdata.presets[current.preset]);
 
-    for (int b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
+    for (int pr = 0; pr < NUM_PRESETS_PER_BANK; ++pr)
     {
-        const auto& blockdata(presetdata.blocks[b]);
-        if (isNullURI(blockdata.uri))
-            continue;
+        const auto& presetdata(bankdata.presets[pr]);
+        const bool active = current.preset == pr;
 
-        host.add(blockdata.uri.c_str(), b);
-
-        for (int p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+        for (int b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
         {
-            const auto& parameterdata(blockdata.parameters[p]);
-            if (isNullURI(parameterdata.symbol))
+            const auto& blockdata(presetdata.blocks[b]);
+            if (isNullURI(blockdata.uri))
                 continue;
-            host.param_set(b, parameterdata.symbol.c_str(), parameterdata.value);
+
+            const int instance = 100 * pr + b;
+
+            if (active)
+                host.add(blockdata.uri.c_str(), instance);
+            else
+                host.preload(blockdata.uri.c_str(), instance);
+
+            for (int p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+            {
+                const auto& parameterdata(blockdata.parameters[p]);
+                if (isNullURI(parameterdata.symbol))
+                    continue;
+                host.param_set(instance, parameterdata.symbol.c_str(), parameterdata.value);
+            }
         }
     }
 
     hostConnectBetweenBlocks();
+    host.feature_enable("processing", true);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -531,102 +583,113 @@ void HostConnector::hostLoadCurrent()
 void HostConnector::hostConnectBetweenBlocks()
 {
     const auto& bankdata(current.banks[current.bank]);
-    const auto& presetdata(bankdata.presets[current.preset]);
 
-    bool loaded[NUM_BLOCKS_PER_PRESET];
-    for (int b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
-        loaded[b] = !isNullURI(presetdata.blocks[b].uri);
-
-    // first plugin
-    for (int b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
+    for (int pr = 0; pr < NUM_PRESETS_PER_BANK; ++pr)
     {
-        if (! loaded[b])
-            continue;
+        const auto& presetdata(bankdata.presets[pr]);
 
-        if (const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(presetdata.blocks[b].uri.c_str()))
+        bool loaded[NUM_BLOCKS_PER_PRESET];
+        for (int b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
+            loaded[b] = !isNullURI(presetdata.blocks[b].uri);
+
+        // first plugin
+        for (int b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
         {
-            int srci = 0;
-            for (size_t i = 0; i < plugin->ports.size(); ++i)
-            {
-                if ((plugin->ports[i].flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != Lv2PortIsAudio)
-                    continue;
-
-                ++srci;
-                const std::string origin(format("system:capture_%d", srci));
-                const std::string target(format("effect_%d:%s", b, plugin->ports[i].symbol.c_str()));
-                host.connect(origin.c_str(), target.c_str());
-            }
-        }
-
-        break;
-    }
-
-    // last plugin
-    for (int b = NUM_BLOCKS_PER_PRESET - 1; b >= 0; --b)
-    {
-        if (! loaded[b])
-            continue;
-
-        if (const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(presetdata.blocks[b].uri.c_str()))
-        {
-            int dsti = 0;
-            for (size_t i = 0; i < plugin->ports.size(); ++i)
-            {
-                if ((plugin->ports[i].flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != (Lv2PortIsAudio|Lv2PortIsOutput))
-                    continue;
-
-                ++dsti;
-                const std::string origin(format("effect_%d:%s", b, plugin->ports[i].symbol.c_str()));
-                const std::string target(format("mod-monitor:in_%d", dsti));
-                host.connect(origin.c_str(), target.c_str());
-            }
-        }
-
-        break;
-    }
-
-    // between plugins
-    for (int b1 = 0; b1 < NUM_BLOCKS_PER_PRESET - 1; ++b1)
-    {
-        if (! loaded[b1])
-            continue;
-
-        for (int b2 = b1 + 1; b2 < NUM_BLOCKS_PER_PRESET; ++b2)
-        {
-            if (! loaded[b2])
+            if (! loaded[b])
                 continue;
 
-            const Lv2Plugin* const plugin1 = lv2world.get_plugin_by_uri(presetdata.blocks[b1].uri.c_str());
-            const Lv2Plugin* const plugin2 = lv2world.get_plugin_by_uri(presetdata.blocks[b2].uri.c_str());
+            const int instance = 100 * pr + b;
 
-            if (plugin1 != nullptr && plugin2 != nullptr)
+            if (const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(presetdata.blocks[b].uri.c_str()))
             {
                 int srci = 0;
-                for (size_t i = 0; i < plugin1->ports.size(); ++i)
+                for (size_t i = 0; i < plugin->ports.size(); ++i)
                 {
-                    if ((plugin1->ports[i].flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != (Lv2PortIsAudio|Lv2PortIsOutput))
+                    if ((plugin->ports[i].flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != Lv2PortIsAudio)
                         continue;
 
                     ++srci;
-                    size_t dstj = 0;
-                    for (size_t j = 0; j < plugin2->ports.size(); ++j)
-                    {
-                        if (plugin2->ports[j].flags & Lv2PortIsOutput)
-                            continue;
-                        if ((plugin2->ports[j].flags & Lv2PortIsAudio) == 0)
-                            continue;
-
-                        if (srci != ++dstj)
-                            continue;
-
-                        const std::string origin(format("effect_%d:%s", b1, plugin1->ports[i].symbol.c_str()));
-                        const std::string target(format("effect_%d:%s", b2, plugin2->ports[j].symbol.c_str()));
-                        host.connect(origin.c_str(), target.c_str());
-                    }
+                    const std::string origin(format("system:capture_%d", srci));
+                    const std::string target(format("effect_%d:%s", instance, plugin->ports[i].symbol.c_str()));
+                    host.connect(origin.c_str(), target.c_str());
                 }
             }
 
             break;
+        }
+
+        // last plugin
+        for (int b = NUM_BLOCKS_PER_PRESET - 1; b >= 0; --b)
+        {
+            if (! loaded[b])
+                continue;
+
+            const int instance = 100 * pr + b;
+
+            if (const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(presetdata.blocks[b].uri.c_str()))
+            {
+                int dsti = 0;
+                for (size_t i = 0; i < plugin->ports.size(); ++i)
+                {
+                    if ((plugin->ports[i].flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != (Lv2PortIsAudio|Lv2PortIsOutput))
+                        continue;
+
+                    ++dsti;
+                    const std::string origin(format("effect_%d:%s", instance, plugin->ports[i].symbol.c_str()));
+                    const std::string target(format("mod-monitor:in_%d", dsti));
+                    host.connect(origin.c_str(), target.c_str());
+                }
+            }
+
+            break;
+        }
+
+        // between plugins
+        for (int b1 = 0; b1 < NUM_BLOCKS_PER_PRESET - 1; ++b1)
+        {
+            if (! loaded[b1])
+                continue;
+
+            for (int b2 = b1 + 1; b2 < NUM_BLOCKS_PER_PRESET; ++b2)
+            {
+                if (! loaded[b2])
+                    continue;
+
+                const int instance1 = 100 * pr + b1;
+                const int instance2 = 100 * pr + b2;
+
+                const Lv2Plugin* const plugin1 = lv2world.get_plugin_by_uri(presetdata.blocks[b1].uri.c_str());
+                const Lv2Plugin* const plugin2 = lv2world.get_plugin_by_uri(presetdata.blocks[b2].uri.c_str());
+
+                if (plugin1 != nullptr && plugin2 != nullptr)
+                {
+                    int srci = 0;
+                    for (size_t i = 0; i < plugin1->ports.size(); ++i)
+                    {
+                        if ((plugin1->ports[i].flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != (Lv2PortIsAudio|Lv2PortIsOutput))
+                            continue;
+
+                        ++srci;
+                        size_t dstj = 0;
+                        for (size_t j = 0; j < plugin2->ports.size(); ++j)
+                        {
+                            if (plugin2->ports[j].flags & Lv2PortIsOutput)
+                                continue;
+                            if ((plugin2->ports[j].flags & Lv2PortIsAudio) == 0)
+                                continue;
+
+                            if (srci != ++dstj)
+                                continue;
+
+                            const std::string origin(format("effect_%d:%s", instance1, plugin1->ports[i].symbol.c_str()));
+                            const std::string target(format("effect_%d:%s", instance2, plugin2->ports[j].symbol.c_str()));
+                            host.connect(origin.c_str(), target.c_str());
+                        }
+                    }
+                }
+
+                break;
+            }
         }
     }
 }
@@ -652,6 +715,8 @@ void HostConnector::hostDisconnectForNewBlock(const int blockidi)
         if (! loaded[b])
             continue;
 
+        const int instance = 100 * current.preset + b;
+
         if (const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(presetdata.blocks[b].uri.c_str()))
         {
             int srci = 0;
@@ -662,7 +727,7 @@ void HostConnector::hostDisconnectForNewBlock(const int blockidi)
 
                 ++srci;
                 const std::string origin(format("system:capture_%d", srci));
-                const std::string target(format("effect_%d:%s", b, plugin->ports[i].symbol.c_str()));
+                const std::string target(format("effect_%d:%s", instance, plugin->ports[i].symbol.c_str()));
                 host.disconnect(origin.c_str(), target.c_str());
             }
         }
@@ -676,6 +741,8 @@ void HostConnector::hostDisconnectForNewBlock(const int blockidi)
         if (! loaded[b])
             continue;
 
+        const int instance = 100 * current.preset + b;
+
         if (const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(presetdata.blocks[b].uri.c_str()))
         {
             int dsti = 0;
@@ -685,7 +752,7 @@ void HostConnector::hostDisconnectForNewBlock(const int blockidi)
                     continue;
 
                 ++dsti;
-                const std::string origin(format("effect_%d:%s", b, plugin->ports[i].symbol.c_str()));
+                const std::string origin(format("effect_%d:%s", instance, plugin->ports[i].symbol.c_str()));
                 const std::string target(format("mod-monitor:in_%d", dsti));
                 host.disconnect(origin.c_str(), target.c_str());
             }
@@ -704,6 +771,9 @@ void HostConnector::hostDisconnectForNewBlock(const int blockidi)
         {
             if (! loaded[b2])
                 continue;
+
+            const int instance1 = 100 * current.preset + b1;
+            const int instance2 = 100 * current.preset + b2;
 
             const Lv2Plugin* const plugin1 = lv2world.get_plugin_by_uri(presetdata.blocks[b1].uri.c_str());
             const Lv2Plugin* const plugin2 = lv2world.get_plugin_by_uri(presetdata.blocks[b2].uri.c_str());
@@ -728,8 +798,8 @@ void HostConnector::hostDisconnectForNewBlock(const int blockidi)
                         if (srci != ++dstj)
                             continue;
 
-                        const std::string origin(format("effect_%d:%s", b1, plugin1->ports[i].symbol.c_str()));
-                        const std::string target(format("effect_%d:%s", b2, plugin2->ports[j].symbol.c_str()));
+                        const std::string origin(format("effect_%d:%s", instance1, plugin1->ports[i].symbol.c_str()));
+                        const std::string target(format("effect_%d:%s", instance2, plugin2->ports[j].symbol.c_str()));
                         host.disconnect(origin.c_str(), target.c_str());
                     }
                 }

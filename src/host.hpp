@@ -33,6 +33,16 @@ struct Host {
     bool remove(int16_t instance_number);
 
     /**
+     * toggle effect activated state
+     */
+    bool activate(int16_t instance_number, bool activate_value);
+
+    /* add an LV2 plugin encapsulated as a jack client, in deactivated state
+     * @a instance_number must be any value between 0 ~ 9990, inclusively
+     */
+    bool preload(const char* uri, int16_t instance_number);
+
+    /**
      * load a preset state of an effect instance
      */
     bool preset_load(int16_t instance_number, const char* preset_uri);
