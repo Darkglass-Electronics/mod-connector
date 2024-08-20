@@ -478,6 +478,9 @@ bool HostConnector::switchPreset(const int preset)
     // TODO
 
     // step 2: deactivate all plugins in old preset
+#if 1
+    host.activate(100 * oldpreset, 100 * oldpreset + NUM_BLOCKS_PER_PRESET, 0);
+#else
     {
         const auto& presetdata(bankdata.presets[oldpreset]);
 
@@ -491,8 +494,12 @@ bool HostConnector::switchPreset(const int preset)
             host.activate(instance, 0);
         }
     }
+#endif
 
-    // step 3: deactivate all plugins in old preset
+    // step 3: activate all plugins in new preset
+#if 1
+    host.activate(100 * preset, 100 * preset + NUM_BLOCKS_PER_PRESET, 1);
+#else
     {
         const auto& presetdata(bankdata.presets[preset]);
 
@@ -506,6 +513,9 @@ bool HostConnector::switchPreset(const int preset)
             host.activate(instance, 1);
         }
     }
+#endif
+
+    hostConnectBetweenBlocks();
 
     // step 4: fade in
     // TODO
@@ -605,8 +615,9 @@ void HostConnector::hostConnectBetweenBlocks()
 {
     const auto& bankdata(current.banks[current.bank]);
 
-    for (int pr = 0; pr < NUM_PRESETS_PER_BANK; ++pr)
+    // for (int pr = 0; pr < NUM_PRESETS_PER_BANK; ++pr)
     {
+        const int pr = current.preset;
         const auto& presetdata(bankdata.presets[pr]);
 
         bool loaded[NUM_BLOCKS_PER_PRESET];

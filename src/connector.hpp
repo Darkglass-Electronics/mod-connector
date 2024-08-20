@@ -18,7 +18,7 @@
 #endif
 
 #ifndef NUM_BLOCKS_PER_PRESET
-#define NUM_BLOCKS_PER_PRESET 12
+#define NUM_BLOCKS_PER_PRESET 24
 #endif
 
 #ifndef MAX_PARAMS_PER_BLOCK

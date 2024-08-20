@@ -651,9 +651,9 @@ bool Host::remove(const int16_t instance_number)
     return impl->writeMessageAndWait(format("remove %d", instance_number));
 }
 
-bool Host::activate(int16_t instance_number, bool activate_value)
+bool Host::activate(int16_t instance_number, int16_t instance_number_end, bool activate_value)
 {
-    return impl->writeMessageAndWait(format("activate %d %d", instance_number, activate_value ? 1 : 0));
+    return impl->writeMessageAndWait(format("activate %d %d %d", instance_number, instance_number_end, activate_value ? 1 : 0));
 }
 
 bool Host::preload(const char* const uri, int16_t instance_number)
