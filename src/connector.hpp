@@ -14,7 +14,7 @@
 #endif
 
 #ifndef NUM_PRESETS_PER_BANK
-#define NUM_PRESETS_PER_BANK 3
+#define NUM_PRESETS_PER_BANK 12
 #endif
 
 #ifndef NUM_BLOCKS_PER_PRESET
