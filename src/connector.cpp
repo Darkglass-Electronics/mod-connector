@@ -514,6 +514,27 @@ bool HostConnector::switchPreset(const int preset)
 }
 
 // --------------------------------------------------------------------------------------------------------------------
+// give file to a block to load
+
+void HostConnector::setBlockProperty(int block, const char* property_uri, const char* value)
+{
+    if (block < 0 || block >= NUM_BLOCKS_PER_PRESET)
+        return;
+    if (property_uri == nullptr || *property_uri == '\0')
+        return;
+    if (value == nullptr || *value == '\0')
+        return;
+
+    const int instance = 100 * current.preset + block;
+    auto& blockdata(current.banks[current.bank].presets[current.preset].blocks[block]);
+
+    if (isNullURI(blockdata.uri))
+        return;
+
+    host.patch_set(instance, property_uri, value);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
 // set the value of a block parameter
 
 void HostConnector::hostUpdateParameterValue(int block, int index)

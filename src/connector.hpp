@@ -18,7 +18,7 @@
 #endif
 
 #ifndef NUM_BLOCKS_PER_PRESET
-#define NUM_BLOCKS_PER_PRESET 6
+#define NUM_BLOCKS_PER_PRESET 12
 #endif
 
 #ifndef MAX_PARAMS_PER_BLOCK
@@ -88,6 +88,9 @@ struct HostConnector {
     bool switchPreset(int preset);
 
     // WIP details below this point
+
+    // set a block property
+    void setBlockProperty(int block, const char* property_uri, const char* value);
 
     // update the host value of a block parameter
     void hostUpdateParameterValue(int block, int index);

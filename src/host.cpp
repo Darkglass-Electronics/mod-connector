@@ -708,6 +708,11 @@ bool Host::param_get(int16_t instance_number, const char* param_symbol)
     return impl->writeMessageAndWait(format("param_get %d %s", instance_number, param_symbol));
 }
 
+bool Host::patch_set(int16_t instance_number, const char* property_uri, const char* value)
+{
+    return impl->writeMessageAndWait(format("patch_set %d %s \"%s\"", instance_number, property_uri, value));
+}
+
 float Host::cpu_load()
 {
     HostResponse resp;
