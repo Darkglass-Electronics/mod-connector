@@ -634,16 +634,35 @@ void HostConnector::hostConnectBetweenBlocks()
 
             if (const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(presetdata.blocks[b].uri.c_str()))
             {
-                int srci = 0;
+                int srci = 0, firsti = -1;
                 for (size_t i = 0; i < plugin->ports.size(); ++i)
                 {
                     if ((plugin->ports[i].flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != Lv2PortIsAudio)
                         continue;
 
+                    if (firsti == -1)
+                        firsti = i;
+
                     ++srci;
                     const std::string origin(format("system:capture_%d", srci));
                     const std::string target(format("effect_%d:%s", instance, plugin->ports[i].symbol.c_str()));
                     host.connect(origin.c_str(), target.c_str());
+                }
+
+                // connect to extra inputs
+                if (firsti != -1)
+                {
+                    srci = 2;
+                    for (size_t i = firsti; i < plugin->ports.size(); ++i)
+                    {
+                        if ((plugin->ports[i].flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != Lv2PortIsAudio)
+                            continue;
+
+                        ++srci;
+                        const std::string origin(format("system:capture_%d", srci));
+                        const std::string target(format("effect_%d:%s", instance, plugin->ports[i].symbol.c_str()));
+                        host.connect(origin.c_str(), target.c_str());
+                    }
                 }
             }
 
@@ -660,15 +679,24 @@ void HostConnector::hostConnectBetweenBlocks()
 
             if (const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(presetdata.blocks[b].uri.c_str()))
             {
-                int dsti = 0;
+                int dsti = 0, lasti = 0;
                 for (size_t i = 0; i < plugin->ports.size(); ++i)
                 {
                     if ((plugin->ports[i].flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != (Lv2PortIsAudio|Lv2PortIsOutput))
                         continue;
 
                     ++dsti;
+                    lasti = i;
                     const std::string origin(format("effect_%d:%s", instance, plugin->ports[i].symbol.c_str()));
                     const std::string target(format("mod-monitor:in_%d", dsti));
+                    host.connect(origin.c_str(), target.c_str());
+                }
+
+                // connect to stereo output if chain is mono
+                if (dsti == 1)
+                {
+                    const std::string origin(format("effect_%d:%s", instance, plugin->ports[lasti].symbol.c_str()));
+                    const std::string target(format("mod-monitor:in_%d", dsti + 1));
                     host.connect(origin.c_str(), target.c_str());
                 }
             }
