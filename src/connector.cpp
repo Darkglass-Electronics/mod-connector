@@ -430,7 +430,6 @@ bool HostConnector::replaceBlock(const int block, const char* const uri)
         }
 
         hostDisconnectForNewBlock(block);
-        hostConnectBetweenBlocks();
     }
     else
     {
@@ -438,6 +437,7 @@ bool HostConnector::replaceBlock(const int block, const char* const uri)
         blockdata = {};
     }
 
+    hostConnectBetweenBlocks();
     return true;
 }
 
