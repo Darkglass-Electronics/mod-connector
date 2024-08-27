@@ -19,7 +19,7 @@ std::string format(const char* format, ...)
     const int size = std::vsnprintf(nullptr, 0, format, args);
     if (size > 0)
     {
-        ret.resize(size + 1);
+        ret.resize(size);
         std::vsnprintf(&ret[0], size + 1, format, args2);
     }
 
