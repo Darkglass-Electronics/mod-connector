@@ -206,6 +206,7 @@ bool HostConnector::loadStateFromFile(const char* const filename)
                                 continue;
 
                             hasRanges = true;
+                            param.flags = plugin->ports[i].flags;
                             param.minimum = plugin->ports[i].min;
                             param.maximum = plugin->ports[i].max;
                             break;
@@ -214,6 +215,7 @@ bool HostConnector::loadStateFromFile(const char* const filename)
 
                     if (! hasRanges)
                     {
+                        param.flags = 0;
                         param.minimum = std::min(0.f, param.value);
                         param.maximum = std::min(1.f, param.value);
                     }
@@ -408,6 +410,7 @@ bool HostConnector::replaceBlock(const int block, const char* const uri)
             blockdata.parameters[p] = {
                 .symbol = plugin->ports[i].symbol,
                 .value = plugin->ports[i].def,
+                .flags = plugin->ports[i].flags,
                 .minimum = plugin->ports[i].min,
                 .maximum = plugin->ports[i].max,
             };
@@ -468,7 +471,7 @@ bool HostConnector::switchPreset(const int preset)
     if (current.preset == preset || preset < 0 || preset >= NUM_PRESETS_PER_BANK)
         return false;
 
-    const auto& bankdata(current.banks[current.bank]);
+    // const auto& bankdata(current.banks[current.bank]);
     const int oldpreset = current.preset;
     current.preset = preset;
 
@@ -524,7 +527,21 @@ bool HostConnector::switchPreset(const int preset)
 }
 
 // --------------------------------------------------------------------------------------------------------------------
-// give file to a block to load
+// clear current preset
+
+void HostConnector::clearCurrentPreset()
+{
+    auto& blocks(current.banks[current.bank].presets[current.preset].blocks);
+
+    for (int i = 0; i < NUM_BLOCKS_PER_PRESET; ++i)
+        blocks[i] = {};
+
+    const Host::NonBlockingScope hnbs(host);
+    hostLoadCurrent();
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+// set a block property
 
 void HostConnector::setBlockProperty(int block, const char* property_uri, const char* value)
 {

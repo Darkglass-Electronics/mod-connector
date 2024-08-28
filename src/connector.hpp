@@ -51,6 +51,7 @@ struct HostConnector {
                         std::string symbol;
                         float value;
                         // convenience meta-data, not stored in json state
+                        uint32_t flags;
                         float minimum, maximum;
                     } parameters[MAX_PARAMS_PER_BLOCK];
                 } blocks[NUM_BLOCKS_PER_PRESET];
@@ -88,6 +89,9 @@ struct HostConnector {
     bool switchPreset(int preset);
 
     // WIP details below this point
+
+    // clear current preset
+    void clearCurrentPreset();
 
     // set a block property
     void setBlockProperty(int block, const char* property_uri, const char* value);
