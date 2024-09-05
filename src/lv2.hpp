@@ -40,6 +40,7 @@ struct Lv2Port {
     float def = 0.f;
     float min = 0.f;
     float max = 1.f;
+    std::string unit; // TODO
 };
 
 struct Lv2Plugin {

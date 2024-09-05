@@ -61,6 +61,7 @@ struct HostConnector {
                             uint32_t flags;
                             float min, max;
                             std::string name;
+                            std::string unit;
                         } meta;
                     } parameters[MAX_PARAMS_PER_BLOCK];
                 } blocks[NUM_BLOCKS_PER_PRESET];
