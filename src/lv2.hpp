@@ -24,12 +24,18 @@ enum Lv2Designation {
 };
 
 enum Lv2Flags {
-    Lv2PortIsAudio      = 1 << 1,
-    Lv2PortIsControl    = 1 << 2,
-    Lv2PortIsOutput     = 1 << 3,
-    Lv2ParameterToggled = 1 << 4,
-    Lv2ParameterInteger = 1 << 5,
-    Lv2ParameterHidden  = 1 << 6,
+    Lv2PortIsAudio         = 1 << 1,
+    Lv2PortIsControl       = 1 << 2,
+    Lv2PortIsOutput        = 1 << 3,
+    Lv2ParameterToggled    = 1 << 4,
+    Lv2ParameterInteger    = 1 << 5,
+    Lv2ParameterEnumerated = 1 << 6,
+    Lv2ParameterHidden     = 1 << 7,
+};
+
+struct Lv2ScalePoint {
+    std::string label;
+    float value = 0.f;
 };
 
 struct Lv2Port {
@@ -41,6 +47,7 @@ struct Lv2Port {
     float min = 0.f;
     float max = 1.f;
     std::string unit; // TODO
+    std::vector<Lv2ScalePoint> scalePoints; // TODO
 };
 
 struct Lv2Plugin {
