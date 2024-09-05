@@ -14,7 +14,7 @@
 #endif
 
 #ifndef NUM_PRESETS_PER_BANK
-#define NUM_PRESETS_PER_BANK 12
+#define NUM_PRESETS_PER_BANK 3
 #endif
 
 #ifndef NUM_BLOCKS_PER_PRESET
@@ -62,6 +62,7 @@ struct HostConnector {
                             float min, max;
                             std::string name;
                             std::string unit;
+                            std::vector<Lv2ScalePoint> scalePoints;
                         } meta;
                     } parameters[MAX_PARAMS_PER_BLOCK];
                 } blocks[NUM_BLOCKS_PER_PRESET];

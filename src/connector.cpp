@@ -246,6 +246,7 @@ bool HostConnector::loadStateFromFile(const char* const filename)
                     param.meta.max = plugin->ports[i].max;
                     param.meta.name = plugin->ports[i].name;
                     param.meta.unit = plugin->ports[i].unit;
+                    param.meta.scalePoints = plugin->ports[i].scalePoints;
 
                     symbolToIndexMap[param.symbol] = numParams++;
                 }
@@ -502,6 +503,7 @@ bool HostConnector::replaceBlock(const int block, const char* const uri)
                     .max = plugin->ports[i].max,
                     .name = plugin->ports[i].name,
                     .unit = plugin->ports[i].unit,
+                    .scalePoints = plugin->ports[i].scalePoints,
                 },
             };
         }
