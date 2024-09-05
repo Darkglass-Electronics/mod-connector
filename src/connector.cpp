@@ -7,10 +7,48 @@
 
 #include <cstring>
 #include <fstream>
+#include <map>
 
 #define JSON_STATE_VERSION_CURRENT 0
 #define JSON_STATE_VERSION_MIN_SUPPORTED 0
 #define JSON_STATE_VERSION_MAX_SUPPORTED 0
+
+// --------------------------------------------------------------------------------------------------------------------
+
+template <class Param>
+static void resetParam(Param& param)
+{
+    param = {};
+    param.meta.max = 1.f;
+}
+
+template <class Block>
+static void resetBlock(Block& block)
+{
+    block = {};
+    block.meta.bindingIndex = -1;
+
+    for (int p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+        resetParam(block.parameters[p]);
+}
+
+template <class Preset>
+static void resetPreset(Preset& preset)
+{
+    preset = {};
+
+    for (int bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
+        resetBlock(preset.blocks[bl]);
+}
+
+template <class Bank>
+static void resetBank(Bank& bank)
+{
+    bank = {};
+
+    for (int pr = 0; pr < NUM_PRESETS_PER_BANK; ++pr)
+        resetPreset(bank.presets[pr]);
+}
 
 // --------------------------------------------------------------------------------------------------------------------
 
@@ -80,8 +118,9 @@ bool HostConnector::loadStateFromFile(const char* const filename)
     if (! j.contains("banks"))
     {
         // full reset
+        printf("HostConnector::loadStateFromFile: no banks in file, using empty state\n");
         for (int b = 0; b < NUM_BANKS; ++b)
-            current.banks[b] = {};
+            resetBank(current.banks[b]);
         hostLoadCurrent();
         return true;
     }
@@ -94,16 +133,15 @@ bool HostConnector::loadStateFromFile(const char* const filename)
 
         if (! jbanks.contains(jbankid))
         {
-            // reset bank
-            bank = {};
+            resetBank(bank);
             continue;
         }
 
         auto& jbank = jbanks[jbankid];
         if (! jbank.contains("presets"))
         {
-            // reset bank
-            bank = {};
+            printf("HostConnector::loadStateFromFile: bank #%d does not include presets, using empty bank\n", b + 1);
+            resetBank(bank);
             continue;
         }
 
@@ -115,16 +153,18 @@ bool HostConnector::loadStateFromFile(const char* const filename)
 
             if (! jbanks.contains(jbankid))
             {
-                // reset preset
-                preset = {};
+                printf("HostConnector::loadStateFromFile: bank #%d does not include preset #%d, using empty preset\n",
+                       b + 1, pr + 1);
+                resetPreset(preset);
                 continue;
             }
 
             auto& jpreset = jpresets[jpresetid];
             if (! jpreset.contains("blocks"))
             {
-                // reset preset
-                preset = {};
+                printf("HostConnector::loadStateFromFile: bank #%d / preset #%d does not include blocks, using empty preset\n",
+                       b + 1, pr + 1);
+                resetPreset(preset);
                 continue;
             }
 
@@ -136,89 +176,128 @@ bool HostConnector::loadStateFromFile(const char* const filename)
 
                 if (! jblocks.contains(jblockid))
                 {
-                    // reset block
-                    block = {};
+                    resetBlock(block);
                     continue;
                 }
 
                 auto& jblock = jblocks[jblockid];
                 if (! jblock.contains("uri"))
                 {
-                    // reset block
-                    block = {};
+                    printf("HostConnector::loadStateFromFile: bank #%d / preset #%d / block #%d does not include uri, using empty block\n",
+                           b + 1, pr + 1, bl + 1);
+                    resetBlock(block);
                     continue;
                 }
 
-                block.uri = jblock["uri"].get<std::string>();
+                const std::string uri = jblock["uri"].get<std::string>();
 
-                const Lv2Plugin* const plugin = !isNullURI(block.uri)
-                                              ? lv2world.get_plugin_by_uri(block.uri.c_str())
+                const Lv2Plugin* const plugin = !isNullURI(uri)
+                                              ? lv2world.get_plugin_by_uri(uri.c_str())
                                               : nullptr;
 
-                try {
-                    block.binding = jblock["binding"].get<int>();
-
-                    if (block.binding < 0 || block.binding >= MAX_PARAMS_PER_BLOCK)
-                        block.binding = -1;
-
-                } catch (...) {
-                    block.binding = -1;
-                }
-
-                if (! jblock.contains("parameters"))
+                if (plugin == nullptr)
                 {
-                    // reset parameters
-                    for (int p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
-                        block.parameters[p] = {};
+                    printf("HostConnector::loadStateFromFile: plugin with uri '%s' not available, using empty block\n",
+                           uri.c_str());
+                    resetBlock(block);
                     continue;
                 }
 
-                auto& jparams = jblock["parameters"];
-                for (int p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                block.bindingSymbol.clear();
+                block.enabled = true;
+                block.uri = uri;
+
+                block.meta.bindingIndex = -1;
+                block.meta.name = plugin->name;
+
+                if (jblock.contains("enabled"))
+                    block.enabled = jblock["enabled"].get<bool>();
+
+                // parameters are always filled in lv2 metadata first, then overriden with json data
+                int numParams = 0;
+                std::map<std::string, int> symbolToIndexMap;
+                for (size_t i = 0; i < plugin->ports.size() && numParams < MAX_PARAMS_PER_BLOCK; ++i)
                 {
-                    auto& param = block.parameters[p];
-                    const std::string jparamid = std::to_string(p + 1);
-
-                    if (! jparams.contains(jparamid))
-                    {
-                        // reset param
-                        param = {};
+                    if ((plugin->ports[i].flags & Lv2PortIsControl) == 0)
                         continue;
+                    if (plugin->ports[i].flags & (Lv2PortIsOutput|Lv2ParameterHidden))
+                        continue;
+
+                    switch (plugin->ports[i].designation)
+                    {
+                    case kLv2DesignationNone:
+                        break;
+                    case kLv2DesignationEnabled:
+                        // skip parameter
+                        continue;
+                    case kLv2DesignationQuickPot:
+                        block.bindingSymbol = plugin->ports[i].symbol;
+                        block.meta.bindingIndex = numParams;
+                        break;
                     }
 
-                    auto& jparam = jparams[jparamid];
-                    if (! (jparam.contains("symbol") && jparam.contains("value")))
-                    {
-                        // reset param
-                        param = {};
-                        continue;
-                    }
+                    auto& param = block.parameters[numParams];
 
-                    param.symbol = jparam["symbol"].get<std::string>();
-                    param.value = jparam["value"].get<double>();
+                    param.symbol = plugin->ports[i].symbol;
+                    param.value = plugin->ports[i].def;
 
-                    bool hasRanges = false;
-                    if (plugin != nullptr)
+                    param.meta.flags = plugin->ports[i].flags;
+                    param.meta.min = plugin->ports[i].min;
+                    param.meta.max = plugin->ports[i].max;
+                    param.meta.name = plugin->ports[i].name;
+
+                    symbolToIndexMap[param.symbol] = numParams++;
+                }
+
+                for (int p = numParams; p < MAX_PARAMS_PER_BLOCK; ++p)
+                    resetParam(block.parameters[p]);
+
+                try {
+                    const std::string binding = jblock["binding"].get<std::string>();
+
+                    for (int p = 0; p < numParams; ++p)
                     {
-                        for (size_t i = 0; i < plugin->ports.size(); ++i)
+                        if (block.parameters[p].symbol == binding)
                         {
-                            if (plugin->ports[i].symbol != param.symbol)
-                                continue;
-
-                            hasRanges = true;
-                            param.flags = plugin->ports[i].flags;
-                            param.minimum = plugin->ports[i].min;
-                            param.maximum = plugin->ports[i].max;
+                            block.bindingSymbol = binding;
+                            block.meta.bindingIndex = p;
                             break;
                         }
                     }
 
-                    if (! hasRanges)
+                } catch (...) {}
+
+                if (! jblock.contains("parameters"))
+                    continue;
+
+                auto& jparams = jblock["parameters"];
+                for (int p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                {
+                    const std::string jparamid = std::to_string(p + 1);
+
+                    if (! jparams.contains(jparamid))
+                        continue;
+
+                    auto& jparam = jparams[jparamid];
+                    if (! (jparam.contains("symbol") && jparam.contains("value")))
                     {
-                        param.flags = 0;
-                        param.minimum = std::min(0.f, param.value);
-                        param.maximum = std::min(1.f, param.value);
+                        printf("HostConnector::loadStateFromFile: param #%d is missing symbol and/or value\n",
+                               p + 1);
+                        continue;
                     }
+
+                    const std::string symbol = jparam["symbol"].get<std::string>();
+
+                    if (symbolToIndexMap.find(symbol) == symbolToIndexMap.end())
+                    {
+                        printf("HostConnector::loadStateFromFile: param with '%s' symbol does not exist in plugin\n",
+                               symbol.c_str());
+                        continue;
+                    }
+
+                    block.parameters[p].value = std::max(block.parameters[p].meta.min,
+                                                         std::min<float>(block.parameters[p].meta.max,
+                                                                         jparam["value"].get<double>()));
                 }
             }
         }
@@ -267,7 +346,8 @@ bool HostConnector::saveStateToFile(const char* const filename) const
 
                     const std::string jblockid = std::to_string(bl + 1);
                     jblocks[jblockid] = {
-                        { "binding", block.binding },
+                        { "binding", block.bindingSymbol },
+                        { "enabled", block.enabled },
                         { "uri", isNullURI(block.uri) ? "-" : block.uri },
                         { "parameters", nlohmann::json::object({}) },
                     };
@@ -384,11 +464,15 @@ bool HostConnector::replaceBlock(const int block, const char* const uri)
         // we only do changes after verifying that the requested plugin exists
         host.remove(instance);
 
-        blockdata.binding = -1;
+        blockdata.bindingSymbol.clear();
+        blockdata.enabled = true;
         blockdata.uri = uri;
 
+        blockdata.meta.bindingIndex = -1;
+        blockdata.meta.name = plugin->name;
+
         int p = 0;
-        for (size_t i = 0; i < plugin->ports.size(); ++i)
+        for (size_t i = 0; i < plugin->ports.size() && p < MAX_PARAMS_PER_BLOCK; ++i)
         {
             if ((plugin->ports[i].flags & Lv2PortIsControl) == 0)
                 continue;
@@ -403,24 +487,25 @@ bool HostConnector::replaceBlock(const int block, const char* const uri)
                 // skip parameter
                 continue;
             case kLv2DesignationQuickPot:
-                blockdata.binding = p;
+                blockdata.bindingSymbol = plugin->ports[i].symbol;
+                blockdata.meta.bindingIndex = p;
                 break;
             }
 
-            blockdata.parameters[p] = {
+            blockdata.parameters[p++] = {
                 .symbol = plugin->ports[i].symbol,
                 .value = plugin->ports[i].def,
-                .flags = plugin->ports[i].flags,
-                .minimum = plugin->ports[i].min,
-                .maximum = plugin->ports[i].max,
+                .meta = {
+                    .flags = plugin->ports[i].flags,
+                    .min = plugin->ports[i].min,
+                    .max = plugin->ports[i].max,
+                    .name = plugin->ports[i].name,
+                },
             };
-
-            if (++p >= MAX_PARAMS_PER_BLOCK)
-                break;
         }
 
         for (; p < MAX_PARAMS_PER_BLOCK; ++p)
-            blockdata.parameters[p] = {};
+            resetParam(blockdata.parameters[p]);
 
         if (host.add(uri, instance))
         {
@@ -429,7 +514,7 @@ bool HostConnector::replaceBlock(const int block, const char* const uri)
         else
         {
             printf("DEBUG: block %d failed to load plugin %s: %s\n", block, uri, host.last_error.c_str());
-            blockdata = {};
+            resetBlock(blockdata);
         }
 
         hostDisconnectForNewBlock(block);
@@ -437,7 +522,7 @@ bool HostConnector::replaceBlock(const int block, const char* const uri)
     else
     {
         host.remove(instance);
-        blockdata = {};
+        resetBlock(blockdata);
     }
 
     hostConnectBetweenBlocks();
@@ -534,7 +619,7 @@ void HostConnector::clearCurrentPreset()
     auto& blocks(current.banks[current.bank].presets[current.preset].blocks);
 
     for (int i = 0; i < NUM_BLOCKS_PER_PRESET; ++i)
-        blocks[i] = {};
+        resetBlock(blocks[i]);
 
     const Host::NonBlockingScope hnbs(host);
     hostLoadCurrent();

@@ -45,14 +45,23 @@ struct HostConnector {
             struct {
                 std::string name;
                 struct {
-                    int binding = -1;
+                    bool enabled = false;
+                    std::string bindingSymbol;
                     std::string uri;
+                    struct {
+                        // convenience meta-data, not stored in json state
+                        int bindingIndex = -1;
+                        std::string name;
+                    } meta;
                     struct {
                         std::string symbol;
                         float value;
-                        // convenience meta-data, not stored in json state
-                        uint32_t flags;
-                        float minimum, maximum;
+                        struct {
+                            // convenience meta-data, not stored in json state
+                            uint32_t flags;
+                            float min, max;
+                            std::string name;
+                        } meta;
                     } parameters[MAX_PARAMS_PER_BLOCK];
                 } blocks[NUM_BLOCKS_PER_PRESET];
             } presets[NUM_PRESETS_PER_BANK];
