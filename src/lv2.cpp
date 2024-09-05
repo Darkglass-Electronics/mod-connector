@@ -5,6 +5,7 @@
 
 #include <cstring>
 #include <cstdint>
+#include <map>
 #include <unordered_map>
 
 #include <lilv/lilv.h>
@@ -13,10 +14,12 @@
 #include <lv2/atom/atom.h>
 #include <lv2/morph/morph.h>
 #include <lv2/port-props/port-props.h>
+#include <lv2/units/units.h>
 #else
 #include <lv2/lv2plug.in/ns/ext/atom/atom.h>
 #include <lv2/lv2plug.in/ns/ext/morph/morph.h>
 #include <lv2/lv2plug.in/ns/ext/port-props/port-props.h>
+#include <lv2/lv2plug.in/ns/ext/units/units.h>
 #endif
 
 #ifndef LV2_CORE__enabled
@@ -34,6 +37,7 @@ struct Lv2NamespaceDefinitions {
     LilvNode* const lv2core_maximum;
     LilvNode* const lv2core_portProperty;
     LilvNode* const rdf_type;
+    LilvNode* const units_unit;
 
     Lv2NamespaceDefinitions(LilvWorld* const world)
         : lv2core_default(lilv_new_uri(world, LV2_CORE__default)),
@@ -41,7 +45,8 @@ struct Lv2NamespaceDefinitions {
           lv2core_minimum(lilv_new_uri(world, LV2_CORE__minimum)),
           lv2core_maximum(lilv_new_uri(world, LV2_CORE__maximum)),
           lv2core_portProperty(lilv_new_uri(world, LV2_CORE__portProperty)),
-          rdf_type(lilv_new_uri(world, LILV_NS_RDF "type"))
+          rdf_type(lilv_new_uri(world, LILV_NS_RDF "type")),
+          units_unit(lilv_new_uri(world, LV2_UNITS__unit))
     {
     }
 
@@ -53,6 +58,7 @@ struct Lv2NamespaceDefinitions {
         lilv_node_free(lv2core_maximum);
         lilv_node_free(lv2core_portProperty);
         lilv_node_free(rdf_type);
+        lilv_node_free(units_unit);
     }
 };
 
@@ -293,6 +299,8 @@ struct Lv2World::Impl
                                     retport.flags |= Lv2ParameterToggled;
                                 else if (std::strcmp(propuri, LV2_CORE__integer) == 0)
                                     retport.flags |= Lv2ParameterInteger;
+                                else if (std::strcmp(propuri, LV2_CORE__enumeration) == 0)
+                                    retport.flags |= Lv2ParameterEnumerated;
                                 else if (std::strcmp(propuri, LV2_PORT_PROPS__notOnGUI) == 0)
                                     retport.flags |= Lv2ParameterHidden;
                             }
@@ -343,7 +351,64 @@ struct Lv2World::Impl
                         lilv_nodes_free(xmaximum);
                         lilv_nodes_free(xdefault);
 
-                        // TODO unit
+                        if (LilvScalePoints* const scalepoints = lilv_port_get_scale_points(plugin, port))
+                        {
+                            if (const unsigned int scalepointcount = lilv_scale_points_size(scalepoints))
+                            {
+                                // get all scalepoints and sort them by value
+                                std::map<double, Lv2ScalePoint> sortedpoints;
+
+                                LILV_FOREACH(scale_points, itscl, scalepoints)
+                                {
+                                    const LilvScalePoint* const scalepoint = lilv_scale_points_get(scalepoints, itscl);
+                                    const LilvNode* const xlabel = lilv_scale_point_get_label(scalepoint);
+                                    const LilvNode* const xvalue = lilv_scale_point_get_value(scalepoint);
+
+                                    if (xlabel == nullptr || xvalue == nullptr)
+                                        continue;
+
+                                    const double valueid = lilv_node_as_float(xvalue);
+                                    sortedpoints[valueid] = {
+                                        .label = lilv_node_as_string(xlabel),
+                                        .value = lilv_node_as_float(xvalue),
+                                    };
+                                }
+
+                                // now store them sorted
+                                for (auto& scalepoint : sortedpoints)
+                                    retport.scalePoints.push_back(scalepoint.second);
+                            }
+
+                            lilv_scale_points_free(scalepoints);
+                        }
+
+                        if (LilvNodes* const uunits = lilv_port_get_value(plugin, port, ns.units_unit))
+                        {
+                            const char* uuri = lilv_node_as_uri(lilv_nodes_get_first(uunits));
+
+                            // using pre-existing lv2 unit
+                            if (uuri != nullptr && std::strncmp(uuri, LV2_UNITS_PREFIX, 38) == 0)
+                            {
+                                uuri += 38; // strlen(LV2_UNITS_PREFIX)
+
+                                /**/ if (strcmp(uuri, "s") == 0)
+                                    retport.unit = "s";
+                                else if (strcmp(uuri, "ms") == 0)
+                                    retport.unit = "ms";
+                                else if (strcmp(uuri, "db") == 0)
+                                    retport.unit = "dB";
+                                else if (strcmp(uuri, "pc") == 0)
+                                    retport.unit = "%";
+                                else if (strcmp(uuri, "hz") == 0)
+                                    retport.unit = "Hz";
+                                else if (strcmp(uuri, "khz") == 0)
+                                    retport.unit = "kHz";
+                                else if (strcmp(uuri, "mhz") == 0)
+                                    retport.unit = "MHz";
+                            }
+
+                            lilv_nodes_free(uunits);
+                        }
                     }
                 }
             }

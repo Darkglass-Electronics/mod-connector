@@ -46,8 +46,8 @@ struct Lv2Port {
     float def = 0.f;
     float min = 0.f;
     float max = 1.f;
-    std::string unit; // TODO
-    std::vector<Lv2ScalePoint> scalePoints; // TODO
+    std::string unit;
+    std::vector<Lv2ScalePoint> scalePoints;
 };
 
 struct Lv2Plugin {
