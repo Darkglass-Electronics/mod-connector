@@ -505,14 +505,14 @@ struct Host::Impl
 
     bool poll()
     {
-        last_error.clear();
+        std::string error;
 
-        while (_poll()) {}
+        while (_poll(error)) {}
 
-        return last_error.empty();
+        return error.empty();
     }
 
-    bool _poll()
+    bool _poll(std::string& error)
     {
         // set non-blocking mode, so we can poke to see if there are any messages
        #ifdef _WIN32
@@ -541,7 +541,7 @@ struct Host::Impl
 
         if (r < 0)
         {
-            last_error = "read error";
+            error = "read error";
             return false;
         }
 
@@ -581,13 +581,13 @@ struct Host::Impl
             /* Error */
             else if (r < 0)
             {
-                last_error = "read error";
+                error = "read error";
                 break;
             }
             /* Client disconnected */
             else
             {
-                last_error = "disconnected";
+                error = "disconnected";
                 break;
             }
         }
