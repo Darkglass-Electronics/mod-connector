@@ -11,9 +11,43 @@
 
 enum Lv2Category {
     kLv2CategoryNone = 0,
+    kLv2CategoryDelay,
+    kLv2CategoryDistortion,
+    kLv2CategoryDistortionWaveshaper,
+    kLv2CategoryDynamics,
+    kLv2CategoryDynamicsAmplifier,
+    kLv2CategoryDynamicsCompressor,
+    kLv2CategoryDynamicsExpander,
+    kLv2CategoryDynamicsGate,
+    kLv2CategoryDynamicsLimiter,
     kLv2CategoryFilter,
+    kLv2CategoryFilterAllpass,
+    kLv2CategoryFilterBandpass,
+    kLv2CategoryFilterComb,
+    kLv2CategoryFilterEqualiser,
+    kLv2CategoryFilterEqualiserMultiband,
+    kLv2CategoryFilterEqualiserParametric,
+    kLv2CategoryFilterHighpass,
+    kLv2CategoryFilterLowpass,
+    kLv2CategoryGenerator,
+    kLv2CategoryGeneratorConstant,
+    kLv2CategoryGeneratorInstrument,
+    kLv2CategoryGeneratorOscillator,
+    kLv2CategoryMIDI,
+    kLv2CategoryModulator,
+    kLv2CategoryModulatorChorus,
+    kLv2CategoryModulatorFlanger,
+    kLv2CategoryModulatorPhaser,
     kLv2CategoryReverb,
+    kLv2CategorySimulator,
+    kLv2CategorySpatial,
+    kLv2CategorySpectral,
+    kLv2CategorySpectralPitchShifter,
     kLv2CategoryUtility,
+    kLv2CategoryUtilityAnalyser,
+    kLv2CategoryUtilityConverter,
+    kLv2CategoryUtilityFunction,
+    kLv2CategoryUtilityMixer,
     kLv2CategoryCount
 };
 
@@ -94,12 +128,80 @@ const char* lv2_category_name(Lv2Category category)
     {
     case kLv2CategoryNone:
         return "None";
+    case kLv2CategoryDelay:
+        return "Delay";
+    case kLv2CategoryDistortion:
+        return "Distortion";
+    case kLv2CategoryDistortionWaveshaper:
+        return "Distortion, Waveshaper";
+    case kLv2CategoryDynamics:
+        return "Dynamics";
+    case kLv2CategoryDynamicsAmplifier:
+        return "Dynamics, Amplifier";
+    case kLv2CategoryDynamicsCompressor:
+        return "Dynamics, Compressor";
+    case kLv2CategoryDynamicsExpander:
+        return "Dynamics, Expander";
+    case kLv2CategoryDynamicsGate:
+        return "Dynamics, Gate";
+    case kLv2CategoryDynamicsLimiter:
+        return "Dynamics, Limiter";
     case kLv2CategoryFilter:
         return "Filter";
+    case kLv2CategoryFilterAllpass:
+        return "Filter, Allpass";
+    case kLv2CategoryFilterBandpass:
+        return "Filter, Bandpass";
+    case kLv2CategoryFilterComb:
+        return "Filter, Comb";
+    case kLv2CategoryFilterEqualiser:
+        return "Filter, Equaliser";
+    case kLv2CategoryFilterEqualiserMultiband:
+        return "Filter, Equaliser, Multiband";
+    case kLv2CategoryFilterEqualiserParametric:
+        return "Filter, Equaliser, Parametric";
+    case kLv2CategoryFilterHighpass:
+        return "Filter, Highpass";
+    case kLv2CategoryFilterLowpass:
+        return "Filter, Lowpass";
+    case kLv2CategoryGenerator:
+        return "Generator";
+    case kLv2CategoryGeneratorConstant:
+        return "Generator, Constant";
+    case kLv2CategoryGeneratorInstrument:
+        return "Generator, Instrument";
+    case kLv2CategoryGeneratorOscillator:
+        return "Generator, Oscillator";
+    case kLv2CategoryMIDI:
+        return "MIDI";
+    case kLv2CategoryModulator:
+        return "Modulator";
+    case kLv2CategoryModulatorChorus:
+        return "Modulator, Chorus";
+    case kLv2CategoryModulatorFlanger:
+        return "Modulator, Flanger";
+    case kLv2CategoryModulatorPhaser:
+        return "Modulator, Phaser";
     case kLv2CategoryReverb:
         return "Reverb";
+    case kLv2CategorySimulator:
+        return "Simulator";
+    case kLv2CategorySpatial:
+        return "Spatial";
+    case kLv2CategorySpectral:
+        return "Spectral";
+    case kLv2CategorySpectralPitchShifter:
+        return "Spectral, Pitch Shifter";
     case kLv2CategoryUtility:
         return "Utility";
+    case kLv2CategoryUtilityAnalyser:
+        return "Utility, Analyser";
+    case kLv2CategoryUtilityConverter:
+        return "Utility, Converter";
+    case kLv2CategoryUtilityFunction:
+        return "Utility, Function";
+    case kLv2CategoryUtilityMixer:
+        return "Utility, Mixer";
     case kLv2CategoryCount:
         break;
     }

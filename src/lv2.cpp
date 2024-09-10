@@ -163,12 +163,80 @@ struct Lv2World::Impl
 
                         /**/ if (std::strcmp(cat, "Plugin") == 0)
                             continue;
+                        else if (std::strcmp(cat, "DelayPlugin") == 0)
+                            retplugin->category = kLv2CategoryDelay;
+                        else if (std::strcmp(cat, "DistortionPlugin") == 0)
+                            retplugin->category = kLv2CategoryDistortion;
+                        else if (std::strcmp(cat, "WaveshaperPlugin") == 0)
+                            retplugin->category = kLv2CategoryDistortionWaveshaper;
+                        else if (std::strcmp(cat, "DynamicsPlugin") == 0)
+                            retplugin->category = kLv2CategoryDynamics;
+                        else if (std::strcmp(cat, "AmplifierPlugin") == 0)
+                            retplugin->category = kLv2CategoryDynamicsAmplifier;
+                        else if (std::strcmp(cat, "CompressorPlugin") == 0)
+                            retplugin->category = kLv2CategoryDynamicsCompressor;
+                        else if (std::strcmp(cat, "ExpanderPlugin") == 0)
+                            retplugin->category = kLv2CategoryDynamicsExpander;
+                        else if (std::strcmp(cat, "GatePlugin") == 0)
+                            retplugin->category = kLv2CategoryDynamicsGate;
+                        else if (std::strcmp(cat, "LimiterPlugin") == 0)
+                            retplugin->category = kLv2CategoryDynamicsLimiter;
                         else if (std::strcmp(cat, "FilterPlugin") == 0)
                             retplugin->category = kLv2CategoryFilter;
+                        else if (std::strcmp(cat, "AllpassPlugin") == 0)
+                            retplugin->category = kLv2CategoryFilterAllpass;
+                        else if (std::strcmp(cat, "BandpassPlugin") == 0)
+                            retplugin->category = kLv2CategoryFilterBandpass;
+                        else if (std::strcmp(cat, "CombPlugin") == 0)
+                            retplugin->category = kLv2CategoryFilterComb;
+                        else if (std::strcmp(cat, "EQPlugin") == 0)
+                            retplugin->category = kLv2CategoryFilterEqualiser;
+                        else if (std::strcmp(cat, "MultiEQPlugin") == 0)
+                            retplugin->category = kLv2CategoryFilterEqualiserMultiband;
+                        else if (std::strcmp(cat, "ParaEQPlugin") == 0)
+                            retplugin->category = kLv2CategoryFilterEqualiserParametric;
+                        else if (std::strcmp(cat, "HighpassPlugin") == 0)
+                            retplugin->category = kLv2CategoryFilterHighpass;
+                        else if (std::strcmp(cat, "LowpassPlugin") == 0)
+                            retplugin->category = kLv2CategoryFilterLowpass;
+                        else if (std::strcmp(cat, "GeneratorPlugin") == 0)
+                            retplugin->category = kLv2CategoryGenerator;
+                        else if (std::strcmp(cat, "ConstantPlugin") == 0)
+                            retplugin->category = kLv2CategoryGeneratorConstant;
+                        else if (std::strcmp(cat, "InstrumentPlugin") == 0)
+                            retplugin->category = kLv2CategoryGeneratorInstrument;
+                        else if (std::strcmp(cat, "OscillatorPlugin") == 0)
+                            retplugin->category = kLv2CategoryGeneratorOscillator;
+                        else if (std::strcmp(cat, "ModulatorPlugin") == 0)
+                            retplugin->category = kLv2CategoryModulator;
+                        else if (std::strcmp(cat, "ChorusPlugin") == 0)
+                            retplugin->category = kLv2CategoryModulatorChorus;
+                        else if (std::strcmp(cat, "FlangerPlugin") == 0)
+                            retplugin->category = kLv2CategoryModulatorFlanger;
+                        else if (std::strcmp(cat, "PhaserPlugin") == 0)
+                            retplugin->category = kLv2CategoryModulatorPhaser;
                         else if (std::strcmp(cat, "ReverbPlugin") == 0)
                             retplugin->category = kLv2CategoryReverb;
+                        else if (std::strcmp(cat, "SimulatorPlugin") == 0)
+                            retplugin->category = kLv2CategorySimulator;
+                        else if (std::strcmp(cat, "SpatialPlugin") == 0)
+                            retplugin->category = kLv2CategorySpatial;
+                        else if (std::strcmp(cat, "SpectralPlugin") == 0)
+                            retplugin->category = kLv2CategorySpectral;
+                        else if (std::strcmp(cat, "PitchPlugin") == 0)
+                            retplugin->category = kLv2CategorySpectralPitchShifter;
                         else if (std::strcmp(cat, "UtilityPlugin") == 0)
                             retplugin->category = kLv2CategoryUtility;
+                        else if (std::strcmp(cat, "AnalyserPlugin") == 0)
+                            retplugin->category = kLv2CategoryUtilityAnalyser;
+                        else if (std::strcmp(cat, "ConverterPlugin") == 0)
+                            retplugin->category = kLv2CategoryUtilityConverter;
+                        else if (std::strcmp(cat, "FunctionPlugin") == 0)
+                            retplugin->category = kLv2CategoryUtilityFunction;
+                        else if (std::strcmp(cat, "MixerPlugin") == 0)
+                            retplugin->category = kLv2CategoryUtilityMixer;
+                        else if (std::strcmp(cat, "MIDIPlugin") == 0)
+                            retplugin->category = kLv2CategoryMIDI;
                     }
                 }
 
