@@ -58,13 +58,13 @@ enum Lv2Designation {
 };
 
 enum Lv2Flags {
-    Lv2PortIsAudio         = 1 << 1,
-    Lv2PortIsControl       = 1 << 2,
-    Lv2PortIsOutput        = 1 << 3,
-    Lv2ParameterToggled    = 1 << 4,
-    Lv2ParameterInteger    = 1 << 5,
-    Lv2ParameterEnumerated = 1 << 6,
-    Lv2ParameterHidden     = 1 << 7,
+    Lv2PortIsAudio         = 1 << 0,
+    Lv2PortIsControl       = 1 << 1,
+    Lv2PortIsOutput        = 1 << 2,
+    Lv2ParameterToggled    = 1 << 3,
+    Lv2ParameterInteger    = 1 << 4,
+    Lv2ParameterEnumerated = 1 << 5,
+    Lv2ParameterHidden     = 1 << 6,
 };
 
 struct Lv2ScalePoint {
