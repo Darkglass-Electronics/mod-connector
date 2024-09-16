@@ -211,10 +211,10 @@ struct WebSocketConnector : QObject,
         {
             const int newbank = stateObj["bank"].toInt() - 1;
 
-            if (current.bank != newbank)
+            if (_current.bank != newbank)
             {
                 printf("DEBUG: bank changed to %d\n", newbank);
-                current.bank = newbank;
+                _current.bank = newbank;
                 bankchanged = true;
             }
             else
@@ -232,7 +232,7 @@ struct WebSocketConnector : QObject,
         {
             const QJsonObject bank(banks[bankid].toObject());
             const int bankidi = bankid.toInt() - 1;
-            auto& bankdata(current.banks[bankidi]);
+            auto& bankdata(_current.banks[bankidi]);
 
             const QJsonObject presets(bank["presets"].toObject());
             for (const QString& presetid : presets.keys())
@@ -242,7 +242,7 @@ struct WebSocketConnector : QObject,
                 auto& presetdata(bankdata.presets[presetidi]);
 
                 // if we are changing the current preset, send changes to mod-host
-                const bool islive = !bankchanged && current.bank == bankidi && current.preset == presetidi;
+                const bool islive = !bankchanged && _current.bank == bankidi && _current.preset == presetidi;
 
                 printf("DEBUG: now handling bank %d, live %d\n", bankidi, islive);
 
@@ -263,15 +263,15 @@ struct WebSocketConnector : QObject,
                         if (islive)
                         {
                             blockschanged = true;
-                            host.remove(blockidi);
+                            _host.remove(blockidi);
 
                             if (uri != "-")
                             {
-                                if (host.add(uri.c_str(), blockidi))
+                                if (_host.add(uri.c_str(), blockidi))
                                     printf("DEBUG: block %d loaded plugin %s\n", blockidi, uri.c_str());
                                 else
                                     printf("DEBUG: block %d failed loaded plugin %s: %s\n",
-                                            blockidi, uri.c_str(), host.last_error.c_str());
+                                            blockidi, uri.c_str(), _host.last_error.c_str());
 
                                 hostDisconnectForNewBlock(blockidi);
                             }
@@ -309,7 +309,7 @@ struct WebSocketConnector : QObject,
                                 if (islive)
                                 {
                                     const std::string symbol = parameterdata.symbol;
-                                    host.param_set(blockidi, symbol.c_str(), value);
+                                    _host.param_set(blockidi, symbol.c_str(), value);
                                 }
                             }
                         }

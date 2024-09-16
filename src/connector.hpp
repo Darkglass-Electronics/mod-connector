@@ -28,21 +28,16 @@
 // --------------------------------------------------------------------------------------------------------------------
 
 struct HostConnector {
+protected:
     // connection to mod-host, handled internally
-    Host host;
-
-    // lv2 world for getting information about plugins
-    Lv2World lv2world;
-
-    // whether the host connection is working
-    bool ok = false;
+    Host _host;
 
     // current state, including all presets and banks
-    struct {
+    struct Current {
         int bank = 0;
         int preset = 0; // NOTE resets to 0 on bank change
-        struct {
-            struct {
+        struct Bank {
+            struct Preset {
                 std::string name;
                 struct {
                     bool enabled = false;
@@ -68,7 +63,23 @@ struct HostConnector {
                 } blocks[NUM_BLOCKS_PER_PRESET];
             } presets[NUM_PRESETS_PER_BANK];
         } banks[NUM_BANKS];
-    } current;
+    } _current;
+
+public:
+    // lv2 world for getting information about plugins
+    const Lv2World lv2world;
+
+    // whether the host connection is working
+    bool ok = false;
+
+    // public and read-only current state, including all presets and banks
+    const Current& current = _current;
+
+    // shortcut to active bank
+    const Current::Bank& currentBank = current.banks[0];
+
+    // shortcut to active preset
+    const Current::Bank::Preset& currentPreset = currentBank.presets[0];
 
     // constructor, initializes connection to mod-host and sets `ok` to true if successful
     HostConnector();
@@ -104,11 +115,23 @@ struct HostConnector {
     // clear current preset
     void clearCurrentPreset();
 
-    // set a block property
-    void setBlockProperty(int block, const char* property_uri, const char* value);
+    // return average dsp load
+    float dspLoad();
 
-    // update the host value of a block parameter
-    void hostUpdateParameterValue(int block, int index);
+    // poll for host updates (e.g. MIDI-mapped parameter changes, tempo changes)
+    // NOTE make sure to call `requestHostUpdates()` after handling all updates
+    // TODO provide a callback
+    void pollHostUpdates();
+
+    // request more host updates
+    void requestHostUpdates();
+
+    // set a block parameter value
+    // NOTE value must already be sanitized!
+    void setBlockParameterValue(int block, int paramIndex, float value);
+
+    // set a block property
+    void setBlockProperty(int block, const char* uri, const char* value);
 
 protected:
     // load host state as stored in the `current` struct

@@ -54,9 +54,9 @@ static void resetBank(Bank& bank)
 
 HostConnector::HostConnector()
 {
-    if (! host.last_error.empty())
+    if (! _host.last_error.empty())
     {
-        fprintf(stderr, "Failed to initialize host connection: %s\n", host.last_error.c_str());
+        fprintf(stderr, "Failed to initialize host connection: %s\n", _host.last_error.c_str());
         return;
     }
 
@@ -102,25 +102,29 @@ bool HostConnector::loadStateFromFile(const char* const filename)
 
     if (j.contains("bank"))
     {
-        current.bank = j["bank"].get<int>() - 1;
+        _current.bank = j["bank"].get<int>() - 1;
 
-        if (current.bank < 0 || current.bank >= NUM_BANKS)
-            current.bank = 0;
+        if (_current.bank < 0 || _current.bank >= NUM_BANKS)
+            _current.bank = 0;
     }
     else
     {
-        current.bank = 0;
+        _current.bank = 0;
     }
 
     // always start with the first preset
-    current.preset = 0;
+    _current.preset = 0;
+
+    // update shortcuts
+    const_cast<Current::Bank&>(currentBank) = current.banks[current.bank];
+    const_cast<Current::Bank::Preset&>(currentPreset) = currentBank.presets[0];
 
     if (! j.contains("banks"))
     {
         // full reset
         printf("HostConnector::loadStateFromFile: no banks in file, using empty state\n");
         for (int b = 0; b < NUM_BANKS; ++b)
-            resetBank(current.banks[b]);
+            resetBank(_current.banks[b]);
         hostLoadCurrent();
         return true;
     }
@@ -128,7 +132,7 @@ bool HostConnector::loadStateFromFile(const char* const filename)
     auto& jbanks = j["banks"];
     for (int b = 0; b < NUM_BANKS; ++b)
     {
-        auto& bank = current.banks[b];
+        auto& bank = _current.banks[b];
         const std::string jbankid = std::to_string(b + 1);
 
         if (! jbanks.contains(jbankid))
@@ -305,7 +309,7 @@ bool HostConnector::loadStateFromFile(const char* const filename)
         }
     }
 
-    const Host::NonBlockingScope hnbs(host);
+    const Host::NonBlockingScope hnbs(_host);
     hostLoadCurrent();
     return true;
 }
@@ -402,14 +406,14 @@ bool HostConnector::reorderBlock(const int block, const int dest)
         return false;
     }
 
-    const Host::NonBlockingScope hnbs(host);
+    const Host::NonBlockingScope hnbs(_host);
 
-    auto& blocks(current.banks[current.bank].presets[current.preset].blocks);
+    auto& blocks(_current.banks[current.bank].presets[current.preset].blocks);
 
     // NOTE this is a very crude quick implementation
     // just removing all plugins and adding them again after reordering
     // it is not meant to be the final implementation, just something quick for experimentation
-    host.remove(-1);
+    _host.remove(-1);
 
     // moving block backwards to the left
     // a b c d e! f
@@ -450,9 +454,9 @@ bool HostConnector::replaceBlock(const int block, const char* const uri)
     }
 
     const int instance = 100 * current.preset + block;
-    auto& blockdata(current.banks[current.bank].presets[current.preset].blocks[block]);
+    auto& blockdata(_current.banks[current.bank].presets[current.preset].blocks[block]);
 
-    const Host::NonBlockingScope hnbs(host);
+    const Host::NonBlockingScope hnbs(_host);
 
     if (! isNullURI(uri))
     {
@@ -464,7 +468,7 @@ bool HostConnector::replaceBlock(const int block, const char* const uri)
         }
 
         // we only do changes after verifying that the requested plugin exists
-        host.remove(instance);
+        _host.remove(instance);
 
         blockdata.bindingSymbol.clear();
         blockdata.enabled = true;
@@ -511,13 +515,13 @@ bool HostConnector::replaceBlock(const int block, const char* const uri)
         for (; p < MAX_PARAMS_PER_BLOCK; ++p)
             resetParam(blockdata.parameters[p]);
 
-        if (host.add(uri, instance))
+        if (_host.add(uri, instance))
         {
             printf("DEBUG: block %d loaded plugin %s\n", block, uri);
         }
         else
         {
-            printf("DEBUG: block %d failed to load plugin %s: %s\n", block, uri, host.last_error.c_str());
+            printf("DEBUG: block %d failed to load plugin %s: %s\n", block, uri, _host.last_error.c_str());
             resetBlock(blockdata);
         }
 
@@ -525,7 +529,7 @@ bool HostConnector::replaceBlock(const int block, const char* const uri)
     }
     else
     {
-        host.remove(instance);
+        _host.remove(instance);
         resetBlock(blockdata);
     }
 
@@ -543,10 +547,14 @@ bool HostConnector::switchBank(const int bank)
     if (current.bank == bank || bank < 0 || bank >= NUM_BANKS)
         return false;
 
-    current.bank = bank;
-    current.preset = 0;
+    _current.bank = bank;
+    _current.preset = 0;
 
-    const Host::NonBlockingScope hnbs(host);
+    // update shortcuts
+    const_cast<Current::Bank&>(currentBank) = current.banks[current.bank];
+    const_cast<Current::Bank::Preset&>(currentPreset) = currentBank.presets[0];
+
+    const Host::NonBlockingScope hnbs(_host);
     hostLoadCurrent();
     return true;
 }
@@ -561,17 +569,20 @@ bool HostConnector::switchPreset(const int preset)
         return false;
 
     // const auto& bankdata(current.banks[current.bank]);
-    const int oldpreset = current.preset;
-    current.preset = preset;
+    const int oldpreset = _current.preset;
+    _current.preset = preset;
 
-    const Host::NonBlockingScope hnbs(host);
+    // update shortcuts
+    const_cast<Current::Bank::Preset&>(currentPreset) = currentBank.presets[current.preset];
+
+    const Host::NonBlockingScope hnbs(_host);
 
     // step 1: fade out
     // TODO
 
     // step 2: deactivate all plugins in old preset
 #if 1
-    host.activate(100 * oldpreset, 100 * oldpreset + NUM_BLOCKS_PER_PRESET, 0);
+    _host.activate(100 * oldpreset, 100 * oldpreset + NUM_BLOCKS_PER_PRESET, 0);
 #else
     {
         const auto& presetdata(bankdata.presets[oldpreset]);
@@ -583,14 +594,14 @@ bool HostConnector::switchPreset(const int preset)
                 continue;
 
             const int instance = 100 * oldpreset + b;
-            host.activate(instance, 0);
+            _host.activate(instance, 0);
         }
     }
 #endif
 
     // step 3: activate all plugins in new preset
 #if 1
-    host.activate(100 * preset, 100 * preset + NUM_BLOCKS_PER_PRESET, 1);
+    _host.activate(100 * preset, 100 * preset + NUM_BLOCKS_PER_PRESET, 1);
 #else
     {
         const auto& presetdata(bankdata.presets[preset]);
@@ -602,7 +613,7 @@ bool HostConnector::switchPreset(const int preset)
                 continue;
 
             const int instance = 100 * preset + b;
-            host.activate(instance, 1);
+            _host.activate(instance, 1);
         }
     }
 #endif
@@ -620,23 +631,74 @@ bool HostConnector::switchPreset(const int preset)
 
 void HostConnector::clearCurrentPreset()
 {
-    auto& blocks(current.banks[current.bank].presets[current.preset].blocks);
+    auto& blocks(_current.banks[current.bank].presets[current.preset].blocks);
 
     for (int i = 0; i < NUM_BLOCKS_PER_PRESET; ++i)
         resetBlock(blocks[i]);
 
-    const Host::NonBlockingScope hnbs(host);
+    const Host::NonBlockingScope hnbs(_host);
     hostLoadCurrent();
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+// return average dsp load
+
+float HostConnector::dspLoad()
+{
+    return _host.cpu_load();
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+// poll for host updates (e.g. MIDI-mapped parameter changes, tempo changes)
+// NOTE make sure to call `requestHostUpdates()` after handling all updates
+// TODO provide a callback
+
+void HostConnector::pollHostUpdates()
+{
+    _host.poll_feedback();
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+// request more host updates
+
+void HostConnector::requestHostUpdates()
+{
+    _host.output_data_ready();
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+// set a block parameter value
+// NOTE value must already be sanitized!
+
+void HostConnector::setBlockParameterValue(int block, int paramIndex, float value)
+{
+    if (block < 0 || block >= NUM_BLOCKS_PER_PRESET)
+        return;
+    if (paramIndex < 0 || paramIndex >= MAX_PARAMS_PER_BLOCK)
+        return;
+
+    const int instance = 100 * _current.preset + block;
+
+    auto& blockdata(_current.banks[_current.bank].presets[_current.preset].blocks[block]);
+    if (isNullURI(blockdata.uri))
+        return;
+
+    auto& paramdata(blockdata.parameters[paramIndex]);
+    if (isNullURI(paramdata.symbol))
+        return;
+
+    paramdata.value = value;
+    _host.param_set(instance, paramdata.symbol.c_str(), value);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
 // set a block property
 
-void HostConnector::setBlockProperty(int block, const char* property_uri, const char* value)
+void HostConnector::setBlockProperty(int block, const char* uri, const char* value)
 {
     if (block < 0 || block >= NUM_BLOCKS_PER_PRESET)
         return;
-    if (property_uri == nullptr || *property_uri == '\0')
+    if (uri == nullptr || *uri == '\0')
         return;
     if (value == nullptr || *value == '\0')
         return;
@@ -647,28 +709,7 @@ void HostConnector::setBlockProperty(int block, const char* property_uri, const 
     if (isNullURI(blockdata.uri))
         return;
 
-    host.patch_set(instance, property_uri, value);
-}
-
-// --------------------------------------------------------------------------------------------------------------------
-// set the value of a block parameter
-
-void HostConnector::hostUpdateParameterValue(int block, int index)
-{
-    if (block < 0 || block >= NUM_BLOCKS_PER_PRESET)
-        return;
-    if (index < 0 || index >= MAX_PARAMS_PER_BLOCK)
-        return;
-
-    const int instance = 100 * current.preset + block;
-    auto& blockdata(current.banks[current.bank].presets[current.preset].blocks[block]);
-
-    if (isNullURI(blockdata.uri))
-        return;
-
-    auto& paramdata(blockdata.parameters[index]);
-
-    host.param_set(instance, paramdata.symbol.c_str(), paramdata.value);
+    _host.patch_set(instance, uri, value);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -676,8 +717,8 @@ void HostConnector::hostUpdateParameterValue(int block, int index)
 
 void HostConnector::hostLoadCurrent()
 {
-    host.feature_enable("processing", false);
-    host.remove(-1);
+    _host.feature_enable("processing", false);
+    _host.remove(-1);
 
     const auto& bankdata(current.banks[current.bank]);
 
@@ -695,22 +736,22 @@ void HostConnector::hostLoadCurrent()
             const int instance = 100 * pr + b;
 
             if (active)
-                host.add(blockdata.uri.c_str(), instance);
+                _host.add(blockdata.uri.c_str(), instance);
             else
-                host.preload(blockdata.uri.c_str(), instance);
+                _host.preload(blockdata.uri.c_str(), instance);
 
             for (int p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
             {
                 const auto& parameterdata(blockdata.parameters[p]);
                 if (isNullURI(parameterdata.symbol))
                     continue;
-                host.param_set(instance, parameterdata.symbol.c_str(), parameterdata.value);
+                _host.param_set(instance, parameterdata.symbol.c_str(), parameterdata.value);
             }
         }
     }
 
     hostConnectBetweenBlocks();
-    host.feature_enable("processing", true);
+    _host.feature_enable("processing", true);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -752,7 +793,7 @@ void HostConnector::hostConnectBetweenBlocks()
                     ++srci;
                     const std::string origin(format("system:capture_%d", srci));
                     const std::string target(format("effect_%d:%s", instance, plugin->ports[i].symbol.c_str()));
-                    host.connect(origin.c_str(), target.c_str());
+                    _host.connect(origin.c_str(), target.c_str());
                 }
 
                 // connect to extra inputs
@@ -767,7 +808,7 @@ void HostConnector::hostConnectBetweenBlocks()
                         ++srci;
                         const std::string origin(format("system:capture_%d", srci));
                         const std::string target(format("effect_%d:%s", instance, plugin->ports[i].symbol.c_str()));
-                        host.connect(origin.c_str(), target.c_str());
+                        _host.connect(origin.c_str(), target.c_str());
                     }
                 }
             }
@@ -795,7 +836,7 @@ void HostConnector::hostConnectBetweenBlocks()
                     lasti = i;
                     const std::string origin(format("effect_%d:%s", instance, plugin->ports[i].symbol.c_str()));
                     const std::string target(format("mod-monitor:in_%d", dsti));
-                    host.connect(origin.c_str(), target.c_str());
+                    _host.connect(origin.c_str(), target.c_str());
                 }
 
                 // connect to stereo output if chain is mono
@@ -803,7 +844,7 @@ void HostConnector::hostConnectBetweenBlocks()
                 {
                     const std::string origin(format("effect_%d:%s", instance, plugin->ports[lasti].symbol.c_str()));
                     const std::string target(format("mod-monitor:in_%d", dsti + 1));
-                    host.connect(origin.c_str(), target.c_str());
+                    _host.connect(origin.c_str(), target.c_str());
                 }
             }
 
@@ -849,7 +890,7 @@ void HostConnector::hostConnectBetweenBlocks()
 
                             const std::string origin(format("effect_%d:%s", instance1, plugin1->ports[i].symbol.c_str()));
                             const std::string target(format("effect_%d:%s", instance2, plugin2->ports[j].symbol.c_str()));
-                            host.connect(origin.c_str(), target.c_str());
+                            _host.connect(origin.c_str(), target.c_str());
                         }
                     }
                 }
@@ -894,7 +935,7 @@ void HostConnector::hostDisconnectForNewBlock(const int blockidi)
                 ++srci;
                 const std::string origin(format("system:capture_%d", srci));
                 const std::string target(format("effect_%d:%s", instance, plugin->ports[i].symbol.c_str()));
-                host.disconnect(origin.c_str(), target.c_str());
+                _host.disconnect(origin.c_str(), target.c_str());
             }
         }
 
@@ -920,7 +961,7 @@ void HostConnector::hostDisconnectForNewBlock(const int blockidi)
                 ++dsti;
                 const std::string origin(format("effect_%d:%s", instance, plugin->ports[i].symbol.c_str()));
                 const std::string target(format("mod-monitor:in_%d", dsti));
-                host.disconnect(origin.c_str(), target.c_str());
+                _host.disconnect(origin.c_str(), target.c_str());
             }
         }
 
@@ -966,7 +1007,7 @@ void HostConnector::hostDisconnectForNewBlock(const int blockidi)
 
                         const std::string origin(format("effect_%d:%s", instance1, plugin1->ports[i].symbol.c_str()));
                         const std::string target(format("effect_%d:%s", instance2, plugin2->ports[j].symbol.c_str()));
-                        host.disconnect(origin.c_str(), target.c_str());
+                        _host.disconnect(origin.c_str(), target.c_str());
                     }
                 }
             }
