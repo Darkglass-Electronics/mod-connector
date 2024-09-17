@@ -76,10 +76,16 @@ public:
     const Current& current = _current;
 
     // shortcut to active bank
-    const Current::Bank& currentBank = current.banks[0];
+    inline const Current::Bank& currentBank() const
+    {
+        return current.banks[current.bank];
+    }
 
     // shortcut to active preset
-    const Current::Bank::Preset& currentPreset = currentBank.presets[0];
+    inline const Current::Bank::Preset& currentPreset() const
+    {
+        return current.banks[current.bank].presets[current.preset];
+    }
 
     // constructor, initializes connection to mod-host and sets `ok` to true if successful
     HostConnector();

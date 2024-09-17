@@ -115,10 +115,6 @@ bool HostConnector::loadStateFromFile(const char* const filename)
     // always start with the first preset
     _current.preset = 0;
 
-    // update shortcuts
-    const_cast<Current::Bank&>(currentBank) = current.banks[current.bank];
-    const_cast<Current::Bank::Preset&>(currentPreset) = currentBank.presets[0];
-
     if (! j.contains("banks"))
     {
         // full reset
@@ -550,10 +546,6 @@ bool HostConnector::switchBank(const int bank)
     _current.bank = bank;
     _current.preset = 0;
 
-    // update shortcuts
-    const_cast<Current::Bank&>(currentBank) = current.banks[current.bank];
-    const_cast<Current::Bank::Preset&>(currentPreset) = currentBank.presets[0];
-
     const Host::NonBlockingScope hnbs(_host);
     hostLoadCurrent();
     return true;
@@ -571,9 +563,6 @@ bool HostConnector::switchPreset(const int preset)
     // const auto& bankdata(current.banks[current.bank]);
     const int oldpreset = _current.preset;
     _current.preset = preset;
-
-    // update shortcuts
-    const_cast<Current::Bank::Preset&>(currentPreset) = currentBank.presets[current.preset];
 
     const Host::NonBlockingScope hnbs(_host);
 
