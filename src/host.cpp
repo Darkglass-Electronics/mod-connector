@@ -143,6 +143,11 @@ struct Host::Impl
     Impl(std::string& last_error_)
         : last_error(last_error_)
     {
+       #ifdef __EMSCRIPTEN__
+        dummyDevMode = true;
+        return;
+       #endif
+
         if (const char* const dev = std::getenv("MOD_DEV_HOST"))
         {
             if (std::atoi(dev) != 0)
@@ -507,7 +512,7 @@ struct Host::Impl
     {
         std::string error;
 
-        while (_poll(error)) {}
+        while (!dummyDevMode && _poll(error)) {}
 
         return error.empty();
     }
