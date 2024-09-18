@@ -242,6 +242,7 @@ bool HostConnector::loadStateFromFile(const char* const filename)
                     param.value = plugin->ports[i].def;
 
                     param.meta.flags = plugin->ports[i].flags;
+                    param.meta.def = plugin->ports[i].def;
                     param.meta.min = plugin->ports[i].min;
                     param.meta.max = plugin->ports[i].max;
                     param.meta.name = plugin->ports[i].name;
@@ -499,6 +500,7 @@ bool HostConnector::replaceBlock(const int block, const char* const uri)
                 .value = plugin->ports[i].def,
                 .meta = {
                     .flags = plugin->ports[i].flags,
+                    .def = plugin->ports[i].def,
                     .min = plugin->ports[i].min,
                     .max = plugin->ports[i].max,
                     .name = plugin->ports[i].name,

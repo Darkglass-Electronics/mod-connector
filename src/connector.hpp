@@ -54,7 +54,7 @@ protected:
                         struct {
                             // convenience meta-data, not stored in json state
                             uint32_t flags;
-                            float min, max;
+                            float def, min, max;
                             std::string name;
                             std::string unit;
                             std::vector<Lv2ScalePoint> scalePoints;
