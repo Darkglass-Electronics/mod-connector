@@ -89,6 +89,7 @@ struct Lv2Plugin {
     std::string name;
     Lv2Category category = kLv2CategoryNone;
     std::vector<Lv2Port> ports;
+    std::string screenshot;
 };
 
 struct Lv2World {

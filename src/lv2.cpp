@@ -22,11 +22,18 @@
 #include <lv2/lv2plug.in/ns/ext/units/units.h>
 #endif
 
+#ifndef LV2_CORE__Parameter
+#define LV2_CORE__Parameter LV2_CORE_PREFIX "Parameter"
+#endif
+
 #ifndef LV2_CORE__enabled
 #define LV2_CORE__enabled LV2_CORE_PREFIX "#enabled"
 #endif
 
-#define MOD__CVPort "http://moddevices.com/ns/mod#CVPort"
+#define LILV_NS_MOD "http://moddevices.com/ns/mod#"
+#define MOD__CVPort LILV_NS_MOD "CVPort"
+
+#define LILV_NS_MODGUI "http://moddevices.com/ns/modgui#"
 
 // --------------------------------------------------------------------------------------------------------------------
 
@@ -36,6 +43,9 @@ struct Lv2NamespaceDefinitions {
     LilvNode* const lv2core_minimum;
     LilvNode* const lv2core_maximum;
     LilvNode* const lv2core_portProperty;
+    LilvNode* const modgui_gui;
+    LilvNode* const modgui_resourcesDirectory;
+    LilvNode* const modgui_screenshot;
     LilvNode* const rdf_type;
     LilvNode* const units_unit;
 
@@ -45,6 +55,9 @@ struct Lv2NamespaceDefinitions {
           lv2core_minimum(lilv_new_uri(world, LV2_CORE__minimum)),
           lv2core_maximum(lilv_new_uri(world, LV2_CORE__maximum)),
           lv2core_portProperty(lilv_new_uri(world, LV2_CORE__portProperty)),
+          modgui_gui(lilv_new_uri(world, LILV_NS_MODGUI "gui")),
+          modgui_resourcesDirectory(lilv_new_uri(world, LILV_NS_MODGUI "resourcesDirectory")),
+          modgui_screenshot(lilv_new_uri(world, LILV_NS_MODGUI "screenshot")),
           rdf_type(lilv_new_uri(world, LILV_NS_RDF "type")),
           units_unit(lilv_new_uri(world, LV2_UNITS__unit))
     {
@@ -57,6 +70,9 @@ struct Lv2NamespaceDefinitions {
         lilv_node_free(lv2core_minimum);
         lilv_node_free(lv2core_maximum);
         lilv_node_free(lv2core_portProperty);
+        lilv_node_free(modgui_gui);
+        lilv_node_free(modgui_resourcesDirectory);
+        lilv_node_free(modgui_screenshot);
         lilv_node_free(rdf_type);
         lilv_node_free(units_unit);
     }
@@ -479,6 +495,43 @@ struct Lv2World::Impl
                         }
                     }
                 }
+            }
+
+            // --------------------------------------------------------------------------------------------------------
+            // screenshot
+
+            if (LilvNodes* const nodes = lilv_plugin_get_value(plugin, ns.modgui_gui))
+            {
+                LILV_FOREACH(nodes, it, nodes)
+                {
+                    const LilvNode* const modgui = lilv_nodes_get(nodes, it);
+                    lilv_world_load_resource(world, modgui);
+
+                    LilvNode* const resdirn = lilv_world_get(world, modgui, ns.modgui_resourcesDirectory, nullptr);
+                    if (resdirn == nullptr)
+                        continue;
+
+                    char* const resdir = lilv_file_uri_parse(lilv_node_as_string(resdirn), nullptr);
+                    lilv_node_free(resdirn);
+
+                    if (resdir == nullptr)
+                        continue;
+
+                    if (LilvNode* const modgui_scrn = lilv_world_get(world, modgui, ns.modgui_screenshot, nullptr))
+                    {
+                        if (char* const path = lilv_file_uri_parse(lilv_node_as_string(modgui_scrn), nullptr))
+                        {
+                            retplugin->screenshot = path;
+                            lilv_free(path);
+                        }
+                        lilv_node_free(modgui_scrn);
+                    }
+
+                    lilv_free(resdir);
+                    break;
+                }
+
+                lilv_nodes_free(nodes);
             }
 
             pluginscache[uri] = retplugin;
