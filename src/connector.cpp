@@ -759,8 +759,19 @@ void HostConnector::hostConnectBetweenBlocks()
         const auto& presetdata(bankdata.presets[pr]);
 
         bool loaded[NUM_BLOCKS_PER_PRESET];
+        int numLoaded = 0;
         for (int b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
-            loaded[b] = !isNullURI(presetdata.blocks[b].uri);
+        {
+            if ((loaded[b] = !isNullURI(presetdata.blocks[b].uri)))
+                ++numLoaded;
+        }
+
+        if (numLoaded == 0)
+        {
+            _host.connect("system:capture_1", "mod-monitor:in_1");
+            _host.connect("system:capture_2", "mod-monitor:in_2");
+            return;
+        }
 
         // first plugin
         for (int b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
@@ -906,6 +917,10 @@ void HostConnector::hostDisconnectForNewBlock(const int blockidi)
     for (int b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
         loaded[b] = !isNullURI(presetdata.blocks[b].uri);
     loaded[blockidi] = false;
+
+    // direct connections
+    _host.disconnect("system:capture_1", "mod-monitor:in_1");
+    _host.disconnect("system:capture_2", "mod-monitor:in_2");
 
     // first plugin
     for (int b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
