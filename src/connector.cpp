@@ -768,8 +768,12 @@ void HostConnector::hostConnectBetweenBlocks()
 
         if (numLoaded == 0)
         {
+            // direct connections
             _host.connect("system:capture_1", "mod-monitor:in_1");
             _host.connect("system:capture_2", "mod-monitor:in_2");
+            // connect to extra inputs just in case
+            _host.connect("system:capture_3", "mod-monitor:in_1");
+            _host.connect("system:capture_4", "mod-monitor:in_2");
             return;
         }
 
