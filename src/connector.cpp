@@ -646,11 +646,10 @@ float HostConnector::dspLoad()
 // --------------------------------------------------------------------------------------------------------------------
 // poll for host updates (e.g. MIDI-mapped parameter changes, tempo changes)
 // NOTE make sure to call `requestHostUpdates()` after handling all updates
-// TODO provide a callback
 
-void HostConnector::pollHostUpdates()
+void HostConnector::pollHostUpdates(Host::FeedbackCallback* const callback)
 {
-    _host.poll_feedback();
+    _host.poll_feedback(callback);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -764,9 +763,12 @@ void HostConnector::hostConnectBetweenBlocks()
 
         bool loaded[NUM_BLOCKS_PER_PRESET];
         int numLoaded = 0;
+        bool hasMeter = false;
         for (int b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
         {
-            if ((loaded[b] = !isNullURI(presetdata.blocks[b].uri)))
+            if (presetdata.blocks[b].uri == "http://gareus.org/oss/lv2/modspectre")
+                hasMeter = true;
+            else if ((loaded[b] = !isNullURI(presetdata.blocks[b].uri)))
                 ++numLoaded;
         }
 
@@ -778,6 +780,12 @@ void HostConnector::hostConnectBetweenBlocks()
             // connect to extra inputs just in case
             _host.connect("system:capture_3", "mod-monitor:in_1");
             _host.connect("system:capture_4", "mod-monitor:in_2");
+
+            if (hasMeter)
+            {
+                _host.connect("system:capture_1", "effect_23:in");
+                _host.connect("system:capture_3", "effect_23:in");
+            }
             return;
         }
 
@@ -847,6 +855,9 @@ void HostConnector::hostConnectBetweenBlocks()
                     const std::string origin(format("effect_%d:%s", instance, plugin->ports[i].symbol.c_str()));
                     const std::string target(format("mod-monitor:in_%d", dsti));
                     _host.connect(origin.c_str(), target.c_str());
+
+                    if (hasMeter)
+                        _host.connect(origin.c_str(), "effect_23:in");
                 }
 
                 // connect to stereo output if chain is mono

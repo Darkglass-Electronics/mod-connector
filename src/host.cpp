@@ -508,16 +508,16 @@ struct Host::Impl
     // ----------------------------------------------------------------------------------------------------------------
     // feedback port handling
 
-    bool poll()
+    bool poll(FeedbackCallback* const callback)
     {
         std::string error;
 
-        while (!dummyDevMode && _poll(error)) {}
+        while (!dummyDevMode && _poll(callback, error)) {}
 
         return error.empty();
     }
 
-    bool _poll(std::string& error)
+    bool _poll(FeedbackCallback* const callback, std::string& error)
     {
         // set non-blocking mode, so we can poke to see if there are any messages
        #ifdef _WIN32
@@ -597,7 +597,192 @@ struct Host::Impl
             }
         }
 
-        printf("got feedback '%s'\n", buffer);
+        if (std::strncmp(buffer, "patch_set ", 10) == 0)
+        {
+            assert(read > 12);
+            HostFeedbackData d = { HostFeedbackData::kFeedbackPatchSet, {} };
+
+            char* msgbuffer;
+            char* sep = buffer + 10;
+            void* ptr2free = nullptr;
+
+            // 1st arg: int effect_id
+            msgbuffer = sep;
+            sep = std::strchr(sep, ' ');
+            *sep++ = '\0';
+            d.patchSet.effect_id = std::atoi(msgbuffer);
+
+            // 2nd arg: char* key
+            msgbuffer = sep;
+            sep = std::strchr(sep, ' ');
+            *sep++ = '\0';
+            d.patchSet.key = msgbuffer;
+
+            // 3rd arg: char type
+            msgbuffer = sep;
+            sep = std::strchr(sep, ' ');
+            *sep++ = '\0';
+            d.patchSet.type = msgbuffer[0];
+
+            // 4th arg: data
+            msgbuffer = sep;
+
+            switch (d.patchSet.type)
+            {
+            case 'b':
+            case 'i':
+                d.patchSet.data.i = std::atoi(msgbuffer);
+                break;
+            case 'l':
+                d.patchSet.data.l = std::atoll(msgbuffer);
+                break;
+            case 'f':
+                d.patchSet.data.f = std::atof(msgbuffer);
+                break;
+            case 'g':
+                d.patchSet.data.g = std::atof(msgbuffer);
+                break;
+            case 's':
+            case 'p':
+            case 'u':
+                d.patchSet.data.s = msgbuffer;
+                break;
+            case 'v':
+                // vector 1st arg: int num
+                sep = std::strchr(sep, '-');
+                *sep++ = '\0';
+                d.patchSet.data.v.num = std::atoi(msgbuffer);
+
+                // vector 2nd arg: char type
+                msgbuffer = sep;
+                sep = std::strchr(sep, '-');
+                *sep++ = '\0';
+                d.patchSet.data.v.type = msgbuffer[0];
+
+                // vector 3rd arg: data
+                msgbuffer = sep;
+
+                switch (d.patchSet.data.v.type)
+                {
+                case 'b':
+                case 'i':
+                    if (int32_t* const data = static_cast<int32_t*>(std::calloc(d.patchSet.data.v.num, sizeof(int32_t))))
+                    {
+                        for (uint32_t i = 0; i < d.patchSet.data.v.num && *msgbuffer != '\0'; ++i)
+                        {
+                            if ((sep = std::strchr(sep, ':')))
+                                *sep++ = '\0';
+
+                            data[i] = std::atoi(msgbuffer);
+                            msgbuffer = sep;
+                        }
+
+                        ptr2free = data;
+                        d.patchSet.data.v.data.i = data;
+                    }
+                    else
+                    {
+                        d.patchSet.data.v.data.i = nullptr;
+                    }
+                    break;
+                case 'l':
+                    if (int64_t* const data = static_cast<int64_t*>(std::calloc(d.patchSet.data.v.num, sizeof(int64_t))))
+                    {
+                        for (uint32_t i = 0; i < d.patchSet.data.v.num && *msgbuffer != '\0'; ++i)
+                        {
+                            if ((sep = std::strchr(sep, ':')))
+                                *sep++ = '\0';
+
+                            data[i] = std::atof(msgbuffer);
+                            msgbuffer = sep;
+                        }
+
+                        ptr2free = data;
+                        d.patchSet.data.v.data.l = data;
+                    }
+                    else
+                    {
+                        d.patchSet.data.v.data.l = nullptr;
+                    }
+                    break;
+                case 'f':
+                    if (float* const data = static_cast<float*>(std::calloc(d.patchSet.data.v.num, sizeof(float))))
+                    {
+                        for (uint32_t i = 0; i < d.patchSet.data.v.num && *msgbuffer != '\0'; ++i)
+                        {
+                            if ((sep = std::strchr(sep, ':')))
+                                *sep++ = '\0';
+
+                            data[i] = std::atof(msgbuffer);
+                            msgbuffer = sep;
+                        }
+
+                        ptr2free = data;
+                        d.patchSet.data.v.data.f = data;
+                    }
+                    else
+                    {
+                        d.patchSet.data.v.data.f = nullptr;
+                    }
+                    break;
+                case 'g':
+                    if (double* const data = static_cast<double*>(std::calloc(d.patchSet.data.v.num, sizeof(double))))
+                    {
+                        for (uint32_t i = 0; i < d.patchSet.data.v.num && *msgbuffer != '\0'; ++i)
+                        {
+                            if ((sep = std::strchr(sep, ':')))
+                                *sep++ = '\0';
+
+                            data[i] = std::atof(msgbuffer);
+                            msgbuffer = sep;
+                        }
+
+                        ptr2free = data;
+                        d.patchSet.data.v.data.g = data;
+                    }
+                    else
+                    {
+                        d.patchSet.data.v.data.g = nullptr;
+                    }
+                    break;
+                default:
+                    std::memset(&d.patchSet.data.v.data, 0, sizeof(d.patchSet.data.v.data));
+                    break;
+                }
+                break;
+            default:
+                std::memset(&d.patchSet.data, 0, sizeof(d.patchSet.data));
+                break;
+            }
+
+            callback->hostFeedbackCallback(d);
+            std::free(ptr2free);
+        }
+        else if (std::strncmp(buffer, "log ", 4) == 0)
+        {
+            assert(read > 6);
+            HostFeedbackData d = { HostFeedbackData::kFeedbackLog, {} };
+
+            switch (buffer[4])
+            {
+            case '3': d.log.type = 'e'; break;
+            case '2': d.log.type = 'w'; break;
+            case '0': d.log.type = 'd'; break;
+            default: d.log.type = 'n'; break;
+            }
+
+            d.log.msg = buffer + 6;
+            callback->hostFeedbackCallback(d);
+        }
+        else if (std::strcmp(buffer, "data_finish") == 0)
+        {
+            HostFeedbackData d = { HostFeedbackData::kFeedbackFinished, {} };
+            callback->hostFeedbackCallback(d);
+        }
+        else
+        {
+            fprintf(stderr, "got feedback '%s'\n", buffer);
+        }
 
         if (stackbuffer != buffer)
             std::free(buffer);
@@ -747,9 +932,9 @@ bool Host::output_data_ready()
     return impl->writeMessageAndWait("output_data_ready");
 }
 
-bool Host::poll_feedback()
+bool Host::poll_feedback(FeedbackCallback* const callback)
 {
-    return impl->poll();
+    return impl->poll(callback);
 }
 
 // --------------------------------------------------------------------------------------------------------------------

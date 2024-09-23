@@ -15,6 +15,80 @@ struct cc_scalepoint {
  * TODO document me
  */
 struct Host {
+    struct FeedbackCallback {
+        struct Data {
+            enum {
+                kFeedbackNullType = 0,
+                kFeedbackParameterSet,
+                kFeedbackPatchSet,
+                kFeedbackOutputMonitor,
+                kFeedbackMidiProgramChange,
+                kFeedbackMidiMapped,
+                kFeedbackTransport,
+                kFeedbackLog,
+                kFeedbackFinished
+            } type;
+            union {
+                struct {
+                    int effect_id;
+                    const char* symbol;
+                    float value;
+                } parameterSet;
+                struct {
+                    int effect_id;
+                    const char* key;
+                    char type;
+                    union {
+                        int32_t b;
+                        int32_t i;
+                        int64_t l;
+                        float f;
+                        double g;
+                        const char* s;
+                        const char* p;
+                        const char* u;
+                        struct {
+                            uint32_t num;
+                            char type;
+                            union {
+                                const int32_t* b;
+                                const int32_t* i;
+                                const int64_t* l;
+                                const float* f;
+                                const double* g;
+                            } data;
+                        } v;
+                    } data;
+                } patchSet;
+                struct {
+                    int8_t program;
+                    int8_t channel;
+                } midiProgramChange;
+                struct {
+                    int effect_id;
+                    const char* symbol;
+                    int8_t channel;
+                    uint8_t controller;
+                    float value;
+                    float minimum;
+                    float maximum;
+                } midiMapped;
+                struct {
+                    bool rolling;
+                    float bpb;
+                    float bpm;
+                } transport;
+                struct {
+                    char type;
+                    const char* msg;
+                } log;
+            };
+        };
+
+        virtual ~FeedbackCallback() {};
+        virtual void hostFeedbackCallback(const Data& data) = 0;
+    };
+
     /**
      * string describing the last error, in case any operation fails.
      * will also be set during initialization in case of mod-host connection failure.
@@ -252,7 +326,10 @@ struct Host {
      */
     bool output_data_ready();
 
-    bool poll_feedback();
+   /**
+     * poll feedback port for messages, triggering a callback for each one
+     */
+    bool poll_feedback(FeedbackCallback* callback);
 
     Host();
     ~Host();
@@ -273,3 +350,5 @@ private:
     struct Impl;
     Impl* const impl;
 };
+
+typedef Host::FeedbackCallback::Data HostFeedbackData;

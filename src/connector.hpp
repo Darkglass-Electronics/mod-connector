@@ -137,8 +137,7 @@ public:
 
     // poll for host updates (e.g. MIDI-mapped parameter changes, tempo changes)
     // NOTE make sure to call `requestHostUpdates()` after handling all updates
-    // TODO provide a callback
-    void pollHostUpdates();
+    void pollHostUpdates(Host::FeedbackCallback* callback);
 
     // request more host updates
     void requestHostUpdates();
