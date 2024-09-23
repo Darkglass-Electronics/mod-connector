@@ -15,36 +15,35 @@
 
 // --------------------------------------------------------------------------------------------------------------------
 
-template <class Param>
-static void resetParam(Param& param)
+static void resetParam(HostConnector::Parameter& param)
 {
     param = {};
     param.meta.max = 1.f;
 }
 
-template <class Block>
-static void resetBlock(Block& block)
+static void resetBlock(HostConnector::Block& block)
 {
     block = {};
     block.meta.bindingIndex = -1;
+    block.parameters.resize(MAX_PARAMS_PER_BLOCK);
 
     for (int p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
         resetParam(block.parameters[p]);
 }
 
-template <class Preset>
-static void resetPreset(Preset& preset)
+static void resetPreset(HostConnector::Preset& preset)
 {
     preset = {};
+    preset.blocks.resize(NUM_BLOCKS_PER_PRESET);
 
     for (int bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
         resetBlock(preset.blocks[bl]);
 }
 
-template <class Bank>
-static void resetBank(Bank& bank)
+static void resetBank(HostConnector::Bank& bank)
 {
     bank = {};
+    bank.presets.resize(NUM_PRESETS_PER_BANK);
 
     for (int pr = 0; pr < NUM_PRESETS_PER_BANK; ++pr)
         resetPreset(bank.presets[pr]);
@@ -59,6 +58,11 @@ HostConnector::HostConnector()
         fprintf(stderr, "Failed to initialize host connection: %s\n", _host.last_error.c_str());
         return;
     }
+
+    _current.banks.resize(NUM_BANKS);
+
+    for (int b = 0; b < NUM_BANKS; ++b)
+        resetBank(_current.banks[b]);
 
     ok = true;
 }
@@ -128,7 +132,7 @@ bool HostConnector::loadStateFromFile(const char* const filename)
     auto& jbanks = j["banks"];
     for (int b = 0; b < NUM_BANKS; ++b)
     {
-        auto& bank = _current.banks[b];
+        Bank& bank = _current.banks[b];
         const std::string jbankid = std::to_string(b + 1);
 
         if (! jbanks.contains(jbankid))
@@ -148,7 +152,7 @@ bool HostConnector::loadStateFromFile(const char* const filename)
         auto& jpresets = jbank["presets"];
         for (int pr = 0; pr < NUM_PRESETS_PER_BANK; ++pr)
         {
-            auto& preset = bank.presets[pr];
+            Preset& preset = bank.presets[pr];
             const std::string jpresetid = std::to_string(pr + 1);
 
             if (! jbanks.contains(jbankid))
@@ -171,7 +175,7 @@ bool HostConnector::loadStateFromFile(const char* const filename)
             auto& jblocks = jpreset["blocks"];
             for (int bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
             {
-                auto& block = preset.blocks[bl];
+                Block& block = preset.blocks[bl];
                 const std::string jblockid = std::to_string(bl + 1);
 
                 if (! jblocks.contains(jblockid))
@@ -236,7 +240,7 @@ bool HostConnector::loadStateFromFile(const char* const filename)
                         break;
                     }
 
-                    auto& param = block.parameters[numParams];
+                    HostConnector::Parameter& param = block.parameters[numParams];
 
                     param.symbol = plugin->ports[i].symbol;
                     param.value = plugin->ports[i].def;
@@ -328,21 +332,21 @@ bool HostConnector::saveStateToFile(const char* const filename) const
         auto& jbanks = j["state"]["banks"];
         for (int b = 0; b < NUM_BANKS; ++b)
         {
-            auto& bank = current.banks[b];
+            const Bank& bank = current.banks[b];
             const std::string jbankid = std::to_string(b + 1);
             jbanks[jbankid]["presets"] = nlohmann::json::object({});
 
             auto& jpresets = jbanks[jbankid]["presets"];
             for (int pr = 0; pr < NUM_PRESETS_PER_BANK; ++pr)
             {
-                auto& preset = bank.presets[pr];
+                const Preset& preset = bank.presets[pr];
                 const std::string jpresetid = std::to_string(pr + 1);
                 jpresets[jpresetid]["blocks"] = nlohmann::json::object({});
 
                 auto& jblocks = jpresets[jpresetid]["blocks"];
                 for (int bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
                 {
-                    auto& block = preset.blocks[bl];
+                    const HostConnector::Block& block = preset.blocks[bl];
 
                     if (isNullURI(block.uri))
                         continue;
@@ -358,7 +362,7 @@ bool HostConnector::saveStateToFile(const char* const filename) const
                     auto& jparams = jblocks[jblockid]["parameters"];
                     for (int p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
                     {
-                        auto& param = block.parameters[p];
+                        const Parameter& param = block.parameters[p];
 
                         if (isNullURI(param.symbol))
                             continue;
@@ -405,7 +409,7 @@ bool HostConnector::reorderBlock(const int block, const int dest)
 
     const Host::NonBlockingScope hnbs(_host);
 
-    auto& blocks(_current.banks[current.bank].presets[current.preset].blocks);
+    HostConnector::Preset& preset(_current.banks[current.bank].presets[current.preset]);
 
     // NOTE this is a very crude quick implementation
     // just removing all plugins and adding them again after reordering
@@ -420,7 +424,7 @@ bool HostConnector::reorderBlock(const int block, const int dest)
     if (block > dest)
     {
         for (int i = block; i > dest; --i)
-            std::swap(blocks[i], blocks[i - 1]);
+            std::swap(preset.blocks[i], preset.blocks[i - 1]);
     }
     // moving block forward to the right
     // a b! c d e f
@@ -430,7 +434,7 @@ bool HostConnector::reorderBlock(const int block, const int dest)
     else
     {
         for (int i = block; i < dest; ++i)
-            std::swap(blocks[i], blocks[i + 1]);
+            std::swap(preset.blocks[i], preset.blocks[i + 1]);
     }
 
     hostLoadCurrent();
@@ -451,7 +455,7 @@ bool HostConnector::replaceBlock(const int block, const char* const uri)
     }
 
     const int instance = 100 * current.preset + block;
-    auto& blockdata(_current.banks[current.bank].presets[current.preset].blocks[block]);
+    HostConnector::Block& blockdata(_current.banks[current.bank].presets[current.preset].blocks[block]);
 
     const Host::NonBlockingScope hnbs(_host);
 
@@ -562,7 +566,7 @@ bool HostConnector::switchPreset(const int preset)
     if (current.preset == preset || preset < 0 || preset >= NUM_PRESETS_PER_BANK)
         return false;
 
-    // const auto& bankdata(current.banks[current.bank]);
+    // const Bank& bankdata(current.banks[current.bank]);
     const int oldpreset = _current.preset;
     _current.preset = preset;
 
@@ -576,11 +580,11 @@ bool HostConnector::switchPreset(const int preset)
     _host.activate(100 * oldpreset, 100 * oldpreset + NUM_BLOCKS_PER_PRESET, 0);
 #else
     {
-        const auto& presetdata(bankdata.presets[oldpreset]);
+        const HostConnector::Preset& presetdata(bankdata.presets[oldpreset]);
 
         for (int b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
         {
-            const auto& blockdata(presetdata.blocks[b]);
+            const HostConnector::Block& blockdata(presetdata.blocks[b]);
             if (isNullURI(blockdata.uri))
                 continue;
 
@@ -595,11 +599,11 @@ bool HostConnector::switchPreset(const int preset)
     _host.activate(100 * preset, 100 * preset + NUM_BLOCKS_PER_PRESET, 1);
 #else
     {
-        const auto& presetdata(bankdata.presets[preset]);
+        const HostConnector::Preset& presetdata(bankdata.presets[preset]);
 
         for (int b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
         {
-            const auto& blockdata(presetdata.blocks[b]);
+            const HostConnector::Block& blockdata(presetdata.blocks[b]);
             if (isNullURI(blockdata.uri))
                 continue;
 
@@ -622,10 +626,10 @@ bool HostConnector::switchPreset(const int preset)
 
 void HostConnector::clearCurrentPreset()
 {
-    auto& blocks(_current.banks[current.bank].presets[current.preset].blocks);
+    HostConnector::Preset& preset(_current.banks[current.bank].presets[current.preset]);
 
     for (int i = 0; i < NUM_BLOCKS_PER_PRESET; ++i)
-        resetBlock(blocks[i]);
+        resetBlock(preset.blocks[i]);
 
     const Host::NonBlockingScope hnbs(_host);
     hostLoadCurrent();
@@ -670,11 +674,11 @@ void HostConnector::setBlockParameterValue(int block, int paramIndex, float valu
 
     const int instance = 100 * _current.preset + block;
 
-    auto& blockdata(_current.banks[_current.bank].presets[_current.preset].blocks[block]);
+    HostConnector::Block& blockdata(_current.banks[_current.bank].presets[_current.preset].blocks[block]);
     if (isNullURI(blockdata.uri))
         return;
 
-    auto& paramdata(blockdata.parameters[paramIndex]);
+    HostConnector::Parameter& paramdata(blockdata.parameters[paramIndex]);
     if (isNullURI(paramdata.symbol))
         return;
 
@@ -695,7 +699,7 @@ void HostConnector::setBlockProperty(int block, const char* uri, const char* val
         return;
 
     const int instance = 100 * current.preset + block;
-    auto& blockdata(current.banks[current.bank].presets[current.preset].blocks[block]);
+    const HostConnector::Block& blockdata(current.banks[current.bank].presets[current.preset].blocks[block]);
 
     if (isNullURI(blockdata.uri))
         return;
@@ -711,16 +715,16 @@ void HostConnector::hostLoadCurrent()
     _host.feature_enable("processing", false);
     _host.remove(-1);
 
-    const auto& bankdata(current.banks[current.bank]);
+    const HostConnector::Bank& bankdata(current.banks[current.bank]);
 
     for (int pr = 0; pr < NUM_PRESETS_PER_BANK; ++pr)
     {
-        const auto& presetdata(bankdata.presets[pr]);
+        const HostConnector::Preset& presetdata(bankdata.presets[pr]);
         const bool active = current.preset == pr;
 
         for (int b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
         {
-            const auto& blockdata(presetdata.blocks[b]);
+            const HostConnector::Block& blockdata(presetdata.blocks[b]);
             if (isNullURI(blockdata.uri))
                 continue;
 
@@ -733,7 +737,7 @@ void HostConnector::hostLoadCurrent()
 
             for (int p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
             {
-                const auto& parameterdata(blockdata.parameters[p]);
+                const HostConnector::Parameter& parameterdata(blockdata.parameters[p]);
                 if (isNullURI(parameterdata.symbol))
                     continue;
                 _host.param_set(instance, parameterdata.symbol.c_str(), parameterdata.value);
@@ -751,12 +755,12 @@ void HostConnector::hostLoadCurrent()
 
 void HostConnector::hostConnectBetweenBlocks()
 {
-    const auto& bankdata(current.banks[current.bank]);
+    const HostConnector::Bank& bankdata(current.banks[current.bank]);
 
     // for (int pr = 0; pr < NUM_PRESETS_PER_BANK; ++pr)
     {
         const int pr = current.preset;
-        const auto& presetdata(bankdata.presets[pr]);
+        const HostConnector::Preset& presetdata(bankdata.presets[pr]);
 
         bool loaded[NUM_BLOCKS_PER_PRESET];
         int numLoaded = 0;
@@ -914,8 +918,8 @@ void HostConnector::hostConnectBetweenBlocks()
 
 void HostConnector::hostDisconnectForNewBlock(const int blockidi)
 {
-    const auto& bankdata(current.banks[current.bank]);
-    const auto& presetdata(bankdata.presets[current.preset]);
+    const HostConnector::Bank& bankdata(current.banks[current.bank]);
+    const HostConnector::Preset& presetdata(bankdata.presets[current.preset]);
 
     bool loaded[NUM_BLOCKS_PER_PRESET];
     for (int b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)

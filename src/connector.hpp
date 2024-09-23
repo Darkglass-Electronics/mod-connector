@@ -28,42 +28,53 @@
 // --------------------------------------------------------------------------------------------------------------------
 
 struct HostConnector {
+    struct Parameter {
+        std::string symbol;
+        float value;
+        struct {
+            // convenience meta-data, not stored in json state
+            uint32_t flags;
+            float def, min, max;
+            std::string name;
+            std::string unit;
+            std::vector<Lv2ScalePoint> scalePoints;
+        } meta;
+    };
+
+    struct Block {
+        bool enabled = false;
+        std::string bindingSymbol;
+        std::string uri;
+        struct {
+            // convenience meta-data, not stored in json state
+            int bindingIndex = -1;
+            std::string name;
+        } meta;
+        std::vector<Parameter> parameters;
+    };
+
+    struct Preset {
+        std::string name;
+        std::vector<Block> blocks;
+    };
+
+    struct Bank {
+        std::string name;
+        std::vector<Preset> presets;
+    };
+
+    struct Current {
+        int bank = 0;
+        int preset = 0; // NOTE resets to 0 on bank change
+        std::vector<Bank> banks;
+    };
+
 protected:
     // connection to mod-host, handled internally
     Host _host;
 
-    // current state, including all presets and banks
-    struct Current {
-        int bank = 0;
-        int preset = 0; // NOTE resets to 0 on bank change
-        struct Bank {
-            struct Preset {
-                std::string name;
-                struct {
-                    bool enabled = false;
-                    std::string bindingSymbol;
-                    std::string uri;
-                    struct {
-                        // convenience meta-data, not stored in json state
-                        int bindingIndex = -1;
-                        std::string name;
-                    } meta;
-                    struct {
-                        std::string symbol;
-                        float value;
-                        struct {
-                            // convenience meta-data, not stored in json state
-                            uint32_t flags;
-                            float def, min, max;
-                            std::string name;
-                            std::string unit;
-                            std::vector<Lv2ScalePoint> scalePoints;
-                        } meta;
-                    } parameters[MAX_PARAMS_PER_BLOCK];
-                } blocks[NUM_BLOCKS_PER_PRESET];
-            } presets[NUM_PRESETS_PER_BANK];
-        } banks[NUM_BANKS];
-    } _current;
+    // internal current state
+    Current _current;
 
 public:
     // lv2 world for getting information about plugins
@@ -76,13 +87,13 @@ public:
     const Current& current = _current;
 
     // shortcut to active bank
-    inline const Current::Bank& currentBank() const
+    inline const Bank& currentBank() const
     {
         return current.banks[current.bank];
     }
 
     // shortcut to active preset
-    inline const Current::Bank::Preset& currentPreset() const
+    inline const Preset& currentPreset() const
     {
         return current.banks[current.bank].presets[current.preset];
     }

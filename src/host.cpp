@@ -638,6 +638,8 @@ Host::NonBlockingScope::NonBlockingScope(Host& host_)
 
 Host::NonBlockingScope::~NonBlockingScope()
 {
+    assert(host.impl->nonBlockingMode);
+
     host.impl->nonBlockingMode = false;
     host.impl->wait();
 }
