@@ -22,7 +22,7 @@
 #endif
 
 #ifndef MAX_PARAMS_PER_BLOCK
-#define MAX_PARAMS_PER_BLOCK 12
+#define MAX_PARAMS_PER_BLOCK 60
 #endif
 
 // --------------------------------------------------------------------------------------------------------------------
