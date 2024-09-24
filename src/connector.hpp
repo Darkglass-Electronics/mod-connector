@@ -27,7 +27,7 @@
 
 // --------------------------------------------------------------------------------------------------------------------
 
-struct HostConnector {
+struct HostConnector : Host::FeedbackCallback {
     struct Parameter {
         std::string symbol;
         float value;
@@ -75,6 +75,9 @@ protected:
 
     // internal current state
     Current _current;
+
+    // current feedback callback
+    FeedbackCallback* _callback = nullptr;
 
 public:
     // lv2 world for getting information about plugins
@@ -161,6 +164,9 @@ protected:
     // TODO cleanup duplicated code with function above
     // FIXME this logic can be made much better, but this is for now just a testing tool anyhow
     void hostDisconnectForNewBlock(int blockidi);
+
+    // internal feedback handling, for updating parameter values
+    void hostFeedbackCallback(const HostFeedbackData& data) override;
 };
 
 // --------------------------------------------------------------------------------------------------------------------

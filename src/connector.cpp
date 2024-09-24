@@ -649,7 +649,9 @@ float HostConnector::dspLoad()
 
 void HostConnector::pollHostUpdates(Host::FeedbackCallback* const callback)
 {
-    _host.poll_feedback(callback);
+    _callback = callback;
+    _host.poll_feedback(this);
+    _callback = nullptr;
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -1040,6 +1042,44 @@ void HostConnector::hostDisconnectForNewBlock(const int blockidi)
             break;
         }
     }
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+// internal feedback handling, for updating parameter values
+
+void HostConnector::hostFeedbackCallback(const HostFeedbackData& data)
+{
+    if (data.type == HostFeedbackData::kFeedbackParameterSet)
+    {
+        const int preset = data.paramSet.effect_id / 100;
+        const int block = data.paramSet.effect_id % 100;
+
+        if (preset >= 0 && preset < NUM_PRESETS_PER_BANK && block >= 0 && block < NUM_BLOCKS_PER_PRESET)
+        {
+            if (data.paramSet.symbol[0] == ':')
+            {
+                // special mod-host values here
+            }
+            else
+            {
+                Block& blockdata = _current.banks[_current.bank].presets[preset].blocks[block];
+
+                for (int p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                {
+                    if (isNullURI(blockdata.parameters[p].symbol))
+                        break;
+
+                    if (blockdata.parameters[p].symbol == data.paramSet.symbol)
+                    {
+                        blockdata.parameters[p].value = data.paramSet.value;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    _callback->hostFeedbackCallback(data);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
