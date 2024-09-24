@@ -74,6 +74,7 @@ HostConnector::HostConnector()
 bool HostConnector::loadStateFromFile(const char* const filename)
 {
     std::ifstream f(filename);
+    std::string name;
     nlohmann::json j;
 
     try {
@@ -142,12 +143,28 @@ bool HostConnector::loadStateFromFile(const char* const filename)
         }
 
         auto& jbank = jbanks[jbankid];
+        if (jbank.contains("name"))
+        {
+            try {
+                name = jbank["name"].get<std::string>();
+            } catch (...) {
+                name.clear();
+            }
+        }
+        else
+        {
+            name.clear();
+        }
+
         if (! jbank.contains("presets"))
         {
             printf("HostConnector::loadStateFromFile: bank #%d does not include presets, using empty bank\n", b + 1);
             resetBank(bank);
+            bank.name = name;
             continue;
         }
+
+        bank.name = name;
 
         auto& jpresets = jbank["presets"];
         for (int pr = 0; pr < NUM_PRESETS_PER_BANK; ++pr)
@@ -155,7 +172,7 @@ bool HostConnector::loadStateFromFile(const char* const filename)
             Preset& preset = bank.presets[pr];
             const std::string jpresetid = std::to_string(pr + 1);
 
-            if (! jbanks.contains(jbankid))
+            if (! jpresets.contains(jpresetid))
             {
                 printf("HostConnector::loadStateFromFile: bank #%d does not include preset #%d, using empty preset\n",
                        b + 1, pr + 1);
@@ -164,13 +181,29 @@ bool HostConnector::loadStateFromFile(const char* const filename)
             }
 
             auto& jpreset = jpresets[jpresetid];
+            if (jpreset.contains("name"))
+            {
+                try {
+                    name = jpreset["name"].get<std::string>();
+                } catch (...) {
+                    name.clear();
+                }
+            }
+            else
+            {
+                name.clear();
+            }
+
             if (! jpreset.contains("blocks"))
             {
                 printf("HostConnector::loadStateFromFile: bank #%d / preset #%d does not include blocks, using empty preset\n",
                        b + 1, pr + 1);
                 resetPreset(preset);
+                preset.name = name;
                 continue;
             }
+
+            preset.name = name;
 
             auto& jblocks = jpreset["blocks"];
             for (int bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
@@ -217,7 +250,7 @@ bool HostConnector::loadStateFromFile(const char* const filename)
                 if (jblock.contains("enabled"))
                     block.enabled = jblock["enabled"].get<bool>();
 
-                // parameters are always filled in lv2 metadata first, then overriden with json data
+                // parameters are always filled from lv2 metadata first, then overriden with json data
                 int numParams = 0;
                 std::map<std::string, int> symbolToIndexMap;
                 for (size_t i = 0; i < plugin->ports.size() && numParams < MAX_PARAMS_PER_BLOCK; ++i)
@@ -334,6 +367,9 @@ bool HostConnector::saveStateToFile(const char* const filename) const
         {
             const Bank& bank = current.banks[b];
             const std::string jbankid = std::to_string(b + 1);
+
+            jbanks[jbankid] = nlohmann::json::object({});
+            jbanks[jbankid]["name"] = bank.name;
             jbanks[jbankid]["presets"] = nlohmann::json::object({});
 
             auto& jpresets = jbanks[jbankid]["presets"];
@@ -341,6 +377,9 @@ bool HostConnector::saveStateToFile(const char* const filename) const
             {
                 const Preset& preset = bank.presets[pr];
                 const std::string jpresetid = std::to_string(pr + 1);
+
+                jpresets[jpresetid] = nlohmann::json::object({});
+                jpresets[jpresetid]["name"] = preset.name;
                 jpresets[jpresetid]["blocks"] = nlohmann::json::object({});
 
                 auto& jblocks = jpresets[jpresetid]["blocks"];
