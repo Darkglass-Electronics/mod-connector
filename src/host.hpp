@@ -154,10 +154,11 @@ struct Host {
     /**
      * get the value of a control port
      */
-    bool param_get(int16_t instance_number, const char* param_symbol);
+    float param_get(int16_t instance_number, const char* param_symbol);
 
     /**
      * monitor a control port according to a condition
+     * TODO condition as enum
      */
     bool param_monitor(int16_t instance_number, const char* param_symbol, const char* cond_op, float value);
 
@@ -168,14 +169,14 @@ struct Host {
 
     /**
      * get the value of a patch property
+     * TODO proper return type
      */
-    // TODO proper return type
     bool patch_get(int16_t instance_number, const char* property_uri);
 
     /**
      * get the licensee name for a commercial plugin
      */
-    bool licensee(int16_t instance_number);
+    std::string licensee(int16_t instance_number);
 
     /**
      * open a socket port for monitoring parameter changes
@@ -196,7 +197,12 @@ struct Host {
      * map a MIDI controller to a control port
      * a non-standard @a midi_cc value of 131 (0x83) is used for pitchbend
      */
-    bool midi_map(int16_t instance_number, const char* param_symbol, uint8_t midi_channel, uint8_t midi_cc, float minimum, float maximum);
+    bool midi_map(int16_t instance_number,
+                  const char* param_symbol,
+                  uint8_t midi_channel,
+                  uint8_t midi_cc,
+                  float minimum,
+                  float maximum);
 
     /**
      * unmap the MIDI controller from a control port
@@ -211,10 +217,19 @@ struct Host {
     /**
      * map a Control Chain actuator to a control port
      */
-    bool cc_map(int16_t instance_number, const char* param_symbol,
-                int device_id, int actuator_id, const char* label,
-                float value, float minimum, float maximum, int steps, const char* unit,
-                unsigned int scalepoints_count, const cc_scalepoint* scalepoints);
+    bool cc_map(int16_t instance_number,
+                const char* param_symbol,
+                int device_id,
+                int actuator_id,
+                const char* label,
+                float value,
+                float minimum,
+                float maximum,
+                int steps,
+                int extraflags,
+                const char* unit,
+                unsigned int scalepoints_count,
+                const cc_scalepoint* scalepoints);
 
     /**
      * unmap the Control Chain actuator from a control port
@@ -229,7 +244,12 @@ struct Host {
     /**
      * map a CV source port to a control port, operational-mode being one of '-', '+', 'b' or '='
      */
-    bool cv_map(int16_t instance_number, const char* param_symbol, const char* source_port_name, float minimum, float maximum, char operational_mode);
+    bool cv_map(int16_t instance_number,
+                const char* param_symbol,
+                const char* source_port_name,
+                float minimum,
+                float maximum,
+                char operational_mode);
 
     /**
      * unmap the CV source port actuator from a control port
@@ -240,9 +260,17 @@ struct Host {
      * report an HMI assignment to an effect instance, using the MOD Audio's HMI LV2 extension
      * @see https://github.com/moddevices/mod-lv2-extensions/blob/main/mod-hmi.lv2/mod-hmi.h
      */
-    bool hmi_map(int16_t instance_number, const char* param_symbol,
-                 int hw_id, int page, int subpage,
-                 int caps, int flags, const char* label, float minimum, float maximum, int steps);
+    bool hmi_map(int16_t instance_number,
+                 const char* param_symbol,
+                 int hw_id,
+                 int page,
+                 int subpage,
+                 int caps,
+                 int flags,
+                 const char* label,
+                 float minimum,
+                 float maximum,
+                 int steps);
 
     /**
      * report an HMI unassignment to an effect instance
@@ -295,6 +323,7 @@ struct Host {
 
    /**
      * enable or disable a feature
+     * TODO feature as enum
      * feature can be one of "aggregated-midi", "freewheeling" or "processing"
      * the "aggregated-midi" feature requires the use of jack2 and mod-midi-merger to be installed system-wide
      */
@@ -317,6 +346,7 @@ struct Host {
 
    /**
      * change the transport sync mode
+     * TODO mode as enum
      * @a mode can be one of "none", "link" or "midi"
      */
     bool transport_sync(const char* mode);

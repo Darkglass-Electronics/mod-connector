@@ -978,91 +978,473 @@ Host::NonBlockingScope::~NonBlockingScope()
 }
 
 // --------------------------------------------------------------------------------------------------------------------
+// input validation for debug builds
 
-// TODO escape-quote strings
+#ifdef NDEBUG
+#define VALIDATE_INSTANCE_NUMBER(n)
+#define VALIDATE_JACK_PORT(p)
+#define VALIDATE_MIDI_CHANNEL(c)
+#define VALIDATE_SYMBOL(s)
+#define VALIDATE_URI(u)
+#else
+static bool valid_jack_port(const char* const port)
+{
+    // must contain at least 1 client/port name separator
+    if (std::strchr(port, ':') == nullptr)
+        return false;
+    return true;
+}
+static bool valid_symbol(const char* const symbol)
+{
+    // must only contain very specific characters
+    const size_t len = std::strlen(symbol);
+    for (size_t i = 0; i < len; ++i)
+    {
+        switch (symbol[i])
+        {
+        case '_':
+        case 'a' ... 'z':
+        case 'A' ... 'Z':
+            break;
+        case '0' ... '9':
+            // not allowed as first character
+            if (i == 0)
+                return false;
+            break;
+        }
+    }
+    return true;
+}
+static bool valid_uri(const char* const uri)
+{
+    // must contain at least 1 colon
+    if (std::strchr(uri, ':') == nullptr)
+        return false;
+    // must not contain spaces or quotes
+    if (std::strchr(uri, ' ') != nullptr)
+        return false;
+    if (std::strchr(uri, '"') != nullptr)
+        return false;
+    return true;
+}
+#define VALIDATE(expr) \
+    if (!(expr)) { fprintf(stderr, "host validation failed: " #expr ", line %d\n", __LINE__); abort(); return {}; }
+#define VALIDATE_INSTANCE_NUMBER(n) VALIDATE(n >= 0 && n < 9990)
+#define VALIDATE_JACK_PORT(p) VALIDATE(valid_jack_port(p))
+#define VALIDATE_MIDI_CHANNEL(c) VALIDATE(c >= 0 && c < 16)
+#define VALIDATE_SYMBOL(s) VALIDATE(valid_symbol(s))
+#define VALIDATE_URI(uri) VALIDATE(valid_uri(uri))
+#endif
+
+// --------------------------------------------------------------------------------------------------------------------
+// utilities
+
+static std::string escape(const char* const str)
+{
+    // TODO properly escape-quote strings
+
+    if (const char* const space = std::strchr(str, ' '))
+    {
+        std::string ret;
+        ret += "\"";
+        ret += str;
+        ret += "\"";
+        return ret;
+    }
+
+    return str;
+}
 
 bool Host::add(const char* const uri, const int16_t instance_number)
 {
+    VALIDATE_INSTANCE_NUMBER(instance_number);
+    VALIDATE_URI(uri);
+
     return impl->writeMessageAndWait(format("add %s %d", uri, instance_number));
 }
 
 bool Host::remove(const int16_t instance_number)
 {
+    VALIDATE_INSTANCE_NUMBER(instance_number);
+
     return impl->writeMessageAndWait(format("remove %d", instance_number));
 }
 
-bool Host::activate(int16_t instance_number, int16_t instance_number_end, bool activate_value)
+bool Host::activate(const int16_t instance_number, const int16_t instance_number_end, const bool activate_value)
 {
-    return impl->writeMessageAndWait(format("activate %d %d %d", instance_number, instance_number_end, activate_value ? 1 : 0));
+    VALIDATE_INSTANCE_NUMBER(instance_number);
+    VALIDATE_INSTANCE_NUMBER(instance_number_end);
+
+    return impl->writeMessageAndWait(format("activate %d %d %d",
+                                            instance_number, instance_number_end, activate_value ? 1 : 0));
 }
 
-bool Host::preload(const char* const uri, int16_t instance_number)
+bool Host::preload(const char* const uri, const int16_t instance_number)
 {
+    VALIDATE_INSTANCE_NUMBER(instance_number);
+    VALIDATE_URI(uri);
+
     return impl->writeMessageAndWait(format("preload %s %d", uri, instance_number));
 }
 
 bool Host::preset_load(const int16_t instance_number, const char* const preset_uri)
 {
+    VALIDATE_INSTANCE_NUMBER(instance_number);
+    VALIDATE_URI(preset_uri);
+
     return impl->writeMessageAndWait(format("preset_load %d %s", instance_number, preset_uri));
 }
 
-bool Host::preset_save(const int16_t instance_number, const char* const preset_name, const char* const dir, const char* const file_name)
+bool Host::preset_save(const int16_t instance_number,
+                       const char* const preset_name,
+                       const char* const dir,
+                       const char* const file_name)
 {
-    return impl->writeMessageAndWait(format("preset_save %d \"%s\" \"%s\" \"%s\"", instance_number, preset_name, dir, file_name));
+    VALIDATE_INSTANCE_NUMBER(instance_number);
+
+    return impl->writeMessageAndWait(format("preset_save %d %s %s %s",
+                                            instance_number,
+                                            escape(preset_name).c_str(),
+                                            escape(dir).c_str(),
+                                            escape(file_name).c_str()));
 }
 
 std::string Host::preset_show(const char* const preset_uri)
 {
+    VALIDATE_URI(preset_uri);
+
     HostResponse resp;
-    if (! impl->writeMessageAndWait(format("preset_show %s", preset_uri),
-                                    kHostResponseString, &resp))
-        return {};
+    if (impl->writeMessageAndWait(format("preset_show %s", preset_uri), kHostResponseString, &resp))
+    {
+        const std::string ret(resp.data.s);
+        std::free(resp.data.s);
+        return ret;
+    }
 
-    const std::string ret(resp.data.s);
-    std::free(resp.data.s);
-    return ret;
+    return {};
 }
 
-bool Host::connect(const char* origin_port, const char* destination_port)
+bool Host::connect(const char* const origin_port, const char* const destination_port)
 {
-    return impl->writeMessageAndWait(format("connect \"%s\" \"%s\"", origin_port, destination_port));
+    VALIDATE_JACK_PORT(origin_port);
+    VALIDATE_JACK_PORT(destination_port);
+
+    return impl->writeMessageAndWait(format("connect %s %s",
+                                            escape(origin_port).c_str(), escape(destination_port).c_str()));
 }
 
-bool Host::disconnect(const char* origin_port, const char* destination_port)
+bool Host::disconnect(const char* const origin_port, const char* const destination_port)
 {
-    return impl->writeMessageAndWait(format("disconnect \"%s\" \"%s\"", origin_port, destination_port));
+    VALIDATE_JACK_PORT(origin_port);
+    VALIDATE_JACK_PORT(destination_port);
+
+    return impl->writeMessageAndWait(format("disconnect %s %s",
+                                            escape(origin_port).c_str(), escape(destination_port).c_str()));
 }
 
-bool Host::bypass(int16_t instance_number, bool bypass_value)
+bool Host::bypass(const int16_t instance_number, const bool bypass_value)
 {
+    VALIDATE_INSTANCE_NUMBER(instance_number);
+
     return impl->writeMessageAndWait(format("bypass %d %d", instance_number, bypass_value ? 1 : 0));
 }
 
-bool Host::param_set(int16_t instance_number, const char* param_symbol, float param_value)
+bool Host::param_set(const int16_t instance_number, const char* const param_symbol, const float param_value)
 {
+    VALIDATE_INSTANCE_NUMBER(instance_number);
+    VALIDATE_SYMBOL(param_symbol);
+
     return impl->writeMessageAndWait(format("param_set %d %s %f", instance_number, param_symbol, param_value));
 }
 
-bool Host::param_get(int16_t instance_number, const char* param_symbol)
+float Host::param_get(const int16_t instance_number, const char* const param_symbol)
 {
-    return impl->writeMessageAndWait(format("param_get %d %s", instance_number, param_symbol));
+    VALIDATE_INSTANCE_NUMBER(instance_number)
+    VALIDATE_SYMBOL(param_symbol)
+
+    HostResponse resp;
+    return impl->writeMessageAndWait(format("param_get %d %s", instance_number, param_symbol),
+                                     kHostResponseFloat,
+                                     &resp) ? resp.data.f : 0.f;
 }
 
-bool Host::patch_set(int16_t instance_number, const char* property_uri, const char* value)
+bool Host::param_monitor(const int16_t instance_number,
+                         const char* const param_symbol,
+                         const char* const cond_op,
+                         const float value)
 {
-    return impl->writeMessageAndWait(format("patch_set %d %s \"%s\"", instance_number, property_uri, value));
+    VALIDATE_INSTANCE_NUMBER(instance_number)
+    VALIDATE_SYMBOL(param_symbol)
+
+    return impl->writeMessageAndWait(format("param_monitor %d %s %s %f",
+                                            instance_number, param_symbol, cond_op, value));
+}
+
+bool Host::patch_set(const int16_t instance_number, const char* const property_uri, const char* const value)
+{
+    VALIDATE_INSTANCE_NUMBER(instance_number)
+    VALIDATE_URI(property_uri)
+
+    return impl->writeMessageAndWait(format("patch_set %d %s %s",
+                                            instance_number, property_uri, escape(value).c_str()));
+}
+
+bool Host::patch_get(const int16_t instance_number, const char* const property_uri)
+{
+    VALIDATE_INSTANCE_NUMBER(instance_number)
+    VALIDATE_URI(property_uri)
+
+    return impl->writeMessageAndWait(format("patch_get %d %s", instance_number, property_uri));
+}
+
+std::string Host::licensee(const int16_t instance_number)
+{
+    VALIDATE_INSTANCE_NUMBER(instance_number)
+
+    HostResponse resp;
+    if (impl->writeMessageAndWait(format("licensee %d", instance_number), kHostResponseString, &resp))
+    {
+        const std::string ret(resp.data.s);
+        std::free(resp.data.s);
+        return ret;
+    }
+
+    return {};
+}
+
+bool Host::monitor(const char* const addr, const int port, const bool status)
+{
+    return impl->writeMessageAndWait(format("monitor %s %d %d", addr, port, status ? 1 : 0));
+}
+
+bool Host::monitor_output(const int16_t instance_number, const char* const param_symbol)
+{
+    VALIDATE_INSTANCE_NUMBER(instance_number)
+    VALIDATE_SYMBOL(param_symbol)
+
+    return impl->writeMessageAndWait(format("monitor_output %d %s", instance_number, param_symbol));
+}
+
+bool Host::midi_learn(const int16_t instance_number,
+                      const char* const param_symbol,
+                      const float minimum,
+                      const float maximum)
+{
+    VALIDATE_INSTANCE_NUMBER(instance_number)
+    VALIDATE_SYMBOL(param_symbol)
+
+    return impl->writeMessageAndWait(format("midi_learn %d %s %f %f",
+                                            instance_number, param_symbol, minimum, maximum));
+}
+
+bool Host::midi_map(const int16_t instance_number,
+                    const char* const param_symbol,
+                    const uint8_t midi_channel,
+                    const uint8_t midi_cc,
+                    const float minimum,
+                    const float maximum)
+{
+    VALIDATE_INSTANCE_NUMBER(instance_number)
+    VALIDATE_MIDI_CHANNEL(midi_channel)
+    VALIDATE_SYMBOL(param_symbol)
+
+    return impl->writeMessageAndWait(format("midi_map %d %s %d %d %f %f",
+                                            instance_number, param_symbol, midi_channel, midi_cc, minimum, maximum));
+}
+
+bool Host::midi_unmap(const int16_t instance_number, const char* const param_symbol)
+{
+    VALIDATE_INSTANCE_NUMBER(instance_number)
+    VALIDATE_SYMBOL(param_symbol)
+
+    return impl->writeMessageAndWait(format("midi_unmap %d %s", instance_number, param_symbol));
+}
+
+bool Host::monitor_midi_program(const uint8_t midi_channel, const bool enable)
+{
+    VALIDATE_MIDI_CHANNEL(midi_channel)
+
+    return impl->writeMessageAndWait(format("monitor_midi_program %d %d", midi_channel, enable ? 1 : 0));
+}
+
+bool Host::cc_map(const int16_t instance_number,
+                  const char* const param_symbol,
+                  const int device_id,
+                  const int actuator_id,
+                  const char* const label,
+                  const float value,
+                  const float minimum,
+                  const float maximum,
+                  const int steps,
+                  const int extraflags,
+                  const char* const unit,
+                  const unsigned int scalepoints_count,
+                  const cc_scalepoint* const scalepoints)
+{
+    VALIDATE_INSTANCE_NUMBER(instance_number)
+    VALIDATE_SYMBOL(param_symbol)
+
+    std::string msg = format("cc_map %d %s %d %d %s %f %f %f %d %d %s %d",
+                             instance_number,
+                             param_symbol,
+                             device_id,
+                             actuator_id,
+                             escape(label).c_str(),
+                             value,
+                             minimum,
+                             maximum,
+                             steps,
+                             extraflags,
+                             escape(unit).c_str(),
+                             scalepoints_count);
+
+    for (unsigned int i = 0; i < scalepoints_count; ++i)
+        msg += format(" %s %f", escape(scalepoints[i].label).c_str(), scalepoints[i].value);
+
+    return impl->writeMessageAndWait(msg);
+}
+
+bool Host::cc_unmap(const int16_t instance_number, const char* const param_symbol)
+{
+    VALIDATE_INSTANCE_NUMBER(instance_number)
+    VALIDATE_SYMBOL(param_symbol)
+
+    return impl->writeMessageAndWait(format("cc_unmap %d %s", instance_number, param_symbol));
+}
+
+bool Host::cc_value_set(const int16_t instance_number, const char* const param_symbol, const float value)
+{
+    VALIDATE_INSTANCE_NUMBER(instance_number)
+    VALIDATE_SYMBOL(param_symbol)
+
+    return impl->writeMessageAndWait(format("cc_value_set %d %s %f", instance_number, param_symbol, value));
+}
+
+bool Host::cv_map(const int16_t instance_number,
+                  const char* const param_symbol,
+                  const char* const source_port_name,
+                  const float minimum,
+                  const float maximum,
+                  const char operational_mode)
+{
+    VALIDATE_INSTANCE_NUMBER(instance_number)
+    VALIDATE_JACK_PORT(source_port_name)
+    VALIDATE_SYMBOL(param_symbol)
+
+    return impl->writeMessageAndWait(format("cv_map %d %s %s %f %f %c",
+                                            instance_number,
+                                            param_symbol,
+                                            source_port_name,
+                                            minimum,
+                                            maximum,
+                                            operational_mode));
+}
+
+bool Host::cv_unmap(const int16_t instance_number, const char* const param_symbol)
+{
+    VALIDATE_INSTANCE_NUMBER(instance_number)
+    VALIDATE_SYMBOL(param_symbol)
+
+    return impl->writeMessageAndWait(format("cv_unmap %d %s", instance_number, param_symbol));
+}
+
+bool Host::hmi_map(const int16_t instance_number,
+                   const char* const param_symbol,
+                   const int hw_id,
+                   const int page,
+                   const int subpage,
+                   const int caps,
+                   const int flags,
+                   const char* const label,
+                   const float minimum,
+                   const float maximum,
+                   const int steps)
+{
+    VALIDATE_INSTANCE_NUMBER(instance_number)
+    VALIDATE_SYMBOL(param_symbol)
+
+    return impl->writeMessageAndWait(format("hmi_map %d %s %d %d %d %d %d %s %f %f %d",
+                                            instance_number,
+                                            param_symbol,
+                                            hw_id,
+                                            page,
+                                            subpage,
+                                            caps,
+                                            flags,
+                                            escape(label).c_str(),
+                                            minimum,
+                                            maximum,
+                                            steps));
+}
+
+bool Host::hmi_unmap(const int16_t instance_number, const char* const param_symbol)
+{
+    VALIDATE_INSTANCE_NUMBER(instance_number)
+    VALIDATE_SYMBOL(param_symbol)
+
+    return impl->writeMessageAndWait(format("hmi_unmap %d %s", instance_number, param_symbol));
 }
 
 float Host::cpu_load()
 {
     HostResponse resp;
-    return impl->writeMessageAndWait("cpu_load",
-                                     kHostResponseFloat, &resp) ? resp.data.f : 0.f;
+    return impl->writeMessageAndWait("cpu_load", kHostResponseFloat, &resp) ? resp.data.f : 0.f;
+}
+
+bool Host::load(const char* const file_name)
+{
+    return impl->writeMessageAndWait(format("load %s", escape(file_name).c_str()));
+}
+
+bool Host::save(const char* const file_name)
+{
+    return impl->writeMessageAndWait(format("save %s", escape(file_name).c_str()));
+}
+
+bool Host::bundle_add(const char* const bundle_path)
+{
+    return impl->writeMessageAndWait(format("bundle_add %s", escape(bundle_path).c_str()));
+}
+
+bool Host::bundle_remove(const char* const bundle_path, const char* const resource)
+{
+    if (resource != nullptr)
+    {
+        VALIDATE_URI(resource);
+        return impl->writeMessageAndWait(format("bundle_remove %s %s", escape(bundle_path).c_str(), resource));
+    }
+
+    return impl->writeMessageAndWait(format("bundle_remove %s \"\"", escape(bundle_path).c_str()));
+}
+
+bool Host::state_load(const char* const dir)
+{
+    return impl->writeMessageAndWait(format("state_load %s", escape(dir).c_str()));
+}
+
+bool Host::state_save(const char* const dir)
+{
+    return impl->writeMessageAndWait(format("state_save %s", escape(dir).c_str()));
+}
+
+bool Host::state_tmpdir(const char* const dir)
+{
+    return impl->writeMessageAndWait(format("state_tmpdir %s", escape(dir).c_str()));
 }
 
 bool Host::feature_enable(const char* const feature, const bool enable)
 {
     return impl->writeMessageAndWait(format("feature_enable %s %d", feature, enable ? 1 : 0));
+}
+
+bool Host::set_bpm(const double beats_per_minute)
+{
+    return impl->writeMessageAndWait(format("set_bpm %f", beats_per_minute));
+}
+
+bool Host::set_bpb(const double beats_per_bar)
+{
+    return impl->writeMessageAndWait(format("set_bpb %f", beats_per_bar));
 }
 
 bool Host::transport(const bool rolling, const double beats_per_bar, const double beats_per_minute)
@@ -1072,7 +1454,7 @@ bool Host::transport(const bool rolling, const double beats_per_bar, const doubl
 
 bool Host::transport_sync(const char* const mode)
 {
-    return impl->writeMessageAndWait(format("transport_sync \"%s\"", mode));
+    return impl->writeMessageAndWait(format("transport_sync %s", mode));
 }
 
 bool Host::output_data_ready()
