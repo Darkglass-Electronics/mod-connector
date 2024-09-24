@@ -425,6 +425,33 @@ bool HostConnector::saveStateToFile(const char* const filename) const
 }
 
 // --------------------------------------------------------------------------------------------------------------------
+// enable or disable/bypass a block
+// returning false means the current chain was unchanged
+
+bool HostConnector::enableBlock(const int block, const bool enable)
+{
+    if (block < 0 || block >= NUM_BLOCKS_PER_PRESET)
+    {
+        fprintf(stderr, "HostConnector::enableBlock(%d, %d) - out of bounds block, rejected\n", block, enable);
+        return false;
+    }
+
+    const int instance = 100 * current.preset + block;
+    HostConnector::Block& blockdata(_current.banks[current.bank].presets[current.preset].blocks[block]);
+
+    if (isNullURI(blockdata.uri))
+    {
+        fprintf(stderr, "HostConnector::enableBlock(%d, %d) - block not in use, rejected\n", block, enable);
+        return false;
+    }
+
+    blockdata.enabled = enable;
+
+    _host.bypass(instance, !enable);
+    return true;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
 // reorder a block into a new position
 // returning false means the current chain was unchanged
 
@@ -774,6 +801,9 @@ void HostConnector::hostLoadCurrent()
                 _host.add(blockdata.uri.c_str(), instance);
             else
                 _host.preload(blockdata.uri.c_str(), instance);
+
+            if (!blockdata.enabled)
+                _host.bypass(instance, true);
 
             for (int p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
             {

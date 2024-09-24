@@ -112,6 +112,10 @@ public:
     // save host state as stored in the `current` struct into a file
     bool saveStateToFile(const char* filename) const;
 
+    // enable or disable/bypass a block
+    // returning false means the block was unchanged
+    bool enableBlock(int block, bool enable);
+
     // reorder a block into a new position
     // returning false means the current chain was unchanged
     bool reorderBlock(int block, int dest);
