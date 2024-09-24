@@ -597,7 +597,33 @@ struct Host::Impl
             }
         }
 
-        if (std::strncmp(buffer, "patch_set ", 10) == 0)
+        if (std::strncmp(buffer, "param_set ", 10) == 0)
+        {
+            assert(read > 12);
+            HostFeedbackData d = { HostFeedbackData::kFeedbackParameterSet, {} };
+
+            char* msgbuffer;
+            char* sep = buffer + 10;
+
+            // 1st arg: int effect_id
+            msgbuffer = sep;
+            sep = std::strchr(sep, ' ');
+            *sep++ = '\0';
+            d.paramSet.effect_id = std::atoi(msgbuffer);
+
+            // 2nd arg: char* symbol
+            msgbuffer = sep;
+            sep = std::strchr(sep, ' ');
+            *sep++ = '\0';
+            d.paramSet.symbol = msgbuffer;
+
+            // 3rd arg: value
+            msgbuffer = sep;
+            d.paramSet.value = std::atof(msgbuffer);
+
+            callback->hostFeedbackCallback(d);
+        }
+        else if (std::strncmp(buffer, "patch_set ", 10) == 0)
         {
             assert(read > 12);
             HostFeedbackData d = { HostFeedbackData::kFeedbackPatchSet, {} };
@@ -757,6 +783,128 @@ struct Host::Impl
 
             callback->hostFeedbackCallback(d);
             std::free(ptr2free);
+        }
+        else if (std::strncmp(buffer, "output_set ", 11) == 0)
+        {
+            assert(read > 13);
+            HostFeedbackData d = { HostFeedbackData::kFeedbackOutputMonitor, {} };
+
+            char* msgbuffer;
+            char* sep = buffer + 11;
+
+            // 1st arg: int effect_id
+            msgbuffer = sep;
+            sep = std::strchr(sep, ' ');
+            *sep++ = '\0';
+            d.outputMonitor.effect_id = std::atoi(msgbuffer);
+
+            // 2nd arg: char* symbol
+            msgbuffer = sep;
+            sep = std::strchr(sep, ' ');
+            *sep++ = '\0';
+            d.outputMonitor.symbol = msgbuffer;
+
+            // 3rd arg: float value
+            msgbuffer = sep;
+            d.outputMonitor.value = std::atof(msgbuffer);
+
+            callback->hostFeedbackCallback(d);
+        }
+        else if (std::strncmp(buffer, "midi_program_change ", 20) == 0)
+        {
+            assert(read > 22);
+            HostFeedbackData d = { HostFeedbackData::kFeedbackMidiProgramChange, {} };
+
+            char* msgbuffer;
+            char* sep = buffer + 20;
+
+            // 1st arg: int program
+            msgbuffer = sep;
+            sep = std::strchr(sep, ' ');
+            *sep++ = '\0';
+            d.midiProgramChange.program = std::atoi(msgbuffer);
+
+            // 2nd arg: int channel
+            msgbuffer = sep;
+            d.midiProgramChange.channel = std::atoi(msgbuffer);
+
+            callback->hostFeedbackCallback(d);
+        }
+        else if (std::strncmp(buffer, "midi_mapped ", 12) == 0)
+        {
+            assert(read > 14);
+            HostFeedbackData d = { HostFeedbackData::kFeedbackMidiMapped, {} };
+
+            char* msgbuffer;
+            char* sep = buffer + 12;
+
+            // 1st arg: int effect_id
+            msgbuffer = sep;
+            sep = std::strchr(sep, ' ');
+            *sep++ = '\0';
+            d.midiMapped.effect_id = std::atoi(msgbuffer);
+
+            // 2nd arg: char* symbol
+            msgbuffer = sep;
+            sep = std::strchr(sep, ' ');
+            *sep++ = '\0';
+            d.midiMapped.symbol = msgbuffer;
+
+            // 3rd arg: int channel
+            msgbuffer = sep;
+            sep = std::strchr(sep, ' ');
+            *sep++ = '\0';
+            d.midiMapped.channel = std::atoi(msgbuffer);
+
+            // 4th arg: int controller
+            msgbuffer = sep;
+            sep = std::strchr(sep, ' ');
+            *sep++ = '\0';
+            d.midiMapped.controller = std::atoi(msgbuffer);
+
+            // 5th arg: float value
+            msgbuffer = sep;
+            sep = std::strchr(sep, ' ');
+            *sep++ = '\0';
+            d.midiMapped.value = std::atof(msgbuffer);
+
+            // 6th arg: float value
+            msgbuffer = sep;
+            sep = std::strchr(sep, ' ');
+            *sep++ = '\0';
+            d.midiMapped.minimum = std::atof(msgbuffer);
+
+            // 7th arg: float value
+            msgbuffer = sep;
+            d.midiMapped.maximum = std::atof(msgbuffer);
+
+            callback->hostFeedbackCallback(d);
+        }
+        else if (std::strncmp(buffer, "transport ", 10) == 0)
+        {
+            assert(read > 12);
+            HostFeedbackData d = { HostFeedbackData::kFeedbackTransport, {} };
+
+            char* msgbuffer;
+            char* sep = buffer + 10;
+
+            // 1st arg: bool rolling
+            msgbuffer = sep;
+            sep = std::strchr(sep, ' ');
+            *sep++ = '\0';
+            d.transport.rolling = msgbuffer[0] != '0';
+
+            // 2nd arg: float bpm
+            msgbuffer = sep;
+            sep = std::strchr(sep, ' ');
+            *sep++ = '\0';
+            d.transport.bpm = std::atof(msgbuffer);
+
+            // 3rd arg: float bpb
+            msgbuffer = sep;
+            d.transport.bpb = std::atof(msgbuffer);
+
+            callback->hostFeedbackCallback(d);
         }
         else if (std::strncmp(buffer, "log ", 4) == 0)
         {

@@ -33,7 +33,7 @@ struct Host {
                     int effect_id;
                     const char* symbol;
                     float value;
-                } parameterSet;
+                } paramSet, outputMonitor;
                 struct {
                     int effect_id;
                     const char* key;
