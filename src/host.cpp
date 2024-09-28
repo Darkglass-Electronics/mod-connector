@@ -12,6 +12,7 @@
 #else
 #include <fcntl.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <sys/socket.h>
 #include <unistd.h>
 #define closesocket close
@@ -205,9 +206,14 @@ struct Host::Impl
 
        #ifndef _WIN32
         /* increase socket size */
-        const int size = 131071;
-        setsockopt(sockets.out, SOL_SOCKET, SO_RCVBUF, &size, sizeof(size));
-        setsockopt(sockets.feedback, SOL_SOCKET, SO_RCVBUF, &size, sizeof(size));
+        int value = 131071;
+        setsockopt(sockets.out, SOL_SOCKET, SO_RCVBUF, &value, sizeof(value));
+        setsockopt(sockets.feedback, SOL_SOCKET, SO_RCVBUF, &value, sizeof(value));
+
+        /* set TCP_NODELAY */
+        value = 1;
+        setsockopt(sockets.out, SOL_TCP, TCP_NODELAY, &value, sizeof(value));
+        setsockopt(sockets.feedback, SOL_TCP, TCP_NODELAY, &value, sizeof(value));
        #endif
 
         /* Startup the socket struct */
