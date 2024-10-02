@@ -68,6 +68,14 @@ HostConnector::HostConnector()
 }
 
 // --------------------------------------------------------------------------------------------------------------------
+// try to reconnect host if it previously failed
+
+bool HostConnector::reconnect()
+{
+    return _host.reconnect();
+}
+
+// --------------------------------------------------------------------------------------------------------------------
 // load state from a file and store it in the `current` struct
 // returning false means the current chain was unchanged
 

@@ -365,6 +365,11 @@ struct Host {
     ~Host();
 
    /**
+     * try to reconnect host if it previously failed
+     */
+    bool reconnect();
+
+   /**
      * class to activate non-blocking mode during a function scope.
      * this allows to send a bunch of related messages in quick succession,
      * while only waiting once (in the class destructor).

@@ -104,6 +104,9 @@ public:
     // constructor, initializes connection to mod-host and sets `ok` to true if successful
     HostConnector();
 
+    // try to reconnect host if it previously failed
+    bool reconnect();
+
     // load state from a file and store it in the `current` struct
     // automatically calls loadCurrent() if the file contains valid state, otherwise does nothing
     // returning false means the current chain was unchanged

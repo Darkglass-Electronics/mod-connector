@@ -158,22 +158,6 @@ struct Host::Impl
             }
         }
 
-        int port;
-        if (const char* const portEnv = std::getenv("MOD_DEVICE_HOST_PORT"))
-        {
-            port = std::atoi(portEnv);
-
-            if (port == 0)
-            {
-                last_error = "No valid port specified, try setting `MOD_DEVICE_HOST_PORT` env var";
-                return;
-            }
-        }
-        else
-        {
-            port = 5555;
-        }
-
        #ifdef _WIN32
         WSADATA wsaData;
         if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
@@ -188,12 +172,54 @@ struct Host::Impl
             WSACleanup();
             return;
         }
+
+        wsaInitialized = true;
        #endif
+    }
+
+    ~Impl()
+    {
+        close();
+
+       #ifdef _WIN32
+        if (wsaInitialized)
+            WSACleanup();
+       #endif
+    }
+
+    bool reconnect()
+    {
+       #ifdef _WIN32
+        if (! wsaInitialized)
+            return false;
+       #endif
+
+        if (sockets.out != INVALID_SOCKET)
+        {
+            last_error.clear();
+            return true;
+        }
+
+        int port;
+        if (const char* const portEnv = std::getenv("MOD_DEVICE_HOST_PORT"))
+        {
+            port = std::atoi(portEnv);
+
+            if (port == 0)
+            {
+                last_error = "No valid port specified, try setting `MOD_DEVICE_HOST_PORT` env var";
+                return false;
+            }
+        }
+        else
+        {
+            port = 5555;
+        }
 
         if ((sockets.out = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET)
         {
             last_error = "output socket error";
-            return;
+            return false;
         }
 
         if ((sockets.feedback = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET)
@@ -201,7 +227,7 @@ struct Host::Impl
             last_error = "feedback socket error";
             ::closesocket(sockets.out);
             sockets.out = INVALID_SOCKET;
-            return;
+            return false;
         }
 
        #ifndef _WIN32
@@ -225,21 +251,20 @@ struct Host::Impl
         serv_addr.sin_port = htons(port);
         if (::connect(sockets.out, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0)
         {
+            close();
             last_error = "output socket connect error";
-            return;
+            return false;
         }
 
         serv_addr.sin_port = htons(port + 1);
         if (::connect(sockets.feedback, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0)
         {
+            close();
             last_error = "feedback socket connect error";
-            return;
+            return false;
         }
-    }
 
-    ~Impl()
-    {
-        close();
+        return true;
     }
 
     void close()
@@ -254,10 +279,6 @@ struct Host::Impl
 
         ::closesocket(outsock);
         ::closesocket(fbsock);
-
-       #ifdef _WIN32
-        WSACleanup();
-       #endif
     }
 
     // ----------------------------------------------------------------------------------------------------------------
@@ -957,6 +978,10 @@ private:
         SOCKET feedback = INVALID_SOCKET;
     } sockets;
 
+   #ifdef _WIN32
+    bool wsaInitialized = false;
+   #endif
+
     friend class NonBlockingScope;
 };
 
@@ -1121,7 +1146,7 @@ std::string Host::preset_show(const char* const preset_uri)
 {
     VALIDATE_URI(preset_uri);
 
-    HostResponse resp;
+    HostResponse resp = {};
     if (impl->writeMessageAndWait(format("preset_show %s", preset_uri), kHostResponseString, &resp))
     {
         const std::string ret(resp.data.s);
@@ -1170,7 +1195,7 @@ float Host::param_get(const int16_t instance_number, const char* const param_sym
     VALIDATE_INSTANCE_NUMBER(instance_number)
     VALIDATE_SYMBOL(param_symbol)
 
-    HostResponse resp;
+    HostResponse resp = {};
     return impl->writeMessageAndWait(format("param_get %d %s", instance_number, param_symbol),
                                      kHostResponseFloat,
                                      &resp) ? resp.data.f : 0.f;
@@ -1209,7 +1234,7 @@ std::string Host::licensee(const int16_t instance_number)
 {
     VALIDATE_INSTANCE_NUMBER(instance_number)
 
-    HostResponse resp;
+    HostResponse resp = {};
     if (impl->writeMessageAndWait(format("licensee %d", instance_number), kHostResponseString, &resp))
     {
         const std::string ret(resp.data.s);
@@ -1395,7 +1420,7 @@ bool Host::hmi_unmap(const int16_t instance_number, const char* const param_symb
 
 float Host::cpu_load()
 {
-    HostResponse resp;
+    HostResponse resp = {};
     return impl->writeMessageAndWait("cpu_load", kHostResponseFloat, &resp) ? resp.data.f : 0.f;
 }
 
@@ -1473,6 +1498,11 @@ bool Host::output_data_ready()
 bool Host::poll_feedback(FeedbackCallback* const callback)
 {
     return impl->poll(callback);
+}
+
+bool Host::reconnect()
+{
+    return impl->reconnect();
 }
 
 // --------------------------------------------------------------------------------------------------------------------
