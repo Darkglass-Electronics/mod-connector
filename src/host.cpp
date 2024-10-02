@@ -175,6 +175,8 @@ struct Host::Impl
 
         wsaInitialized = true;
        #endif
+
+        reconnect();
     }
 
     ~Impl()

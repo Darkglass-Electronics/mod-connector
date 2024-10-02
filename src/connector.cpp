@@ -53,18 +53,12 @@ static void resetBank(HostConnector::Bank& bank)
 
 HostConnector::HostConnector()
 {
-    if (! _host.last_error.empty())
-    {
-        fprintf(stderr, "Failed to initialize host connection: %s\n", _host.last_error.c_str());
-        return;
-    }
-
     _current.banks.resize(NUM_BANKS);
 
     for (int b = 0; b < NUM_BANKS; ++b)
         resetBank(_current.banks[b]);
 
-    ok = true;
+    ok = _host.last_error.empty();
 }
 
 // --------------------------------------------------------------------------------------------------------------------
