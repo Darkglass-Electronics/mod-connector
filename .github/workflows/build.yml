@@ -57,3 +57,26 @@ jobs:
         run: |
           cmake -S . -B build
           cmake --build build -j
+
+  macos:
+    strategy:
+      matrix:
+        target:
+          - macos-12
+          - macos-13
+        pkgs:
+          # - qt@5
+          - qt@6
+    runs-on: ${{ matrix.target }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: install dependencies
+        shell: bash
+        run: |
+          brew install lilv ${{ matrix.pkgs }}
+          brew link ${{ matrix.pkgs }}
+      - name: build
+        shell: bash
+        run: |
+          cmake -S . -B build
+          cmake --build build -j

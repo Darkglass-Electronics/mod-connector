@@ -240,8 +240,8 @@ struct Host::Impl
 
         /* set TCP_NODELAY */
         value = 1;
-        setsockopt(sockets.out, SOL_TCP, TCP_NODELAY, &value, sizeof(value));
-        setsockopt(sockets.feedback, SOL_TCP, TCP_NODELAY, &value, sizeof(value));
+        setsockopt(sockets.out, IPPROTO_TCP, TCP_NODELAY, &value, sizeof(value));
+        setsockopt(sockets.feedback, IPPROTO_TCP, TCP_NODELAY, &value, sizeof(value));
        #endif
 
         /* Startup the socket struct */
