@@ -9,8 +9,8 @@
 // --------------------------------------------------------------------------------------------------------------------
 // default configuration
 
-#ifndef NUM_BANKS
-#define NUM_BANKS 6
+#ifndef MAX_BANKS
+#define MAX_BANKS 99
 #endif
 
 #ifndef NUM_PRESETS_PER_BANK
@@ -23,6 +23,21 @@
 
 #ifndef MAX_PARAMS_PER_BLOCK
 #define MAX_PARAMS_PER_BLOCK 60
+#endif
+
+// --------------------------------------------------------------------------------------------------------------------
+// check valid configuration
+
+#if MAX_BANKS > UINT8_MAX
+#error MAX_BANKS > UINT8_MAX, need to adjust data types
+#endif
+
+#if NUM_PRESETS_PER_BANK > UINT8_MAX
+#error NUM_PRESETS_PER_BANK > UINT8_MAX, need to adjust data types
+#endif
+
+#if NUM_BLOCKS_PER_PRESET > UINT8_MAX
+#error NUM_BLOCKS_PER_PRESET > UINT8_MAX, need to adjust data types
 #endif
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -58,23 +73,21 @@ struct HostConnector : Host::FeedbackCallback {
         std::vector<Block> blocks;
     };
 
-    struct Bank {
-        std::string name;
-        std::vector<Preset> presets;
-    };
-
-    struct Current {
-        int bank = 0;
-        int preset = 0; // NOTE resets to 0 on bank change
-        std::vector<Bank> banks;
+    struct Current : Preset {
+        uint8_t preset = 0;
+        bool dirty = false;
+        std::string filename;
     };
 
 protected:
     // connection to mod-host, handled internally
     Host _host;
 
-    // internal current state
+    // internal current preset state
     Current _current;
+
+    // default state for each preset
+    Preset _presets[NUM_PRESETS_PER_BANK];
 
     // current feedback callback
     FeedbackCallback* _callback = nullptr;
@@ -86,20 +99,8 @@ public:
     // whether the host connection is working
     bool ok = false;
 
-    // public and read-only current state, including all presets and banks
+    // public and read-only current preset state
     const Current& current = _current;
-
-    // shortcut to active bank
-    inline const Bank& currentBank() const
-    {
-        return current.banks[current.bank];
-    }
-
-    // shortcut to active preset
-    inline const Preset& currentPreset() const
-    {
-        return current.banks[current.bank].presets[current.preset];
-    }
 
     // constructor, initializes connection to mod-host and sets `ok` to true if successful
     HostConnector();
@@ -107,35 +108,38 @@ public:
     // try to reconnect host if it previously failed
     bool reconnect();
 
-    // load state from a file and store it in the `current` struct
+    // get the preset at @a index
+    // returns current state if preset is currently active, otherwise the default preset state
+    const Preset& getCurrentPreset(uint8_t index) const;
+
+    // load bank from a file and store the first preset in the `current` struct
     // automatically calls loadCurrent() if the file contains valid state, otherwise does nothing
     // returning false means the current chain was unchanged
-    bool loadStateFromFile(const char* filename);
+    bool loadBankFromFile(const char* filename);
 
-    // save host state as stored in the `current` struct into a file
-    bool saveStateToFile(const char* filename) const;
+    // save bank state as stored in the `current` struct
+    // a bank must have been loaded or saved to a file before, so that `current.filename` is valid
+    bool saveBank();
+
+    // save bank state as stored in the `current` struct into a new file
+    bool saveBankToFile(const char* filename);
 
     // enable or disable/bypass a block
     // returning false means the block was unchanged
-    bool enableBlock(int block, bool enable);
+    bool enableBlock(uint8_t block, bool enable);
 
     // reorder a block into a new position
     // returning false means the current chain was unchanged
-    bool reorderBlock(int block, int dest);
+    bool reorderBlock(uint8_t block, uint8_t dest);
 
     // replace a block with another lv2 plugin (referenced by its URI)
     // passing null or empty string as the URI means clearing the block
     // returning false means the block was unchanged
-    bool replaceBlock(int block, const char* uri);
-
-    // switch to another bank
-    // returning false means the current chain was unchanged
-    // NOTE resets active preset to 0
-    bool switchBank(int bank);
+    bool replaceBlock(uint8_t block, const char* uri);
 
     // switch to another preset within the current bank
     // returning false means the current chain was unchanged
-    bool switchPreset(int preset);
+    bool switchPreset(uint8_t preset);
 
     // WIP details below this point
 
@@ -154,14 +158,15 @@ public:
 
     // set a block parameter value
     // NOTE value must already be sanitized!
-    void setBlockParameterValue(int block, int paramIndex, float value);
+    void setBlockParameterValue(uint8_t block, uint8_t paramIndex, float value);
 
     // set a block property
-    void setBlockProperty(int block, const char* uri, const char* value);
+    void setBlockProperty(uint8_t block, const char* uri, const char* value);
 
 protected:
     // load host state as stored in the `current` struct
-    void hostLoadCurrent();
+    // also preloads the other presets in the bank
+    void hostClearAndLoadCurrentBank();
 
     // common function to connect all the blocks as needed
     // TODO cleanup duplicated code with function below
@@ -170,7 +175,7 @@ protected:
     // disconnect everything around the new plugin, to prevent double connections
     // TODO cleanup duplicated code with function above
     // FIXME this logic can be made much better, but this is for now just a testing tool anyhow
-    void hostDisconnectForNewBlock(int blockidi);
+    void hostDisconnectForNewBlock(uint8_t blockidi);
 
     // internal feedback handling, for updating parameter values
     void hostFeedbackCallback(const HostFeedbackData& data) override;

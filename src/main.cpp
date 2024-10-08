@@ -98,8 +98,8 @@ struct WebSocketConnector : QObject,
     WebSocketServer wsServer;
     bool verboseLogs = false;
 
-    // keep current state in memory
-    QJsonObject stateJson;
+    // keep current bank in memory
+    QJsonObject bankJson;
 
     WebSocketConnector()
         : HostConnector(),
@@ -131,21 +131,21 @@ struct WebSocketConnector : QObject,
 
         ok = true;
 
-        stateJson["type"] = "state";
+        bankJson["type"] = "bank";
 
-        QFile stateFile("state.json");
-        if (stateFile.open(QIODevice::ReadOnly|QIODevice::Text))
+        QFile bankFile("bank.json");
+        if (bankFile.open(QIODevice::ReadOnly|QIODevice::Text))
         {
-            stateJson["state"] = QJsonDocument::fromJson(stateFile.readAll()).object();
-            handleStateChanges(stateJson["state"].toObject());
+            bankJson["bank"] = QJsonDocument::fromJson(bankFile.readAll()).object();
+            handleBankChanges(bankJson["bank"].toObject());
         }
     }
 
     // handle new websocket connection
-    // this will send the current state to the socket client, along with the list of plugins and categories
+    // this will send the current bank to the socket client, along with the list of plugins and categories
     void newWebSocketConnection(QWebSocket* const ws) override
     {
-        if (! stateJson.contains("plugins"))
+        if (! bankJson.contains("plugins"))
         {
             QJsonArray plugins;
 
@@ -162,155 +162,134 @@ struct WebSocketConnector : QObject,
                 }
             }
 
-            stateJson["plugins"] = plugins;
+            bankJson["plugins"] = plugins;
 
             QJsonArray categories;
             for (uint32_t i = 0; i < kLv2CategoryCount; ++i)
                 categories.append(lv2_category_name(static_cast<Lv2Category>(i)));
 
-            stateJson["categories"] = categories;
+            bankJson["categories"] = categories;
         }
 
-        ws->sendTextMessage(QJsonDocument(stateJson).toJson(QJsonDocument::Compact));
+        ws->sendTextMessage(QJsonDocument(bankJson).toJson(QJsonDocument::Compact));
     }
 
-    // websocket message received, typically to indicate state changes
+    // websocket message received, typically to indicate bank changes
     void messageReceived(const QString& msg) override
     {
         const QJsonObject msgObj = QJsonDocument::fromJson(msg.toUtf8()).object();
 
-        if (msgObj["type"] == "state")
+        if (msgObj["type"] == "bank")
         {
-            QJsonObject stateObj;
-            if (stateJson.contains("state"))
-                stateObj = stateJson["state"].toObject();
+            QJsonObject bankObj;
+            if (bankJson.contains("bank"))
+                bankObj = bankJson["bank"].toObject();
 
-            const QJsonObject msgStateObj(msgObj["state"].toObject());
-            copyJsonObjectValue(stateObj, msgStateObj);
+            const QJsonObject msgBankObj(msgObj["bank"].toObject());
+            copyJsonObjectValue(bankObj, msgBankObj);
 
-            stateJson["state"] = stateObj;
+            bankJson["bank"] = bankObj;
 
             if (verboseLogs)
             {
-                puts(QJsonDocument(msgStateObj).toJson().constData());
+                puts(QJsonDocument(msgBankObj).toJson().constData());
             }
 
-            handleStateChanges(msgStateObj);
-            saveStateLater();
+            handleBankChanges(msgBankObj);
+            saveBankLater();
         }
     }
 
     // ----------------------------------------------------------------------------------------------------------------
 
-    void handleStateChanges(const QJsonObject& stateObj)
+    void handleBankChanges(const QJsonObject& bankObj)
     {
-        bool bankchanged = false;
         bool blockschanged = false;
 
-        if (stateObj.contains("bank"))
+        const QJsonObject presets(bankObj["presets"].toObject());
+        for (const QString& presetid : presets.keys())
         {
-            const int newbank = stateObj["bank"].toInt() - 1;
+            const int presetidi = presetid.toInt() - 1;
 
-            if (_current.bank != newbank)
+            if (presetidi < 0 || presetidi >= NUM_PRESETS_PER_BANK)
+                continue;
+
+            const QJsonObject preset(presets[presetid].toObject());
+            Preset& presetdata(_presets[presetidi]);
+
+            // if we are changing the current preset, send changes to mod-host
+            const bool islive = _current.preset == presetidi;
+
+            const QJsonObject blocks(preset["blocks"].toObject());
+            for (const QString& blockid : blocks.keys())
             {
-                printf("DEBUG: bank changed to %d\n", newbank);
-                _current.bank = newbank;
-                bankchanged = true;
-            }
-            else
-            {
-                printf("DEBUG: bank remains as %d\n", newbank);
-            }
-        }
-        else
-        {
-            printf("DEBUG: state has no current bank info\n");
-        }
+                const int blockidi = blockid.toInt() - 1;
+                if (blockidi < 0 || blockidi >= NUM_BLOCKS_PER_PRESET)
+                    continue;
 
-        const QJsonObject banks(stateObj["banks"].toObject());
-        for (const QString& bankid : banks.keys())
-        {
-            const QJsonObject bank(banks[bankid].toObject());
-            const int bankidi = bankid.toInt() - 1;
-            auto& bankdata(_current.banks[bankidi]);
+                const QJsonObject block(blocks[blockid].toObject());
+                Block& blockdata(presetdata.blocks[blockidi]);
 
-            const QJsonObject presets(bank["presets"].toObject());
-            for (const QString& presetid : presets.keys())
-            {
-                const QJsonObject preset(presets[presetid].toObject());
-                const int presetidi = presetid.toInt() - 1;
-                auto& presetdata(bankdata.presets[presetidi]);
+                printf("DEBUG: now handling block %d\n", blockidi);
 
-                // if we are changing the current preset, send changes to mod-host
-                const bool islive = !bankchanged && _current.bank == bankidi && _current.preset == presetidi;
-
-                printf("DEBUG: now handling bank %d, live %d\n", bankidi, islive);
-
-                const QJsonObject blocks(bank["blocks"].toObject());
-                for (const QString& blockid : blocks.keys())
+                if (block.contains("uri"))
                 {
-                    const QJsonObject block(blocks[blockid].toObject());
-                    const int blockidi = blockid.toInt() - 1;
-                    auto& blockdata(presetdata.blocks[blockidi]);
+                    const std::string uri = block["uri"].toString().toStdString();
+                    blockdata.uri = uri;
 
-                    printf("DEBUG: now handling block %d\n", blockidi);
-
-                    if (block.contains("uri"))
+                    if (islive)
                     {
-                        const std::string uri = block["uri"].toString().toStdString();
-                        blockdata.uri = uri;
+                        blockschanged = true;
+                        _host.remove(blockidi);
 
-                        if (islive)
+                        if (uri != "-")
                         {
-                            blockschanged = true;
-                            _host.remove(blockidi);
-
-                            if (uri != "-")
-                            {
-                                if (_host.add(uri.c_str(), blockidi))
-                                    printf("DEBUG: block %d loaded plugin %s\n", blockidi, uri.c_str());
-                                else
-                                    printf("DEBUG: block %d failed loaded plugin %s: %s\n",
-                                            blockidi, uri.c_str(), _host.last_error.c_str());
-
-                                hostDisconnectForNewBlock(blockidi);
-                            }
+                            if (_host.add(uri.c_str(), blockidi))
+                                printf("DEBUG: block %d loaded plugin %s\n", blockidi, uri.c_str());
                             else
-                            {
-                                printf("DEBUG: block %d has no plugin\n", blockidi);
-                            }
+                                printf("DEBUG: block %d failed loaded plugin %s: %s\n",
+                                        blockidi, uri.c_str(), _host.last_error.c_str());
+
+                            hostDisconnectForNewBlock(blockidi);
+                        }
+                        else
+                        {
+                            printf("DEBUG: block %d has no plugin\n", blockidi);
                         }
                     }
-                    else
-                    {
-                        printf("DEBUG: block %d has no URI\n", blockidi);
-                    }
+                }
+                else
+                {
+                    printf("DEBUG: block %d has no URI\n", blockidi);
+                }
 
-                    if (block.contains("parameters"))
+                if (block.contains("parameters"))
+                {
+                    const QJsonObject parameters(block["parameters"].toObject());
+                    for (const QString& parameterid : parameters.keys())
                     {
-                        const QJsonObject parameters(block["parameters"].toObject());
-                        for (const QString& parameterid : parameters.keys())
+                        const int parameteridi = parameterid.toInt() - 1;
+                        if (parameteridi < 0 || parameteridi >= MAX_PARAMS_PER_BLOCK)
+                            continue;
+
+                        const QJsonObject parameter(parameters[parameterid].toObject());
+                        Parameter& parameterdata(blockdata.parameters[parameteridi]);
+
+                        if (parameter.contains("symbol"))
                         {
-                            const QJsonObject parameter(parameters[parameterid].toObject());
-                            const int parameteridi = parameterid.toInt() - 1;
-                            auto& parameterdata(blockdata.parameters[parameteridi]);
+                            const std::string symbol = parameter["symbol"].toString().toStdString();
+                            parameterdata.symbol = symbol;
+                        }
 
-                            if (parameter.contains("symbol"))
+                        if (parameter.contains("value"))
+                        {
+                            const float value = parameter["value"].toDouble();
+                            parameterdata.value = value;
+
+                            if (islive)
                             {
-                                const std::string symbol = parameter["symbol"].toString().toStdString();
-                                parameterdata.symbol = symbol;
-                            }
-
-                            if (parameter.contains("value"))
-                            {
-                                const float value = parameter["value"].toDouble();
-                                parameterdata.value = value;
-
-                                if (islive)
-                                {
-                                    const std::string symbol = parameterdata.symbol;
-                                    _host.param_set(blockidi, symbol.c_str(), value);
-                                }
+                                const std::string symbol = parameterdata.symbol;
+                                _host.param_set(blockidi, symbol.c_str(), value);
                             }
                         }
                     }
@@ -320,34 +299,32 @@ struct WebSocketConnector : QObject,
 
         // puts(QJsonDocument(blocks).toJson().constData());
 
-        if (bankchanged)
-            hostLoadCurrent();
-        else if (blockschanged)
+        if (blockschanged)
             hostConnectBetweenBlocks();
     }
 
     // ----------------------------------------------------------------------------------------------------------------
     // delayed save handling
 
-    bool stateChangedRecently = false;
+    bool bankChangedRecently = false;
 
-    void saveStateLater()
+    void saveBankLater()
     {
-        if (stateChangedRecently)
+        if (bankChangedRecently)
             return;
 
-        stateChangedRecently = true;
-        QTimer::singleShot(1000, this, &WebSocketConnector::slot_saveStateNow);
+        bankChangedRecently = true;
+        QTimer::singleShot(1000, this, &WebSocketConnector::slot_saveBankNow);
     }
 
 private slots:
-    void slot_saveStateNow()
+    void slot_saveBankNow()
     {
-        stateChangedRecently = false;
+        bankChangedRecently = false;
 
-        QFile stateFile("state.json");
-        if (stateFile.open(QIODevice::WriteOnly|QIODevice::Truncate|QIODevice::Text))
-            stateFile.write(QJsonDocument(stateJson["state"].toObject()).toJson());
+        QFile bankFile("bank.json");
+        if (bankFile.open(QIODevice::WriteOnly|QIODevice::Truncate|QIODevice::Text))
+            bankFile.write(QJsonDocument(bankJson["bank"].toObject()).toJson());
     }
 };
 
