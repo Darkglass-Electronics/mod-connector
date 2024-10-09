@@ -109,7 +109,7 @@ public:
     bool reconnect();
 
     // get the preset at @a index
-    // returns current state if preset is currently active, otherwise the default preset state
+    // returns current state if preset is currently active, otherwise the preset state from the current bank
     const Preset& getCurrentPreset(uint8_t index) const;
 
     // load bank from a file and store the first preset in the `current` struct
@@ -123,6 +123,10 @@ public:
 
     // save bank state as stored in the `current` struct into a new file
     bool saveBankToFile(const char* filename);
+
+    // clear current preset
+    // sets dirty flag if any blocks were removed
+    void clearCurrentPreset();
 
     // enable or disable/bypass a block
     // returning false means the block was unchanged
@@ -142,9 +146,6 @@ public:
     bool switchPreset(uint8_t preset);
 
     // WIP details below this point
-
-    // clear current preset
-    void clearCurrentPreset();
 
     // return average dsp load
     float dspLoad();

@@ -58,9 +58,15 @@ enum Lv2Designation {
 };
 
 enum Lv2Flags {
+    // port flags
     Lv2PortIsAudio         = 1 << 0,
     Lv2PortIsControl       = 1 << 1,
     Lv2PortIsOutput        = 1 << 2,
+    // property flags
+    Lv2PropertyIsPath      = 1 << 0,
+    Lv2PropertyIsParameter = 1 << 1,
+    Lv2PropertyIsReadOnly  = 1 << 2,
+    // common flags
     Lv2ParameterToggled    = 1 << 3,
     Lv2ParameterInteger    = 1 << 4,
     Lv2ParameterEnumerated = 1 << 5,
@@ -84,11 +90,22 @@ struct Lv2Port {
     std::vector<Lv2ScalePoint> scalePoints;
 };
 
+struct Lv2Property {
+    std::string uri;
+    std::string name;
+    uint32_t flags = 0;
+    float def = 0.f;
+    float min = 0.f;
+    float max = 1.f;
+    std::string unit;
+};
+
 struct Lv2Plugin {
     std::string uri;
     std::string name;
     Lv2Category category = kLv2CategoryNone;
     std::vector<Lv2Port> ports;
+    std::vector<Lv2Property> properties;
     std::string screenshot;
 };
 

@@ -48,7 +48,6 @@ HostConnector::HostConnector()
 }
 
 // --------------------------------------------------------------------------------------------------------------------
-// try to reconnect host if it previously failed
 
 bool HostConnector::reconnect()
 {
@@ -56,8 +55,6 @@ bool HostConnector::reconnect()
 }
 
 // --------------------------------------------------------------------------------------------------------------------
-// get the preset at @a index
-// returns current state if preset is currently active, otherwise the default preset state
 
 const HostConnector::Preset& HostConnector::getCurrentPreset(const uint8_t preset) const
 {
@@ -65,9 +62,6 @@ const HostConnector::Preset& HostConnector::getCurrentPreset(const uint8_t prese
 }
 
 // --------------------------------------------------------------------------------------------------------------------
-// load bank from a file and store the first preset in the `current` struct
-// automatically calls loadCurrent() if the file contains valid state, otherwise does nothing
-// returning false means the current chain was unchanged
 
 bool HostConnector::loadBankFromFile(const char* const filename)
 {
@@ -291,8 +285,8 @@ bool HostConnector::loadBankFromFile(const char* const filename)
     return true;
 }
 
-// save bank state as stored in the `current` struct
-// a bank must have been loaded or saved to a file before, so that `current.filename` is valid
+// --------------------------------------------------------------------------------------------------------------------
+
 bool HostConnector::saveBank()
 {
     if (_current.filename.empty())
@@ -302,7 +296,6 @@ bool HostConnector::saveBank()
 }
 
 // --------------------------------------------------------------------------------------------------------------------
-// save bank state as stored in the `current` struct into a new file
 
 bool HostConnector::saveBankToFile(const char* const filename)
 {
@@ -375,8 +368,28 @@ bool HostConnector::saveBankToFile(const char* const filename)
 }
 
 // --------------------------------------------------------------------------------------------------------------------
-// enable or disable/bypass a block
-// returning false means the current chain was unchanged
+
+void HostConnector::clearCurrentPreset()
+{
+    const Host::NonBlockingScope hnbs(_host);
+
+    for (int b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
+    {
+        const int instance = 100 * _current.preset + b;
+
+        if (! isNullURI(_current.blocks[b].uri))
+        {
+            _current.dirty = true;
+            _host.remove(instance);
+        }
+
+        resetBlock(_current.blocks[b]);
+    }
+
+    hostConnectBetweenBlocks();
+}
+
+// --------------------------------------------------------------------------------------------------------------------
 
 bool HostConnector::enableBlock(const uint8_t block, const bool enable)
 {
@@ -403,8 +416,6 @@ bool HostConnector::enableBlock(const uint8_t block, const bool enable)
 }
 
 // --------------------------------------------------------------------------------------------------------------------
-// reorder a block into a new position
-// returning false means the current chain was unchanged
 
 bool HostConnector::reorderBlock(const uint8_t block, const uint8_t dest)
 {
@@ -461,9 +472,6 @@ bool HostConnector::reorderBlock(const uint8_t block, const uint8_t dest)
 }
 
 // --------------------------------------------------------------------------------------------------------------------
-// replace a block with another lv2 plugin (referenced by its URI)
-// passing null or empty string as the URI means clearing the block
-// returning false means the block was unchanged
 
 bool HostConnector::replaceBlock(const uint8_t block, const char* const uri)
 {
@@ -561,8 +569,6 @@ bool HostConnector::replaceBlock(const uint8_t block, const char* const uri)
 }
 
 // --------------------------------------------------------------------------------------------------------------------
-// convenience method for quickly switching to another preset within the current bank
-// returning false means the current chain was unchanged
 
 bool HostConnector::switchPreset(const uint8_t preset)
 {
@@ -627,30 +633,6 @@ bool HostConnector::switchPreset(const uint8_t preset)
 }
 
 // --------------------------------------------------------------------------------------------------------------------
-// clear current preset
-
-void HostConnector::clearCurrentPreset()
-{
-    const Host::NonBlockingScope hnbs(_host);
-
-    for (int b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
-    {
-        const int instance = 100 * _current.preset + b;
-
-        if (! isNullURI(_current.blocks[b].uri))
-        {
-            _current.dirty = true;
-            _host.remove(instance);
-        }
-
-        resetBlock(_current.blocks[b]);
-    }
-
-    hostConnectBetweenBlocks();
-}
-
-// --------------------------------------------------------------------------------------------------------------------
-// return average dsp load
 
 float HostConnector::dspLoad()
 {
@@ -658,8 +640,6 @@ float HostConnector::dspLoad()
 }
 
 // --------------------------------------------------------------------------------------------------------------------
-// poll for host updates (e.g. MIDI-mapped parameter changes, tempo changes)
-// NOTE make sure to call `requestHostUpdates()` after handling all updates
 
 void HostConnector::pollHostUpdates(Host::FeedbackCallback* const callback)
 {
@@ -669,7 +649,6 @@ void HostConnector::pollHostUpdates(Host::FeedbackCallback* const callback)
 }
 
 // --------------------------------------------------------------------------------------------------------------------
-// request more host updates
 
 void HostConnector::requestHostUpdates()
 {
@@ -677,8 +656,6 @@ void HostConnector::requestHostUpdates()
 }
 
 // --------------------------------------------------------------------------------------------------------------------
-// set a block parameter value
-// NOTE value must already be sanitized!
 
 void HostConnector::setBlockParameterValue(const uint8_t block, const uint8_t paramIndex, const float value)
 {
@@ -703,7 +680,6 @@ void HostConnector::setBlockParameterValue(const uint8_t block, const uint8_t pa
 }
 
 // --------------------------------------------------------------------------------------------------------------------
-// set a block property
 
 void HostConnector::setBlockProperty(const uint8_t block, const char* const uri, const char* const value)
 {
@@ -725,8 +701,6 @@ void HostConnector::setBlockProperty(const uint8_t block, const char* const uri,
 }
 
 // --------------------------------------------------------------------------------------------------------------------
-// load host state as stored in the `current` struct
-// also preloads the other presets in the bank
 
 void HostConnector::hostClearAndLoadCurrentBank()
 {
@@ -769,8 +743,6 @@ void HostConnector::hostClearAndLoadCurrentBank()
 }
 
 // --------------------------------------------------------------------------------------------------------------------
-// common function to connect all the blocks as needed
-// TODO cleanup duplicated code with function below
 
 void HostConnector::hostConnectBetweenBlocks()
 {
@@ -940,9 +912,6 @@ void HostConnector::hostConnectBetweenBlocks()
 }
 
 // --------------------------------------------------------------------------------------------------------------------
-// disconnect everything around the new plugin, to prevent double connections
-// TODO cleanup duplicated code with function above
-// FIXME this logic can be made much better, but this is for now just a testing tool anyhow
 
 void HostConnector::hostDisconnectForNewBlock(const uint8_t blockidi)
 {
@@ -1057,7 +1026,6 @@ void HostConnector::hostDisconnectForNewBlock(const uint8_t blockidi)
 }
 
 // --------------------------------------------------------------------------------------------------------------------
-// internal feedback handling, for updating parameter values
 
 void HostConnector::hostFeedbackCallback(const HostFeedbackData& data)
 {

@@ -13,12 +13,16 @@
 #ifdef HAVE_LV2_1_18
 #include <lv2/atom/atom.h>
 #include <lv2/morph/morph.h>
+#include <lv2/patch/patch.h>
 #include <lv2/port-props/port-props.h>
 #include <lv2/units/units.h>
+#include <lv2/state/state.h>
 #else
 #include <lv2/lv2plug.in/ns/ext/atom/atom.h>
 #include <lv2/lv2plug.in/ns/ext/morph/morph.h>
+#include <lv2/lv2plug.in/ns/ext/patch/patch.h>
 #include <lv2/lv2plug.in/ns/ext/port-props/port-props.h>
+#include <lv2/lv2plug.in/ns/ext/state/state.h>
 #include <lv2/lv2plug.in/ns/ext/units/units.h>
 #endif
 
@@ -46,7 +50,10 @@ struct Lv2NamespaceDefinitions {
     LilvNode* const modgui_gui;
     LilvNode* const modgui_resourcesDirectory;
     LilvNode* const modgui_screenshot;
+    LilvNode* const patch_readable;
+    LilvNode* const patch_writable;
     LilvNode* const rdf_type;
+    LilvNode* const state_state;
     LilvNode* const units_unit;
 
     Lv2NamespaceDefinitions(LilvWorld* const world)
@@ -58,7 +65,10 @@ struct Lv2NamespaceDefinitions {
           modgui_gui(lilv_new_uri(world, LILV_NS_MODGUI "gui")),
           modgui_resourcesDirectory(lilv_new_uri(world, LILV_NS_MODGUI "resourcesDirectory")),
           modgui_screenshot(lilv_new_uri(world, LILV_NS_MODGUI "screenshot")),
+          patch_readable(lilv_new_uri(world, LV2_PATCH__readable)),
+          patch_writable(lilv_new_uri(world, LV2_PATCH__writable)),
           rdf_type(lilv_new_uri(world, LILV_NS_RDF "type")),
+          state_state(lilv_new_uri(world, LV2_STATE__state)),
           units_unit(lilv_new_uri(world, LV2_UNITS__unit))
     {
     }
@@ -73,7 +83,10 @@ struct Lv2NamespaceDefinitions {
         lilv_node_free(modgui_gui);
         lilv_node_free(modgui_resourcesDirectory);
         lilv_node_free(modgui_screenshot);
+        lilv_node_free(patch_readable);
+        lilv_node_free(patch_writable);
         lilv_node_free(rdf_type);
+        lilv_node_free(state_state);
         lilv_node_free(units_unit);
     }
 };
@@ -494,6 +507,45 @@ struct Lv2World::Impl
                             lilv_nodes_free(uunits);
                         }
                     }
+                }
+            }
+
+            // --------------------------------------------------------------------------------------------------------
+            // properties
+
+            {
+                std::map<std::string, Lv2Property> properties;
+
+                const auto get_properties = [=](const bool writable)
+                {
+                    if (LilvNodes* const patches = lilv_plugin_get_value(plugin, writable ? ns.patch_writable
+                                                                                          : ns.patch_readable))
+                    {
+                        // used to fetch default values
+                        LilvNode* const statenode = lilv_world_get(world,
+                                                                   lilv_plugin_get_uri(plugin),
+                                                                   ns.state_state,
+                                                                   nullptr);
+
+                        LILV_FOREACH(nodes, itpatches, patches)
+                        {
+                            // TODO
+                        }
+
+                        lilv_node_free(statenode);
+                        lilv_nodes_free(patches);
+                    }
+                };
+
+                get_properties(true);
+                get_properties(false);
+
+                if (const size_t count = properties.size())
+                {
+                    retplugin->properties.reserve(count);
+
+                    for (auto& prop : properties)
+                        retplugin->properties.push_back(prop.second);
                 }
             }
 
