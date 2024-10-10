@@ -44,6 +44,9 @@ static void resetPreset(HostConnector::Preset& preset)
 
 HostConnector::HostConnector()
 {
+    for (uint8_t p = 0; p < NUM_PRESETS_PER_BANK; ++p)
+        resetPreset(_current);
+
     ok = _host.last_error.empty();
 }
 
@@ -320,7 +323,7 @@ bool HostConnector::saveBankToFile(const char* const filename)
                 { "blocks", nlohmann::json::object({}) },
             });
 
-            auto& jblocks = jpresets[jpresetid]["blocks"];
+            auto& jblocks = jpreset["blocks"];
 
             for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
             {
@@ -951,7 +954,7 @@ void HostConnector::hostDisconnectForNewBlock(const uint8_t blockidi)
     }
 
     // last plugin
-    for (uint8_t b = NUM_BLOCKS_PER_PRESET - 1; b >= 0; --b)
+    for (int8_t b = NUM_BLOCKS_PER_PRESET - 1; b >= 0; --b)
     {
         if (! loaded[b])
             continue;
