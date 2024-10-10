@@ -45,7 +45,9 @@ static void resetPreset(HostConnector::Preset& preset)
 HostConnector::HostConnector()
 {
     for (uint8_t p = 0; p < NUM_PRESETS_PER_BANK; ++p)
-        resetPreset(_current);
+        resetPreset(_presets[p]);
+
+    resetPreset(_current);
 
     ok = _host.last_error.empty();
 }
