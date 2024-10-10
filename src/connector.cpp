@@ -282,6 +282,7 @@ bool HostConnector::loadBankFromFile(const char* const filename)
     static_cast<Preset&>(_current) = _presets[0];
     _current.preset = 0;
     _current.dirty = false;
+    _current.filename = filename;
 
     const Host::NonBlockingScope hnbs(_host);
     hostClearAndLoadCurrentBank();
