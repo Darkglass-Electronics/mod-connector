@@ -142,6 +142,11 @@ struct Host {
     bool disconnect(const char* origin_port, const char* destination_port);
 
     /**
+     * disconnect all connections of a jack port
+     */
+    bool disconnect_all(const char* origin_port);
+
+    /**
      * toggle effect processing
      */
     bool bypass(int16_t instance_number, bool bypass_value);

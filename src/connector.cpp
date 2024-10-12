@@ -101,6 +101,8 @@ bool HostConnector::loadBankFromFile(const char* const filename)
         return false;
     }
 
+    uint8_t numLoadedPlugins = 0;
+
     do {
         if (! j.contains("presets"))
         {
@@ -178,18 +180,50 @@ bool HostConnector::loadBankFromFile(const char* const filename)
                     continue;
                 }
 
+                uint8_t numInputs = 0;
+                uint8_t numOutputs = 0;
+                for (size_t i = 0; i < plugin->ports.size(); ++i)
+                {
+                    if ((plugin->ports[i].flags & Lv2PortIsAudio) == 0)
+                        continue;
+
+                    if (plugin->ports[i].flags & Lv2PortIsOutput)
+                    {
+                        if (++numOutputs > 2)
+                            break;
+                    }
+                    else
+                    {
+                        if (++numInputs > 2)
+                            break;
+                    }
+                }
+
+                if (numInputs > 2 || numOutputs > 2)
+                {
+                    printf("HostConnector::loadBankFromFile: plugin with uri '%s' has invalid IO, using empty block\n",
+                           uri.c_str());
+                    resetBlock(block);
+                    continue;
+                }
+
                 block.bindingSymbol.clear();
                 block.enabled = true;
                 block.uri = uri;
 
                 block.meta.bindingIndex = -1;
+                block.meta.isMonoIn = numInputs == 1;
+                block.meta.isStereoOut = numOutputs == 2;
                 block.meta.name = plugin->name;
 
                 if (jblock.contains("enabled"))
                     block.enabled = jblock["enabled"].get<bool>();
 
+                if (bl == 0)
+                    ++numLoadedPlugins;
+
                 // parameters are always filled from lv2 metadata first, then overriden with json data
-                int numParams = 0;
+                uint8_t numParams = 0;
                 std::map<std::string, int> symbolToIndexMap;
                 for (size_t i = 0; i < plugin->ports.size() && numParams < MAX_PARAMS_PER_BLOCK; ++i)
                 {
@@ -283,6 +317,7 @@ bool HostConnector::loadBankFromFile(const char* const filename)
     // always start with the first preset
     static_cast<Preset&>(_current) = _presets[0];
     _current.preset = 0;
+    _current.numLoadedPlugins = numLoadedPlugins;
     _current.dirty = false;
     _current.filename = filename;
 
@@ -305,6 +340,8 @@ bool HostConnector::saveBank()
 
 bool HostConnector::saveBankToFile(const char* const filename)
 {
+    _presets[_current.preset] = static_cast<Preset&>(_current);
+
     nlohmann::json j;
     try {
         j["version"] = JSON_BANK_VERSION_CURRENT;
@@ -377,22 +414,25 @@ bool HostConnector::saveBankToFile(const char* const filename)
 
 void HostConnector::clearCurrentPreset()
 {
+    if (_current.numLoadedPlugins == 0)
+        return;
+
     const Host::NonBlockingScope hnbs(_host);
+    _host.feature_enable("processing", false);
 
     for (int b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
     {
-        const int instance = 100 * _current.preset + b;
-
         if (! isNullURI(_current.blocks[b].uri))
-        {
-            _current.dirty = true;
-            _host.remove(instance);
-        }
+            hostRemoveInstanceForBlock(b);
 
         resetBlock(_current.blocks[b]);
     }
 
-    hostConnectBetweenBlocks();
+    _current.numLoadedPlugins = 0;
+    _current.dirty = true;
+
+    hostConnectAll();
+    _host.feature_enable("processing", true);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -405,19 +445,24 @@ bool HostConnector::enableBlock(const uint8_t block, const bool enable)
         return false;
     }
 
-    const int instance = 100 * current.preset + block;
-    HostConnector::Block& blockdata(_presets[current.preset].blocks[block]);
-
+    HostConnector::Block& blockdata(_current.blocks[block]);
     if (isNullURI(blockdata.uri))
     {
         fprintf(stderr, "HostConnector::enableBlock(%u, %d) - block not in use, rejected\n", block, enable);
         return false;
     }
 
-    blockdata.enabled = enable;
+    const HostInstanceMapper::BlockPair bp = _mapper.get(_current.preset, block);
+    if (bp.id == UINT16_MAX)
+        return false;
 
+    blockdata.enabled = enable;
     _current.dirty = true;
-    _host.bypass(instance, !enable);
+    _host.bypass(bp.id, !enable);
+
+    if (bp.pair != UINT16_MAX)
+        _host.bypass(bp.pair, !enable);
+
     return true;
 }
 
@@ -441,14 +486,16 @@ bool HostConnector::reorderBlock(const uint8_t block, const uint8_t dest)
         return false;
     }
 
+    const bool reconnect = _current.numLoadedPlugins > 1;
+    auto& mpreset = _mapper.map.presets[_current.preset];
+
     const Host::NonBlockingScope hnbs(_host);
 
-    HostConnector::Preset& preset(_presets[_current.preset]);
-
-    // NOTE this is a very crude quick implementation
-    // just removing all plugins and adding them again after reordering
-    // it is not meant to be the final implementation, just something quick for experimentation
-    _host.remove(-1);
+    if (reconnect)
+    {
+        hostDisconnectAllBlockInputs(block);
+        hostDisconnectAllBlockOutputs(block);
+    }
 
     // moving block backwards to the left
     // a b c d e! f
@@ -458,8 +505,20 @@ bool HostConnector::reorderBlock(const uint8_t block, const uint8_t dest)
     if (block > dest)
     {
         for (int i = block; i > dest; --i)
-            std::swap(preset.blocks[i], preset.blocks[i - 1]);
+        {
+            if (reconnect)
+            {
+                hostDisconnectAllBlockInputs(i - 1);
+                hostDisconnectAllBlockOutputs(i - 1);
+            }
+            std::swap(_current.blocks[i], _current.blocks[i - 1]);
+            std::swap(mpreset.blocks[i], mpreset.blocks[i - 1]);
+        }
+
+        if (reconnect)
+            hostConnectAll(dest, block);
     }
+
     // moving block forward to the right
     // a b! c d e f
     // a c b! d e f
@@ -468,10 +527,19 @@ bool HostConnector::reorderBlock(const uint8_t block, const uint8_t dest)
     else
     {
         for (int i = block; i < dest; ++i)
-            std::swap(preset.blocks[i], preset.blocks[i + 1]);
-    }
+        {
+            if (reconnect)
+            {
+                hostDisconnectAllBlockInputs(i + 1);
+                hostDisconnectAllBlockOutputs(i + 1);
+            }
+            std::swap(_current.blocks[i], _current.blocks[i + 1]);
+            std::swap(mpreset.blocks[i], mpreset.blocks[i + 1]);
+        }
 
-    hostClearAndLoadCurrentBank();
+        if (reconnect)
+            hostConnectAll(block, dest);
+    }
 
     _current.dirty = true;
     return true;
@@ -487,8 +555,7 @@ bool HostConnector::replaceBlock(const uint8_t block, const char* const uri)
         return false;
     }
 
-    const int instance = 100 * current.preset + block;
-    HostConnector::Block& blockdata(_presets[_current.preset].blocks[block]);
+    HostConnector::Block& blockdata(_current.blocks[block]);
 
     const Host::NonBlockingScope hnbs(_host);
 
@@ -501,74 +568,259 @@ bool HostConnector::replaceBlock(const uint8_t block, const char* const uri)
             return false;
         }
 
-        // we only do changes after verifying that the requested plugin exists
-        _host.remove(instance);
-
-        blockdata.bindingSymbol.clear();
-        blockdata.enabled = true;
-        blockdata.uri = uri;
-
-        blockdata.meta.bindingIndex = -1;
-        blockdata.meta.name = plugin->name;
-
-        int p = 0;
-        for (size_t i = 0; i < plugin->ports.size() && p < MAX_PARAMS_PER_BLOCK; ++i)
+        // we only do changes after verifying that the requested plugin exists and is valid
+        uint8_t numInputs = 0;
+        uint8_t numOutputs = 0;
+        for (size_t i = 0; i < plugin->ports.size(); ++i)
         {
-            if ((plugin->ports[i].flags & Lv2PortIsControl) == 0)
-                continue;
-            if (plugin->ports[i].flags & (Lv2PortIsOutput|Lv2ParameterHidden))
+            if ((plugin->ports[i].flags & Lv2PortIsAudio) == 0)
                 continue;
 
-            switch (plugin->ports[i].designation)
+            if (plugin->ports[i].flags & Lv2PortIsOutput)
             {
-            case kLv2DesignationNone:
-                break;
-            case kLv2DesignationEnabled:
-                // skip parameter
-                continue;
-            case kLv2DesignationQuickPot:
-                blockdata.bindingSymbol = plugin->ports[i].symbol;
-                blockdata.meta.bindingIndex = p;
-                break;
+                if (++numOutputs > 2)
+                    break;
             }
-
-            blockdata.parameters[p++] = {
-                .symbol = plugin->ports[i].symbol,
-                .value = plugin->ports[i].def,
-                .meta = {
-                    .flags = plugin->ports[i].flags,
-                    .def = plugin->ports[i].def,
-                    .min = plugin->ports[i].min,
-                    .max = plugin->ports[i].max,
-                    .name = plugin->ports[i].name,
-                    .unit = plugin->ports[i].unit,
-                    .scalePoints = plugin->ports[i].scalePoints,
-                },
-            };
+            else
+            {
+                if (++numInputs > 2)
+                    break;
+            }
         }
 
-        for (; p < MAX_PARAMS_PER_BLOCK; ++p)
-            resetParam(blockdata.parameters[p]);
+        if (numInputs > 2 || numOutputs > 2)
+        {
+            fprintf(stderr, "HostConnector::replaceBlock(%u, %s) - unsupported IO, rejected\n", block, uri);
+            return false;
+        }
 
-        if (_host.add(uri, instance))
+        if (! isNullURI(blockdata.uri))
+        {
+            --_current.numLoadedPlugins;
+            hostRemoveInstanceForBlock(block);
+        }
+
+        // activate dual mono if previous plugin is stereo or also dualmono
+        bool dualmono = false;
+        if (block != 0 && numInputs == 1 && numOutputs == 1)
+        {
+            for (uint8_t b = block - 1; b != UINT8_MAX; --b)
+            {
+                if (isNullURI(_current.blocks[b].uri))
+                    continue;
+                if (_current.blocks[b].meta.isStereoOut || _mapper.get(_current.preset, b).pair != UINT16_MAX)
+                    dualmono = true;
+                break;
+            }
+        }
+
+        const uint16_t instance = _mapper.add(_current.preset, block);
+
+        bool added = _host.add(uri, instance);
+        if (added)
         {
             printf("DEBUG: block %u loaded plugin %s\n", block, uri);
+
+            if (dualmono)
+            {
+                const uint16_t pair = _mapper.pair(_current.preset, block);
+
+                if (! _host.add(uri, pair))
+                {
+                    printf("DEBUG: block %u failed to load dual-mono plugin %s: %s\n",
+                        block, uri, _host.last_error.c_str());
+
+                    added = false;
+                    _host.remove(instance);
+                }
+            }
         }
         else
         {
             printf("DEBUG: block %u failed to load plugin %s: %s\n", block, uri, _host.last_error.c_str());
-            resetBlock(blockdata);
         }
 
-        hostDisconnectForNewBlock(block);
+        if (added)
+        {
+            blockdata.bindingSymbol.clear();
+            blockdata.enabled = true;
+            blockdata.uri = uri;
+
+            blockdata.meta.bindingIndex = -1;
+            blockdata.meta.isMonoIn = numInputs == 1;
+            blockdata.meta.isStereoOut = numOutputs == 2;
+            blockdata.meta.name = plugin->name;
+
+            int p = 0;
+            for (size_t i = 0; i < plugin->ports.size() && p < MAX_PARAMS_PER_BLOCK; ++i)
+            {
+                if ((plugin->ports[i].flags & Lv2PortIsControl) == 0)
+                    continue;
+                if (plugin->ports[i].flags & (Lv2PortIsOutput|Lv2ParameterHidden))
+                    continue;
+
+                switch (plugin->ports[i].designation)
+                {
+                case kLv2DesignationNone:
+                    break;
+                case kLv2DesignationEnabled:
+                    // skip parameter
+                    continue;
+                case kLv2DesignationQuickPot:
+                    blockdata.bindingSymbol = plugin->ports[i].symbol;
+                    blockdata.meta.bindingIndex = p;
+                    break;
+                }
+
+                blockdata.parameters[p++] = {
+                    .symbol = plugin->ports[i].symbol,
+                    .value = plugin->ports[i].def,
+                    .meta = {
+                        .flags = plugin->ports[i].flags,
+                        .def = plugin->ports[i].def,
+                        .min = plugin->ports[i].min,
+                        .max = plugin->ports[i].max,
+                        .name = plugin->ports[i].name,
+                        .unit = plugin->ports[i].unit,
+                        .scalePoints = plugin->ports[i].scalePoints,
+                    },
+                };
+            }
+
+            for (; p < MAX_PARAMS_PER_BLOCK; ++p)
+                resetParam(blockdata.parameters[p]);
+        }
+        else
+        {
+            resetBlock(blockdata);
+            _mapper.remove(_current.preset, block);
+        }
+    }
+    else if (! isNullURI(blockdata.uri))
+    {
+        --_current.numLoadedPlugins;
+        hostRemoveInstanceForBlock(block);
+        resetBlock(blockdata);
     }
     else
     {
-        _host.remove(instance);
-        resetBlock(blockdata);
+        fprintf(stderr, "HostConnector::replaceBlock(%u, %s) - already empty, rejected\n", block, uri);
+        return false;
     }
 
-    hostConnectBetweenBlocks();
+    if (! isNullURI(blockdata.uri))
+    {
+        ++_current.numLoadedPlugins;
+
+        // replace old direct connections if this is the first plugin
+        if (_current.numLoadedPlugins == 1)
+        {
+            _host.disconnect(JACK_CAPTURE_PORT_1, JACK_PLAYBACK_PORT_1);
+            _host.disconnect(JACK_CAPTURE_PORT_2, JACK_PLAYBACK_PORT_2);
+            hostConnectBlockToSystemInput(block);
+            hostConnectBlockToSystemOutput(block);
+        }
+        // otherwise we need to add ourselves more carefully
+        else
+        {
+            bool loaded[NUM_BLOCKS_PER_PRESET];
+            for (uint8_t b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
+                loaded[b] = !isNullURI(_current.blocks[b].uri);
+
+            // find surrounding plugins
+            uint8_t before = NUM_BLOCKS_PER_PRESET;
+            if (block != 0)
+            {
+                for (uint8_t b = block - 1; b != UINT8_MAX; --b)
+                {
+                    if (loaded[b])
+                    {
+                        before = b;
+                        break;
+                    }
+                }
+            }
+
+            uint8_t after = NUM_BLOCKS_PER_PRESET;
+            if (block != NUM_BLOCKS_PER_PRESET - 1)
+            {
+                for (uint8_t b = block + 1; b < NUM_BLOCKS_PER_PRESET; ++b)
+                {
+                    if (loaded[b])
+                    {
+                        after = b;
+                        break;
+                    }
+                }
+            }
+
+            printf("replaceBlock add mode before: %u, after: %u | block: %u\n", before, after, block);
+
+            if (before != NUM_BLOCKS_PER_PRESET && after != NUM_BLOCKS_PER_PRESET)
+            {
+                hostDisconnectAllBlockInputs(after);
+                hostDisconnectAllBlockOutputs(before);
+                hostConnectBlockToBlock(before, block);
+                hostConnectBlockToBlock(block, after);
+            }
+            else if (before != NUM_BLOCKS_PER_PRESET)
+            {
+                hostDisconnectAllBlockOutputs(before);
+                hostConnectBlockToSystemOutput(block);
+                hostConnectBlockToBlock(before, block);
+            }
+            else if (after != NUM_BLOCKS_PER_PRESET)
+            {
+                hostDisconnectAllBlockInputs(after);
+                hostConnectBlockToSystemInput(block);
+                hostConnectBlockToBlock(block, after);
+            }
+        }
+    }
+    else
+    {
+        // use direct connections if there are no plugins
+        if (_current.numLoadedPlugins == 0)
+        {
+            _host.connect(JACK_CAPTURE_PORT_1, JACK_PLAYBACK_PORT_1);
+            _host.connect(JACK_CAPTURE_PORT_2, JACK_PLAYBACK_PORT_2);
+        }
+        else
+        {
+            bool loaded[NUM_BLOCKS_PER_PRESET];
+            for (uint8_t b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
+                loaded[b] = !isNullURI(_current.blocks[b].uri);
+
+            // find surrounding plugins
+            uint8_t start = 0;
+            if (block != 0)
+            {
+                for (uint8_t b = block - 1; b != UINT8_MAX; --b)
+                {
+                    if (loaded[b])
+                    {
+                        start = b;
+                        break;
+                    }
+                }
+            }
+
+            uint8_t end = NUM_BLOCKS_PER_PRESET - 1;
+            if (block != NUM_BLOCKS_PER_PRESET - 1)
+            {
+                for (uint8_t b = block + 1; b < NUM_BLOCKS_PER_PRESET; ++b)
+                {
+                    if (loaded[b])
+                    {
+                        end = b;
+                        break;
+                    }
+                }
+            }
+
+            hostConnectAll(start, end);
+        }
+    }
 
     _current.dirty = true;
     return true;
@@ -581,23 +833,18 @@ bool HostConnector::switchPreset(const uint8_t preset)
     if (_current.preset == preset || preset >= NUM_PRESETS_PER_BANK)
         return false;
 
-    const int oldpreset = _current.preset;
-
-    static_cast<Preset&>(_current) = _presets[preset];
-    _current.preset = preset;
-    _current.dirty = false;
-
     const Host::NonBlockingScope hnbs(_host);
 
     // step 1: fade out
     // TODO
+    _host.feature_enable("processing", false);
 
     // step 2: deactivate all plugins in old preset
 #if 1
-    _host.activate(100 * oldpreset, 100 * oldpreset + NUM_BLOCKS_PER_PRESET, 0);
+    _host.activate(100 * _current.preset, 100 * _current.preset + NUM_BLOCKS_PER_PRESET, 0);
 #else
     {
-        const HostConnector::Preset& presetdata(bankdata.presets[oldpreset]);
+        const HostConnector::Preset& presetdata(bankdata.presets[_current.preset]);
 
         for (int b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
         {
@@ -605,13 +852,34 @@ bool HostConnector::switchPreset(const uint8_t preset)
             if (isNullURI(blockdata.uri))
                 continue;
 
-            const int instance = 100 * oldpreset + b;
+            const int instance = 100 * _current.preset + b;
             _host.activate(instance, 0);
         }
     }
 #endif
 
-    // step 3: activate all plugins in new preset
+    // step 3: disconnect all ports
+    if (_current.numLoadedPlugins == 0)
+    {
+        _host.disconnect(JACK_CAPTURE_PORT_1, JACK_PLAYBACK_PORT_1);
+        _host.disconnect(JACK_CAPTURE_PORT_2, JACK_PLAYBACK_PORT_2);
+    }
+    else
+    {
+        for (uint8_t b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
+        {
+            if (isNullURI(_current.blocks[b].uri))
+                continue;
+
+            hostDisconnectAllBlockInputs(b);
+            hostDisconnectAllBlockOutputs(b);
+        }
+    }
+
+    static_cast<Preset&>(_current) = _presets[preset];
+    // TODO update numLoadedPlugins
+
+    // step 4: activate all plugins in new preset
 #if 1
     _host.activate(100 * preset, 100 * preset + NUM_BLOCKS_PER_PRESET, 1);
 #else
@@ -630,11 +898,15 @@ bool HostConnector::switchPreset(const uint8_t preset)
     }
 #endif
 
-    hostConnectBetweenBlocks();
+    // step 5: reconnect reactivated ports
+    hostConnectAll();
 
-    // step 4: fade in
+    // step 6: fade in
     // TODO
+    _host.feature_enable("processing", true);
 
+    _current.preset = preset;
+    _current.dirty = false;
     return true;
 }
 
@@ -663,16 +935,14 @@ void HostConnector::requestHostUpdates()
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::setBlockParameterValue(const uint8_t block, const uint8_t paramIndex, const float value)
+void HostConnector::setBlockParameter(const uint8_t block, const uint8_t paramIndex, const float value)
 {
     if (block >= NUM_BLOCKS_PER_PRESET)
         return;
     if (paramIndex >= MAX_PARAMS_PER_BLOCK)
         return;
 
-    const int instance = 100 * _current.preset + block;
-
-    HostConnector::Block& blockdata(_presets[_current.preset].blocks[block]);
+    HostConnector::Block& blockdata(_current.blocks[block]);
     if (isNullURI(blockdata.uri))
         return;
 
@@ -680,9 +950,16 @@ void HostConnector::setBlockParameterValue(const uint8_t block, const uint8_t pa
     if (isNullURI(paramdata.symbol))
         return;
 
+    const HostInstanceMapper::BlockPair bp = _mapper.get(_current.preset, block);
+    if (bp.id == UINT16_MAX)
+        return;
+
     paramdata.value = value;
     _current.dirty = true;
-    _host.param_set(instance, paramdata.symbol.c_str(), value);
+    _host.param_set(bp.id, paramdata.symbol.c_str(), value);
+
+    if (bp.pair != UINT16_MAX)
+        _host.param_set(bp.pair, paramdata.symbol.c_str(), value);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -696,14 +973,210 @@ void HostConnector::setBlockProperty(const uint8_t block, const char* const uri,
     if (value == nullptr || *value == '\0')
         return;
 
-    const int instance = 100 * current.preset + block;
-    const HostConnector::Block& blockdata(_presets[_current.preset].blocks[block]);
-
+    const HostConnector::Block& blockdata(_current.blocks[block]);
     if (isNullURI(blockdata.uri))
         return;
 
+    const HostInstanceMapper::BlockPair bp = _mapper.get(_current.preset, block);
+    if (bp.id == UINT16_MAX)
+        return;
+
     _current.dirty = true;
-    _host.patch_set(instance, uri, value);
+    _host.patch_set(bp.id, uri, value);
+
+    if (bp.pair != UINT16_MAX)
+        _host.patch_set(bp.pair, uri, value);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::hostConnectAll(uint8_t blockStart, uint8_t blockEnd)
+{
+    if (blockStart >= NUM_BLOCKS_PER_PRESET || blockEnd >= NUM_BLOCKS_PER_PRESET)
+        return;
+    if (blockStart > blockEnd)
+        return;
+
+    if (_current.numLoadedPlugins == 0)
+    {
+        // direct connections
+        _host.connect(JACK_CAPTURE_PORT_1, JACK_PLAYBACK_PORT_1);
+        _host.connect(JACK_CAPTURE_PORT_2, JACK_PLAYBACK_PORT_2);
+        return;
+    }
+
+    // direct connections
+    // _host.disconnect(JACK_CAPTURE_PORT_1, JACK_PLAYBACK_PORT_1);
+    // _host.disconnect(JACK_CAPTURE_PORT_2, JACK_PLAYBACK_PORT_2);
+
+    bool loaded[NUM_BLOCKS_PER_PRESET];
+    for (uint8_t b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
+        loaded[b] = !isNullURI(_current.blocks[b].uri);
+
+    // first plugin
+    for (uint8_t b = 0; b <= blockEnd; ++b)
+    {
+        if (loaded[b])
+        {
+            if (b >= blockStart && b <= blockEnd)
+                hostConnectBlockToSystemInput(b);
+            break;
+        }
+    }
+
+    // last plugin
+    for (uint8_t b = NUM_BLOCKS_PER_PRESET - 1; b >= blockStart && b != UINT8_MAX; --b)
+    {
+        if (loaded[b])
+        {
+            if (b >= blockStart && b <= blockEnd)
+                hostConnectBlockToSystemOutput(b);
+            break;
+        }
+    }
+
+    // find connecting blocks
+    if (blockStart != 0)
+    {
+        for (uint8_t b = blockStart - 1; b != UINT8_MAX; --b)
+        {
+            if (loaded[b])
+            {
+                blockStart = b;
+                break;
+            }
+        }
+    }
+
+    if (blockEnd != NUM_BLOCKS_PER_PRESET - 1)
+    {
+        for (uint8_t b = blockEnd + 1; b < NUM_BLOCKS_PER_PRESET; ++b)
+        {
+            if (loaded[b])
+            {
+                blockEnd = b;
+                break;
+            }
+        }
+    }
+
+    // now we can connect between plugins
+    for (uint8_t b1 = blockStart; b1 < blockEnd; ++b1)
+    {
+        if (! loaded[b1])
+            continue;
+
+        for (uint8_t b2 = b1 + 1; b2 <= blockEnd; ++b2)
+        {
+            if (! loaded[b2])
+                continue;
+
+            hostConnectBlockToBlock(b1, b2);
+            break;
+        }
+    }
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::hostConnectBlockToBlock(const uint8_t blockA, const uint8_t blockB)
+{
+    const Lv2Plugin* const pluginA = lv2world.get_plugin_by_uri(_current.blocks[blockA].uri.c_str());
+    const Lv2Plugin* const pluginB = lv2world.get_plugin_by_uri(_current.blocks[blockB].uri.c_str());
+
+    if (pluginA == nullptr || pluginB == nullptr)
+        return;
+
+    const HostInstanceMapper::BlockPair bpA = _mapper.get(_current.preset, blockA);
+    const HostInstanceMapper::BlockPair bpB = _mapper.get(_current.preset, blockB);
+
+    if (bpA.id == UINT16_MAX || bpB.id == UINT16_MAX)
+        return;
+
+    std::string origin, target;
+
+    for (size_t a = 0, b = 0; b < pluginB->ports.size(); ++b)
+    {
+        if ((pluginB->ports[b].flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != Lv2PortIsAudio)
+            continue;
+
+        for (; a < pluginA->ports.size(); ++a)
+        {
+            if ((pluginA->ports[a].flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != (Lv2PortIsAudio|Lv2PortIsOutput))
+                continue;
+
+            origin = format("effect_%d:%s", bpA.id, pluginA->ports[a].symbol.c_str());
+            target = format("effect_%d:%s", bpB.id, pluginB->ports[b].symbol.c_str());
+            _host.connect(origin.c_str(), target.c_str());
+
+            if (bpA.pair != UINT16_MAX && bpB.pair != UINT16_MAX)
+            {
+                origin = format("effect_%d:%s", bpA.pair, pluginA->ports[a].symbol.c_str());
+                target = format("effect_%d:%s", bpB.pair, pluginB->ports[b].symbol.c_str());
+                _host.connect(origin.c_str(), target.c_str());
+                return;
+            }
+
+            if (bpA.pair != UINT16_MAX)
+            {
+                for (size_t b2 = b + 1; b2 < pluginB->ports.size(); ++b2)
+                {
+                    if ((pluginB->ports[b2].flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != Lv2PortIsAudio)
+                        continue;
+
+                    origin = format("effect_%d:%s", bpA.pair, pluginA->ports[a].symbol.c_str());
+                    target = format("effect_%d:%s", bpB.id, pluginB->ports[b2].symbol.c_str());
+                    _host.connect(origin.c_str(), target.c_str());
+                }
+                return;
+            }
+
+            if (bpB.pair != UINT16_MAX)
+            {
+                for (size_t a2 = a + 1; a2 < pluginA->ports.size(); ++a2)
+                {
+                    if ((pluginA->ports[a2].flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != (Lv2PortIsAudio|Lv2PortIsOutput))
+                        continue;
+
+                    origin = format("effect_%d:%s", bpA.id, pluginA->ports[a2].symbol.c_str());
+                    target = format("effect_%d:%s", bpB.pair, pluginB->ports[b].symbol.c_str());
+                    _host.connect(origin.c_str(), target.c_str());
+                    return;
+                }
+            }
+
+            ++a;
+            break;
+        }
+    }
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::hostConnectBlockToSystemInput(const uint8_t block)
+{
+    hostConnectSystemInputAction(block, true);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::hostConnectBlockToSystemOutput(const uint8_t block)
+{
+    hostConnectSystemOutputAction(block, true);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::hostDisconnectAllBlockInputs(const uint8_t block)
+{
+    hostDisconnectBlockAction(block, false);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::hostDisconnectAllBlockOutputs(const uint8_t block)
+{
+    hostDisconnectBlockAction(block, true);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -712,321 +1185,200 @@ void HostConnector::hostClearAndLoadCurrentBank()
 {
     _host.feature_enable("processing", false);
     _host.remove(-1);
+    _mapper.reset();
+    _current.numLoadedPlugins = 0;
 
-    for (int pr = 0; pr < NUM_PRESETS_PER_BANK; ++pr)
+    for (uint8_t pr = 0; pr < NUM_PRESETS_PER_BANK; ++pr)
     {
         const bool active = _current.preset == pr;
-        const HostConnector::Preset& presetdata = active ? _current : _presets[pr];
+        bool previousPluginStereoOut = false;
 
-        for (int b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
+        for (uint8_t b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
         {
-            const HostConnector::Block& blockdata(presetdata.blocks[b]);
+            const HostConnector::Block& blockdata(active ? _current.blocks[b] : _presets[pr].blocks[b]);
             if (isNullURI(blockdata.uri))
                 continue;
 
-            const int instance = 100 * pr + b;
-
-            if (active)
-                _host.add(blockdata.uri.c_str(), instance);
-            else
-                _host.preload(blockdata.uri.c_str(), instance);
-
-            if (!blockdata.enabled)
-                _host.bypass(instance, true);
-
-            for (int p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+            const auto loadInstance = [=](const uint16_t instance)
             {
-                const HostConnector::Parameter& parameterdata(blockdata.parameters[p]);
-                if (isNullURI(parameterdata.symbol))
-                    continue;
-                _host.param_set(instance, parameterdata.symbol.c_str(), parameterdata.value);
+                if (active)
+                {
+                    if (! _host.add(blockdata.uri.c_str(), instance))
+                        return false;
+                }
+                else
+                {
+                    if (! _host.preload(blockdata.uri.c_str(), instance))
+                        return false;
+                }
+
+                if (!blockdata.enabled)
+                    _host.bypass(instance, true);
+
+                for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                {
+                    const HostConnector::Parameter& parameterdata(blockdata.parameters[p]);
+                    if (isNullURI(parameterdata.symbol))
+                        break;
+                    _host.param_set(instance, parameterdata.symbol.c_str(), parameterdata.value);
+                }
+
+                return true;
+            };
+
+            const bool dualmono = previousPluginStereoOut && blockdata.meta.isMonoIn;
+            const uint16_t instance = _mapper.add(pr, b);
+
+            bool added = loadInstance(instance);
+
+            if (added)
+            {
+                if (dualmono)
+                {
+                    const uint16_t pair = _mapper.pair(pr, b);
+
+                    if (! loadInstance(pair))
+                    {
+                        added = false;
+                        _host.remove(instance);
+                    }
+                }
             }
+
+            if (! added)
+            {
+                if (active)
+                    resetBlock(_current.blocks[b]);
+
+                _mapper.remove(pr, b);
+                continue;
+            }
+
+            previousPluginStereoOut = blockdata.meta.isStereoOut || dualmono;
+            ++_current.numLoadedPlugins;
         }
     }
 
-    hostConnectBetweenBlocks();
+    hostConnectAll();
     _host.feature_enable("processing", true);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::hostConnectBetweenBlocks()
+void HostConnector::hostRemoveInstanceForBlock(const uint8_t block)
 {
-    // for (int pr = 0; pr < NUM_PRESETS_PER_BANK; ++pr)
+    const HostInstanceMapper::BlockPair bp = _mapper.remove(_current.preset, block);
+
+    if (bp.id != UINT16_MAX)
+        _host.remove(bp.id);
+
+    if (bp.pair != UINT16_MAX)
+        _host.remove(bp.pair);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::hostConnectSystemInputAction(const uint8_t block, const bool connect)
+{
+    const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(_current.blocks[block].uri.c_str());
+    if (plugin == nullptr)
+        return;
+
+    const HostInstanceMapper::BlockPair bp = _mapper.get(_current.preset, block);
+    if (bp.id == UINT16_MAX)
+        return;
+
+    bool (Host::*call)(const char*, const char*) = connect ? &Host::connect : &Host::disconnect;
+    const char* origin;
+    std::string target;
+
+    for (size_t i = 0, j = 0; i < plugin->ports.size() && j < 2; ++i)
     {
-        const int pr = _current.preset;
+        if ((plugin->ports[i].flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != Lv2PortIsAudio)
+            continue;
 
-        bool loaded[NUM_BLOCKS_PER_PRESET];
-        int numLoaded = 0;
-        bool hasMeter = false;
-        for (int b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
+        origin = j++ == 0 ? JACK_CAPTURE_PORT_1 : JACK_CAPTURE_PORT_2;
+        target = format("effect_%d:%s", bp.id, plugin->ports[i].symbol.c_str());
+        (_host.*call)(origin, target.c_str());
+
+        if (bp.pair != UINT16_MAX)
         {
-            if (_current.blocks[b].uri == "http://gareus.org/oss/lv2/modspectre")
-                hasMeter = true;
-            else if ((loaded[b] = !isNullURI(_current.blocks[b].uri)))
-                ++numLoaded;
-        }
-
-        if (numLoaded == 0)
-        {
-            // direct connections
-            _host.connect("system:capture_1", "mod-monitor:in_1");
-            _host.connect("system:capture_2", "mod-monitor:in_2");
-            // connect to extra inputs just in case
-            _host.connect("system:capture_3", "mod-monitor:in_1");
-            _host.connect("system:capture_4", "mod-monitor:in_2");
-
-            if (hasMeter)
-            {
-                _host.connect("system:capture_1", "effect_23:in");
-                _host.connect("system:capture_3", "effect_23:in");
-            }
+            target = format("effect_%d:%s", bp.pair, plugin->ports[i].symbol.c_str());
+            (_host.*call)(JACK_CAPTURE_PORT_2, target.c_str());
             return;
-        }
-
-        // first plugin
-        for (int b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
-        {
-            if (! loaded[b])
-                continue;
-
-            const int instance = 100 * pr + b;
-
-            if (const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(_current.blocks[b].uri.c_str()))
-            {
-                int srci = 0, firsti = -1;
-                for (size_t i = 0; i < plugin->ports.size(); ++i)
-                {
-                    if ((plugin->ports[i].flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != Lv2PortIsAudio)
-                        continue;
-
-                    if (firsti == -1)
-                        firsti = i;
-
-                    ++srci;
-                    const std::string origin(format("system:capture_%d", srci));
-                    const std::string target(format("effect_%d:%s", instance, plugin->ports[i].symbol.c_str()));
-                    _host.connect(origin.c_str(), target.c_str());
-                }
-
-                // connect to extra inputs
-                if (firsti != -1)
-                {
-                    srci = 2;
-                    for (size_t i = firsti; i < plugin->ports.size(); ++i)
-                    {
-                        if ((plugin->ports[i].flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != Lv2PortIsAudio)
-                            continue;
-
-                        ++srci;
-                        const std::string origin(format("system:capture_%d", srci));
-                        const std::string target(format("effect_%d:%s", instance, plugin->ports[i].symbol.c_str()));
-                        _host.connect(origin.c_str(), target.c_str());
-                    }
-                }
-            }
-
-            break;
-        }
-
-        // last plugin
-        for (int b = NUM_BLOCKS_PER_PRESET - 1; b >= 0; --b)
-        {
-            if (! loaded[b])
-                continue;
-
-            const int instance = 100 * pr + b;
-
-            if (const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(_current.blocks[b].uri.c_str()))
-            {
-                int dsti = 0, lasti = 0;
-                for (size_t i = 0; i < plugin->ports.size(); ++i)
-                {
-                    if ((plugin->ports[i].flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != (Lv2PortIsAudio|Lv2PortIsOutput))
-                        continue;
-
-                    ++dsti;
-                    lasti = i;
-                    const std::string origin(format("effect_%d:%s", instance, plugin->ports[i].symbol.c_str()));
-                    const std::string target(format("mod-monitor:in_%d", dsti));
-                    _host.connect(origin.c_str(), target.c_str());
-
-                    if (hasMeter)
-                        _host.connect(origin.c_str(), "effect_23:in");
-                }
-
-                // connect to stereo output if chain is mono
-                if (dsti == 1)
-                {
-                    const std::string origin(format("effect_%d:%s", instance, plugin->ports[lasti].symbol.c_str()));
-                    const std::string target(format("mod-monitor:in_%d", dsti + 1));
-                    _host.connect(origin.c_str(), target.c_str());
-                }
-            }
-
-            break;
-        }
-
-        // between plugins
-        for (int b1 = 0; b1 < NUM_BLOCKS_PER_PRESET - 1; ++b1)
-        {
-            if (! loaded[b1])
-                continue;
-
-            for (int b2 = b1 + 1; b2 < NUM_BLOCKS_PER_PRESET; ++b2)
-            {
-                if (! loaded[b2])
-                    continue;
-
-                const int instance1 = 100 * pr + b1;
-                const int instance2 = 100 * pr + b2;
-
-                const Lv2Plugin* const plugin1 = lv2world.get_plugin_by_uri(_current.blocks[b1].uri.c_str());
-                const Lv2Plugin* const plugin2 = lv2world.get_plugin_by_uri(_current.blocks[b2].uri.c_str());
-
-                if (plugin1 != nullptr && plugin2 != nullptr)
-                {
-                    int srci = 0;
-                    for (size_t i = 0; i < plugin1->ports.size(); ++i)
-                    {
-                        if ((plugin1->ports[i].flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != (Lv2PortIsAudio|Lv2PortIsOutput))
-                            continue;
-
-                        ++srci;
-                        size_t dstj = 0;
-                        for (size_t j = 0; j < plugin2->ports.size(); ++j)
-                        {
-                            if (plugin2->ports[j].flags & Lv2PortIsOutput)
-                                continue;
-                            if ((plugin2->ports[j].flags & Lv2PortIsAudio) == 0)
-                                continue;
-
-                            if (srci != ++dstj)
-                                continue;
-
-                            const std::string origin(format("effect_%d:%s", instance1, plugin1->ports[i].symbol.c_str()));
-                            const std::string target(format("effect_%d:%s", instance2, plugin2->ports[j].symbol.c_str()));
-                            _host.connect(origin.c_str(), target.c_str());
-                        }
-                    }
-                }
-
-                break;
-            }
         }
     }
 }
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::hostDisconnectForNewBlock(const uint8_t blockidi)
+void HostConnector::hostConnectSystemOutputAction(const uint8_t block, const bool connect)
 {
-    bool loaded[NUM_BLOCKS_PER_PRESET];
-    for (uint8_t b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
-        loaded[b] = !isNullURI(_current.blocks[b].uri);
-    loaded[blockidi] = false;
+    const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(_current.blocks[block].uri.c_str());
+    if (plugin == nullptr)
+        return;
 
-    // direct connections
-    _host.disconnect("system:capture_1", "mod-monitor:in_1");
-    _host.disconnect("system:capture_2", "mod-monitor:in_2");
+    const HostInstanceMapper::BlockPair bp = _mapper.get(_current.preset, block);
+    if (bp.id == UINT16_MAX)
+        return;
 
-    // first plugin
-    for (uint8_t b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
+    bool (Host::*call)(const char*, const char*) = connect ? &Host::connect : &Host::disconnect;
+    std::string origin;
+    const char* target;
+    int dsti = 0;
+
+    for (size_t i = 0; i < plugin->ports.size() && dsti < 2; ++i)
     {
-        if (! loaded[b])
+        if ((plugin->ports[i].flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != (Lv2PortIsAudio|Lv2PortIsOutput))
             continue;
 
-        const int instance = 100 * current.preset + b;
+        origin = format("effect_%d:%s", bp.id, plugin->ports[i].symbol.c_str());
+        target = dsti++ == 0 ? JACK_PLAYBACK_PORT_1 : JACK_PLAYBACK_PORT_2;
+        (_host.*call)(origin.c_str(), target);
 
-        if (const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(_current.blocks[b].uri.c_str()))
+        if (bp.pair != UINT16_MAX)
         {
-            int srci = 0;
-            for (size_t i = 0; i < plugin->ports.size(); ++i)
-            {
-                if ((plugin->ports[i].flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != Lv2PortIsAudio)
-                    continue;
-
-                ++srci;
-                const std::string origin(format("system:capture_%d", srci));
-                const std::string target(format("effect_%d:%s", instance, plugin->ports[i].symbol.c_str()));
-                _host.disconnect(origin.c_str(), target.c_str());
-            }
+            origin = format("effect_%d:%s", bp.pair, plugin->ports[i].symbol.c_str());
+            (_host.*call)(origin.c_str(), JACK_PLAYBACK_PORT_2);
+            return;
         }
-
-        break;
     }
 
-    // last plugin
-    for (int8_t b = NUM_BLOCKS_PER_PRESET - 1; b >= 0; --b)
+    if (dsti == 1)
+        (_host.*call)(origin.c_str(), JACK_PLAYBACK_PORT_2);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::hostDisconnectBlockAction(const uint8_t block, const bool outputs)
+{
+    if (isNullURI(_current.blocks[block].uri))
+        return;
+
+    const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(_current.blocks[block].uri.c_str());
+    if (plugin == nullptr)
+        return;
+
+    const HostInstanceMapper::BlockPair bp = _mapper.get(_current.preset, block);
+    if (bp.id == UINT16_MAX)
+        return;
+
+    const unsigned int ioflags = Lv2PortIsAudio | (outputs ? Lv2PortIsOutput : 0);
+    std::string origin;
+
+    for (size_t i = 0; i < plugin->ports.size(); ++i)
     {
-        if (! loaded[b])
+        if ((plugin->ports[i].flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != ioflags)
             continue;
 
-        const int instance = 100 * current.preset + b;
+        origin = format("effect_%d:%s", bp.id, plugin->ports[i].symbol.c_str());
+        _host.disconnect_all(origin.c_str());
 
-        if (const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(_current.blocks[b].uri.c_str()))
+        if (bp.pair != UINT16_MAX)
         {
-            int dsti = 0;
-            for (size_t i = 0; i < plugin->ports.size(); ++i)
-            {
-                if ((plugin->ports[i].flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != (Lv2PortIsAudio|Lv2PortIsOutput))
-                    continue;
-
-                ++dsti;
-                const std::string origin(format("effect_%d:%s", instance, plugin->ports[i].symbol.c_str()));
-                const std::string target(format("mod-monitor:in_%d", dsti));
-                _host.disconnect(origin.c_str(), target.c_str());
-            }
-        }
-
-        break;
-    }
-
-    // between plugins
-    for (uint8_t b1 = 0; b1 < NUM_BLOCKS_PER_PRESET - 1; ++b1)
-    {
-        if (! loaded[b1])
-            continue;
-
-        for (uint8_t b2 = b1 + 1; b2 < NUM_BLOCKS_PER_PRESET; ++b2)
-        {
-            if (! loaded[b2])
-                continue;
-
-            const int instance1 = 100 * current.preset + b1;
-            const int instance2 = 100 * current.preset + b2;
-
-            const Lv2Plugin* const plugin1 = lv2world.get_plugin_by_uri(_current.blocks[b1].uri.c_str());
-            const Lv2Plugin* const plugin2 = lv2world.get_plugin_by_uri(_current.blocks[b2].uri.c_str());
-
-            if (plugin1 != nullptr && plugin2 != nullptr)
-            {
-                int srci = 0;
-                for (size_t i = 0; i < plugin1->ports.size(); ++i)
-                {
-                    if ((plugin1->ports[i].flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != (Lv2PortIsAudio|Lv2PortIsOutput))
-                        continue;
-
-                    ++srci;
-                    size_t dstj = 0;
-                    for (size_t j = 0; j < plugin2->ports.size(); ++j)
-                    {
-                        if (plugin2->ports[j].flags & Lv2PortIsOutput)
-                            continue;
-                        if ((plugin2->ports[j].flags & Lv2PortIsAudio) == 0)
-                            continue;
-
-                        if (srci != ++dstj)
-                            continue;
-
-                        const std::string origin(format("effect_%d:%s", instance1, plugin1->ports[i].symbol.c_str()));
-                        const std::string target(format("effect_%d:%s", instance2, plugin2->ports[j].symbol.c_str()));
-                        _host.disconnect(origin.c_str(), target.c_str());
-                    }
-                }
-            }
-
-            break;
+            origin = format("effect_%d:%s", bp.pair, plugin->ports[i].symbol.c_str());
+            _host.disconnect_all(origin.c_str());
+            return;
         }
     }
 }
@@ -1035,6 +1387,8 @@ void HostConnector::hostDisconnectForNewBlock(const uint8_t blockidi)
 
 void HostConnector::hostFeedbackCallback(const HostFeedbackData& data)
 {
+#if 0
+    // TODO
     if (data.type == HostFeedbackData::kFeedbackParameterSet)
     {
         const int preset = data.paramSet.effect_id / 100;
@@ -1048,7 +1402,7 @@ void HostConnector::hostFeedbackCallback(const HostFeedbackData& data)
             }
             else
             {
-                Block& blockdata = _presets[preset].blocks[block];
+                Block& blockdata = _current.blocks[block];
 
                 for (int p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
                 {
@@ -1065,6 +1419,7 @@ void HostConnector::hostFeedbackCallback(const HostFeedbackData& data)
             }
         }
     }
+#endif
 
     _callback->hostFeedbackCallback(data);
 }

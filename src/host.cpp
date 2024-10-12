@@ -60,6 +60,7 @@ enum HostError {
 
 enum HostResponseType {
     kHostResponseNone,
+    kHostResponseInteger,
     kHostResponseFloat,
     kHostResponseString,
 };
@@ -67,6 +68,7 @@ enum HostResponseType {
 struct HostResponse {
     int code;
     union {
+        int i;
         float f;
         char* s;
     } data;
@@ -300,11 +302,14 @@ struct Host::Impl
                 {
                 case kHostResponseNone:
                     break;
-                case kHostResponseString:
-                    resp->data.s = strdup("");
-                    break;
                 case kHostResponseFloat:
                     resp->data.f = 0.f;
+                    break;
+                case kHostResponseInteger:
+                    resp->data.i = 0;
+                    break;
+                case kHostResponseString:
+                    resp->data.s = strdup("");
                     break;
                 }
             }
@@ -481,6 +486,11 @@ struct Host::Impl
             {
             case kHostResponseNone:
             case kHostResponseString:
+                break;
+            case kHostResponseInteger:
+                resp->data.i = respdata != nullptr
+                             ? std::atoi(respdata)
+                             : 0;
                 break;
             case kHostResponseFloat:
                 resp->data.f = respdata != nullptr
@@ -1095,7 +1105,9 @@ bool Host::add(const char* const uri, const int16_t instance_number)
     VALIDATE_INSTANCE_NUMBER(instance_number);
     VALIDATE_URI(uri);
 
-    return impl->writeMessageAndWait(format("add %s %d", uri, instance_number));
+    HostResponse resp = {};
+    return impl->writeMessageAndWait(format("add %s %d", uri, instance_number), kHostResponseInteger, &resp)
+        ? resp.data.i >= 0 : false;
 }
 
 bool Host::remove(const int16_t instance_number)
@@ -1175,6 +1187,13 @@ bool Host::disconnect(const char* const origin_port, const char* const destinati
 
     return impl->writeMessageAndWait(format("disconnect %s %s",
                                             escape(origin_port).c_str(), escape(destination_port).c_str()));
+}
+
+bool Host::disconnect_all(const char* const origin_port)
+{
+    VALIDATE_JACK_PORT(origin_port);
+
+    return impl->writeMessageAndWait(format("disconnect_all %s", escape(origin_port).c_str()));
 }
 
 bool Host::bypass(const int16_t instance_number, const bool bypass_value)
