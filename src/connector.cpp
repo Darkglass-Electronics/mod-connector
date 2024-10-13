@@ -485,8 +485,30 @@ bool HostConnector::reorderBlock(const uint8_t block, const uint8_t dest)
         fprintf(stderr, "HostConnector::reorderBlock(%u, %u) - block == dest, rejected\n", block, dest);
         return false;
     }
+    if (isNullURI(_current.blocks[block].uri))
+    {
+        fprintf(stderr, "HostConnector::reorderBlock(%u, %u) - block is empty, rejected\n", block, dest);
+        return false;
+    }
 
-    const bool reconnect = _current.numLoadedPlugins > 1;
+    // check if we need to re-do any connections
+    bool reconnect = false;
+    const uint8_t blockStart = std::max(0, std::min<int>(block, dest) - 1);
+    const uint8_t blockEnd = std::min(NUM_BLOCKS_PER_PRESET - 1, std::max(block, dest) + 1);
+
+    for (uint8_t i = blockStart; i <= blockEnd; ++i)
+    {
+        if (block == i)
+            continue;
+        if (isNullURI(_current.blocks[i].uri))
+            continue;
+        reconnect = true;
+        break;
+    }
+
+    printf("HostConnector::reorderBlock(%u, %u) - reconnect %d, start %u, end %u\n",
+           block, dest, reconnect, blockStart, blockEnd);
+
     auto& mpreset = _mapper.map.presets[_current.preset];
 
     const Host::NonBlockingScope hnbs(_host);
@@ -516,7 +538,10 @@ bool HostConnector::reorderBlock(const uint8_t block, const uint8_t dest)
         }
 
         if (reconnect)
+        {
+            hostEnsureStereoChain(blockStart, blockEnd);
             hostConnectAll(dest, block);
+        }
     }
 
     // moving block forward to the right
@@ -538,7 +563,10 @@ bool HostConnector::reorderBlock(const uint8_t block, const uint8_t dest)
         }
 
         if (reconnect)
+        {
+            hostEnsureStereoChain(blockStart, blockEnd);
             hostConnectAll(block, dest);
+        }
     }
 
     _current.dirty = true;
@@ -623,7 +651,7 @@ bool HostConnector::replaceBlock(const uint8_t block, const char* const uri)
 
             if (dualmono)
             {
-                const uint16_t pair = _mapper.pair(_current.preset, block);
+                const uint16_t pair = _mapper.add_pair(_current.preset, block);
 
                 if (! _host.add(uri, pair))
                 {
@@ -937,10 +965,8 @@ void HostConnector::requestHostUpdates()
 
 void HostConnector::setBlockParameter(const uint8_t block, const uint8_t paramIndex, const float value)
 {
-    if (block >= NUM_BLOCKS_PER_PRESET)
-        return;
-    if (paramIndex >= MAX_PARAMS_PER_BLOCK)
-        return;
+    assert(block < NUM_BLOCKS_PER_PRESET);
+    assert(paramIndex < MAX_PARAMS_PER_BLOCK);
 
     HostConnector::Block& blockdata(_current.blocks[block]);
     if (isNullURI(blockdata.uri))
@@ -966,12 +992,9 @@ void HostConnector::setBlockParameter(const uint8_t block, const uint8_t paramIn
 
 void HostConnector::setBlockProperty(const uint8_t block, const char* const uri, const char* const value)
 {
-    if (block >= NUM_BLOCKS_PER_PRESET)
-        return;
-    if (uri == nullptr || *uri == '\0')
-        return;
-    if (value == nullptr || *value == '\0')
-        return;
+    assert(block < NUM_BLOCKS_PER_PRESET);
+    assert(uri != nullptr && *uri != '\0');
+    assert(value != nullptr);
 
     const HostConnector::Block& blockdata(_current.blocks[block]);
     if (isNullURI(blockdata.uri))
@@ -992,10 +1015,8 @@ void HostConnector::setBlockProperty(const uint8_t block, const char* const uri,
 
 void HostConnector::hostConnectAll(uint8_t blockStart, uint8_t blockEnd)
 {
-    if (blockStart >= NUM_BLOCKS_PER_PRESET || blockEnd >= NUM_BLOCKS_PER_PRESET)
-        return;
-    if (blockStart > blockEnd)
-        return;
+    assert(blockStart <= blockEnd);
+    assert(blockEnd < NUM_BLOCKS_PER_PRESET);
 
     if (_current.numLoadedPlugins == 0)
     {
@@ -1081,6 +1102,9 @@ void HostConnector::hostConnectAll(uint8_t blockStart, uint8_t blockEnd)
 
 void HostConnector::hostConnectBlockToBlock(const uint8_t blockA, const uint8_t blockB)
 {
+    assert(blockA < NUM_BLOCKS_PER_PRESET);
+    assert(blockB < NUM_BLOCKS_PER_PRESET);
+
     const Lv2Plugin* const pluginA = lv2world.get_plugin_by_uri(_current.blocks[blockA].uri.c_str());
     const Lv2Plugin* const pluginB = lv2world.get_plugin_by_uri(_current.blocks[blockB].uri.c_str());
 
@@ -1235,7 +1259,7 @@ void HostConnector::hostClearAndLoadCurrentBank()
             {
                 if (dualmono)
                 {
-                    const uint16_t pair = _mapper.pair(pr, b);
+                    const uint16_t pair = _mapper.add_pair(pr, b);
 
                     if (! loadInstance(pair))
                     {
@@ -1265,8 +1289,58 @@ void HostConnector::hostClearAndLoadCurrentBank()
 
 // --------------------------------------------------------------------------------------------------------------------
 
+void HostConnector::hostEnsureStereoChain(const uint8_t blockStart, const uint8_t blockEnd)
+{
+    assert(blockStart <= blockEnd);
+    assert(blockEnd < NUM_BLOCKS_PER_PRESET);
+
+    bool previousPluginStereoOut = false;
+
+    for (uint8_t b = blockStart; b <= blockEnd; ++b)
+    {
+        const HostConnector::Block& blockdata(_current.blocks[b]);
+        if (isNullURI(blockdata.uri))
+            continue;
+
+        const bool oldDualmono = _mapper.get(_current.preset, b).pair != kMaxHostInstances;
+        const bool newDualmono = previousPluginStereoOut && blockdata.meta.isMonoIn;
+
+        if (oldDualmono != newDualmono)
+        {
+            if (oldDualmono)
+            {
+                _host.remove(_mapper.remove_pair(_current.preset, b));
+            }
+            else
+            {
+                const uint16_t pair = _mapper.add_pair(_current.preset, b);
+
+                if (_host.add(blockdata.uri.c_str(), pair))
+                {
+                    if (!blockdata.enabled)
+                        _host.bypass(pair, true);
+
+                    for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                    {
+                        const HostConnector::Parameter& parameterdata(blockdata.parameters[p]);
+                        if (isNullURI(parameterdata.symbol))
+                            break;
+                        _host.param_set(pair, parameterdata.symbol.c_str(), parameterdata.value);
+                    }
+                }
+            }
+        }
+
+        previousPluginStereoOut = blockdata.meta.isStereoOut || newDualmono;
+    }
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 void HostConnector::hostRemoveInstanceForBlock(const uint8_t block)
 {
+    assert(block < NUM_BLOCKS_PER_PRESET);
+
     const HostInstanceMapper::BlockPair bp = _mapper.remove(_current.preset, block);
 
     if (bp.id != kMaxHostInstances)
@@ -1280,6 +1354,8 @@ void HostConnector::hostRemoveInstanceForBlock(const uint8_t block)
 
 void HostConnector::hostConnectSystemInputAction(const uint8_t block, const bool connect)
 {
+    assert(block < NUM_BLOCKS_PER_PRESET);
+
     const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(_current.blocks[block].uri.c_str());
     if (plugin == nullptr)
         return;
@@ -1314,6 +1390,8 @@ void HostConnector::hostConnectSystemInputAction(const uint8_t block, const bool
 
 void HostConnector::hostConnectSystemOutputAction(const uint8_t block, const bool connect)
 {
+    assert(block < NUM_BLOCKS_PER_PRESET);
+
     const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(_current.blocks[block].uri.c_str());
     if (plugin == nullptr)
         return;
@@ -1352,6 +1430,8 @@ void HostConnector::hostConnectSystemOutputAction(const uint8_t block, const boo
 
 void HostConnector::hostDisconnectBlockAction(const uint8_t block, const bool outputs)
 {
+    assert(block < NUM_BLOCKS_PER_PRESET);
+
     if (isNullURI(_current.blocks[block].uri))
         return;
 

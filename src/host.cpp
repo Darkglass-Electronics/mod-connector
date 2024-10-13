@@ -1105,9 +1105,7 @@ bool Host::add(const char* const uri, const int16_t instance_number)
     VALIDATE_INSTANCE_NUMBER(instance_number);
     VALIDATE_URI(uri);
 
-    HostResponse resp = {};
-    return impl->writeMessageAndWait(format("add %s %d", uri, instance_number), kHostResponseInteger, &resp)
-        ? resp.data.i >= 0 : false;
+    return impl->writeMessageAndWait(format("add %s %d", uri, instance_number));
 }
 
 bool Host::remove(const int16_t instance_number)

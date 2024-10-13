@@ -107,7 +107,7 @@ struct HostInstanceMapper {
         abort();
     }
 
-    uint16_t pair(const uint8_t preset, const uint8_t block)
+    uint16_t add_pair(const uint8_t preset, const uint8_t block)
     {
         assert(map.presets[preset].blocks[block].id != kMaxHostInstances);
         assert(map.presets[preset].blocks[block].pair == kMaxHostInstances);
@@ -317,6 +317,8 @@ protected:
     void hostDisconnectAll();
     void hostDisconnectAllBlockInputs(uint8_t block);
     void hostDisconnectAllBlockOutputs(uint8_t block);
+
+    void hostEnsureStereoChain(uint8_t blockStart, uint8_t blockEnd);
 
     void hostRemoveInstanceForBlock(uint8_t block);
 
