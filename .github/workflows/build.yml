@@ -62,8 +62,8 @@ jobs:
     strategy:
       matrix:
         target:
-          - macos-12
           - macos-13
+          - macos-14
         pkgs:
           # - qt@5
           - qt@6
