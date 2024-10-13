@@ -784,6 +784,9 @@ bool HostConnector::replaceBlock(const uint8_t block, const char* const uri)
 
             printf("replaceBlock add mode before: %u, after: %u | block: %u\n", before, after, block);
 
+            // TODO take care to handle new stereo plugin before mono chain
+            // TODO take care to disconnect mono -> stereo?
+
             if (before != NUM_BLOCKS_PER_PRESET && after != NUM_BLOCKS_PER_PRESET)
             {
                 hostDisconnectAllBlockInputs(after);
@@ -846,6 +849,8 @@ bool HostConnector::replaceBlock(const uint8_t block, const char* const uri)
                 }
             }
 
+            // TODO take care to disconnect mono -> stereo
+            hostEnsureStereoChain(start, end);
             hostConnectAll(start, end);
         }
     }
