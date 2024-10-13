@@ -453,14 +453,14 @@ bool HostConnector::enableBlock(const uint8_t block, const bool enable)
     }
 
     const HostInstanceMapper::BlockPair bp = _mapper.get(_current.preset, block);
-    if (bp.id == UINT16_MAX)
+    if (bp.id == kMaxHostInstances)
         return false;
 
     blockdata.enabled = enable;
     _current.dirty = true;
     _host.bypass(bp.id, !enable);
 
-    if (bp.pair != UINT16_MAX)
+    if (bp.pair != kMaxHostInstances)
         _host.bypass(bp.pair, !enable);
 
     return true;
@@ -608,7 +608,7 @@ bool HostConnector::replaceBlock(const uint8_t block, const char* const uri)
             {
                 if (isNullURI(_current.blocks[b].uri))
                     continue;
-                if (_current.blocks[b].meta.isStereoOut || _mapper.get(_current.preset, b).pair != UINT16_MAX)
+                if (_current.blocks[b].meta.isStereoOut || _mapper.get(_current.preset, b).pair != kMaxHostInstances)
                     dualmono = true;
                 break;
             }
@@ -951,14 +951,14 @@ void HostConnector::setBlockParameter(const uint8_t block, const uint8_t paramIn
         return;
 
     const HostInstanceMapper::BlockPair bp = _mapper.get(_current.preset, block);
-    if (bp.id == UINT16_MAX)
+    if (bp.id == kMaxHostInstances)
         return;
 
     paramdata.value = value;
     _current.dirty = true;
     _host.param_set(bp.id, paramdata.symbol.c_str(), value);
 
-    if (bp.pair != UINT16_MAX)
+    if (bp.pair != kMaxHostInstances)
         _host.param_set(bp.pair, paramdata.symbol.c_str(), value);
 }
 
@@ -978,13 +978,13 @@ void HostConnector::setBlockProperty(const uint8_t block, const char* const uri,
         return;
 
     const HostInstanceMapper::BlockPair bp = _mapper.get(_current.preset, block);
-    if (bp.id == UINT16_MAX)
+    if (bp.id == kMaxHostInstances)
         return;
 
     _current.dirty = true;
     _host.patch_set(bp.id, uri, value);
 
-    if (bp.pair != UINT16_MAX)
+    if (bp.pair != kMaxHostInstances)
         _host.patch_set(bp.pair, uri, value);
 }
 
@@ -1090,7 +1090,7 @@ void HostConnector::hostConnectBlockToBlock(const uint8_t blockA, const uint8_t 
     const HostInstanceMapper::BlockPair bpA = _mapper.get(_current.preset, blockA);
     const HostInstanceMapper::BlockPair bpB = _mapper.get(_current.preset, blockB);
 
-    if (bpA.id == UINT16_MAX || bpB.id == UINT16_MAX)
+    if (bpA.id == kMaxHostInstances || bpB.id == kMaxHostInstances)
         return;
 
     std::string origin, target;
@@ -1109,7 +1109,7 @@ void HostConnector::hostConnectBlockToBlock(const uint8_t blockA, const uint8_t 
             target = format("effect_%d:%s", bpB.id, pluginB->ports[b].symbol.c_str());
             _host.connect(origin.c_str(), target.c_str());
 
-            if (bpA.pair != UINT16_MAX && bpB.pair != UINT16_MAX)
+            if (bpA.pair != kMaxHostInstances && bpB.pair != kMaxHostInstances)
             {
                 origin = format("effect_%d:%s", bpA.pair, pluginA->ports[a].symbol.c_str());
                 target = format("effect_%d:%s", bpB.pair, pluginB->ports[b].symbol.c_str());
@@ -1117,7 +1117,7 @@ void HostConnector::hostConnectBlockToBlock(const uint8_t blockA, const uint8_t 
                 return;
             }
 
-            if (bpA.pair != UINT16_MAX)
+            if (bpA.pair != kMaxHostInstances)
             {
                 for (size_t b2 = b + 1; b2 < pluginB->ports.size(); ++b2)
                 {
@@ -1131,7 +1131,7 @@ void HostConnector::hostConnectBlockToBlock(const uint8_t blockA, const uint8_t 
                 return;
             }
 
-            if (bpB.pair != UINT16_MAX)
+            if (bpB.pair != kMaxHostInstances)
             {
                 for (size_t a2 = a + 1; a2 < pluginA->ports.size(); ++a2)
                 {
@@ -1269,10 +1269,10 @@ void HostConnector::hostRemoveInstanceForBlock(const uint8_t block)
 {
     const HostInstanceMapper::BlockPair bp = _mapper.remove(_current.preset, block);
 
-    if (bp.id != UINT16_MAX)
+    if (bp.id != kMaxHostInstances)
         _host.remove(bp.id);
 
-    if (bp.pair != UINT16_MAX)
+    if (bp.pair != kMaxHostInstances)
         _host.remove(bp.pair);
 }
 
@@ -1285,7 +1285,7 @@ void HostConnector::hostConnectSystemInputAction(const uint8_t block, const bool
         return;
 
     const HostInstanceMapper::BlockPair bp = _mapper.get(_current.preset, block);
-    if (bp.id == UINT16_MAX)
+    if (bp.id == kMaxHostInstances)
         return;
 
     bool (Host::*call)(const char*, const char*) = connect ? &Host::connect : &Host::disconnect;
@@ -1301,7 +1301,7 @@ void HostConnector::hostConnectSystemInputAction(const uint8_t block, const bool
         target = format("effect_%d:%s", bp.id, plugin->ports[i].symbol.c_str());
         (_host.*call)(origin, target.c_str());
 
-        if (bp.pair != UINT16_MAX)
+        if (bp.pair != kMaxHostInstances)
         {
             target = format("effect_%d:%s", bp.pair, plugin->ports[i].symbol.c_str());
             (_host.*call)(JACK_CAPTURE_PORT_2, target.c_str());
@@ -1319,7 +1319,7 @@ void HostConnector::hostConnectSystemOutputAction(const uint8_t block, const boo
         return;
 
     const HostInstanceMapper::BlockPair bp = _mapper.get(_current.preset, block);
-    if (bp.id == UINT16_MAX)
+    if (bp.id == kMaxHostInstances)
         return;
 
     bool (Host::*call)(const char*, const char*) = connect ? &Host::connect : &Host::disconnect;
@@ -1336,7 +1336,7 @@ void HostConnector::hostConnectSystemOutputAction(const uint8_t block, const boo
         target = dsti++ == 0 ? JACK_PLAYBACK_PORT_1 : JACK_PLAYBACK_PORT_2;
         (_host.*call)(origin.c_str(), target);
 
-        if (bp.pair != UINT16_MAX)
+        if (bp.pair != kMaxHostInstances)
         {
             origin = format("effect_%d:%s", bp.pair, plugin->ports[i].symbol.c_str());
             (_host.*call)(origin.c_str(), JACK_PLAYBACK_PORT_2);
@@ -1360,7 +1360,7 @@ void HostConnector::hostDisconnectBlockAction(const uint8_t block, const bool ou
         return;
 
     const HostInstanceMapper::BlockPair bp = _mapper.get(_current.preset, block);
-    if (bp.id == UINT16_MAX)
+    if (bp.id == kMaxHostInstances)
         return;
 
     const unsigned int ioflags = Lv2PortIsAudio | (outputs ? Lv2PortIsOutput : 0);
@@ -1374,7 +1374,7 @@ void HostConnector::hostDisconnectBlockAction(const uint8_t block, const bool ou
         origin = format("effect_%d:%s", bp.id, plugin->ports[i].symbol.c_str());
         _host.disconnect_all(origin.c_str());
 
-        if (bp.pair != UINT16_MAX)
+        if (bp.pair != kMaxHostInstances)
         {
             origin = format("effect_%d:%s", bp.pair, plugin->ports[i].symbol.c_str());
             _host.disconnect_all(origin.c_str());

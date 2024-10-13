@@ -7,6 +7,7 @@
 #include "lv2.hpp"
 
 #include <cassert>
+#include <cstring>
 
 // --------------------------------------------------------------------------------------------------------------------
 // default configuration
@@ -64,8 +65,8 @@
 
 // --------------------------------------------------------------------------------------------------------------------
 
-static constexpr const uint16_t kMaxInstances = NUM_PRESETS_PER_BANK * (NUM_BLOCKS_PER_PRESET * 4);
-static_assert(kMaxInstances < 9990, "maximum amount of instances is bigger than what mod-host can do");
+static constexpr const uint16_t kMaxHostInstances = NUM_PRESETS_PER_BANK * (NUM_BLOCKS_PER_PRESET * 4);
+static_assert(kMaxHostInstances < 9990, "maximum amount of instances is bigger than what mod-host can do");
 
 struct HostInstanceMapper {
     struct BlockPair {
@@ -79,7 +80,7 @@ struct HostInstanceMapper {
         } presets[NUM_PRESETS_PER_BANK];
     } map;
 
-    bool used[kMaxInstances];
+    bool used[kMaxHostInstances];
 
     HostInstanceMapper()
     {
@@ -88,10 +89,10 @@ struct HostInstanceMapper {
 
     uint16_t add(const uint8_t preset, const uint8_t block)
     {
-        assert(map.presets[preset].blocks[block].id == UINT16_MAX);
-        assert(map.presets[preset].blocks[block].pair == UINT16_MAX);
+        assert(map.presets[preset].blocks[block].id == kMaxHostInstances);
+        assert(map.presets[preset].blocks[block].pair == kMaxHostInstances);
 
-        for (uint16_t id = 0; id < kMaxInstances; ++id)
+        for (uint16_t id = 0; id < kMaxHostInstances; ++id)
         {
             if (used[id])
                 continue;
@@ -108,10 +109,10 @@ struct HostInstanceMapper {
 
     uint16_t pair(const uint8_t preset, const uint8_t block)
     {
-        assert(map.presets[preset].blocks[block].id != UINT16_MAX);
-        assert(map.presets[preset].blocks[block].pair == UINT16_MAX);
+        assert(map.presets[preset].blocks[block].id != kMaxHostInstances);
+        assert(map.presets[preset].blocks[block].pair == kMaxHostInstances);
 
-        for (uint16_t id2 = 0; id2 < kMaxInstances; ++id2)
+        for (uint16_t id2 = 0; id2 < kMaxHostInstances; ++id2)
         {
             if (used[id2])
                 continue;
@@ -128,20 +129,34 @@ struct HostInstanceMapper {
 
     BlockPair remove(const uint8_t preset, const uint8_t block)
     {
-        assert(map.presets[preset].blocks[block].id != UINT16_MAX);
-        assert(map.presets[preset].blocks[block].pair != UINT16_MAX);
+        assert(map.presets[preset].blocks[block].id != kMaxHostInstances);
 
         const uint16_t id = map.presets[preset].blocks[block].id;
         const uint16_t id2 = map.presets[preset].blocks[block].pair;
-        map.presets[preset].blocks[block].id = map.presets[preset].blocks[block].pair = UINT16_MAX;
 
-        if (id < kMaxInstances)
-            used[id] = false;
+        map.presets[preset].blocks[block].id = kMaxHostInstances;
+        used[id] = false;
 
-        if (id2 < kMaxInstances)
+        if (id2 != kMaxHostInstances)
+        {
+            map.presets[preset].blocks[block].pair = kMaxHostInstances;
             used[id2] = false;
+        }
 
         return { id, id2 };
+    }
+
+    uint16_t remove_pair(const uint8_t preset, const uint8_t block)
+    {
+        assert(map.presets[preset].blocks[block].id != kMaxHostInstances);
+        assert(map.presets[preset].blocks[block].pair != kMaxHostInstances);
+
+        const uint16_t id2 = map.presets[preset].blocks[block].pair;
+
+        map.presets[preset].blocks[block].pair = kMaxHostInstances;
+        used[id2] = false;
+
+        return id2;
     }
 
     BlockPair get(const uint8_t preset, const uint8_t block) const
@@ -153,10 +168,9 @@ struct HostInstanceMapper {
     {
         for (uint8_t p = 0; p < NUM_PRESETS_PER_BANK; ++p)
             for (uint8_t b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
-                map.presets[p].blocks[b].id = map.presets[p].blocks[b].pair = UINT16_MAX;
+                map.presets[p].blocks[b].id = map.presets[p].blocks[b].pair = kMaxHostInstances;
 
-        for (uint16_t id = 0; id < kMaxInstances; ++id)
-            used[id] = false;
+        std::memset(used, 0, sizeof(bool) * kMaxHostInstances);
     }
 };
 
