@@ -204,8 +204,6 @@ struct WebSocketConnector : QObject,
 
     void handleBankChanges(const QJsonObject& bankObj)
     {
-        bool blockschanged = false;
-
         const QJsonObject presets(bankObj["presets"].toObject());
         for (const QString& presetid : presets.keys())
         {
@@ -238,25 +236,7 @@ struct WebSocketConnector : QObject,
                     blockdata.uri = uri;
 
                     if (islive)
-                    {
-                        blockschanged = true;
-                        _host.remove(blockidi);
-
-                        if (uri != "-")
-                        {
-                            if (_host.add(uri.c_str(), blockidi))
-                                printf("DEBUG: block %d loaded plugin %s\n", blockidi, uri.c_str());
-                            else
-                                printf("DEBUG: block %d failed loaded plugin %s: %s\n",
-                                        blockidi, uri.c_str(), _host.last_error.c_str());
-
-                            hostDisconnectForNewBlock(blockidi);
-                        }
-                        else
-                        {
-                            printf("DEBUG: block %d has no plugin\n", blockidi);
-                        }
-                    }
+                        replaceBlock(blockidi, uri.c_str());
                 }
                 else
                 {
@@ -298,9 +278,6 @@ struct WebSocketConnector : QObject,
         }
 
         // puts(QJsonDocument(blocks).toJson().constData());
-
-        if (blockschanged)
-            hostConnectBetweenBlocks();
     }
 
     // ----------------------------------------------------------------------------------------------------------------
