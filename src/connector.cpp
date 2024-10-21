@@ -629,18 +629,7 @@ bool HostConnector::replaceBlock(const uint8_t block, const char* const uri)
         }
 
         // activate dual mono if previous plugin is stereo or also dualmono
-        bool dualmono = false;
-        if (block != 0 && numInputs == 1 && numOutputs == 1)
-        {
-            for (uint8_t b = block - 1; b != UINT8_MAX; --b)
-            {
-                if (isNullURI(_current.blocks[b].uri))
-                    continue;
-                if (_current.blocks[b].meta.isStereoOut || _mapper.get(_current.preset, b).pair != kMaxHostInstances)
-                    dualmono = true;
-                break;
-            }
-        }
+        bool dualmono = numInputs == 1 && hostPresetBlockShouldBeStereo(_current, block);
 
         const uint16_t instance = _mapper.add(_current.preset, block);
 
@@ -866,80 +855,188 @@ bool HostConnector::switchPreset(const uint8_t preset)
     if (_current.preset == preset || preset >= NUM_PRESETS_PER_BANK)
         return false;
 
-    const Host::NonBlockingScope hnbs(_host);
+    // store old active preset in memory before doing anything
+    const Current old = _current;
+    bool oldloaded[NUM_BLOCKS_PER_PRESET];
 
-    // step 1: fade out
-    // TODO
-    _host.feature_enable("processing", false);
+    // copy new preset to current data
+    static_cast<Preset&>(_current) = _presets[preset];
+    _current.preset = preset;
+    _current.dirty = false;
+    _current.numLoadedPlugins = 0;
 
-    // step 2: deactivate all plugins in old preset
-#if 1
-    _host.activate(100 * _current.preset, 100 * _current.preset + NUM_BLOCKS_PER_PRESET, 0);
-#else
+    // scope for fade-out, old deactivate, new activate, fade-in
     {
-        const HostConnector::Preset& presetdata(bankdata.presets[_current.preset]);
+        const Host::NonBlockingScope hnbs(_host);
 
-        for (int b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
+        // step 1: fade out
+        // TODO
+        _host.feature_enable("processing", false);
+
+        // step 2: disconnect and deactivate all plugins in old preset
+        // NOTE not removing plugins, done after processing is reenabled
+        if (old.numLoadedPlugins == 0)
         {
-            const HostConnector::Block& blockdata(presetdata.blocks[b]);
-            if (isNullURI(blockdata.uri))
-                continue;
-
-            const int instance = 100 * _current.preset + b;
-            _host.activate(instance, 0);
+            _host.disconnect(JACK_CAPTURE_PORT_1, JACK_PLAYBACK_PORT_1);
+            _host.disconnect(JACK_CAPTURE_PORT_2, JACK_PLAYBACK_PORT_2);
         }
-    }
-#endif
+        else
+        {
+            for (uint8_t b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
+            {
+                if (! (oldloaded[b] = !isNullURI(old.blocks[b].uri)))
+                    continue;
 
-    // step 3: disconnect all ports
-    if (_current.numLoadedPlugins == 0)
-    {
-        _host.disconnect(JACK_CAPTURE_PORT_1, JACK_PLAYBACK_PORT_1);
-        _host.disconnect(JACK_CAPTURE_PORT_2, JACK_PLAYBACK_PORT_2);
-    }
-    else
-    {
+                hostDisconnectAllBlockInputs(b);
+                hostDisconnectAllBlockOutputs(b);
+
+                const HostInstanceMapper::BlockPair bp = _mapper.get(old.preset, b);
+
+                if (bp.id != kMaxHostInstances)
+                    _host.activate(bp.id, 0);
+
+                if (bp.pair != kMaxHostInstances)
+                    _host.activate(bp.pair, 0);
+            }
+        }
+
+        // step 3: activate and connect all plugins in new preset
+        uint8_t last = 0;
         for (uint8_t b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
         {
             if (isNullURI(_current.blocks[b].uri))
                 continue;
 
-            hostDisconnectAllBlockInputs(b);
-            hostDisconnectAllBlockOutputs(b);
+            const HostInstanceMapper::BlockPair bp = _mapper.get(_current.preset, b);
+
+            if (bp.id != kMaxHostInstances)
+                _host.activate(bp.id, 1);
+
+            if (bp.pair != kMaxHostInstances)
+                _host.activate(bp.pair, 1);
+
+            if (++_current.numLoadedPlugins == 1)
+                hostConnectBlockToSystemInput(b);
+            else
+                hostConnectBlockToBlock(last, b);
+
+            last = b;
         }
+
+        if (_current.numLoadedPlugins == 0)
+        {
+            _host.connect(JACK_CAPTURE_PORT_1, JACK_PLAYBACK_PORT_1);
+            _host.connect(JACK_CAPTURE_PORT_2, JACK_PLAYBACK_PORT_2);
+        }
+        else
+        {
+            hostConnectBlockToSystemOutput(last);
+        }
+
+        // step 3: fade in
+        // TODO
+        _host.feature_enable("processing", true);
     }
 
-    static_cast<Preset&>(_current) = _presets[preset];
-    // TODO update numLoadedPlugins
+    // audio is now processing new preset
 
-    // step 4: activate all plugins in new preset
-#if 1
-    _host.activate(100 * preset, 100 * preset + NUM_BLOCKS_PER_PRESET, 1);
-#else
+    // scope for preloading default state on old preset
     {
-        const HostConnector::Preset& presetdata(bankdata.presets[preset]);
+        const Preset& defaults = _presets[old.preset];
+        // bool defloaded[NUM_BLOCKS_PER_PRESET];
 
-        for (int b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
+        const Host::NonBlockingScope hnbs(_host);
+
+        for (uint8_t b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
         {
-            const HostConnector::Block& blockdata(presetdata.blocks[b]);
-            if (isNullURI(blockdata.uri))
+            const Block& defblockdata = defaults.blocks[b];
+            const Block& oldblockdata = defaults.blocks[b];
+
+            // using same plugin (or both empty)
+            if (defblockdata.uri == old.blocks[b].uri)
+            {
+                if (isNullURI(defblockdata.uri))
+                    continue;
+
+                const HostInstanceMapper::BlockPair bp = _mapper.get(old.preset, b);
+                if (bp.id == kMaxHostInstances)
+                    continue;
+
+                if (defblockdata.enabled != oldblockdata.enabled)
+                {
+                    _host.bypass(bp.id, !defblockdata.enabled);
+
+                    if (bp.pair != kMaxHostInstances)
+                        _host.bypass(bp.pair, !defblockdata.enabled);
+                }
+
+                for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                {
+                    const HostConnector::Parameter& defparameterdata(defblockdata.parameters[p]);
+                    const HostConnector::Parameter& oldparameterdata(oldblockdata.parameters[p]);
+
+                    if (isNullURI(defparameterdata.symbol))
+                        break;
+                    if (defparameterdata.value == oldparameterdata.value)
+                        continue;
+
+                    _host.param_set(bp.id, defparameterdata.symbol.c_str(), defparameterdata.value);
+
+                    if (bp.pair != kMaxHostInstances)
+                        _host.param_set(bp.pair, defparameterdata.symbol.c_str(), defparameterdata.value);
+                }
+
+                continue;
+            }
+
+            // different plugin, unload old one if there is any
+            if (oldloaded[b])
+            {
+                const HostInstanceMapper::BlockPair bp = _mapper.remove(old.preset, b);
+
+                if (bp.id != kMaxHostInstances)
+                    _host.remove(bp.id);
+
+                if (bp.pair != kMaxHostInstances)
+                    _host.remove(bp.pair);
+            }
+
+            // nothing else to do if block is empty
+            if (isNullURI(defaults.blocks[b].uri))
                 continue;
 
-            const int instance = 100 * preset + b;
-            _host.activate(instance, 1);
+            // otherwise load default plugin
+            HostInstanceMapper::BlockPair bp = { _mapper.add(old.preset, b), kMaxHostInstances };
+            _host.preload(defblockdata.uri.c_str(), bp.id);
+
+            if (hostPresetBlockShouldBeStereo(defaults, b))
+            {
+                bp.pair = _mapper.add_pair(old.preset, b);
+                _host.preload(defblockdata.uri.c_str(), bp.pair);
+            }
+
+            if (!defblockdata.enabled)
+            {
+                _host.bypass(bp.id, true);
+
+                if (bp.pair != kMaxHostInstances)
+                    _host.bypass(bp.pair, true);
+            }
+
+            for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+            {
+                const HostConnector::Parameter& defparameterdata(defblockdata.parameters[p]);
+                if (isNullURI(defparameterdata.symbol))
+                    break;
+
+                _host.param_set(bp.id, defparameterdata.symbol.c_str(), defparameterdata.value);
+
+                if (bp.pair != kMaxHostInstances)
+                    _host.param_set(bp.pair, defparameterdata.symbol.c_str(), defparameterdata.value);
+            }
         }
     }
-#endif
 
-    // step 5: reconnect reactivated ports
-    hostConnectAll();
-
-    // step 6: fade in
-    // TODO
-    _host.feature_enable("processing", true);
-
-    _current.preset = preset;
-    _current.dirty = false;
     return true;
 }
 
@@ -1196,6 +1293,21 @@ void HostConnector::hostConnectBlockToSystemOutput(const uint8_t block)
 
 // --------------------------------------------------------------------------------------------------------------------
 
+void HostConnector::hostDisconnectAll()
+{
+    for (uint8_t b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
+    {
+        const HostConnector::Block& blockdata(_current.blocks[b]);
+        if (isNullURI(blockdata.uri))
+            continue;
+
+        hostDisconnectAllBlockInputs(b);
+        hostDisconnectAllBlockOutputs(b);
+    }
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 void HostConnector::hostDisconnectAllBlockInputs(const uint8_t block)
 {
     hostDisconnectBlockAction(block, false);
@@ -1216,6 +1328,7 @@ void HostConnector::hostClearAndLoadCurrentBank()
     _host.remove(-1);
     _mapper.reset();
     _current.numLoadedPlugins = 0;
+    uint8_t last = 0;
 
     for (uint8_t pr = 0; pr < NUM_PRESETS_PER_BANK; ++pr)
     {
@@ -1230,29 +1343,24 @@ void HostConnector::hostClearAndLoadCurrentBank()
 
             const auto loadInstance = [=](const uint16_t instance)
             {
-                if (active)
+                if (active ? _host.add(blockdata.uri.c_str(), instance)
+                           : _host.preload(blockdata.uri.c_str(), instance))
                 {
-                    if (! _host.add(blockdata.uri.c_str(), instance))
-                        return false;
-                }
-                else
-                {
-                    if (! _host.preload(blockdata.uri.c_str(), instance))
-                        return false;
-                }
+                    if (!blockdata.enabled)
+                        _host.bypass(instance, true);
 
-                if (!blockdata.enabled)
-                    _host.bypass(instance, true);
+                    for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                    {
+                        const HostConnector::Parameter& parameterdata(blockdata.parameters[p]);
+                        if (isNullURI(parameterdata.symbol))
+                            break;
+                        _host.param_set(instance, parameterdata.symbol.c_str(), parameterdata.value);
+                    }
 
-                for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
-                {
-                    const HostConnector::Parameter& parameterdata(blockdata.parameters[p]);
-                    if (isNullURI(parameterdata.symbol))
-                        break;
-                    _host.param_set(instance, parameterdata.symbol.c_str(), parameterdata.value);
+                    return true;
                 }
 
-                return true;
+                return false;
             };
 
             const bool dualmono = previousPluginStereoOut && blockdata.meta.isMonoIn;
@@ -1284,75 +1392,31 @@ void HostConnector::hostClearAndLoadCurrentBank()
             }
 
             previousPluginStereoOut = blockdata.meta.isStereoOut || dualmono;
-            ++_current.numLoadedPlugins;
+
+            if (active)
+            {
+                if (++_current.numLoadedPlugins == 1)
+                    hostConnectBlockToSystemInput(b);
+                else
+                    hostConnectBlockToBlock(last, b);
+
+                last = b;
+            }
         }
+    }
+
+    if (_current.numLoadedPlugins == 0)
+    {
+        _host.connect(JACK_CAPTURE_PORT_1, JACK_PLAYBACK_PORT_1);
+        _host.connect(JACK_CAPTURE_PORT_2, JACK_PLAYBACK_PORT_2);
+    }
+    else
+    {
+        hostConnectBlockToSystemOutput(last);
     }
 
     hostConnectAll();
     _host.feature_enable("processing", true);
-}
-
-// --------------------------------------------------------------------------------------------------------------------
-
-void HostConnector::hostEnsureStereoChain(const uint8_t blockStart, const uint8_t blockEnd)
-{
-    assert(blockStart <= blockEnd);
-    assert(blockEnd < NUM_BLOCKS_PER_PRESET);
-
-    bool previousPluginStereoOut = false;
-
-    for (uint8_t b = blockStart; b <= blockEnd; ++b)
-    {
-        const HostConnector::Block& blockdata(_current.blocks[b]);
-        if (isNullURI(blockdata.uri))
-            continue;
-
-        const bool oldDualmono = _mapper.get(_current.preset, b).pair != kMaxHostInstances;
-        const bool newDualmono = previousPluginStereoOut && blockdata.meta.isMonoIn;
-
-        if (oldDualmono != newDualmono)
-        {
-            if (oldDualmono)
-            {
-                _host.remove(_mapper.remove_pair(_current.preset, b));
-            }
-            else
-            {
-                const uint16_t pair = _mapper.add_pair(_current.preset, b);
-
-                if (_host.add(blockdata.uri.c_str(), pair))
-                {
-                    if (!blockdata.enabled)
-                        _host.bypass(pair, true);
-
-                    for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
-                    {
-                        const HostConnector::Parameter& parameterdata(blockdata.parameters[p]);
-                        if (isNullURI(parameterdata.symbol))
-                            break;
-                        _host.param_set(pair, parameterdata.symbol.c_str(), parameterdata.value);
-                    }
-                }
-            }
-        }
-
-        previousPluginStereoOut = blockdata.meta.isStereoOut || newDualmono;
-    }
-}
-
-// --------------------------------------------------------------------------------------------------------------------
-
-void HostConnector::hostRemoveInstanceForBlock(const uint8_t block)
-{
-    assert(block < NUM_BLOCKS_PER_PRESET);
-
-    const HostInstanceMapper::BlockPair bp = _mapper.remove(_current.preset, block);
-
-    if (bp.id != kMaxHostInstances)
-        _host.remove(bp.id);
-
-    if (bp.pair != kMaxHostInstances)
-        _host.remove(bp.pair);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -1466,6 +1530,87 @@ void HostConnector::hostDisconnectBlockAction(const uint8_t block, const bool ou
             return;
         }
     }
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::hostEnsureStereoChain(const uint8_t blockStart, const uint8_t blockEnd)
+{
+    assert(blockStart <= blockEnd);
+    assert(blockEnd < NUM_BLOCKS_PER_PRESET);
+
+    bool previousPluginStereoOut = hostPresetBlockShouldBeStereo(_current, blockStart);
+
+    for (uint8_t b = blockStart; b <= blockEnd; ++b)
+    {
+        const HostConnector::Block& blockdata(_current.blocks[b]);
+        if (isNullURI(blockdata.uri))
+            continue;
+
+        const bool oldDualmono = _mapper.get(_current.preset, b).pair != kMaxHostInstances;
+        const bool newDualmono = previousPluginStereoOut && blockdata.meta.isMonoIn;
+
+        if (oldDualmono != newDualmono)
+        {
+            if (oldDualmono)
+            {
+                _host.remove(_mapper.remove_pair(_current.preset, b));
+            }
+            else
+            {
+                const uint16_t pair = _mapper.add_pair(_current.preset, b);
+
+                if (_host.add(blockdata.uri.c_str(), pair))
+                {
+                    if (!blockdata.enabled)
+                        _host.bypass(pair, true);
+
+                    for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                    {
+                        const HostConnector::Parameter& parameterdata(blockdata.parameters[p]);
+                        if (isNullURI(parameterdata.symbol))
+                            break;
+                        _host.param_set(pair, parameterdata.symbol.c_str(), parameterdata.value);
+                    }
+                }
+            }
+        }
+
+        previousPluginStereoOut = blockdata.meta.isStereoOut || newDualmono;
+    }
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+bool HostConnector::hostPresetBlockShouldBeStereo(const Preset& presetdata, const uint8_t block)
+{
+    if (block == 0)
+        return false;
+
+    for (uint8_t b = block - 1; b != UINT8_MAX; --b)
+    {
+        if (isNullURI(presetdata.blocks[b].uri))
+            continue;
+        if (presetdata.blocks[b].meta.isStereoOut)
+            return true;
+    }
+
+    return false;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::hostRemoveInstanceForBlock(const uint8_t block)
+{
+    assert(block < NUM_BLOCKS_PER_PRESET);
+
+    const HostInstanceMapper::BlockPair bp = _mapper.remove(_current.preset, block);
+
+    if (bp.id != kMaxHostInstances)
+        _host.remove(bp.id);
+
+    if (bp.pair != kMaxHostInstances)
+        _host.remove(bp.pair);
 }
 
 // --------------------------------------------------------------------------------------------------------------------

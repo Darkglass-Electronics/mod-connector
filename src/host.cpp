@@ -1115,13 +1115,12 @@ bool Host::remove(const int16_t instance_number)
     return impl->writeMessageAndWait(format("remove %d", instance_number));
 }
 
-bool Host::activate(const int16_t instance_number, const int16_t instance_number_end, const bool activate_value)
+bool Host::activate(const int16_t instance_number, const bool activate_value)
 {
     VALIDATE_INSTANCE_NUMBER(instance_number);
-    VALIDATE_INSTANCE_NUMBER(instance_number_end);
 
-    return impl->writeMessageAndWait(format("activate %d %d %d",
-                                            instance_number, instance_number_end, activate_value ? 1 : 0));
+    return impl->writeMessageAndWait(format("activate %d %d",
+                                            instance_number, activate_value ? 1 : 0));
 }
 
 bool Host::preload(const char* const uri, const int16_t instance_number)

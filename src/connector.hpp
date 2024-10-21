@@ -197,6 +197,7 @@ struct HostConnector : Host::FeedbackCallback {
         struct {
             // convenience meta-data, not stored in json state
             int bindingIndex = -1;
+            bool isChainPoint = false;
             bool isMonoIn = false;
             bool isStereoOut = false;
             std::string name;
@@ -319,6 +320,8 @@ protected:
     void hostDisconnectAllBlockOutputs(uint8_t block);
 
     void hostEnsureStereoChain(uint8_t blockStart, uint8_t blockEnd);
+
+    bool hostPresetBlockShouldBeStereo(const Preset& presetdata, uint8_t block);
 
     void hostRemoveInstanceForBlock(uint8_t block);
 

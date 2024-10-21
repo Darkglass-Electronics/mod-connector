@@ -109,7 +109,7 @@ struct Host {
     /**
      * toggle effect activated state
      */
-    bool activate(int16_t instance_number, int16_t instance_number_end, bool activate_value);
+    bool activate(int16_t instance_number, bool activate_value);
 
     /* add an LV2 plugin encapsulated as a jack client, in deactivated state
      * @a instance_number must be any value between 0 ~ 9990, inclusively
