@@ -217,10 +217,10 @@ struct HostConnector : Host::FeedbackCallback {
         std::string filename;
     };
 
-protected:
     // connection to mod-host, handled internally
     Host _host;
 
+protected:
     // internal host instance mapper
     HostInstanceMapper _mapper;
 
