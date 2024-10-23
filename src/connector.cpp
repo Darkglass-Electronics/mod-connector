@@ -1042,6 +1042,26 @@ bool HostConnector::switchPreset(const uint8_t preset)
 
 // --------------------------------------------------------------------------------------------------------------------
 
+bool HostConnector::addBlockParameterBinding(const uint8_t hwid, const uint8_t block, const uint8_t paramIndex)
+{
+    assert(hwid < NUM_BINDING_ACTUATORS);
+    assert(block < NUM_BLOCKS_PER_PRESET);
+    assert(paramIndex < MAX_PARAMS_PER_BLOCK);
+
+    HostConnector::Block& blockdata(_current.blocks[block]);
+    if (isNullURI(blockdata.uri))
+        return false;
+
+    HostConnector::Parameter& paramdata(blockdata.parameters[paramIndex]);
+    if (isNullURI(paramdata.symbol))
+        return false;
+
+    _current.bindings[hwid].push_back({ block, paramdata.symbol, { paramIndex } });
+    return true;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 float HostConnector::dspLoad()
 {
     return _host.cpu_load();

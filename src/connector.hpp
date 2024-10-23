@@ -12,8 +12,8 @@
 // --------------------------------------------------------------------------------------------------------------------
 // default configuration
 
-#ifndef MAX_BANKS
-#define MAX_BANKS 99
+#ifndef NUM_BINDING_ACTUATORS
+#define NUM_BINDING_ACTUATORS 6
 #endif
 
 #ifndef NUM_PRESETS_PER_BANK
@@ -46,10 +46,6 @@
 
 // --------------------------------------------------------------------------------------------------------------------
 // check valid configuration
-
-#if MAX_BANKS > UINT8_MAX
-#error MAX_BANKS > UINT8_MAX, need to adjust data types
-#endif
 
 #if NUM_PRESETS_PER_BANK > UINT8_MAX
 #error NUM_PRESETS_PER_BANK > UINT8_MAX, need to adjust data types
@@ -205,9 +201,19 @@ struct HostConnector : Host::FeedbackCallback {
         std::vector<Parameter> parameters;
     };
 
+    struct Binding {
+        uint8_t block;
+        std::string parameterSymbol;
+        struct {
+            // convenience meta-data, not stored in json state
+            uint8_t parameterIndex;
+        } meta;
+    };
+
     struct Preset {
         std::string name;
         std::vector<Block> blocks;
+        std::vector<Binding> bindings[NUM_BINDING_ACTUATORS];
     };
 
     struct Current : Preset {
@@ -287,6 +293,9 @@ public:
     bool switchPreset(uint8_t preset);
 
     // WIP details below this point
+
+    // add a block parameter binding
+    bool addBlockParameterBinding(uint8_t hwid, uint8_t block, uint8_t paramIndex);
 
     // return average dsp load
     float dspLoad();
