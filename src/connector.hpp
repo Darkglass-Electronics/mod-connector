@@ -256,8 +256,12 @@ public:
     bool reconnect();
 
     // get the preset at @a index
+    // returns the preset state from the current bank
+    const Preset& getBankPreset(uint8_t preset) const;
+
+    // get the current preset at @a index
     // returns current state if preset is currently active, otherwise the preset state from the current bank
-    const Preset& getCurrentPreset(uint8_t index) const;
+    const Preset& getCurrentPreset(uint8_t preset) const;
 
     // load bank from a file and store the first preset in the `current` struct
     // automatically calls loadCurrent() if the file contains valid state, otherwise does nothing

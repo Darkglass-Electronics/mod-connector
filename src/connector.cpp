@@ -61,9 +61,20 @@ bool HostConnector::reconnect()
 
 // --------------------------------------------------------------------------------------------------------------------
 
+const HostConnector::Preset& HostConnector::getBankPreset(const uint8_t preset) const
+{
+    assert(preset < NUM_PRESETS_PER_BANK);
+
+    return _presets[preset];
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 const HostConnector::Preset& HostConnector::getCurrentPreset(const uint8_t preset) const
 {
-    return _current.preset != preset && preset < NUM_PRESETS_PER_BANK ? _presets[preset] : _current;
+    assert(preset < NUM_PRESETS_PER_BANK);
+
+    return _current.preset != preset ? _presets[preset] : _current;
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -101,17 +112,15 @@ bool HostConnector::loadBankFromFile(const char* const filename)
         return false;
     }
 
+    if (! j.contains("presets"))
+    {
+        fprintf(stderr, "HostConnector::loadBankFromFile: bank does not include presets\n");
+        return false;
+    }
+
     uint8_t numLoadedPlugins = 0;
 
     do {
-        if (! j.contains("presets"))
-        {
-            printf("HostConnector::loadBankFromFile: bank does not include presets, loading empty\n");
-            for (uint8_t pr = 0; pr < NUM_PRESETS_PER_BANK; ++pr)
-                resetPreset(_presets[pr]);
-            break;
-        }
-
         auto& jpresets = j["presets"];
         for (uint8_t pr = 0; pr < NUM_PRESETS_PER_BANK; ++pr)
         {
@@ -340,6 +349,7 @@ bool HostConnector::saveBank()
 
 bool HostConnector::saveBankToFile(const char* const filename)
 {
+    // copy current data into preset data
     _presets[_current.preset] = static_cast<Preset&>(_current);
 
     nlohmann::json j;
@@ -418,6 +428,7 @@ void HostConnector::clearCurrentPreset()
         return;
 
     const Host::NonBlockingScope hnbs(_host);
+
     _host.feature_enable("processing", false);
 
     for (int b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
@@ -431,7 +442,10 @@ void HostConnector::clearCurrentPreset()
     _current.numLoadedPlugins = 0;
     _current.dirty = true;
 
-    hostConnectAll();
+    // direct connections
+    _host.connect(JACK_CAPTURE_PORT_1, JACK_PLAYBACK_PORT_1);
+    _host.connect(JACK_CAPTURE_PORT_2, JACK_PLAYBACK_PORT_2);
+
     _host.feature_enable("processing", true);
 }
 
@@ -439,11 +453,7 @@ void HostConnector::clearCurrentPreset()
 
 bool HostConnector::enableBlock(const uint8_t block, const bool enable)
 {
-    if (block >= NUM_BLOCKS_PER_PRESET)
-    {
-        fprintf(stderr, "HostConnector::enableBlock(%u, %d) - out of bounds block, rejected\n", block, enable);
-        return false;
-    }
+    assert(block < NUM_BLOCKS_PER_PRESET);
 
     HostConnector::Block& blockdata(_current.blocks[block]);
     if (isNullURI(blockdata.uri))
@@ -470,16 +480,9 @@ bool HostConnector::enableBlock(const uint8_t block, const bool enable)
 
 bool HostConnector::reorderBlock(const uint8_t block, const uint8_t dest)
 {
-    if (block >= NUM_BLOCKS_PER_PRESET)
-    {
-        fprintf(stderr, "HostConnector::reorderBlock(%u, %u) - out of bounds block, rejected\n", block, dest);
-        return false;
-    }
-    if (dest >= NUM_BLOCKS_PER_PRESET)
-    {
-        fprintf(stderr, "HostConnector::reorderBlock(%u, %u) - out of bounds dest, rejected\n", block, dest);
-        return false;
-    }
+    assert(block < NUM_BLOCKS_PER_PRESET);
+    assert(dest < NUM_BLOCKS_PER_PRESET);
+
     if (block == dest)
     {
         fprintf(stderr, "HostConnector::reorderBlock(%u, %u) - block == dest, rejected\n", block, dest);
@@ -1435,7 +1438,6 @@ void HostConnector::hostClearAndLoadCurrentBank()
         hostConnectBlockToSystemOutput(last);
     }
 
-    hostConnectAll();
     _host.feature_enable("processing", true);
 }
 
