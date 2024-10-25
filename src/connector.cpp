@@ -431,7 +431,7 @@ void HostConnector::clearCurrentPreset()
 
     _host.feature_enable("processing", false);
 
-    for (int b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
+    for (uint8_t b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
     {
         if (! isNullURI(_current.blocks[b].uri))
             hostRemoveInstanceForBlock(b);
@@ -880,6 +880,8 @@ bool HostConnector::switchPreset(const uint8_t preset)
         // NOTE not removing plugins, done after processing is reenabled
         if (old.numLoadedPlugins == 0)
         {
+            std::memset(oldloaded, 0, sizeof(oldloaded));
+
             _host.disconnect(JACK_CAPTURE_PORT_1, JACK_PLAYBACK_PORT_1);
             _host.disconnect(JACK_CAPTURE_PORT_2, JACK_PLAYBACK_PORT_2);
         }
@@ -1244,12 +1246,12 @@ void HostConnector::hostConnectBlockToBlock(const uint8_t blockA, const uint8_t 
 
     std::string origin, target;
 
-    for (size_t a = 0, b = 0; b < pluginB->ports.size(); ++b)
+    for (size_t a = 0, astart = 0, b = 0; b < pluginB->ports.size(); ++b)
     {
         if ((pluginB->ports[b].flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != Lv2PortIsAudio)
             continue;
 
-        for (; a < pluginA->ports.size(); ++a)
+        for (a = astart; a < pluginA->ports.size(); ++a)
         {
             if ((pluginA->ports[a].flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != (Lv2PortIsAudio|Lv2PortIsOutput))
                 continue;
@@ -1295,8 +1297,12 @@ void HostConnector::hostConnectBlockToBlock(const uint8_t blockA, const uint8_t 
             }
 
             ++a;
+            ++astart;
             break;
         }
+
+        if (astart == 1)
+            astart = 0;
     }
 }
 
