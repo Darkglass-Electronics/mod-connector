@@ -20,6 +20,10 @@
 #define NUM_PRESETS_PER_BANK 3
 #endif
 
+#ifndef NUM_SCENES_PER_PRESET
+#define NUM_SCENES_PER_PRESET 2
+#endif
+
 #ifndef NUM_BLOCKS_PER_PRESET
 #define NUM_BLOCKS_PER_PRESET 6
 #endif
@@ -186,6 +190,11 @@ struct HostConnector : Host::FeedbackCallback {
         } meta;
     };
 
+    struct SceneParameterValue {
+        bool used;
+        float value;
+    };
+
     struct Block {
         bool enabled = false;
         std::string quickPotSymbol;
@@ -193,12 +202,14 @@ struct HostConnector : Host::FeedbackCallback {
         struct {
             // convenience meta-data, not stored in json state
             uint8_t quickPotIndex;
+            bool hasScenes = false;
             bool isChainPoint = false;
             bool isMonoIn = false;
             bool isStereoOut = false;
             std::string name;
         } meta;
         std::vector<Parameter> parameters;
+        std::vector<SceneParameterValue> sceneValues[NUM_SCENES_PER_PRESET + 1];
     };
 
     struct Binding {
@@ -218,6 +229,7 @@ struct HostConnector : Host::FeedbackCallback {
 
     struct Current : Preset {
         uint8_t preset = 0;
+        uint8_t scene = 0;
         uint8_t numLoadedPlugins = 0;
         bool dirty = false;
         std::string filename;
@@ -295,6 +307,10 @@ public:
     // switch to another preset within the current bank
     // returning false means the current chain was unchanged
     bool switchPreset(uint8_t preset);
+
+    // switch to another scene within the current preset
+    // returning false means the current chain was unchanged
+    bool switchScene(uint8_t scene);
 
     // WIP details below this point
 

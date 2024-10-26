@@ -15,20 +15,28 @@
 
 // --------------------------------------------------------------------------------------------------------------------
 
-static void resetParam(HostConnector::Parameter& param)
+static void resetParam(HostConnector::Parameter& paramdata)
 {
-    param = {};
-    param.meta.max = 1.f;
+    paramdata = {};
+    paramdata.meta.max = 1.f;
 }
 
-static void resetBlock(HostConnector::Block& block)
+static void resetBlock(HostConnector::Block& blockdata)
 {
-    block = {};
-    block.meta.quickPotIndex = -1;
-    block.parameters.resize(MAX_PARAMS_PER_BLOCK);
+    blockdata = {};
+    blockdata.meta.quickPotIndex = -1;
+    blockdata.parameters.resize(MAX_PARAMS_PER_BLOCK);
 
     for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
-        resetParam(block.parameters[p]);
+        resetParam(blockdata.parameters[p]);
+
+    for (uint8_t s = 0; s <= NUM_SCENES_PER_PRESET; ++s)
+    {
+        blockdata.sceneValues[s].resize(MAX_PARAMS_PER_BLOCK);
+
+        for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+            blockdata.sceneValues[s][p].used = false;
+    }
 }
 
 static void resetPreset(HostConnector::Preset& preset)
@@ -254,24 +262,29 @@ bool HostConnector::loadBankFromFile(const char* const filename)
                         break;
                     }
 
-                    HostConnector::Parameter& param = blockdata.parameters[numParams];
+                    HostConnector::Parameter& paramdata = blockdata.parameters[numParams];
 
-                    param.symbol = plugin->ports[i].symbol;
-                    param.value = plugin->ports[i].def;
+                    paramdata.symbol = plugin->ports[i].symbol;
+                    paramdata.value = plugin->ports[i].def;
 
-                    param.meta.flags = plugin->ports[i].flags;
-                    param.meta.def = plugin->ports[i].def;
-                    param.meta.min = plugin->ports[i].min;
-                    param.meta.max = plugin->ports[i].max;
-                    param.meta.name = plugin->ports[i].name;
-                    param.meta.unit = plugin->ports[i].unit;
-                    param.meta.scalePoints = plugin->ports[i].scalePoints;
+                    paramdata.meta.flags = plugin->ports[i].flags;
+                    paramdata.meta.def = plugin->ports[i].def;
+                    paramdata.meta.min = plugin->ports[i].min;
+                    paramdata.meta.max = plugin->ports[i].max;
+                    paramdata.meta.name = plugin->ports[i].name;
+                    paramdata.meta.unit = plugin->ports[i].unit;
+                    paramdata.meta.scalePoints = plugin->ports[i].scalePoints;
 
-                    symbolToIndexMap[param.symbol] = numParams++;
+                    symbolToIndexMap[paramdata.symbol] = numParams++;
                 }
 
                 for (uint8_t p = numParams; p < MAX_PARAMS_PER_BLOCK; ++p)
+                {
                     resetParam(blockdata.parameters[p]);
+
+                    for (uint8_t s = 0; s <= NUM_SCENES_PER_PRESET; ++s)
+                        blockdata.sceneValues[s][p].used = false;
+                }
 
                 try {
                     const std::string quickpot = jblock["quickpot"].get<std::string>();
@@ -326,9 +339,10 @@ bool HostConnector::loadBankFromFile(const char* const filename)
         }
     } while(false);
 
-    // always start with the first preset
+    // always start with the first preset and scene
     static_cast<Preset&>(_current) = _presets[0];
     _current.preset = 0;
+    _current.scene = 0;
     _current.numLoadedPlugins = numLoadedPlugins;
     _current.dirty = false;
     _current.filename = filename;
@@ -396,15 +410,15 @@ bool HostConnector::saveBankToFile(const char* const filename)
                 auto& jparams = jblocks[jblockid]["parameters"];
                 for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
                 {
-                    const Parameter& param = block.parameters[p];
+                    const Parameter& paramdata = block.parameters[p];
 
-                    if (isNullURI(param.symbol))
+                    if (isNullURI(paramdata.symbol))
                         continue;
 
                     const std::string jparamid = std::to_string(p + 1);
                     jparams[jparamid] = {
-                        { "symbol", param.symbol },
-                        { "value", param.value },
+                        { "symbol", paramdata.symbol },
+                        { "value", paramdata.value },
                     };
                 }
             }
@@ -714,7 +728,12 @@ bool HostConnector::replaceBlock(const uint8_t block, const char* const uri)
                 blockdata.quickPotSymbol = blockdata.parameters[0].symbol;
 
             for (; p < MAX_PARAMS_PER_BLOCK; ++p)
+            {
                 resetParam(blockdata.parameters[p]);
+
+                for (uint8_t s = 0; s <= NUM_SCENES_PER_PRESET; ++s)
+                    blockdata.sceneValues[s][p].used = false;
+            }
         }
         else
         {
@@ -843,6 +862,7 @@ bool HostConnector::switchPreset(const uint8_t preset)
     // copy new preset to current data
     static_cast<Preset&>(_current) = _presets[preset];
     _current.preset = preset;
+    _current.scene = 0;
     _current.dirty = false;
     _current.numLoadedPlugins = 0;
 
@@ -1025,6 +1045,49 @@ bool HostConnector::switchPreset(const uint8_t preset)
 
 // --------------------------------------------------------------------------------------------------------------------
 
+bool HostConnector::switchScene(const uint8_t scene)
+{
+    if (_current.scene == scene || scene > NUM_SCENES_PER_PRESET)
+        return false;
+
+    _current.scene = scene;
+
+    const Host::NonBlockingScope hnbs(_host);
+
+    for (uint8_t b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
+    {
+        HostConnector::Block& blockdata(_current.blocks[b]);
+        if (isNullURI(blockdata.uri))
+            continue;
+        if (! blockdata.meta.hasScenes)
+            continue;
+
+        const HostInstanceMapper::BlockPair bp = _mapper.get(_current.preset, b);
+        if (bp.id == kMaxHostInstances)
+            continue;
+
+        for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+        {
+            HostConnector::Parameter& paramdata(blockdata.parameters[p]);
+            if (isNullURI(paramdata.symbol))
+                break;
+            if (! blockdata.sceneValues[_current.scene][p].used)
+                continue;
+
+            paramdata.value = blockdata.sceneValues[_current.scene][p].value;
+
+            _host.param_set(bp.id, paramdata.symbol.c_str(), paramdata.value);
+
+            if (bp.pair != kMaxHostInstances)
+                _host.param_set(bp.pair, paramdata.symbol.c_str(), paramdata.value);
+        }
+    }
+
+    return true;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 bool HostConnector::addBlockBinding(const uint8_t hwid, const uint8_t block)
 {
     assert(hwid < NUM_BINDING_ACTUATORS);
@@ -1092,16 +1155,29 @@ void HostConnector::setBlockParameter(const uint8_t block, const uint8_t paramIn
     if (isNullURI(blockdata.uri))
         return;
 
-    HostConnector::Parameter& paramdata(blockdata.parameters[paramIndex]);
-    if (isNullURI(paramdata.symbol))
-        return;
-
     const HostInstanceMapper::BlockPair bp = _mapper.get(_current.preset, block);
     if (bp.id == kMaxHostInstances)
         return;
 
-    paramdata.value = value;
+    HostConnector::Parameter& paramdata(blockdata.parameters[paramIndex]);
+    if (isNullURI(paramdata.symbol))
+        return;
+
     _current.dirty = true;
+
+    if (_current.scene != 0 && ! blockdata.sceneValues[_current.scene][paramIndex].used)
+    {
+        blockdata.meta.hasScenes = true;
+        blockdata.sceneValues[_current.scene][paramIndex].used = true;
+
+        // if this is the first time for this scene parameter, set original value for default scene
+        blockdata.sceneValues[0][paramIndex].used = true;
+        blockdata.sceneValues[0][paramIndex].value = paramdata.value;
+    }
+
+    paramdata.value = value;
+    blockdata.sceneValues[_current.scene][paramIndex].value = value;
+
     _host.param_set(bp.id, paramdata.symbol.c_str(), value);
 
     if (bp.pair != kMaxHostInstances)
@@ -1125,6 +1201,7 @@ void HostConnector::setBlockProperty(const uint8_t block, const char* const uri,
         return;
 
     _current.dirty = true;
+
     _host.patch_set(bp.id, uri, value);
 
     if (bp.pair != kMaxHostInstances)
