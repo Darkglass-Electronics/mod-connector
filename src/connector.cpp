@@ -24,7 +24,7 @@ static void resetParam(HostConnector::Parameter& param)
 static void resetBlock(HostConnector::Block& block)
 {
     block = {};
-    block.meta.bindingIndex = -1;
+    block.meta.quickPotIndex = -1;
     block.parameters.resize(MAX_PARAMS_PER_BLOCK);
 
     for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
@@ -157,12 +157,12 @@ bool HostConnector::loadBankFromFile(const char* const filename)
             auto& jblocks = jpreset["blocks"];
             for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
             {
-                Block& block = preset.blocks[bl];
+                Block& blockdata = preset.blocks[bl];
                 const std::string jblockid = std::to_string(bl + 1);
 
                 if (! jblocks.contains(jblockid))
                 {
-                    resetBlock(block);
+                    resetBlock(blockdata);
                     continue;
                 }
 
@@ -171,7 +171,7 @@ bool HostConnector::loadBankFromFile(const char* const filename)
                 {
                     printf("HostConnector::loadBankFromFile: preset #%u / block #%u does not include uri, loading empty\n",
                            pr + 1, bl + 1);
-                    resetBlock(block);
+                    resetBlock(blockdata);
                     continue;
                 }
 
@@ -185,7 +185,7 @@ bool HostConnector::loadBankFromFile(const char* const filename)
                 {
                     printf("HostConnector::loadBankFromFile: plugin with uri '%s' not available, using empty block\n",
                            uri.c_str());
-                    resetBlock(block);
+                    resetBlock(blockdata);
                     continue;
                 }
 
@@ -212,21 +212,21 @@ bool HostConnector::loadBankFromFile(const char* const filename)
                 {
                     printf("HostConnector::loadBankFromFile: plugin with uri '%s' has invalid IO, using empty block\n",
                            uri.c_str());
-                    resetBlock(block);
+                    resetBlock(blockdata);
                     continue;
                 }
 
-                block.bindingSymbol.clear();
-                block.enabled = true;
-                block.uri = uri;
+                blockdata.enabled = true;
+                blockdata.uri = uri;
+                blockdata.quickPotSymbol.clear();
 
-                block.meta.bindingIndex = -1;
-                block.meta.isMonoIn = numInputs == 1;
-                block.meta.isStereoOut = numOutputs == 2;
-                block.meta.name = plugin->name;
+                blockdata.meta.quickPotIndex = 0;
+                blockdata.meta.isMonoIn = numInputs == 1;
+                blockdata.meta.isStereoOut = numOutputs == 2;
+                blockdata.meta.name = plugin->name;
 
                 if (jblock.contains("enabled"))
-                    block.enabled = jblock["enabled"].get<bool>();
+                    blockdata.enabled = jblock["enabled"].get<bool>();
 
                 if (bl == 0)
                     ++numLoadedPlugins;
@@ -249,12 +249,12 @@ bool HostConnector::loadBankFromFile(const char* const filename)
                         // skip parameter
                         continue;
                     case kLv2DesignationQuickPot:
-                        block.bindingSymbol = plugin->ports[i].symbol;
-                        block.meta.bindingIndex = numParams;
+                        blockdata.quickPotSymbol = plugin->ports[i].symbol;
+                        blockdata.meta.quickPotIndex = numParams;
                         break;
                     }
 
-                    HostConnector::Parameter& param = block.parameters[numParams];
+                    HostConnector::Parameter& param = blockdata.parameters[numParams];
 
                     param.symbol = plugin->ports[i].symbol;
                     param.value = plugin->ports[i].def;
@@ -271,22 +271,25 @@ bool HostConnector::loadBankFromFile(const char* const filename)
                 }
 
                 for (uint8_t p = numParams; p < MAX_PARAMS_PER_BLOCK; ++p)
-                    resetParam(block.parameters[p]);
+                    resetParam(blockdata.parameters[p]);
 
                 try {
-                    const std::string binding = jblock["binding"].get<std::string>();
+                    const std::string quickpot = jblock["quickpot"].get<std::string>();
 
                     for (uint8_t p = 0; p < numParams; ++p)
                     {
-                        if (block.parameters[p].symbol == binding)
+                        if (blockdata.parameters[p].symbol == quickpot)
                         {
-                            block.bindingSymbol = binding;
-                            block.meta.bindingIndex = p;
+                            blockdata.quickPotSymbol = quickpot;
+                            blockdata.meta.quickPotIndex = p;
                             break;
                         }
                     }
 
                 } catch (...) {}
+
+                if (blockdata.quickPotSymbol.empty() && numParams != 0)
+                    blockdata.quickPotSymbol = blockdata.parameters[0].symbol;
 
                 if (! jblock.contains("parameters"))
                     continue;
@@ -315,9 +318,9 @@ bool HostConnector::loadBankFromFile(const char* const filename)
                         continue;
                     }
 
-                    block.parameters[p].value = std::max(block.parameters[p].meta.min,
-                                                         std::min<float>(block.parameters[p].meta.max,
-                                                                         jparam["value"].get<double>()));
+                    blockdata.parameters[p].value = std::max(blockdata.parameters[p].meta.min,
+                                                             std::min<float>(blockdata.parameters[p].meta.max,
+                                                                             jparam["value"].get<double>()));
                 }
             }
         }
@@ -384,10 +387,10 @@ bool HostConnector::saveBankToFile(const char* const filename)
 
                 const std::string jblockid = std::to_string(bl + 1);
                 jblocks[jblockid] = {
-                    { "binding", block.bindingSymbol },
                     { "enabled", block.enabled },
-                    { "uri", isNullURI(block.uri) ? "-" : block.uri },
                     { "parameters", nlohmann::json::object({}) },
+                    { "quickpot", block.quickPotSymbol },
+                    { "uri", isNullURI(block.uri) ? "-" : block.uri },
                 };
 
                 auto& jparams = jblocks[jblockid]["parameters"];
@@ -662,11 +665,11 @@ bool HostConnector::replaceBlock(const uint8_t block, const char* const uri)
 
         if (added)
         {
-            blockdata.bindingSymbol.clear();
             blockdata.enabled = true;
             blockdata.uri = uri;
+            blockdata.quickPotSymbol.clear();
 
-            blockdata.meta.bindingIndex = -1;
+            blockdata.meta.quickPotIndex = 0;
             blockdata.meta.isMonoIn = numInputs == 1;
             blockdata.meta.isStereoOut = numOutputs == 2;
             blockdata.meta.name = plugin->name;
@@ -687,8 +690,8 @@ bool HostConnector::replaceBlock(const uint8_t block, const char* const uri)
                     // skip parameter
                     continue;
                 case kLv2DesignationQuickPot:
-                    blockdata.bindingSymbol = plugin->ports[i].symbol;
-                    blockdata.meta.bindingIndex = p;
+                    blockdata.quickPotSymbol = plugin->ports[i].symbol;
+                    blockdata.meta.quickPotIndex = p;
                     break;
                 }
 
@@ -706,6 +709,9 @@ bool HostConnector::replaceBlock(const uint8_t block, const char* const uri)
                     },
                 };
             }
+
+            if (blockdata.quickPotSymbol.empty() && p != 0)
+                blockdata.quickPotSymbol = blockdata.parameters[0].symbol;
 
             for (; p < MAX_PARAMS_PER_BLOCK; ++p)
                 resetParam(blockdata.parameters[p]);
@@ -776,28 +782,14 @@ bool HostConnector::replaceBlock(const uint8_t block, const char* const uri)
 
             printf("replaceBlock add mode before: %u, after: %u | block: %u\n", before, after, block);
 
-            // TODO take care to handle new stereo plugin before mono chain
-            // TODO take care to disconnect mono -> stereo?
+            if (after != NUM_BLOCKS_PER_PRESET)
+                hostDisconnectAllBlockInputs(after);
 
-            if (before != NUM_BLOCKS_PER_PRESET && after != NUM_BLOCKS_PER_PRESET)
-            {
-                hostDisconnectAllBlockInputs(after);
+            if (before != NUM_BLOCKS_PER_PRESET)
                 hostDisconnectAllBlockOutputs(before);
-                hostConnectBlockToBlock(before, block);
-                hostConnectBlockToBlock(block, after);
-            }
-            else if (before != NUM_BLOCKS_PER_PRESET)
-            {
-                hostDisconnectAllBlockOutputs(before);
-                hostConnectBlockToSystemOutput(block);
-                hostConnectBlockToBlock(before, block);
-            }
-            else if (after != NUM_BLOCKS_PER_PRESET)
-            {
-                hostDisconnectAllBlockInputs(after);
-                hostConnectBlockToSystemInput(block);
-                hostConnectBlockToBlock(block, after);
-            }
+
+            hostEnsureStereoChain(before, NUM_BLOCKS_PER_PRESET - 1);
+            hostConnectAll(before, NUM_BLOCKS_PER_PRESET - 1);
         }
     }
     else
@@ -814,7 +806,7 @@ bool HostConnector::replaceBlock(const uint8_t block, const char* const uri)
             for (uint8_t b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
                 loaded[b] = !isNullURI(_current.blocks[b].uri);
 
-            // find surrounding plugins
+            // find previous plugin
             uint8_t start = 0;
             if (block != 0)
             {
@@ -828,22 +820,8 @@ bool HostConnector::replaceBlock(const uint8_t block, const char* const uri)
                 }
             }
 
-            uint8_t end = NUM_BLOCKS_PER_PRESET - 1;
-            if (block != NUM_BLOCKS_PER_PRESET - 1)
-            {
-                for (uint8_t b = block + 1; b < NUM_BLOCKS_PER_PRESET; ++b)
-                {
-                    if (loaded[b])
-                    {
-                        end = b;
-                        break;
-                    }
-                }
-            }
-
-            // TODO take care to disconnect mono -> stereo
-            hostEnsureStereoChain(start, end);
-            hostConnectAll(start, end);
+            hostEnsureStereoChain(start, NUM_BLOCKS_PER_PRESET - 1);
+            hostConnectAll(start, NUM_BLOCKS_PER_PRESET - 1);
         }
     }
 
@@ -1042,6 +1020,21 @@ bool HostConnector::switchPreset(const uint8_t preset)
         }
     }
 
+    return true;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+bool HostConnector::addBlockBinding(const uint8_t hwid, const uint8_t block)
+{
+    assert(hwid < NUM_BINDING_ACTUATORS);
+    assert(block < NUM_BLOCKS_PER_PRESET);
+
+    HostConnector::Block& blockdata(_current.blocks[block]);
+    if (isNullURI(blockdata.uri))
+        return false;
+
+    _current.bindings[hwid].push_back({ block, ":bypass", { 0 } });
     return true;
 }
 
@@ -1580,11 +1573,7 @@ void HostConnector::hostEnsureStereoChain(const uint8_t blockStart, const uint8_
 
         if (oldDualmono != newDualmono)
         {
-            if (oldDualmono)
-            {
-                _host.remove(_mapper.remove_pair(_current.preset, b));
-            }
-            else
+            if (newDualmono)
             {
                 const uint16_t pair = _mapper.add_pair(_current.preset, b);
 
@@ -1600,7 +1589,14 @@ void HostConnector::hostEnsureStereoChain(const uint8_t blockStart, const uint8_
                             break;
                         _host.param_set(pair, parameterdata.symbol.c_str(), parameterdata.value);
                     }
+
+                    // disconnect ports, we might have mono to stereo connections
+                    hostDisconnectAllBlockOutputs(b);
                 }
+            }
+            else
+            {
+                _host.remove(_mapper.remove_pair(_current.preset, b));
             }
         }
 

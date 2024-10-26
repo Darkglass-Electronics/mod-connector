@@ -188,11 +188,11 @@ struct HostConnector : Host::FeedbackCallback {
 
     struct Block {
         bool enabled = false;
-        std::string bindingSymbol;
+        std::string quickPotSymbol;
         std::string uri;
         struct {
             // convenience meta-data, not stored in json state
-            int bindingIndex = -1;
+            uint8_t quickPotIndex;
             bool isChainPoint = false;
             bool isMonoIn = false;
             bool isStereoOut = false;
@@ -297,6 +297,9 @@ public:
     bool switchPreset(uint8_t preset);
 
     // WIP details below this point
+
+    // add a block binding (for enable/disable control)
+    bool addBlockBinding(uint8_t hwid, uint8_t block);
 
     // add a block parameter binding
     bool addBlockParameterBinding(uint8_t hwid, uint8_t block, uint8_t paramIndex);
