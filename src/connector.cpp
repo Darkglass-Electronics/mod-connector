@@ -461,23 +461,36 @@ bool HostConnector::loadBankFromFile(const char* const filename)
 
                     const std::string symbol = jbinding["symbol"].get<std::string>();
 
-                    for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                    if (symbol == ":bypass")
                     {
-                        const Parameter& paramdata = blockdata.parameters[p];
-
-                        if (isNullURI(paramdata.symbol))
-                            break;
-
-                        if (paramdata.symbol == symbol)
+                        preset.bindings[hwid].push_back({
+                            .block = static_cast<uint8_t>(block - 1),
+                            .parameterSymbol = ":bypass",
+                            .meta = {
+                                .parameterIndex = 0,
+                            },
+                        });
+                    }
+                    else
+                    {
+                        for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
                         {
-                            preset.bindings[hwid].push_back({
-                                .block = static_cast<uint8_t>(block - 1),
-                                .parameterSymbol = symbol,
-                                .meta = {
-                                    .parameterIndex = p,
-                                },
-                            });
-                            break;
+                            const Parameter& paramdata = blockdata.parameters[p];
+
+                            if (isNullURI(paramdata.symbol))
+                                break;
+
+                            if (paramdata.symbol == symbol)
+                            {
+                                preset.bindings[hwid].push_back({
+                                    .block = static_cast<uint8_t>(block - 1),
+                                    .parameterSymbol = symbol,
+                                    .meta = {
+                                        .parameterIndex = p,
+                                    },
+                                });
+                                break;
+                            }
                         }
                     }
                 }
