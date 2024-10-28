@@ -515,6 +515,24 @@ bool HostConnector::saveBankToFile(const char* const filename)
     // copy current data into preset data
     _presets[_current.preset] = static_cast<Preset&>(_current);
 
+    // store parameter values from default scene, if in use
+    for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
+    {
+        HostConnector::Block& blockdata = _presets[_current.preset].blocks[bl];
+        if (isNullURI(blockdata.uri))
+            continue;
+
+        for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+        {
+            Parameter& paramdata = blockdata.parameters[p];
+            if (isNullURI(paramdata.symbol))
+                break;
+
+            if (blockdata.sceneValues[0][p].used)
+                paramdata.value = blockdata.sceneValues[0][p].value;
+        }
+    }
+
     nlohmann::json j;
     try {
         j["version"] = JSON_BANK_VERSION_CURRENT;
@@ -583,15 +601,10 @@ bool HostConnector::saveBankToFile(const char* const filename)
                     if (isNullURI(paramdata.symbol))
                         break;
 
-                    // prefer to use value from default scene, as the current scene might not be the default
-                    const float value = blockdata.sceneValues[0][p].used
-                                      ? blockdata.sceneValues[0][p].value
-                                      : paramdata.value;
-
                     const std::string jparamid = std::to_string(p + 1);
                     jparams[jparamid] = {
                         { "symbol", paramdata.symbol },
-                        { "value", value },
+                        { "value", paramdata.value },
                     };
                 }
 
