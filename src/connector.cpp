@@ -13,6 +13,10 @@
 #define JSON_BANK_VERSION_MIN_SUPPORTED 0
 #define JSON_BANK_VERSION_MAX_SUPPORTED 0
 
+#ifdef BINDING_ACTUATOR_IDS
+static constexpr const char* kBindingActuatorIDs[NUM_BINDING_ACTUATORS] = { BINDING_ACTUATOR_IDS };
+#endif
+
 // --------------------------------------------------------------------------------------------------------------------
 
 static void resetParam(HostConnector::Parameter& paramdata)
@@ -37,6 +41,12 @@ static void resetBlock(HostConnector::Block& blockdata)
         for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
             blockdata.sceneValues[s][p].used = false;
     }
+}
+
+static void resetPresetBindings(HostConnector::Preset& preset)
+{
+    for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
+        preset.bindings[hwid].clear();
 }
 
 static void resetPreset(HostConnector::Preset& preset)
@@ -229,6 +239,8 @@ bool HostConnector::loadBankFromFile(const char* const filename)
                 blockdata.quickPotSymbol.clear();
 
                 blockdata.meta.quickPotIndex = 0;
+                blockdata.meta.hasScenes = false;
+                blockdata.meta.isChainPoint = false;
                 blockdata.meta.isMonoIn = numInputs == 1;
                 blockdata.meta.isStereoOut = numOutputs == 2;
                 blockdata.meta.name = plugin->name;
@@ -236,12 +248,12 @@ bool HostConnector::loadBankFromFile(const char* const filename)
                 if (jblock.contains("enabled"))
                     blockdata.enabled = jblock["enabled"].get<bool>();
 
-                if (bl == 0)
+                if (pr == 0)
                     ++numLoadedPlugins;
 
                 // parameters are always filled from lv2 metadata first, then overriden with json data
                 uint8_t numParams = 0;
-                std::map<std::string, int> symbolToIndexMap;
+                std::map<std::string, uint8_t> symbolToIndexMap;
                 for (size_t i = 0; i < plugin->ports.size() && numParams < MAX_PARAMS_PER_BLOCK; ++i)
                 {
                     if ((plugin->ports[i].flags & Lv2PortIsControl) == 0)
@@ -279,10 +291,11 @@ bool HostConnector::loadBankFromFile(const char* const filename)
                 }
 
                 for (uint8_t p = numParams; p < MAX_PARAMS_PER_BLOCK; ++p)
-                {
                     resetParam(blockdata.parameters[p]);
 
-                    for (uint8_t s = 0; s <= NUM_SCENES_PER_PRESET; ++s)
+                for (uint8_t s = 0; s <= NUM_SCENES_PER_PRESET; ++s)
+                {
+                    for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
                         blockdata.sceneValues[s][p].used = false;
                 }
 
@@ -331,9 +344,142 @@ bool HostConnector::loadBankFromFile(const char* const filename)
                         continue;
                     }
 
-                    blockdata.parameters[p].value = std::max(blockdata.parameters[p].meta.min,
-                                                             std::min<float>(blockdata.parameters[p].meta.max,
-                                                                             jparam["value"].get<double>()));
+                    const uint8_t parameterIndex = symbolToIndexMap[symbol];
+                    Parameter& paramdata = blockdata.parameters[parameterIndex];
+
+                    if (isNullURI(paramdata.symbol))
+                        continue;
+
+                    paramdata.value = std::max(paramdata.meta.min,
+                                               std::min<float>(paramdata.meta.max,
+                                                               jparam["value"].get<double>()));
+                }
+
+                if (! jblock.contains("scenes"))
+                    continue;
+
+                auto& jallscenes = jblock["scenes"];
+                for (uint8_t sid = 1; sid <= NUM_SCENES_PER_PRESET; ++sid)
+                {
+                    const std::string jsceneid = std::to_string(sid);
+
+                    if (! jallscenes.contains(jsceneid))
+                        continue;
+
+                    auto& jscenes = jallscenes[jsceneid];
+                    if (! jscenes.is_array())
+                    {
+                        printf("HostConnector::loadBankFromFile: preset #%u scenes are not arrays\n", pr + 1);
+                        continue;
+                    }
+
+                    for (auto& jscene : jscenes)
+                    {
+                        if (! (jscene.contains("symbol") && jscene.contains("value")))
+                        {
+                            printf("HostConnector::loadBankFromFile: scene param is missing symbol and/or value\n");
+                            continue;
+                        }
+
+                        const std::string symbol = jscene["symbol"].get<std::string>();
+
+                        if (symbolToIndexMap.find(symbol) == symbolToIndexMap.end())
+                        {
+                            printf("HostConnector::loadBankFromFile: scene param with '%s' symbol does not exist\n",
+                                   symbol.c_str());
+                            continue;
+                        }
+
+                        const uint8_t parameterIndex = symbolToIndexMap[symbol];
+                        const Parameter& paramdata = blockdata.parameters[parameterIndex];
+
+                        if (isNullURI(paramdata.symbol))
+                            continue;
+
+                        SceneParameterValue& sceneparamdata = blockdata.sceneValues[sid][parameterIndex];
+
+                        sceneparamdata.used = true;
+                        sceneparamdata.value = std::max(paramdata.meta.min,
+                                                        std::min<float>(paramdata.meta.max,
+                                                                        jscene["value"].get<double>()));
+
+                        // extra data for when scenes are in use
+                        blockdata.meta.hasScenes = true;
+                        blockdata.sceneValues[0][parameterIndex].used = true;
+                        blockdata.sceneValues[0][parameterIndex].value = paramdata.value;
+                    }
+                }
+            }
+
+            for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
+                preset.bindings[hwid].clear();
+
+            if (! jpreset.contains("bindings"))
+            {
+                printf("HostConnector::loadBankFromFile: preset #%u does not include any bindings\n", pr + 1);
+                continue;
+            }
+
+            auto& jallbindings = jpreset["bindings"];
+            for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
+            {
+               #ifdef BINDING_ACTUATOR_IDS
+                const std::string jbindingsid = kBindingActuatorIDs[hwid];
+               #else
+                const std::string jbindingsid = std::to_string(hwid + 1);
+               #endif
+
+                if (! jallbindings.contains(jbindingsid))
+                {
+                    printf("HostConnector::loadBankFromFile: preset #%u does not include bindings for hw '%s'\n",
+                           pr + 1, jbindingsid.c_str());
+                    continue;
+                }
+
+                auto& jbindings = jallbindings[jbindingsid];
+                if (! jbindings.is_array())
+                {
+                    printf("HostConnector::loadBankFromFile: preset #%u bindings are not arrays\n", pr + 1);
+                    continue;
+                }
+
+                for (auto& jbinding : jbindings)
+                {
+                    if (! (jbinding.contains("block") && jbinding.contains("symbol")))
+                    {
+                        printf("HostConnector::loadBankFromFile: binding is missing block and/or symbol\n");
+                        continue;
+                    }
+
+                    const int block = jbinding["block"].get<int>();
+                    if (block < 1 || block > NUM_BLOCKS_PER_PRESET)
+                    {
+                        printf("HostConnector::loadBankFromFile: binding has out of bounds block %d\n", block);
+                        continue;
+                    }
+                    const Block& blockdata = preset.blocks[block - 1];
+
+                    const std::string symbol = jbinding["symbol"].get<std::string>();
+
+                    for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                    {
+                        const Parameter& paramdata = blockdata.parameters[p];
+
+                        if (isNullURI(paramdata.symbol))
+                            break;
+
+                        if (paramdata.symbol == symbol)
+                        {
+                            preset.bindings[hwid].push_back({
+                                .block = static_cast<uint8_t>(block - 1),
+                                .parameterSymbol = symbol,
+                                .meta = {
+                                    .parameterIndex = p,
+                                },
+                            });
+                            break;
+                        }
+                    }
                 }
             }
         }
@@ -386,40 +532,91 @@ bool HostConnector::saveBankToFile(const char* const filename)
             const std::string jpresetid = std::to_string(pr + 1);
 
             auto& jpreset = jpresets[jpresetid] = nlohmann::json::object({
-                { "name", preset.name },
+                { "bindings", nlohmann::json::object({}) },
                 { "blocks", nlohmann::json::object({}) },
+                { "name", preset.name },
             });
+
+            auto& jallbindings = jpreset["bindings"];
+
+            for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
+            {
+               #ifdef BINDING_ACTUATOR_IDS
+                const std::string jbindingsid = kBindingActuatorIDs[hwid];
+               #else
+                const std::string jbindingsid = std::to_string(hwid + 1);
+               #endif
+                auto& jbindings = jallbindings[jbindingsid] = nlohmann::json::array();
+
+                for (const Binding& bindingdata : preset.bindings[hwid])
+                {
+                    jbindings.push_back({
+                        { "block", bindingdata.block + 1 },
+                        { "symbol", bindingdata.parameterSymbol },
+                    });
+                }
+            }
 
             auto& jblocks = jpreset["blocks"];
 
             for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
             {
-                const HostConnector::Block& block = preset.blocks[bl];
+                const HostConnector::Block& blockdata = preset.blocks[bl];
 
-                if (isNullURI(block.uri))
+                if (isNullURI(blockdata.uri))
                     continue;
 
                 const std::string jblockid = std::to_string(bl + 1);
-                jblocks[jblockid] = {
-                    { "enabled", block.enabled },
+                auto& jblock = jblocks[jblockid] = {
+                    { "enabled", blockdata.enabled },
                     { "parameters", nlohmann::json::object({}) },
-                    { "quickpot", block.quickPotSymbol },
-                    { "uri", isNullURI(block.uri) ? "-" : block.uri },
+                    { "quickpot", blockdata.quickPotSymbol },
+                    { "scenes", nlohmann::json::object({}) },
+                    { "uri", isNullURI(blockdata.uri) ? "-" : blockdata.uri },
                 };
 
-                auto& jparams = jblocks[jblockid]["parameters"];
+                auto& jparams = jblock["parameters"];
                 for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
                 {
-                    const Parameter& paramdata = block.parameters[p];
+                    const Parameter& paramdata = blockdata.parameters[p];
 
                     if (isNullURI(paramdata.symbol))
-                        continue;
+                        break;
+
+                    // prefer to use value from default scene, as the current scene might not be the default
+                    const float value = blockdata.sceneValues[0][p].used
+                                      ? blockdata.sceneValues[0][p].value
+                                      : paramdata.value;
 
                     const std::string jparamid = std::to_string(p + 1);
                     jparams[jparamid] = {
                         { "symbol", paramdata.symbol },
-                        { "value", paramdata.value },
+                        { "value", value },
                     };
+                }
+
+                if (blockdata.meta.hasScenes)
+                {
+                    auto& jallscenes = jblock["scenes"];
+
+                    for (uint8_t sid = 1; sid <= NUM_SCENES_PER_PRESET; ++sid)
+                    {
+                        const std::string jsceneid = std::to_string(sid);
+                        auto& jscenes = jallscenes[jsceneid] = nlohmann::json::array();
+
+                        for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                        {
+                            const SceneParameterValue& sceneparamdata = blockdata.sceneValues[sid][p];
+
+                            if (! sceneparamdata.used)
+                                continue;
+
+                            jscenes.push_back({
+                                { "symbol", blockdata.parameters[p].symbol },
+                                { "value", sceneparamdata.value },
+                            });
+                        }
+                    }
                 }
             }
         }
@@ -456,6 +653,7 @@ void HostConnector::clearCurrentPreset()
         resetBlock(_current.blocks[b]);
     }
 
+    _current.scene = 0;
     _current.numLoadedPlugins = 0;
     _current.dirty = true;
 
@@ -464,6 +662,14 @@ void HostConnector::clearCurrentPreset()
     _host.connect(JACK_CAPTURE_PORT_2, JACK_PLAYBACK_PORT_2);
 
     _host.feature_enable("processing", true);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::setCurrentPresetName(const char* name)
+{
+    _current.name = name;
+    _current.dirty = true;
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -553,6 +759,7 @@ bool HostConnector::reorderBlock(const uint8_t block, const uint8_t dest)
                 hostDisconnectAllBlockInputs(i - 1);
                 hostDisconnectAllBlockOutputs(i - 1);
             }
+
             std::swap(_current.blocks[i], _current.blocks[i - 1]);
             std::swap(mpreset.blocks[i], mpreset.blocks[i - 1]);
         }
@@ -586,6 +793,25 @@ bool HostConnector::reorderBlock(const uint8_t block, const uint8_t dest)
         {
             hostEnsureStereoChain(blockStart, blockEnd);
             hostConnectAll(block, dest);
+        }
+    }
+
+    // update bindings
+    for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
+    {
+        for (size_t bi = 0; bi < _current.bindings[hwid].size(); ++bi)
+        {
+            HostConnector::Binding& bindingdata = _current.bindings[hwid][bi];
+
+            if (bindingdata.block < blockStart || bindingdata.block > blockEnd)
+                continue;
+
+            if (bindingdata.block == block)
+                bindingdata.block = dest;
+            else if (block > dest)
+                ++bindingdata.block;
+            else
+                --bindingdata.block;
         }
     }
 
@@ -684,12 +910,14 @@ bool HostConnector::replaceBlock(const uint8_t block, const char* const uri)
             blockdata.quickPotSymbol.clear();
 
             blockdata.meta.quickPotIndex = 0;
+            blockdata.meta.hasScenes = false;
+            blockdata.meta.isChainPoint = false;
             blockdata.meta.isMonoIn = numInputs == 1;
             blockdata.meta.isStereoOut = numOutputs == 2;
             blockdata.meta.name = plugin->name;
 
-            int p = 0;
-            for (size_t i = 0; i < plugin->ports.size() && p < MAX_PARAMS_PER_BLOCK; ++i)
+            uint8_t numParams = 0;
+            for (size_t i = 0; i < plugin->ports.size() && numParams < MAX_PARAMS_PER_BLOCK; ++i)
             {
                 if ((plugin->ports[i].flags & Lv2PortIsControl) == 0)
                     continue;
@@ -705,11 +933,11 @@ bool HostConnector::replaceBlock(const uint8_t block, const char* const uri)
                     continue;
                 case kLv2DesignationQuickPot:
                     blockdata.quickPotSymbol = plugin->ports[i].symbol;
-                    blockdata.meta.quickPotIndex = p;
+                    blockdata.meta.quickPotIndex = numParams;
                     break;
                 }
 
-                blockdata.parameters[p++] = {
+                blockdata.parameters[numParams++] = {
                     .symbol = plugin->ports[i].symbol,
                     .value = plugin->ports[i].def,
                     .meta = {
@@ -724,14 +952,15 @@ bool HostConnector::replaceBlock(const uint8_t block, const char* const uri)
                 };
             }
 
-            if (blockdata.quickPotSymbol.empty() && p != 0)
+            if (blockdata.quickPotSymbol.empty() && numParams != 0)
                 blockdata.quickPotSymbol = blockdata.parameters[0].symbol;
 
-            for (; p < MAX_PARAMS_PER_BLOCK; ++p)
-            {
+            for (uint8_t p = numParams; p < MAX_PARAMS_PER_BLOCK; ++p)
                 resetParam(blockdata.parameters[p]);
 
-                for (uint8_t s = 0; s <= NUM_SCENES_PER_PRESET; ++s)
+            for (uint8_t s = 0; s <= NUM_SCENES_PER_PRESET; ++s)
+            {
+                for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
                     blockdata.sceneValues[s][p].used = false;
             }
         }
@@ -1171,8 +1400,11 @@ void HostConnector::setBlockParameter(const uint8_t block, const uint8_t paramIn
         blockdata.sceneValues[_current.scene][paramIndex].used = true;
 
         // if this is the first time for this scene parameter, set original value for default scene
-        blockdata.sceneValues[0][paramIndex].used = true;
-        blockdata.sceneValues[0][paramIndex].value = paramdata.value;
+        if (! blockdata.sceneValues[0][paramIndex].used)
+        {
+            blockdata.sceneValues[0][paramIndex].used = true;
+            blockdata.sceneValues[0][paramIndex].value = paramdata.value;
+        }
     }
 
     paramdata.value = value;

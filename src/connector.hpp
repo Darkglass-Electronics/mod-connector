@@ -291,6 +291,9 @@ public:
     // sets dirty flag if any blocks were removed
     void clearCurrentPreset();
 
+    // set the name of the current preset
+    void setCurrentPresetName(const char* name);
+
     // enable or disable/bypass a block
     // returning false means the block was unchanged
     bool enableBlock(uint8_t block, bool enable);
