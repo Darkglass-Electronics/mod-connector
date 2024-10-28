@@ -643,7 +643,7 @@ void HostConnector::clearCurrentPreset()
 
     const Host::NonBlockingScope hnbs(_host);
 
-    _host.feature_enable("processing", false);
+    _host.feature_enable(Host::kFeatureProcessing, Host::kProcessingOffWithFadeOut);
 
     for (uint8_t b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
     {
@@ -661,12 +661,12 @@ void HostConnector::clearCurrentPreset()
     _host.connect(JACK_CAPTURE_PORT_1, JACK_PLAYBACK_PORT_1);
     _host.connect(JACK_CAPTURE_PORT_2, JACK_PLAYBACK_PORT_2);
 
-    _host.feature_enable("processing", true);
+    _host.feature_enable(Host::kFeatureProcessing, Host::kProcessingOnWithFadeIn);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::setCurrentPresetName(const char* name)
+void HostConnector::setCurrentPresetName(const char* const name)
 {
     _current.name = name;
     _current.dirty = true;
@@ -1100,8 +1100,7 @@ bool HostConnector::switchPreset(const uint8_t preset)
         const Host::NonBlockingScope hnbs(_host);
 
         // step 1: fade out
-        // TODO
-        _host.feature_enable("processing", false);
+        _host.feature_enable(Host::kFeatureProcessing, Host::kProcessingOffWithFadeOut);
 
         // step 2: disconnect and deactivate all plugins in old preset
         // NOTE not removing plugins, done after processing is reenabled
@@ -1166,8 +1165,7 @@ bool HostConnector::switchPreset(const uint8_t preset)
         }
 
         // step 3: fade in
-        // TODO
-        _host.feature_enable("processing", true);
+        _host.feature_enable(Host::kFeatureProcessing, Host::kProcessingOnWithFadeIn);
     }
 
     // audio is now processing new preset
@@ -1655,7 +1653,16 @@ void HostConnector::hostDisconnectAllBlockOutputs(const uint8_t block)
 
 void HostConnector::hostClearAndLoadCurrentBank()
 {
-    _host.feature_enable("processing", false);
+    if (_firstboot)
+    {
+        _firstboot = false;
+        _host.feature_enable(Host::kFeatureProcessing, Host::kProcessingOffWithoutFadeOut);
+    }
+    else
+    {
+        _host.feature_enable(Host::kFeatureProcessing, Host::kProcessingOffWithFadeOut);
+    }
+
     _host.remove(-1);
     _mapper.reset();
     _current.numLoadedPlugins = 0;
@@ -1746,7 +1753,7 @@ void HostConnector::hostClearAndLoadCurrentBank()
         hostConnectBlockToSystemOutput(last);
     }
 
-    _host.feature_enable("processing", true);
+    _host.feature_enable(Host::kFeatureProcessing, Host::kProcessingOnWithFadeIn);
 }
 
 // --------------------------------------------------------------------------------------------------------------------

@@ -15,6 +15,26 @@ struct cc_scalepoint {
  * TODO document me
  */
 struct Host {
+    enum Feature {
+        kFeatureAggregatedMidi,
+        kFeatureFreeWheeling,
+        kFeatureProcessing,
+    };
+
+    enum ProcessingType {
+        // regular on/off
+        kProcessingOff = 0,
+        kProcessingOn = 1,
+        // turn on while reporting feedback data ready
+        kProcessingOnWithDataReady = 2,
+        // use fade-out while turning off
+        kProcessingOffWithFadeOut = -1,
+        // don't use fade-out while turning off, mute right away
+        kProcessingOffWithoutFadeOut = -2,
+        // use fade-in while turning on
+        kProcessingOnWithFadeIn = 3,
+    };
+
     struct FeedbackCallback {
         struct Data {
             enum {
@@ -328,11 +348,9 @@ struct Host {
 
    /**
      * enable or disable a feature
-     * TODO feature as enum
-     * feature can be one of "aggregated-midi", "freewheeling" or "processing"
-     * the "aggregated-midi" feature requires the use of jack2 and mod-midi-merger to be installed system-wide
+     * NOTE kFeatureAggregatedMidi requires the use of jack2 and mod-midi-merger to be installed system-wide
      */
-    bool feature_enable(const char* feature, bool enable);
+    bool feature_enable(Feature feature, int value);
 
     /**
      * set the global beats per minute transport value

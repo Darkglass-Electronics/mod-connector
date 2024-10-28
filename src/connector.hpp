@@ -251,6 +251,9 @@ protected:
     // current feedback callback
     FeedbackCallback* _callback = nullptr;
 
+    // first time booting up
+    bool _firstboot = true;
+
 public:
     // lv2 world for getting information about plugins
     const Lv2World lv2world;

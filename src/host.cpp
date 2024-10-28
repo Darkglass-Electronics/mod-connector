@@ -979,8 +979,9 @@ struct Host::Impl
 
     // ----------------------------------------------------------------------------------------------------------------
 
-private:
     std::string& last_error;
+
+private:
     bool dummyDevMode = false;
     bool nonBlockingMode = false;
     uint16_t numNonBlockingOps = 0;
@@ -1459,7 +1460,7 @@ bool Host::bundle_add(const char* const bundle_path)
 
 bool Host::bundle_remove(const char* const bundle_path, const char* const resource)
 {
-    if (resource != nullptr)
+    if (resource != nullptr && resource[0] != '\0')
     {
         VALIDATE_URI(resource);
         return impl->writeMessageAndWait(format("bundle_remove %s %s", escape(bundle_path).c_str(), resource));
@@ -1483,9 +1484,34 @@ bool Host::state_tmpdir(const char* const dir)
     return impl->writeMessageAndWait(format("state_tmpdir %s", escape(dir).c_str()));
 }
 
-bool Host::feature_enable(const char* const feature, const bool enable)
+bool Host::feature_enable(const Feature feature, const int value)
 {
-    return impl->writeMessageAndWait(format("feature_enable %s %d", feature, enable ? 1 : 0));
+    switch (feature)
+    {
+    case kFeatureAggregatedMidi:
+        return impl->writeMessageAndWait(format("feature_enable aggregated-midi %d", value != 0 ? 1 : 0));
+
+    case kFeatureFreeWheeling:
+        return impl->writeMessageAndWait(format("feature_enable freewheeling %d", value != 0 ? 1 : 0));
+
+    case kFeatureProcessing:
+        switch (static_cast<ProcessingType>(value))
+        {
+        case kProcessingOff:
+        case kProcessingOn:
+        case kProcessingOnWithDataReady:
+        case kProcessingOffWithFadeOut:
+        case kProcessingOffWithoutFadeOut:
+        case kProcessingOnWithFadeIn:
+            return impl->writeMessageAndWait(format("feature_enable processing %d", value));
+        }
+
+        impl->last_error = "Invalid value argument";
+        return false;
+    }
+
+    impl->last_error = "Invalid feature argument";
+    return false;
 }
 
 bool Host::set_bpm(const double beats_per_minute)
