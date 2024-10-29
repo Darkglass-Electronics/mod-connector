@@ -2050,11 +2050,11 @@ void HostConnector::hostFeedbackCallback(const HostFeedbackData& data)
         break;
 
     case HostFeedbackData::kFeedbackPatchSet:
-        if ((block = _mapper.get_block_with_id(_current.preset, data.patchSet.effect_id)) == NUM_BLOCKS_PER_PRESET)
-            return;
+        // if ((block = _mapper.get_block_with_id(_current.preset, data.patchSet.effect_id)) == NUM_BLOCKS_PER_PRESET)
+        //    return;
 
         cdata.type = HostCallbackData::kPatchSet;
-        cdata.patchSet.block = block;
+        cdata.patchSet.block = 0; // TESTING
         cdata.patchSet.key = data.patchSet.key;
         cdata.patchSet.type = data.patchSet.type;
         std::memcpy(&cdata.patchSet.data, &data.patchSet.data, sizeof(data.patchSet.data));
