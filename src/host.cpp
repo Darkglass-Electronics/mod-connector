@@ -636,7 +636,27 @@ struct Host::Impl
             }
         }
 
-        if (std::strncmp(buffer, "param_set ", 10) == 0)
+        if (std::strncmp(buffer, "audio_monitor ", 14) == 0)
+        {
+            assert(read > 16);
+            HostFeedbackData d = { HostFeedbackData::kFeedbackAudioMonitor, {} };
+
+            char* msgbuffer;
+            char* sep = buffer + 14;
+
+            // 1st arg: int index
+            msgbuffer = sep;
+            sep = std::strchr(sep, ' ');
+            *sep++ = '\0';
+            d.audioMonitor.index = std::atoi(msgbuffer);
+
+            // 2nd arg: value
+            msgbuffer = sep;
+            d.audioMonitor.value = std::atof(msgbuffer);
+
+            callback->hostFeedbackCallback(d);
+        }
+        else if (std::strncmp(buffer, "param_set ", 10) == 0)
         {
             assert(read > 12);
             HostFeedbackData d = { HostFeedbackData::kFeedbackParameterSet, {} };
@@ -1310,6 +1330,13 @@ bool Host::midi_unmap(const int16_t instance_number, const char* const param_sym
     VALIDATE_SYMBOL(param_symbol)
 
     return impl->writeMessageAndWait(format("midi_unmap %d %s", instance_number, param_symbol));
+}
+
+bool Host::monitor_audio_levels(const char* const source_port_name, bool enable)
+{
+    VALIDATE_JACK_PORT(source_port_name)
+
+    return impl->writeMessageAndWait(format("monitor_audio_levels %s %d", source_port_name, enable ? 1 : 0));
 }
 
 bool Host::monitor_midi_program(const uint8_t midi_channel, const bool enable)

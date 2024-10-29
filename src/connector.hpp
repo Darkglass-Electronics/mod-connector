@@ -48,6 +48,14 @@
 #define JACK_PLAYBACK_PORT_2 "mod-monitor:in_2"
 #endif
 
+#ifndef JACK_PLAYBACK_MONITOR_PORT_1
+#define JACK_PLAYBACK_MONITOR_PORT_1 "mod-monitor:out_1"
+#endif
+
+#ifndef JACK_PLAYBACK_MONITOR_PORT_2
+#define JACK_PLAYBACK_MONITOR_PORT_2 "mod-monitor:out_2"
+#endif
+
 // --------------------------------------------------------------------------------------------------------------------
 // check valid configuration
 
@@ -164,6 +172,19 @@ struct HostInstanceMapper {
         return map.presets[preset].blocks[block];
     }
 
+    uint8_t get_block_with_id(const uint8_t preset, const uint16_t id) const
+    {
+        for (uint8_t b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
+        {
+            if (map.presets[preset].blocks[b].id == id)
+                return b;
+            if (map.presets[preset].blocks[b].pair == id)
+                return NUM_BLOCKS_PER_PRESET;
+        }
+
+        return NUM_BLOCKS_PER_PRESET;
+    }
+
     void reset()
     {
         for (uint8_t p = 0; p < NUM_PRESETS_PER_BANK; ++p)
@@ -177,6 +198,62 @@ struct HostInstanceMapper {
 // --------------------------------------------------------------------------------------------------------------------
 
 struct HostConnector : Host::FeedbackCallback {
+    struct Callback {
+        struct Data {
+            enum {
+                kAudioMonitor,
+                kLog,
+                kParameterSet,
+                kPatchSet,
+            } type;
+            union {
+                struct {
+                    int index;
+                    float value;
+                } audioMonitor;
+                struct {
+                    char type;
+                    const char* msg;
+                } log;
+                struct {
+                    uint8_t block;
+                    uint8_t index;
+                    const char* symbol;
+                    float value;
+                } parameterSet;
+                struct {
+                    uint8_t block;
+                    const char* key;
+                    char type;
+                    union {
+                        int32_t b;
+                        int32_t i;
+                        int64_t l;
+                        float f;
+                        double g;
+                        const char* s;
+                        const char* p;
+                        const char* u;
+                        struct {
+                            uint32_t num;
+                            char type;
+                            union {
+                                const int32_t* b;
+                                const int32_t* i;
+                                const int64_t* l;
+                                const float* f;
+                                const double* g;
+                            } data;
+                        } v;
+                    } data;
+                } patchSet;
+            };
+        };
+
+        virtual ~Callback() {};
+        virtual void hostConnectorCallback(const Data& data) = 0;
+    };
+
     struct Parameter {
         std::string symbol;
         float value;
@@ -248,8 +325,8 @@ protected:
     // default state for each preset
     Preset _presets[NUM_PRESETS_PER_BANK];
 
-    // current feedback callback
-    FeedbackCallback* _callback = nullptr;
+    // current connector callback
+    Callback* _callback = nullptr;
 
     // first time booting up
     bool _firstboot = true;
@@ -331,7 +408,7 @@ public:
 
     // poll for host updates (e.g. MIDI-mapped parameter changes, tempo changes)
     // NOTE make sure to call `requestHostUpdates()` after handling all updates
-    void pollHostUpdates(Host::FeedbackCallback* callback);
+    void pollHostUpdates(Callback* callback);
 
     // request more host updates
     void requestHostUpdates();
@@ -370,6 +447,10 @@ private:
 
     // internal feedback handling, for updating parameter values
     void hostFeedbackCallback(const HostFeedbackData& data) override;
+
+    void hostReady();
 };
+
+typedef HostConnector::Callback::Data HostCallbackData;
 
 // --------------------------------------------------------------------------------------------------------------------

@@ -39,6 +39,7 @@ struct Host {
         struct Data {
             enum {
                 kFeedbackNullType = 0,
+                kFeedbackAudioMonitor,
                 kFeedbackParameterSet,
                 kFeedbackPatchSet,
                 kFeedbackOutputMonitor,
@@ -54,6 +55,10 @@ struct Host {
                     const char* symbol;
                     float value;
                 } paramSet, outputMonitor;
+                struct {
+                    int index;
+                    float value;
+                } audioMonitor;
                 struct {
                     int effect_id;
                     const char* key;
@@ -233,6 +238,11 @@ struct Host {
      * unmap the MIDI controller from a control port
      */
     bool midi_unmap(int16_t instance_number, const char* param_symbol);
+
+    /**
+     * monitor audio levels for a specific jack port (on the feedback port)
+     */
+    bool monitor_audio_levels(const char *source_port_name, bool enable);
 
     /**
      * listen to MIDI program change messages (on the feedback port)

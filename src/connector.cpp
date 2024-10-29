@@ -43,12 +43,6 @@ static void resetBlock(HostConnector::Block& blockdata)
     }
 }
 
-static void resetPresetBindings(HostConnector::Preset& preset)
-{
-    for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
-        preset.bindings[hwid].clear();
-}
-
 static void resetPreset(HostConnector::Preset& preset)
 {
     preset = {};
@@ -68,13 +62,22 @@ HostConnector::HostConnector()
     resetPreset(_current);
 
     ok = _host.last_error.empty();
+
+    if (ok)
+        hostReady();
 }
 
 // --------------------------------------------------------------------------------------------------------------------
 
 bool HostConnector::reconnect()
 {
-    return _host.reconnect();
+    if (_host.reconnect())
+    {
+        hostReady();
+        return true;
+    }
+
+    return false;
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -678,6 +681,9 @@ void HostConnector::clearCurrentPreset()
 
         resetBlock(_current.blocks[b]);
     }
+
+    for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
+        _current.bindings[hwid].clear();
 
     _current.scene = 0;
     _current.numLoadedPlugins = 0;
@@ -1383,7 +1389,7 @@ float HostConnector::dspLoad()
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::pollHostUpdates(Host::FeedbackCallback* const callback)
+void HostConnector::pollHostUpdates(Callback* const callback)
 {
     _callback = callback;
     _host.poll_feedback(this);
@@ -1983,41 +1989,94 @@ void HostConnector::hostRemoveInstanceForBlock(const uint8_t block)
 
 void HostConnector::hostFeedbackCallback(const HostFeedbackData& data)
 {
-#if 0
-    // TODO
-    if (data.type == HostFeedbackData::kFeedbackParameterSet)
+    if (_callback == nullptr)
+        return;
+
+    uint8_t block;
+    HostCallbackData cdata = {};
+
+    switch (data.type)
     {
-        const int preset = data.paramSet.effect_id / 100;
-        const int block = data.paramSet.effect_id % 100;
+    case HostFeedbackData::kFeedbackAudioMonitor:
+        cdata.type = HostCallbackData::kAudioMonitor;
+        cdata.audioMonitor.index = data.audioMonitor.index;
+        cdata.audioMonitor.value = data.audioMonitor.value;
+        break;
 
-        if (preset >= 0 && preset < NUM_PRESETS_PER_BANK && block >= 0 && block < NUM_BLOCKS_PER_PRESET)
+    case HostFeedbackData::kFeedbackLog:
+        cdata.type = HostCallbackData::kLog;
+        cdata.log.type = data.log.type;
+        cdata.log.msg = data.log.msg;
+        break;
+
+    case HostFeedbackData::kFeedbackParameterSet:
+        if ((block = _mapper.get_block_with_id(_current.preset, data.paramSet.effect_id)) == NUM_BLOCKS_PER_PRESET)
+            return;
+
+        if (data.paramSet.symbol[0] == ':')
         {
-            if (data.paramSet.symbol[0] == ':')
-            {
-                // special mod-host values here
-            }
-            else
-            {
-                Block& blockdata = _current.blocks[block];
+            // _current.dirty = true;
+            // blockdata.enabled = data.paramSet.value < 0.5f;
 
-                for (int p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
-                {
-                    if (isNullURI(blockdata.parameters[p].symbol))
-                        break;
-
-                    if (blockdata.parameters[p].symbol == data.paramSet.symbol)
-                    {
-                        _current.dirty = true;
-                        blockdata.parameters[p].value = data.paramSet.value;
-                        break;
-                    }
-                }
-            }
+            // TODO special mod-host values here
+            return;
         }
-    }
-#endif
+        else
+        {
+            Block& blockdata = _current.blocks[block];
 
-    _callback->hostFeedbackCallback(data);
+            uint8_t p = 0;
+            for (; p < MAX_PARAMS_PER_BLOCK; ++p)
+            {
+                if (isNullURI(blockdata.parameters[p].symbol))
+                    return;
+                if (blockdata.parameters[p].symbol == data.paramSet.symbol)
+                    break;
+            }
+
+            if (p == MAX_PARAMS_PER_BLOCK)
+                return;
+
+            _current.dirty = true;
+            blockdata.parameters[p].value = data.paramSet.value;
+
+            cdata.type = HostCallbackData::kPatchSet;
+            cdata.parameterSet.block = block;
+            cdata.parameterSet.index = p;
+            cdata.parameterSet.symbol = data.paramSet.symbol;
+            cdata.parameterSet.value = data.paramSet.value;
+        }
+
+        break;
+
+    case HostFeedbackData::kFeedbackPatchSet:
+        if ((block = _mapper.get_block_with_id(_current.preset, data.patchSet.effect_id)) == NUM_BLOCKS_PER_PRESET)
+            return;
+
+        cdata.type = HostCallbackData::kPatchSet;
+        cdata.patchSet.block = block;
+        cdata.patchSet.key = data.patchSet.key;
+        cdata.patchSet.type = data.patchSet.type;
+        std::memcpy(&cdata.patchSet.data, &data.patchSet.data, sizeof(data.patchSet.data));
+        break;
+
+    default:
+        return;
+    }
+
+    _callback->hostConnectorCallback(cdata);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::hostReady()
+{
+    const Host::NonBlockingScope hnbs(_host);
+
+    _host.monitor_audio_levels(JACK_CAPTURE_PORT_1, true);
+    _host.monitor_audio_levels(JACK_CAPTURE_PORT_2, true);
+    _host.monitor_audio_levels(JACK_PLAYBACK_MONITOR_PORT_1, true);
+    _host.monitor_audio_levels(JACK_PLAYBACK_MONITOR_PORT_2, true);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
