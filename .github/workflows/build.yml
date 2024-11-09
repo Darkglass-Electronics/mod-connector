@@ -64,8 +64,8 @@ jobs:
         target:
           - macos-13
           - macos-14
+          - macos-15
         pkgs:
-          # - qt@5
           - qt@6
     runs-on: ${{ matrix.target }}
     steps:
