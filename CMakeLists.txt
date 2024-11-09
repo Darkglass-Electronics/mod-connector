@@ -30,7 +30,7 @@ endif()
 # Setup connector target
 
 # check if we are building from this project, or are imported by another
-if(PROJECT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
+if(CMAKE_CURRENT_LIST_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
 
   # building as regular application, uses Qt for event loop and notifies startup via systemd
   pkg_check_modules(systemd IMPORTED_TARGET libsystemd)
@@ -100,7 +100,7 @@ else()
 
   target_include_directories(mod-connector
     INTERFACE
-      src
+      ${CMAKE_CURRENT_LIST_DIR}/src
   )
 
   target_link_libraries(mod-connector
@@ -111,10 +111,10 @@ else()
 
   target_sources(mod-connector
     INTERFACE
-      src/connector.cpp
-      src/host.cpp
-      src/lv2.cpp
-      src/utils.cpp
+      ${CMAKE_CURRENT_LIST_DIR}/src/connector.cpp
+      ${CMAKE_CURRENT_LIST_DIR}/src/host.cpp
+      ${CMAKE_CURRENT_LIST_DIR}/src/lv2.cpp
+      ${CMAKE_CURRENT_LIST_DIR}/src/utils.cpp
   )
 
 endif()

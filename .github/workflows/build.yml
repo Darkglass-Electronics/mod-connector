@@ -6,6 +6,29 @@ env:
   DEBIAN_FRONTEND: noninteractive
 
 jobs:
+  linux-lib:
+    strategy:
+      matrix:
+        image:
+          - debian:12
+          - ubuntu:22.04
+          - ubuntu:24.04
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ matrix.image }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: install dependencies
+        shell: bash
+        run: |
+          apt-get update -qq
+          apt-get install -yqq cmake g++ liblilv-dev lv2-dev pkg-config
+      - name: build
+        shell: bash
+        run: |
+          cmake -S tests/buildlib -B build
+          cmake --build build -j
+
   linux-qt5:
     strategy:
       matrix:
@@ -58,7 +81,27 @@ jobs:
           cmake -S . -B build
           cmake --build build -j
 
-  macos:
+  macos-lib:
+    strategy:
+      matrix:
+        target:
+          - macos-13
+          - macos-14
+          - macos-15
+    runs-on: ${{ matrix.target }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: install dependencies
+        shell: bash
+        run: |
+          brew install lilv
+      - name: build
+        shell: bash
+        run: |
+          cmake -S tests/buildlib -B build
+          cmake --build build -j
+
+  macos-qt:
     strategy:
       matrix:
         target:
