@@ -8,8 +8,8 @@
 // --------------------------------------------------------------------------------------------------------------------
 // check if an URI is null
 
-static inline
-bool isNullURI(const char* const uri)
+static inline constexpr
+bool isNullURI(const char* const uri) noexcept
 {
     return uri == nullptr || uri[0] == '\0' || (uri[0] == '-' && uri[1] == '\0');
 }

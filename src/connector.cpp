@@ -27,29 +27,51 @@ static void resetParam(HostConnector::Parameter& paramdata)
 
 static void resetBlock(HostConnector::Block& blockdata)
 {
-    blockdata = {};
-    blockdata.meta.quickPotIndex = -1;
-    blockdata.parameters.resize(MAX_PARAMS_PER_BLOCK);
+    blockdata.enabled = false;
+    blockdata.quickPotSymbol.clear();
+    blockdata.uri.clear();
+    blockdata.meta.quickPotIndex = 0;
+    blockdata.meta.hasScenes = false;
+    blockdata.meta.isChainPoint = false;
+    blockdata.meta.isMonoIn = false;
+    blockdata.meta.isStereoOut = false;
+    blockdata.meta.name.clear();
 
     for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
         resetParam(blockdata.parameters[p]);
 
     for (uint8_t s = 0; s <= NUM_SCENES_PER_PRESET; ++s)
-    {
-        blockdata.sceneValues[s].resize(MAX_PARAMS_PER_BLOCK);
-
         for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
             blockdata.sceneValues[s][p].used = false;
-    }
 }
 
 static void resetPreset(HostConnector::Preset& preset)
 {
-    preset = {};
-    preset.blocks.resize(NUM_BLOCKS_PER_PRESET);
+    preset.name.clear();
 
     for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
         resetBlock(preset.blocks[bl]);
+
+    for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
+        preset.bindings[hwid].clear();
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+static void allocBlock(HostConnector::Block& blockdata)
+{
+    blockdata.parameters.resize(MAX_PARAMS_PER_BLOCK);
+
+    for (uint8_t s = 0; s <= NUM_SCENES_PER_PRESET; ++s)
+        blockdata.sceneValues[s].resize(MAX_PARAMS_PER_BLOCK);
+}
+
+static void allocPreset(HostConnector::Preset& preset)
+{
+    preset.blocks.resize(NUM_BLOCKS_PER_PRESET);
+
+    for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
+        allocBlock(preset.blocks[bl]);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -57,8 +79,12 @@ static void resetPreset(HostConnector::Preset& preset)
 HostConnector::HostConnector()
 {
     for (uint8_t p = 0; p < NUM_PRESETS_PER_BANK; ++p)
+    {
+        allocPreset(_presets[p]);
         resetPreset(_presets[p]);
+    }
 
+    allocPreset(_current);
     resetPreset(_current);
 
     ok = _host.last_error.empty();
