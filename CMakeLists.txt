@@ -30,7 +30,7 @@ endif()
 # Setup connector target
 
 # check if we are building from this project, or are imported by another
-if(CMAKE_CURRENT_LIST_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+if(PROJECT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
 
   # building as regular application, uses Qt for event loop and notifies startup via systemd
   pkg_check_modules(systemd IMPORTED_TARGET libsystemd)

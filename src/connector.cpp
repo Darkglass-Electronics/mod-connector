@@ -295,7 +295,7 @@ bool HostConnector::loadBankFromFile(const char* const filename)
                 {
                     if ((plugin->ports[i].flags & Lv2PortIsControl) == 0)
                         continue;
-                    if (plugin->ports[i].flags & (Lv2PortIsOutput|Lv2ParameterHidden))
+                    if (plugin->ports[i].flags & Lv2ParameterHidden)
                         continue;
 
                     switch (plugin->ports[i].designation)
@@ -386,6 +386,8 @@ bool HostConnector::loadBankFromFile(const char* const filename)
 
                     if (isNullURI(paramdata.symbol))
                         continue;
+                    if (paramdata.meta.flags & Lv2PortIsOutput)
+                        continue;
 
                     paramdata.value = std::max(paramdata.meta.min,
                                                std::min<float>(paramdata.meta.max,
@@ -431,6 +433,8 @@ bool HostConnector::loadBankFromFile(const char* const filename)
                         const Parameter& paramdata = blockdata.parameters[parameterIndex];
 
                         if (isNullURI(paramdata.symbol))
+                            continue;
+                        if (paramdata.meta.flags & Lv2PortIsOutput)
                             continue;
 
                         SceneParameterValue& sceneparamdata = blockdata.sceneValues[sid][parameterIndex];
@@ -516,6 +520,8 @@ bool HostConnector::loadBankFromFile(const char* const filename)
 
                             if (isNullURI(paramdata.symbol))
                                 break;
+                            if (paramdata.meta.flags & Lv2PortIsOutput)
+                                continue;
 
                             if (paramdata.symbol == symbol)
                             {
@@ -577,6 +583,8 @@ bool HostConnector::saveBankToFile(const char* const filename)
             Parameter& paramdata = blockdata.parameters[p];
             if (isNullURI(paramdata.symbol))
                 break;
+            if (paramdata.meta.flags & Lv2PortIsOutput)
+                continue;
 
             if (blockdata.sceneValues[0][p].used)
                 paramdata.value = blockdata.sceneValues[0][p].value;
@@ -650,6 +658,8 @@ bool HostConnector::saveBankToFile(const char* const filename)
 
                     if (isNullURI(paramdata.symbol))
                         break;
+                    if (paramdata.meta.flags & Lv2PortIsOutput)
+                        continue;
 
                     const std::string jparamid = std::to_string(p + 1);
                     jparams[jparamid] = {
@@ -967,7 +977,7 @@ bool HostConnector::replaceBlock(const uint8_t block, const char* const uri)
             {
                 if ((plugin->ports[i].flags & Lv2PortIsControl) == 0)
                     continue;
-                if (plugin->ports[i].flags & (Lv2PortIsOutput|Lv2ParameterHidden))
+                if (plugin->ports[i].flags & Lv2ParameterHidden)
                     continue;
 
                 switch (plugin->ports[i].designation)
@@ -1346,6 +1356,8 @@ bool HostConnector::switchScene(const uint8_t scene)
             HostConnector::Parameter& paramdata(blockdata.parameters[p]);
             if (isNullURI(paramdata.symbol))
                 break;
+            if (paramdata.meta.flags & Lv2PortIsOutput)
+                continue;
             if (! blockdata.sceneValues[_current.scene][p].used)
                 continue;
 
@@ -1368,7 +1380,7 @@ bool HostConnector::addBlockBinding(const uint8_t hwid, const uint8_t block)
     assert(hwid < NUM_BINDING_ACTUATORS);
     assert(block < NUM_BLOCKS_PER_PRESET);
 
-    HostConnector::Block& blockdata(_current.blocks[block]);
+    const HostConnector::Block& blockdata(_current.blocks[block]);
     if (isNullURI(blockdata.uri))
         return false;
 
@@ -1385,12 +1397,14 @@ bool HostConnector::addBlockParameterBinding(const uint8_t hwid, const uint8_t b
     assert(block < NUM_BLOCKS_PER_PRESET);
     assert(paramIndex < MAX_PARAMS_PER_BLOCK);
 
-    HostConnector::Block& blockdata(_current.blocks[block]);
+    const HostConnector::Block& blockdata(_current.blocks[block]);
     if (isNullURI(blockdata.uri))
         return false;
 
-    HostConnector::Parameter& paramdata(blockdata.parameters[paramIndex]);
+    const HostConnector::Parameter& paramdata(blockdata.parameters[paramIndex]);
     if (isNullURI(paramdata.symbol))
+        return false;
+    if (paramdata.meta.flags & Lv2PortIsOutput)
         return false;
 
     _current.bindings[hwid].push_back({ block, paramdata.symbol, { paramIndex } });
@@ -1437,6 +1451,8 @@ bool HostConnector::removeBlockParameterBinding(const uint8_t hwid, const uint8_
 
     const HostConnector::Parameter& paramdata(blockdata.parameters[paramIndex]);
     if (isNullURI(paramdata.symbol))
+        return false;
+    if (paramdata.meta.flags & Lv2PortIsOutput)
         return false;
 
     std::list<HostConnector::Binding>& bindings(_current.bindings[hwid]);
@@ -1535,6 +1551,8 @@ void HostConnector::setBlockParameter(const uint8_t block, const uint8_t paramIn
     HostConnector::Parameter& paramdata(blockdata.parameters[paramIndex]);
     if (isNullURI(paramdata.symbol))
         return;
+    if (paramdata.meta.flags & Lv2PortIsOutput)
+        return;
 
     _current.dirty = true;
 
@@ -1558,6 +1576,29 @@ void HostConnector::setBlockParameter(const uint8_t block, const uint8_t paramIn
 
     if (bp.pair != kMaxHostInstances)
         _host.param_set(bp.pair, paramdata.symbol.c_str(), value);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::monitorBlockOutputParameter(const uint8_t block, const uint8_t paramIndex)
+{
+    assert(block < NUM_BLOCKS_PER_PRESET);
+    assert(paramIndex < MAX_PARAMS_PER_BLOCK);
+
+    const HostConnector::Block& blockdata(_current.blocks[block]);
+    if (isNullURI(blockdata.uri))
+        return;
+
+    const HostInstanceMapper::BlockPair bp = _mapper.get(_current.preset, block);
+    if (bp.id == kMaxHostInstances)
+        return;
+
+    const HostConnector::Parameter& paramdata(blockdata.parameters[paramIndex]);
+    if (isNullURI(paramdata.symbol))
+        return;
+
+    if (paramdata.meta.flags & Lv2PortIsOutput)
+        _host.monitor_output(bp.id, paramdata.symbol.c_str());
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -2124,6 +2165,7 @@ void HostConnector::hostFeedbackCallback(const HostFeedbackData& data)
         break;
 
     case HostFeedbackData::kFeedbackParameterSet:
+    case HostFeedbackData::kFeedbackOutputMonitor:
         if ((block = _mapper.get_block_with_id(_current.preset, data.paramSet.effect_id)) == NUM_BLOCKS_PER_PRESET)
             return;
 
@@ -2151,16 +2193,17 @@ void HostConnector::hostFeedbackCallback(const HostFeedbackData& data)
             if (p == MAX_PARAMS_PER_BLOCK)
                 return;
 
-            _current.dirty = true;
+            if (data.type == HostFeedbackData::kFeedbackParameterSet)
+                _current.dirty = true;
+
             blockdata.parameters[p].value = data.paramSet.value;
 
-            cdata.type = HostCallbackData::kPatchSet;
+            cdata.type = HostCallbackData::kParameterSet;
             cdata.parameterSet.block = block;
             cdata.parameterSet.index = p;
             cdata.parameterSet.symbol = data.paramSet.symbol;
             cdata.parameterSet.value = data.paramSet.value;
         }
-
         break;
 
     case HostFeedbackData::kFeedbackPatchSet:

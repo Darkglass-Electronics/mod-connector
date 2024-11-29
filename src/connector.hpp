@@ -452,6 +452,9 @@ public:
     // NOTE value must already be sanitized!
     void setBlockParameter(uint8_t block, uint8_t paramIndex, float value);
 
+    // enable monitoring for block output parameter
+    void monitorBlockOutputParameter(uint8_t block, uint8_t paramIndex);
+
     // ----------------------------------------------------------------------------------------------------------------
     // properties
 
