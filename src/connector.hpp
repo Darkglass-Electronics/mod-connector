@@ -8,6 +8,7 @@
 
 #include <cassert>
 #include <cstring>
+#include <list>
 
 // --------------------------------------------------------------------------------------------------------------------
 // default configuration
@@ -301,7 +302,7 @@ struct HostConnector : Host::FeedbackCallback {
     struct Preset {
         std::string name;
         std::vector<Block> blocks;
-        std::vector<Binding> bindings[NUM_BINDING_ACTUATORS];
+        std::list<Binding> bindings[NUM_BINDING_ACTUATORS];
     };
 
     struct Current : Preset {
@@ -335,37 +336,62 @@ public:
     // lv2 world for getting information about plugins
     const Lv2World lv2world;
 
-    // whether the host connection is working
-    bool ok = false;
-
-    // public and read-only current preset state
-    const Current& current = _current;
-
     // constructor, initializes connection to mod-host and sets `ok` to true if successful
     HostConnector();
+
+    // ----------------------------------------------------------------------------------------------------------------
+    // check valid configuration
+
+    // whether the host connection is working
+    bool ok = false;
 
     // try to reconnect host if it previously failed
     bool reconnect();
 
+    // return average dsp load
+    float dspLoad();
+
+    // poll for host updates (e.g. MIDI-mapped parameter changes, tempo changes)
+    // NOTE make sure to call `requestHostUpdates()` after handling all updates
+    void pollHostUpdates(Callback* callback);
+
+    // request more host updates
+    void requestHostUpdates();
+
+    // ----------------------------------------------------------------------------------------------------------------
+    // check valid configuration
+
+    // public and read-only current preset state
+    const Current& current = _current;
+
     // get the preset at @a index
-    // returns the preset state from the current bank
+    // returns the preset state from the current bank (which might be different from the current state)
     const Preset& getBankPreset(uint8_t preset) const;
 
     // get the current preset at @a index
     // returns current state if preset is currently active, otherwise the preset state from the current bank
     const Preset& getCurrentPreset(uint8_t preset) const;
 
+    // ----------------------------------------------------------------------------------------------------------------
+    // file handling
+
     // load bank from a file and store the first preset in the `current` struct
     // automatically calls loadCurrent() if the file contains valid state, otherwise does nothing
     // returning false means the current chain was unchanged
     bool loadBankFromFile(const char* filename);
 
+    // save bank state as stored in the `current` struct into a new file
+    bool saveBankToFile(const char* filename);
+
+    // ----------------------------------------------------------------------------------------------------------------
+    // file handling
+
     // save bank state as stored in the `current` struct
     // a bank must have been loaded or saved to a file before, so that `current.filename` is valid
     bool saveBank();
 
-    // save bank state as stored in the `current` struct into a new file
-    bool saveBankToFile(const char* filename);
+    // ----------------------------------------------------------------------------------------------------------------
+    // preset handling
 
     // clear current preset
     // sets dirty flag if any blocks were removed
@@ -373,6 +399,13 @@ public:
 
     // set the name of the current preset
     void setCurrentPresetName(const char* name);
+
+    // switch to another preset within the current bank
+    // returning false means the current chain was unchanged
+    bool switchPreset(uint8_t preset);
+
+    // ----------------------------------------------------------------------------------------------------------------
+    // block handling
 
     // enable or disable/bypass a block
     // returning false means the block was unchanged
@@ -387,15 +420,15 @@ public:
     // returning false means the block was unchanged
     bool replaceBlock(uint8_t block, const char* uri);
 
-    // switch to another preset within the current bank
-    // returning false means the current chain was unchanged
-    bool switchPreset(uint8_t preset);
+    // ----------------------------------------------------------------------------------------------------------------
+    // scene handling
 
     // switch to another scene within the current preset
     // returning false means the current chain was unchanged
     bool switchScene(uint8_t scene);
 
-    // WIP details below this point
+    // ----------------------------------------------------------------------------------------------------------------
+    // bindings NOTICE WORK-IN-PROGRESS
 
     // add a block binding (for enable/disable control)
     bool addBlockBinding(uint8_t hwid, uint8_t block);
@@ -403,19 +436,26 @@ public:
     // add a block parameter binding
     bool addBlockParameterBinding(uint8_t hwid, uint8_t block, uint8_t paramIndex);
 
-    // return average dsp load
-    float dspLoad();
+    // remove a block binding (for enable/disable control)
+    bool removeBlockBinding(uint8_t hwid, uint8_t block);
 
-    // poll for host updates (e.g. MIDI-mapped parameter changes, tempo changes)
-    // NOTE make sure to call `requestHostUpdates()` after handling all updates
-    void pollHostUpdates(Callback* callback);
+    // remove a block parameter binding
+    bool removeBlockParameterBinding(uint8_t hwid, uint8_t block, uint8_t paramIndex);
 
-    // request more host updates
-    void requestHostUpdates();
+    // reorder bindings
+    bool reorderBlockBinding(uint8_t hwid, uint8_t dest);
+
+    // ----------------------------------------------------------------------------------------------------------------
+    // parameters
 
     // set a block parameter value
     // NOTE value must already be sanitized!
     void setBlockParameter(uint8_t block, uint8_t paramIndex, float value);
+
+    // ----------------------------------------------------------------------------------------------------------------
+    // properties
+
+    // WIP details below this point
 
     // set a block property
     void setBlockProperty(uint8_t block, const char* uri, const char* value);

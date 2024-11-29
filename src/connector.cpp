@@ -17,6 +17,9 @@
 static constexpr const char* kBindingActuatorIDs[NUM_BINDING_ACTUATORS] = { BINDING_ACTUATOR_IDS };
 #endif
 
+typedef std::list<HostConnector::Binding>::iterator BindingIterator;
+typedef std::list<HostConnector::Binding>::const_iterator BindingIteratorConst;
+
 // --------------------------------------------------------------------------------------------------------------------
 
 static void resetParam(HostConnector::Parameter& paramdata)
@@ -72,6 +75,29 @@ static void allocPreset(HostConnector::Preset& preset)
 
     for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
         allocBlock(preset.blocks[bl]);
+}
+
+static bool getSupportedPluginIO(const Lv2Plugin* const plugin, uint8_t& numInputs, uint8_t& numOutputs)
+{
+    numInputs = numOutputs = 0;
+    for (size_t i = 0; i < plugin->ports.size(); ++i)
+    {
+        if ((plugin->ports[i].flags & Lv2PortIsAudio) == 0)
+            continue;
+
+        if (plugin->ports[i].flags & Lv2PortIsOutput)
+        {
+            if (++numOutputs > 2)
+                break;
+        }
+        else
+        {
+            if (++numInputs > 2)
+                break;
+        }
+    }
+
+    return numInputs <= 1 && numOutputs <= 2;
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -236,26 +262,8 @@ bool HostConnector::loadBankFromFile(const char* const filename)
                     continue;
                 }
 
-                uint8_t numInputs = 0;
-                uint8_t numOutputs = 0;
-                for (size_t i = 0; i < plugin->ports.size(); ++i)
-                {
-                    if ((plugin->ports[i].flags & Lv2PortIsAudio) == 0)
-                        continue;
-
-                    if (plugin->ports[i].flags & Lv2PortIsOutput)
-                    {
-                        if (++numOutputs > 2)
-                            break;
-                    }
-                    else
-                    {
-                        if (++numInputs > 2)
-                            break;
-                    }
-                }
-
-                if (numInputs > 2 || numOutputs > 2)
+                uint8_t numInputs, numOutputs;
+                if (! getSupportedPluginIO(plugin, numInputs, numOutputs))
                 {
                     printf("HostConnector::loadBankFromFile: plugin with uri '%s' has invalid IO, using empty block\n",
                            uri.c_str());
@@ -857,10 +865,8 @@ bool HostConnector::reorderBlock(const uint8_t block, const uint8_t dest)
     // update bindings
     for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
     {
-        for (size_t bi = 0; bi < _current.bindings[hwid].size(); ++bi)
+        for (HostConnector::Binding& bindingdata : _current.bindings[hwid])
         {
-            HostConnector::Binding& bindingdata = _current.bindings[hwid][bi];
-
             if (bindingdata.block < blockStart || bindingdata.block > blockEnd)
                 continue;
 
@@ -901,26 +907,8 @@ bool HostConnector::replaceBlock(const uint8_t block, const char* const uri)
         }
 
         // we only do changes after verifying that the requested plugin exists and is valid
-        uint8_t numInputs = 0;
-        uint8_t numOutputs = 0;
-        for (size_t i = 0; i < plugin->ports.size(); ++i)
-        {
-            if ((plugin->ports[i].flags & Lv2PortIsAudio) == 0)
-                continue;
-
-            if (plugin->ports[i].flags & Lv2PortIsOutput)
-            {
-                if (++numOutputs > 2)
-                    break;
-            }
-            else
-            {
-                if (++numInputs > 2)
-                    break;
-            }
-        }
-
-        if (numInputs > 2 || numOutputs > 2)
+        uint8_t numInputs, numOutputs;
+        if (! getSupportedPluginIO(plugin, numInputs, numOutputs))
         {
             fprintf(stderr, "HostConnector::replaceBlock(%u, %s) - unsupported IO, rejected\n", block, uri);
             return false;
@@ -1093,6 +1081,8 @@ bool HostConnector::replaceBlock(const uint8_t block, const char* const uri)
 
             if (before != NUM_BLOCKS_PER_PRESET)
                 hostDisconnectAllBlockOutputs(before);
+            else
+                before = 0;
 
             hostEnsureStereoChain(before, NUM_BLOCKS_PER_PRESET - 1);
             hostConnectAll(before, NUM_BLOCKS_PER_PRESET - 1);
@@ -1383,6 +1373,7 @@ bool HostConnector::addBlockBinding(const uint8_t hwid, const uint8_t block)
         return false;
 
     _current.bindings[hwid].push_back({ block, ":bypass", { 0 } });
+    _current.dirty = true;
     return true;
 }
 
@@ -1403,6 +1394,103 @@ bool HostConnector::addBlockParameterBinding(const uint8_t hwid, const uint8_t b
         return false;
 
     _current.bindings[hwid].push_back({ block, paramdata.symbol, { paramIndex } });
+    _current.dirty = true;
+    return true;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+bool HostConnector::removeBlockBinding(const uint8_t hwid, const uint8_t block)
+{
+    assert(hwid < NUM_BINDING_ACTUATORS);
+    assert(block < NUM_BLOCKS_PER_PRESET);
+
+    const HostConnector::Block& blockdata(_current.blocks[block]);
+    if (isNullURI(blockdata.uri))
+        return false;
+
+    std::list<HostConnector::Binding>& bindings(_current.bindings[hwid]);
+    for (BindingIteratorConst it = bindings.cbegin(), end = bindings.cend(); it != end; ++it)
+    {
+        if (it->block != block)
+            continue;
+        if (it->parameterSymbol != ":bypass")
+            continue;
+
+        bindings.erase(it);
+        _current.dirty = true;
+        return true;
+    }
+
+    return false;
+}
+
+bool HostConnector::removeBlockParameterBinding(const uint8_t hwid, const uint8_t block, const uint8_t paramIndex)
+{
+    assert(hwid < NUM_BINDING_ACTUATORS);
+    assert(block < NUM_BLOCKS_PER_PRESET);
+    assert(paramIndex < MAX_PARAMS_PER_BLOCK);
+
+    const HostConnector::Block& blockdata(_current.blocks[block]);
+    if (isNullURI(blockdata.uri))
+        return false;
+
+    const HostConnector::Parameter& paramdata(blockdata.parameters[paramIndex]);
+    if (isNullURI(paramdata.symbol))
+        return false;
+
+    std::list<HostConnector::Binding>& bindings(_current.bindings[hwid]);
+    for (BindingIteratorConst it = bindings.cbegin(), end = bindings.cend(); it != end; ++it)
+    {
+        if (it->block != block)
+            continue;
+        if (it->meta.parameterIndex != paramIndex)
+            continue;
+
+        bindings.erase(it);
+        _current.dirty = true;
+        return true;
+    }
+
+    return false;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+bool HostConnector::reorderBlockBinding(const uint8_t hwid, const uint8_t dest)
+{
+    assert(hwid < NUM_BINDING_ACTUATORS);
+    assert(dest < NUM_BINDING_ACTUATORS);
+
+    if (hwid == dest)
+    {
+        fprintf(stderr, "HostConnector::reorderBlockBinding(%u, %u) - hwid == dest, rejected\n", hwid, dest);
+        return false;
+    }
+
+    // moving hwid backwards to the left
+    // a b c d e! f
+    // a b c e! d f
+    // a b e! c d f
+    // a e! b c d f
+    if (hwid > dest)
+    {
+        for (int i = hwid; i > dest; --i)
+            std::swap(_current.bindings[i], _current.bindings[i - 1]);
+    }
+
+    // moving hwid forward to the right
+    // a b! c d e f
+    // a c b! d e f
+    // a c d b! e f
+    // a c d e b! f
+    else
+    {
+        for (int i = hwid; i < dest; ++i)
+            std::swap(_current.bindings[i], _current.bindings[i + 1]);
+    }
+
+    _current.dirty = true;
     return true;
 }
 
