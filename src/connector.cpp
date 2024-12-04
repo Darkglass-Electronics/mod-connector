@@ -97,7 +97,7 @@ static bool getSupportedPluginIO(const Lv2Plugin* const plugin, uint8_t& numInpu
         }
     }
 
-    return numInputs <= 1 && numOutputs <= 2;
+    return numInputs <= 2 && numOutputs <= 2;
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -787,14 +787,10 @@ bool HostConnector::reorderBlock(const uint8_t block, const uint8_t dest)
         fprintf(stderr, "HostConnector::reorderBlock(%u, %u) - block == dest, rejected\n", block, dest);
         return false;
     }
-    if (isNullURI(_current.blocks[block].uri))
-    {
-        fprintf(stderr, "HostConnector::reorderBlock(%u, %u) - block is empty, rejected\n", block, dest);
-        return false;
-    }
 
     // check if we need to re-do any connections
     bool reconnect = false;
+    const bool blockIsEmpty = isNullURI(_current.blocks[block].uri);
     const uint8_t blockStart = std::max(0, std::min<int>(block, dest) - 1);
     const uint8_t blockEnd = std::min(NUM_BLOCKS_PER_PRESET - 1, std::max(block, dest) + 1);
 
@@ -808,6 +804,12 @@ bool HostConnector::reorderBlock(const uint8_t block, const uint8_t dest)
         break;
     }
 
+    if (blockIsEmpty && ! reconnect)
+    {
+        fprintf(stderr, "HostConnector::reorderBlock(%u, %u) - there is nothing to reorder, rejected\n", block, dest);
+        return false;
+    }
+
     printf("HostConnector::reorderBlock(%u, %u) - reconnect %d, start %u, end %u\n",
            block, dest, reconnect, blockStart, blockEnd);
 
@@ -815,7 +817,7 @@ bool HostConnector::reorderBlock(const uint8_t block, const uint8_t dest)
 
     const Host::NonBlockingScope hnbs(_host);
 
-    if (reconnect)
+    if (reconnect && ! blockIsEmpty)
     {
         hostDisconnectAllBlockInputs(block);
         hostDisconnectAllBlockOutputs(block);
