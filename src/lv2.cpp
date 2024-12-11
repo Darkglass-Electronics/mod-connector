@@ -530,6 +530,10 @@ struct Lv2World::Impl
                                     retport.unit = "kHz";
                                 else if (strcmp(uuri, "mhz") == 0)
                                     retport.unit = "MHz";
+                                else if (strcmp(uuri, "cent") == 0)
+                                    retport.unit = "ct";
+                                else if (strcmp(uuri, "semitone12TET") == 0)
+                                    retport.unit = "semi";
                             }
 
                             lilv_nodes_free(uunits);
