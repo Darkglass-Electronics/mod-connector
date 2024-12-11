@@ -34,6 +34,13 @@
 #define LV2_CORE__enabled LV2_CORE_PREFIX "#enabled"
 #endif
 
+#ifndef LV2_CORE__shortName
+#define LV2_CORE__shortName LV2_CORE_PREFIX "#shortName"
+#endif
+
+#define LILV_NS_DARKGLASS "http://www.darkglass.com/lv2/ns"
+#define DARKGLASS__abbreviation LILV_NS_DARKGLASS "#abbreviation"
+
 #define LILV_NS_MOD "http://moddevices.com/ns/mod#"
 #define MOD__CVPort LILV_NS_MOD "CVPort"
 
@@ -42,11 +49,13 @@
 // --------------------------------------------------------------------------------------------------------------------
 
 struct Lv2NamespaceDefinitions {
+    LilvNode* const dargkglass_abbreviation;
     LilvNode* const lv2core_default;
     LilvNode* const lv2core_designation;
     LilvNode* const lv2core_minimum;
     LilvNode* const lv2core_maximum;
     LilvNode* const lv2core_portProperty;
+    LilvNode* const lv2core_shortName;
     LilvNode* const modgui_gui;
     LilvNode* const modgui_resourcesDirectory;
     LilvNode* const modgui_screenshot;
@@ -57,11 +66,13 @@ struct Lv2NamespaceDefinitions {
     LilvNode* const units_unit;
 
     Lv2NamespaceDefinitions(LilvWorld* const world)
-        : lv2core_default(lilv_new_uri(world, LV2_CORE__default)),
+        : dargkglass_abbreviation(lilv_new_uri(world, DARKGLASS__abbreviation)),
+          lv2core_default(lilv_new_uri(world, LV2_CORE__default)),
           lv2core_designation(lilv_new_uri(world, LV2_CORE__designation)),
           lv2core_minimum(lilv_new_uri(world, LV2_CORE__minimum)),
           lv2core_maximum(lilv_new_uri(world, LV2_CORE__maximum)),
           lv2core_portProperty(lilv_new_uri(world, LV2_CORE__portProperty)),
+          lv2core_shortName(lilv_new_uri(world, LV2_CORE__shortName)),
           modgui_gui(lilv_new_uri(world, LILV_NS_MODGUI "gui")),
           modgui_resourcesDirectory(lilv_new_uri(world, LILV_NS_MODGUI "resourcesDirectory")),
           modgui_screenshot(lilv_new_uri(world, LILV_NS_MODGUI "screenshot")),
@@ -75,11 +86,13 @@ struct Lv2NamespaceDefinitions {
 
     void free()
     {
+        lilv_node_free(dargkglass_abbreviation);
         lilv_node_free(lv2core_default);
         lilv_node_free(lv2core_designation);
         lilv_node_free(lv2core_minimum);
         lilv_node_free(lv2core_maximum);
         lilv_node_free(lv2core_portProperty);
+        lilv_node_free(lv2core_shortName);
         lilv_node_free(modgui_gui);
         lilv_node_free(modgui_resourcesDirectory);
         lilv_node_free(modgui_screenshot);
@@ -171,6 +184,15 @@ struct Lv2World::Impl
             {
                 retplugin->name = lilv_node_as_string(node);
                 lilv_node_free(node);
+            }
+
+            // --------------------------------------------------------------------------------------------------------
+            // abbreviation
+
+            if (LilvNodes* const nodes = lilv_plugin_get_value(plugin, ns.dargkglass_abbreviation))
+            {
+                retplugin->abbreviation = lilv_node_as_string(lilv_nodes_get_first(nodes));
+                lilv_nodes_free(nodes);
             }
 
             // --------------------------------------------------------------------------------------------------------
@@ -382,6 +404,12 @@ struct Lv2World::Impl
                     {
                         retport.name = lilv_node_as_string(node);
                         lilv_node_free(node);
+                    }
+
+                    if (LilvNodes* const nodes = lilv_port_get_value(plugin, port, ns.lv2core_shortName))
+                    {
+                        retport.shortname = lilv_node_as_string(lilv_nodes_get_first(nodes));
+                        lilv_nodes_free(nodes);
                     }
 
                     if (retport.flags & Lv2PortIsControl)

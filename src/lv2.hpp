@@ -81,6 +81,7 @@ struct Lv2ScalePoint {
 struct Lv2Port {
     std::string symbol;
     std::string name;
+    std::string shortname;
     uint32_t flags = 0;
     Lv2Designation designation = kLv2DesignationNone;
     float def = 0.f;
@@ -93,6 +94,7 @@ struct Lv2Port {
 struct Lv2Property {
     std::string uri;
     std::string name;
+    std::string shortname;
     uint32_t flags = 0;
     float def = 0.f;
     float min = 0.f;
@@ -103,6 +105,7 @@ struct Lv2Property {
 struct Lv2Plugin {
     std::string uri;
     std::string name;
+    std::string abbreviation;
     Lv2Category category = kLv2CategoryNone;
     std::vector<Lv2Port> ports;
     std::vector<Lv2Property> properties;

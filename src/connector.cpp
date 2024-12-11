@@ -186,8 +186,6 @@ void HostConnector::printStateForDebug(const bool withParams, const bool withBin
 
     fprintf(stderr, "\n");
 
-    // static constexpr const char* kBindingActuatorIDs[NUM_BINDING_ACTUATORS] = { BINDING_ACTUATOR_IDS };
-
     for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
     {
        #ifdef BINDING_ACTUATOR_IDS
