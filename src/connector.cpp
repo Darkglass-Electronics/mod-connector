@@ -134,6 +134,87 @@ bool HostConnector::reconnect()
 
 // --------------------------------------------------------------------------------------------------------------------
 
+static constexpr const char* bool2str(bool b) { return b ? "true" : "false"; }
+
+void HostConnector::printStateForDebug(const bool withParams, const bool withBindings)
+{
+    fprintf(stderr, "------------------------------------------------------------------\n");
+    fprintf(stderr, "Dumping current state:\n");
+    fprintf(stderr, "\tPreset: %u\n", _current.preset);
+    fprintf(stderr, "\tScene: %u\n", _current.scene);
+    fprintf(stderr, "\tNum loaded plugins: %u\n", _current.numLoadedPlugins);
+    fprintf(stderr, "\tDirty: %s\n", bool2str(_current.dirty));
+    fprintf(stderr, "\tFilename: %s\n", _current.filename.c_str());
+    fprintf(stderr, "\tName: %s\n", _current.name.c_str());
+    fprintf(stderr, "\n");
+
+    for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
+    {
+        const Block& blockdata(_current.blocks[bl]);
+
+        if (isNullURI(blockdata.uri))
+        {
+            fprintf(stderr, "\tBlock %u: (empty)\n", bl);
+            continue;
+        }
+
+        fprintf(stderr, "\tBlock %u: %s | %s\n", bl, blockdata.uri.c_str(), blockdata.meta.name.c_str());
+        fprintf(stderr, "\t\tQuick Pot: '%s' | %u\n", blockdata.quickPotSymbol.c_str(), blockdata.meta.quickPotIndex);
+        fprintf(stderr, "\t\tHas scenes: %s\n", bool2str(blockdata.meta.hasScenes));
+        fprintf(stderr, "\t\tIs chain point: %s\n", bool2str(blockdata.meta.isChainPoint));
+        fprintf(stderr, "\t\tIs mono in: %s\n", bool2str(blockdata.meta.isMonoIn));
+        fprintf(stderr, "\t\tIs stereo out: %s\n", bool2str(blockdata.meta.isStereoOut));
+
+        if (! withParams)
+            continue;
+
+        for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+        {
+            const Parameter& paramdata(blockdata.parameters[p]);
+
+            fprintf(stderr, "\t\tParameter %u: '%s' | '%s'\n", p, paramdata.symbol.c_str(), paramdata.meta.name.c_str());
+            fprintf(stderr, "\t\t\tFlags: %x\n", paramdata.meta.flags);
+            fprintf(stderr, "\t\t\tDefault: %f\n", paramdata.meta.def);
+            fprintf(stderr, "\t\t\tMinimum: %f\n", paramdata.meta.min);
+            fprintf(stderr, "\t\t\tMaximum: %f\n", paramdata.meta.max);
+            fprintf(stderr, "\t\t\tUnit: %s\n", paramdata.meta.unit.c_str());
+        }
+    }
+
+    if (! withBindings)
+        return;
+
+    fprintf(stderr, "\n");
+
+    // static constexpr const char* kBindingActuatorIDs[NUM_BINDING_ACTUATORS] = { BINDING_ACTUATOR_IDS };
+
+    for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
+    {
+       #ifdef BINDING_ACTUATOR_IDS
+        const std::string hwname = kBindingActuatorIDs[hwid];
+       #else
+        const std::string hwname = std::to_string(hwid + 1);
+       #endif
+        fprintf(stderr, "\tBindings for '%s':\n", hwname.c_str());
+
+        if (_current.bindings[hwid].empty())
+        {
+            fprintf(stderr, "\t\t(empty)\n");
+            continue;
+        }
+
+        for (HostConnector::Binding& bindingdata : _current.bindings[hwid])
+        {
+            fprintf(stderr, "\t\t- Block %u, Parameter '%s' | %u\n",
+                    bindingdata.block,
+                    bindingdata.parameterSymbol.c_str(),
+                    bindingdata.meta.parameterIndex);
+        }
+    }
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 const HostConnector::Preset& HostConnector::getBankPreset(const uint8_t preset) const
 {
     assert(preset < NUM_PRESETS_PER_BANK);

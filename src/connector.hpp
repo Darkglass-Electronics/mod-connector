@@ -358,6 +358,9 @@ public:
     // request more host updates
     void requestHostUpdates();
 
+    // print current state for debugging
+    void printStateForDebug(bool withParams, bool withBindings);
+
     // ----------------------------------------------------------------------------------------------------------------
     // check valid configuration
 
