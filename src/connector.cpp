@@ -136,7 +136,7 @@ bool HostConnector::reconnect()
 
 static constexpr const char* bool2str(bool b) { return b ? "true" : "false"; }
 
-void HostConnector::printStateForDebug(const bool withParams, const bool withBindings)
+void HostConnector::printStateForDebug(const bool withBlocks, const bool withParams, const bool withBindings)
 {
     fprintf(stderr, "------------------------------------------------------------------\n");
     fprintf(stderr, "Dumping current state:\n");
@@ -146,29 +146,29 @@ void HostConnector::printStateForDebug(const bool withParams, const bool withBin
     fprintf(stderr, "\tDirty: %s\n", bool2str(_current.dirty));
     fprintf(stderr, "\tFilename: %s\n", _current.filename.c_str());
     fprintf(stderr, "\tName: %s\n", _current.name.c_str());
-    fprintf(stderr, "\n");
 
-    for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
+    for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET && (withBlocks || withParams); ++bl)
     {
         const Block& blockdata(_current.blocks[bl]);
 
         if (isNullURI(blockdata.uri))
         {
-            fprintf(stderr, "\tBlock %u: (empty)\n", bl);
+            fprintf(stderr, "\n\tBlock %u: (empty)\n", bl);
             continue;
         }
 
-        fprintf(stderr, "\tBlock %u: %s | %s\n", bl, blockdata.uri.c_str(), blockdata.meta.name.c_str());
-        fprintf(stderr, "\t\tQuick Pot: '%s' | %u\n", blockdata.quickPotSymbol.c_str(), blockdata.meta.quickPotIndex);
-        fprintf(stderr, "\t\tHas scenes: %s\n", bool2str(blockdata.meta.hasScenes));
-        fprintf(stderr, "\t\tIs chain point: %s\n", bool2str(blockdata.meta.isChainPoint));
-        fprintf(stderr, "\t\tIs mono in: %s\n", bool2str(blockdata.meta.isMonoIn));
-        fprintf(stderr, "\t\tIs stereo out: %s\n", bool2str(blockdata.meta.isStereoOut));
+        fprintf(stderr, "\n\tBlock %u: %s | %s\n", bl, blockdata.uri.c_str(), blockdata.meta.name.c_str());
 
-        if (! withParams)
-            continue;
+        if (withBlocks)
+        {
+            fprintf(stderr, "\t\tQuick Pot: '%s' | %u\n", blockdata.quickPotSymbol.c_str(), blockdata.meta.quickPotIndex);
+            fprintf(stderr, "\t\tHas scenes: %s\n", bool2str(blockdata.meta.hasScenes));
+            fprintf(stderr, "\t\tIs chain point: %s\n", bool2str(blockdata.meta.isChainPoint));
+            fprintf(stderr, "\t\tIs mono in: %s\n", bool2str(blockdata.meta.isMonoIn));
+            fprintf(stderr, "\t\tIs stereo out: %s\n", bool2str(blockdata.meta.isStereoOut));
+        }
 
-        for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+        for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK && withParams; ++p)
         {
             const Parameter& paramdata(blockdata.parameters[p]);
 
@@ -181,19 +181,14 @@ void HostConnector::printStateForDebug(const bool withParams, const bool withBin
         }
     }
 
-    if (! withBindings)
-        return;
-
-    fprintf(stderr, "\n");
-
-    for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
+    for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS && withBindings; ++hwid)
     {
        #ifdef BINDING_ACTUATOR_IDS
         const std::string hwname = kBindingActuatorIDs[hwid];
        #else
         const std::string hwname = std::to_string(hwid + 1);
        #endif
-        fprintf(stderr, "\tBindings for '%s':\n", hwname.c_str());
+        fprintf(stderr, "\n\tBindings for '%s':\n", hwname.c_str());
 
         if (_current.bindings[hwid].empty())
         {
@@ -856,26 +851,28 @@ bool HostConnector::enableBlock(const uint8_t block, const bool enable)
 
 // --------------------------------------------------------------------------------------------------------------------
 
-bool HostConnector::reorderBlock(const uint8_t block, const uint8_t dest)
+bool HostConnector::reorderBlock(const uint8_t orig, const uint8_t dest)
 {
-    assert(block < NUM_BLOCKS_PER_PRESET);
+    assert(orig < NUM_BLOCKS_PER_PRESET);
     assert(dest < NUM_BLOCKS_PER_PRESET);
 
-    if (block == dest)
+    if (orig == dest)
     {
-        fprintf(stderr, "HostConnector::reorderBlock(%u, %u) - block == dest, rejected\n", block, dest);
+        fprintf(stderr, "HostConnector::reorderBlock(%u, %u) - orig == dest, rejected\n", orig, dest);
         return false;
     }
 
     // check if we need to re-do any connections
     bool reconnect = false;
-    const bool blockIsEmpty = isNullURI(_current.blocks[block].uri);
-    const uint8_t blockStart = std::max(0, std::min<int>(block, dest) - 1);
-    const uint8_t blockEnd = std::min(NUM_BLOCKS_PER_PRESET - 1, std::max(block, dest) + 1);
+    const bool blockIsEmpty = isNullURI(_current.blocks[orig].uri);
+    const uint8_t left = std::min(orig, dest);
+    const uint8_t right = std::max(orig, dest);
+    const uint8_t blockStart = std::max(0, left - 1);
+    const uint8_t blockEnd = std::min(NUM_BLOCKS_PER_PRESET - 1, right + 1);
 
     for (uint8_t i = blockStart; i <= blockEnd; ++i)
     {
-        if (block == i)
+        if (orig == i)
             continue;
         if (isNullURI(_current.blocks[i].uri))
             continue;
@@ -885,12 +882,12 @@ bool HostConnector::reorderBlock(const uint8_t block, const uint8_t dest)
 
     if (blockIsEmpty && ! reconnect)
     {
-        fprintf(stderr, "HostConnector::reorderBlock(%u, %u) - there is nothing to reorder, rejected\n", block, dest);
+        fprintf(stderr, "HostConnector::reorderBlock(%u, %u) - there is nothing to reorder, rejected\n", orig, dest);
         return false;
     }
 
     printf("HostConnector::reorderBlock(%u, %u) - reconnect %d, start %u, end %u\n",
-           block, dest, reconnect, blockStart, blockEnd);
+           orig, dest, reconnect, blockStart, blockEnd);
 
     auto& mpreset = _mapper.map.presets[_current.preset];
 
@@ -898,8 +895,8 @@ bool HostConnector::reorderBlock(const uint8_t block, const uint8_t dest)
 
     if (reconnect && ! blockIsEmpty)
     {
-        hostDisconnectAllBlockInputs(block);
-        hostDisconnectAllBlockOutputs(block);
+        hostDisconnectAllBlockInputs(orig);
+        hostDisconnectAllBlockOutputs(orig);
     }
 
     // moving block backwards to the left
@@ -907,9 +904,9 @@ bool HostConnector::reorderBlock(const uint8_t block, const uint8_t dest)
     // a b c e! d f
     // a b e! c d f
     // a e! b c d f
-    if (block > dest)
+    if (orig > dest)
     {
-        for (int i = block; i > dest; --i)
+        for (int i = orig; i > dest; --i)
         {
             if (reconnect)
             {
@@ -924,7 +921,7 @@ bool HostConnector::reorderBlock(const uint8_t block, const uint8_t dest)
         if (reconnect)
         {
             hostEnsureStereoChain(blockStart, blockEnd);
-            hostConnectAll(dest, block);
+            hostConnectAll(dest, orig);
         }
     }
 
@@ -935,7 +932,7 @@ bool HostConnector::reorderBlock(const uint8_t block, const uint8_t dest)
     // a c d e b! f
     else
     {
-        for (int i = block; i < dest; ++i)
+        for (int i = orig; i < dest; ++i)
         {
             if (reconnect)
             {
@@ -949,22 +946,32 @@ bool HostConnector::reorderBlock(const uint8_t block, const uint8_t dest)
         if (reconnect)
         {
             hostEnsureStereoChain(blockStart, blockEnd);
-            hostConnectAll(block, dest);
+            hostConnectAll(orig, dest);
         }
     }
 
     // update bindings
+
     for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
     {
         for (HostConnector::Binding& bindingdata : _current.bindings[hwid])
         {
-            if (bindingdata.block < blockStart || bindingdata.block > blockEnd)
+            if (bindingdata.block < left || bindingdata.block > right)
                 continue;
 
-            if (bindingdata.block == block)
+            // block matches orig, moving it to dest
+            if (bindingdata.block == orig)
                 bindingdata.block = dest;
-            else if (block > dest)
+
+            // block matches dest, moving it by +1 or -1 accordingly
+            else if (bindingdata.block == dest)
+                bindingdata.block += orig > dest ? 1 : -1;
+
+            // block > dest, moving +1
+            else if (bindingdata.block > dest)
                 ++bindingdata.block;
+
+            // block < dest, moving -1
             else
                 --bindingdata.block;
         }
