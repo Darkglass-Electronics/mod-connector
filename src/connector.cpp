@@ -951,7 +951,6 @@ bool HostConnector::reorderBlock(const uint8_t orig, const uint8_t dest)
     }
 
     // update bindings
-
     for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
     {
         for (HostConnector::Binding& bindingdata : _current.bindings[hwid])
@@ -1015,6 +1014,7 @@ bool HostConnector::replaceBlock(const uint8_t block, const char* const uri)
         if (! isNullURI(blockdata.uri))
         {
             --_current.numLoadedPlugins;
+            hostRemoveAllBlockBindings(block);
             hostRemoveInstanceForBlock(block);
         }
 
@@ -1117,6 +1117,7 @@ bool HostConnector::replaceBlock(const uint8_t block, const char* const uri)
     else if (! isNullURI(blockdata.uri))
     {
         --_current.numLoadedPlugins;
+        hostRemoveAllBlockBindings(block);
         hostRemoveInstanceForBlock(block);
         resetBlock(blockdata);
     }
@@ -1499,8 +1500,6 @@ bool HostConnector::addBlockParameterBinding(const uint8_t hwid, const uint8_t b
     _current.dirty = true;
     return true;
 }
-
-// --------------------------------------------------------------------------------------------------------------------
 
 bool HostConnector::removeBlockBinding(const uint8_t hwid, const uint8_t block)
 {
@@ -2211,6 +2210,29 @@ bool HostConnector::hostPresetBlockShouldBeStereo(const Preset& presetdata, cons
     }
 
     return false;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::hostRemoveAllBlockBindings(const uint8_t block)
+{
+    assert(block < NUM_BLOCKS_PER_PRESET);
+
+    for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
+    {
+        std::list<HostConnector::Binding>& bindings(_current.bindings[hwid]);
+
+    restart:
+        for (BindingIteratorConst it = bindings.cbegin(), end = bindings.cend(); it != end; ++it)
+        {
+            if (it->block != block)
+                continue;
+
+            bindings.erase(it);
+            _current.dirty = true;
+            goto restart;
+        }
+    }
 }
 
 // --------------------------------------------------------------------------------------------------------------------

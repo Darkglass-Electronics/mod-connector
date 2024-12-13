@@ -484,6 +484,9 @@ protected:
 
     bool hostPresetBlockShouldBeStereo(const Preset& presetdata, uint8_t block);
 
+    // remove all bindings related to a block
+    void hostRemoveAllBlockBindings(uint8_t block);
+
     void hostRemoveInstanceForBlock(uint8_t block);
 
 private:
