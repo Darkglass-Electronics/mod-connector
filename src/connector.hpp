@@ -263,6 +263,7 @@ struct HostConnector : Host::FeedbackCallback {
             uint32_t flags;
             float def, min, max;
             std::string name;
+            std::string shortname;
             std::string unit;
             std::vector<Lv2ScalePoint> scalePoints;
         } meta;
@@ -285,6 +286,7 @@ struct HostConnector : Host::FeedbackCallback {
             bool isMonoIn = false;
             bool isStereoOut = false;
             std::string name;
+            std::string abbreviation;
         } meta;
         std::vector<Parameter> parameters;
         std::vector<SceneParameterValue> sceneValues[NUM_SCENES_PER_PRESET + 1];

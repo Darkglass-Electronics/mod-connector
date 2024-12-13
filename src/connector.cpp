@@ -355,6 +355,7 @@ bool HostConnector::loadBankFromFile(const char* const filename)
                 blockdata.meta.isMonoIn = numInputs == 1;
                 blockdata.meta.isStereoOut = numOutputs == 2;
                 blockdata.meta.name = plugin->name;
+                blockdata.meta.abbreviation = plugin->abbreviation;
 
                 if (jblock.contains("enabled"))
                     blockdata.enabled = jblock["enabled"].get<bool>();
@@ -395,6 +396,7 @@ bool HostConnector::loadBankFromFile(const char* const filename)
                     paramdata.meta.min = plugin->ports[i].min;
                     paramdata.meta.max = plugin->ports[i].max;
                     paramdata.meta.name = plugin->ports[i].name;
+                    paramdata.meta.shortname = plugin->ports[i].shortname;
                     paramdata.meta.unit = plugin->ports[i].unit;
                     paramdata.meta.scalePoints = plugin->ports[i].scalePoints;
 
@@ -1059,6 +1061,7 @@ bool HostConnector::replaceBlock(const uint8_t block, const char* const uri)
             blockdata.meta.isMonoIn = numInputs == 1;
             blockdata.meta.isStereoOut = numOutputs == 2;
             blockdata.meta.name = plugin->name;
+            blockdata.meta.abbreviation = plugin->abbreviation;
 
             uint8_t numParams = 0;
             for (size_t i = 0; i < plugin->ports.size() && numParams < MAX_PARAMS_PER_BLOCK; ++i)
@@ -1090,6 +1093,7 @@ bool HostConnector::replaceBlock(const uint8_t block, const char* const uri)
                         .min = plugin->ports[i].min,
                         .max = plugin->ports[i].max,
                         .name = plugin->ports[i].name,
+                        .shortname = plugin->ports[i].shortname,
                         .unit = plugin->ports[i].unit,
                         .scalePoints = plugin->ports[i].scalePoints,
                     },
