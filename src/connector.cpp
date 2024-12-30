@@ -1695,6 +1695,62 @@ void HostConnector::monitorBlockOutputParameter(const uint8_t block, const uint8
 
 // --------------------------------------------------------------------------------------------------------------------
 
+bool HostConnector::enableTool(const uint8_t toolIndex, const char* const uri)
+{
+    assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
+
+    return isNullURI(uri) ? _host.remove(MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex)
+                          : _host.add(uri, MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::connectToolAudioInput(const uint8_t toolIndex,
+                                          const char* const symbol,
+                                          const char* const jackPort)
+{
+    assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
+    assert(symbol != nullptr && *symbol != '\0');
+    assert(jackPort != nullptr && *jackPort != '\0');
+
+    _host.connect(jackPort, format("effect_%d:%s", MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, symbol).c_str());
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::connectToolAudioOutput(const uint8_t toolIndex,
+                                           const char* const symbol,
+                                           const char* const jackPort)
+{
+    assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
+    assert(symbol != nullptr && *symbol != '\0');
+    assert(jackPort != nullptr && *jackPort != '\0');
+
+    _host.connect(format("effect_%d:%s", MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, symbol).c_str(), jackPort);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::setToolParameter(const uint8_t toolIndex, const char* const symbol, const float value)
+{
+    assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
+    assert(symbol != nullptr && *symbol != '\0');
+
+    _host.param_set(MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, symbol, value);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::monitorToolOutputParameter(const uint8_t toolIndex, const char* const symbol)
+{
+    assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
+    assert(symbol != nullptr && *symbol != '\0');
+
+    _host.monitor_output(MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, symbol);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 void HostConnector::setBlockProperty(const uint8_t block, const char* const uri, const char* const value)
 {
     assert(block < NUM_BLOCKS_PER_PRESET);
@@ -2291,55 +2347,83 @@ void HostConnector::hostFeedbackCallback(const HostFeedbackData& data)
 
     case HostFeedbackData::kFeedbackParameterSet:
     case HostFeedbackData::kFeedbackOutputMonitor:
-        if ((block = _mapper.get_block_with_id(_current.preset, data.paramSet.effect_id)) == NUM_BLOCKS_PER_PRESET)
-            return;
+        assert(data.paramSet.effect_id >= 0);
+        assert(data.paramSet.effect_id < MAX_MOD_HOST_PLUGIN_INSTANCES + MAX_MOD_HOST_TOOL_INSTANCES);
 
-        if (data.paramSet.symbol[0] == ':')
+        if (data.paramSet.effect_id >= MAX_MOD_HOST_PLUGIN_INSTANCES)
         {
-            // _current.dirty = true;
-            // blockdata.enabled = data.paramSet.value < 0.5f;
-
-            // TODO special mod-host values here
-            return;
+            cdata.type = HostCallbackData::kToolParameterSet;
+            cdata.toolParameterSet.index = data.paramSet.effect_id - MAX_MOD_HOST_PLUGIN_INSTANCES;
+            cdata.toolParameterSet.symbol = data.paramSet.symbol;
+            cdata.toolParameterSet.value = data.paramSet.value;
         }
         else
         {
-            Block& blockdata = _current.blocks[block];
-
-            uint8_t p = 0;
-            for (; p < MAX_PARAMS_PER_BLOCK; ++p)
-            {
-                if (isNullURI(blockdata.parameters[p].symbol))
-                    return;
-                if (blockdata.parameters[p].symbol == data.paramSet.symbol)
-                    break;
-            }
-
-            if (p == MAX_PARAMS_PER_BLOCK)
+            if ((block = _mapper.get_block_with_id(_current.preset, data.paramSet.effect_id)) == NUM_BLOCKS_PER_PRESET)
                 return;
 
-            if (data.type == HostFeedbackData::kFeedbackParameterSet)
-                _current.dirty = true;
+            if (data.paramSet.symbol[0] == ':')
+            {
+                // _current.dirty = true;
+                // blockdata.enabled = data.paramSet.value < 0.5f;
 
-            blockdata.parameters[p].value = data.paramSet.value;
+                // TODO special mod-host values here
+                return;
+            }
+            else
+            {
+                Block& blockdata = _current.blocks[block];
 
-            cdata.type = HostCallbackData::kParameterSet;
-            cdata.parameterSet.block = block;
-            cdata.parameterSet.index = p;
-            cdata.parameterSet.symbol = data.paramSet.symbol;
-            cdata.parameterSet.value = data.paramSet.value;
+                uint8_t p = 0;
+                for (; p < MAX_PARAMS_PER_BLOCK; ++p)
+                {
+                    if (isNullURI(blockdata.parameters[p].symbol))
+                        return;
+                    if (blockdata.parameters[p].symbol == data.paramSet.symbol)
+                        break;
+                }
+
+                if (p == MAX_PARAMS_PER_BLOCK)
+                    return;
+
+                if (data.type == HostFeedbackData::kFeedbackParameterSet)
+                    _current.dirty = true;
+
+                blockdata.parameters[p].value = data.paramSet.value;
+
+                cdata.type = HostCallbackData::kParameterSet;
+                cdata.parameterSet.block = block;
+                cdata.parameterSet.index = p;
+                cdata.parameterSet.symbol = data.paramSet.symbol;
+                cdata.parameterSet.value = data.paramSet.value;
+            }
         }
         break;
 
     case HostFeedbackData::kFeedbackPatchSet:
-        // if ((block = _mapper.get_block_with_id(_current.preset, data.patchSet.effect_id)) == NUM_BLOCKS_PER_PRESET)
-        //    return;
+        assert(data.patchSet.effect_id >= 0);
+        assert(data.patchSet.effect_id < MAX_MOD_HOST_PLUGIN_INSTANCES + MAX_MOD_HOST_TOOL_INSTANCES);
+        static_assert(sizeof(cdata.toolPatchSet.data) == sizeof(data.patchSet.data), "data size mismatch");
 
-        cdata.type = HostCallbackData::kPatchSet;
-        cdata.patchSet.block = 0; // TESTING
-        cdata.patchSet.key = data.patchSet.key;
-        cdata.patchSet.type = data.patchSet.type;
-        std::memcpy(&cdata.patchSet.data, &data.patchSet.data, sizeof(data.patchSet.data));
+        if (data.patchSet.effect_id >= MAX_MOD_HOST_PLUGIN_INSTANCES)
+        {
+            cdata.type = HostCallbackData::kToolPatchSet;
+            cdata.toolPatchSet.index = data.patchSet.effect_id - MAX_MOD_HOST_PLUGIN_INSTANCES;
+            cdata.toolPatchSet.key = data.patchSet.key;
+            cdata.toolPatchSet.type = data.patchSet.type;
+            std::memcpy(&cdata.toolPatchSet.data, &data.patchSet.data, sizeof(data.patchSet.data));
+        }
+        else
+        {
+            if ((block = _mapper.get_block_with_id(_current.preset, data.patchSet.effect_id)) == NUM_BLOCKS_PER_PRESET)
+                return;
+
+            cdata.type = HostCallbackData::kPatchSet;
+            cdata.patchSet.block = block;
+            cdata.patchSet.key = data.patchSet.key;
+            cdata.patchSet.type = data.patchSet.type;
+            std::memcpy(&cdata.patchSet.data, &data.patchSet.data, sizeof(data.patchSet.data));
+        }
         break;
 
     default:

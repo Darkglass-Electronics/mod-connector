@@ -74,8 +74,14 @@
 
 // --------------------------------------------------------------------------------------------------------------------
 
+#define MAX_MOD_HOST_PLUGIN_INSTANCES 9990
+#define MAX_MOD_HOST_TOOL_INSTANCES   10
+
+// --------------------------------------------------------------------------------------------------------------------
+
 static constexpr const uint16_t kMaxHostInstances = NUM_PRESETS_PER_BANK * (NUM_BLOCKS_PER_PRESET * 4);
-static_assert(kMaxHostInstances < 9990, "maximum amount of instances is bigger than what mod-host can do");
+static_assert(kMaxHostInstances < MAX_MOD_HOST_PLUGIN_INSTANCES,
+              "maximum amount of instances is bigger than what mod-host can do");
 
 struct HostInstanceMapper {
     struct BlockPair {
@@ -198,6 +204,30 @@ struct HostInstanceMapper {
 
 // --------------------------------------------------------------------------------------------------------------------
 
+union HostPatchData {
+    int32_t b;
+    int32_t i;
+    int64_t l;
+    float f;
+    double g;
+    const char* s;
+    const char* p;
+    const char* u;
+    struct {
+        uint32_t num;
+        char type;
+        union {
+            const int32_t* b;
+            const int32_t* i;
+            const int64_t* l;
+            const float* f;
+            const double* g;
+        } data;
+    } v;
+};
+
+// --------------------------------------------------------------------------------------------------------------------
+
 struct HostConnector : Host::FeedbackCallback {
     struct Callback {
         struct Data {
@@ -206,48 +236,47 @@ struct HostConnector : Host::FeedbackCallback {
                 kLog,
                 kParameterSet,
                 kPatchSet,
+                kToolParameterSet,
+                kToolPatchSet,
             } type;
             union {
+                // kAudioMonitor
                 struct {
                     int index;
                     float value;
                 } audioMonitor;
+                // kLog
                 struct {
                     char type;
                     const char* msg;
                 } log;
+                // kParameterSet
                 struct {
                     uint8_t block;
                     uint8_t index;
                     const char* symbol;
                     float value;
                 } parameterSet;
+                // kPatchSet
                 struct {
                     uint8_t block;
                     const char* key;
                     char type;
-                    union {
-                        int32_t b;
-                        int32_t i;
-                        int64_t l;
-                        float f;
-                        double g;
-                        const char* s;
-                        const char* p;
-                        const char* u;
-                        struct {
-                            uint32_t num;
-                            char type;
-                            union {
-                                const int32_t* b;
-                                const int32_t* i;
-                                const int64_t* l;
-                                const float* f;
-                                const double* g;
-                            } data;
-                        } v;
-                    } data;
+                    HostPatchData data;
                 } patchSet;
+                // kToolParameterSet
+                struct {
+                    uint8_t index;
+                    const char* symbol;
+                    float value;
+                } toolParameterSet;
+                // kToolPatchSet
+                struct {
+                    uint8_t index;
+                    const char* key;
+                    char type;
+                    HostPatchData data;
+                } toolPatchSet;
             };
         };
 
@@ -459,6 +488,27 @@ public:
 
     // enable monitoring for block output parameter
     void monitorBlockOutputParameter(uint8_t block, uint8_t paramIndex);
+
+    // ----------------------------------------------------------------------------------------------------------------
+    // tool handling NOTICE WORK-IN-PROGRESS
+
+    // enable a "system tool" lv2 plugin (referenced by its URI)
+    // passing null or empty string as the URI means disabling the tool
+    // NOTE toolIndex must be < 10
+    bool enableTool(uint8_t toolIndex, const char* uri);
+
+    // connect a tool audio input port to an arbitrary jack output port
+    void connectToolAudioInput(uint8_t toolIndex, const char* symbol, const char* jackPort);
+
+    // connect a tool audio output port to an arbitrary jack input port
+    void connectToolAudioOutput(uint8_t toolIndex, const char* symbol, const char* jackPort);
+
+    // set a block parameter value
+    // NOTE value must already be sanitized!
+    void setToolParameter(uint8_t toolIndex, const char* symbol, float value);
+
+    // enable monitoring for tool output parameter
+    void monitorToolOutputParameter(uint8_t toolIndex, const char* symbol);
 
     // ----------------------------------------------------------------------------------------------------------------
     // properties
