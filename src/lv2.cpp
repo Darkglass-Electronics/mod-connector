@@ -41,6 +41,9 @@
 #define LILV_NS_DARKGLASS "http://www.darkglass.com/lv2/ns"
 #define DARKGLASS__abbreviation LILV_NS_DARKGLASS "#abbreviation"
 
+#define LILV_NS_KXSTUDIO "http://kxstudio.sf.net/ns/lv2ext/props"
+#define KXSTUDIO__Reset LILV_NS_KXSTUDIO "#Reset"
+
 #define LILV_NS_MOD "http://moddevices.com/ns/mod#"
 #define MOD__CVPort LILV_NS_MOD "CVPort"
 
@@ -439,6 +442,8 @@ struct Lv2World::Impl
 
                             if (std::strcmp(designation, LV2_CORE__enabled) == 0)
                                 retport.designation = kLv2DesignationEnabled;
+                            else if (std::strcmp(designation, KXSTUDIO__Reset) == 0)
+                                retport.designation = kLv2DesignationReset;
 
                             // TODO define quick pot URI and spec
 

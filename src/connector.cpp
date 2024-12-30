@@ -379,6 +379,7 @@ bool HostConnector::loadBankFromFile(const char* const filename)
                     case kLv2DesignationNone:
                         break;
                     case kLv2DesignationEnabled:
+                    case kLv2DesignationReset:
                         // skip parameter
                         continue;
                     case kLv2DesignationQuickPot:
@@ -1077,6 +1078,7 @@ bool HostConnector::replaceBlock(const uint8_t block, const char* const uri)
                 case kLv2DesignationNone:
                     break;
                 case kLv2DesignationEnabled:
+                case kLv2DesignationReset:
                     // skip parameter
                     continue;
                 case kLv2DesignationQuickPot:

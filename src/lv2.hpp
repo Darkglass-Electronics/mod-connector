@@ -54,6 +54,7 @@ enum Lv2Category {
 enum Lv2Designation {
     kLv2DesignationNone = 0,
     kLv2DesignationEnabled,
+    kLv2DesignationReset,
     kLv2DesignationQuickPot,
 };
 
