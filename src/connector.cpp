@@ -5,6 +5,7 @@
 #include "json.hpp"
 #include "utils.hpp"
 
+#include <cstddef>
 #include <cstring>
 #include <fstream>
 #include <map>
@@ -1824,10 +1825,14 @@ void HostConnector::hostConnectBlockToBlock(const uint8_t blockA, const uint8_t 
 
     std::string origin, target;
 
+    size_t aConnectedPort = pluginA->ports.size();
+
     for (size_t a = 0, astart = 0, b = 0; b < pluginB->ports.size(); ++b)
     {
         if ((pluginB->ports[b].flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != Lv2PortIsAudio)
             continue;
+
+        bool bIsConnected = false;
 
         for (a = astart; a < pluginA->ports.size(); ++a)
         {
@@ -1837,6 +1842,8 @@ void HostConnector::hostConnectBlockToBlock(const uint8_t blockA, const uint8_t 
             origin = format("effect_%d:%s", bpA.id, pluginA->ports[a].symbol.c_str());
             target = format("effect_%d:%s", bpB.id, pluginB->ports[b].symbol.c_str());
             _host.connect(origin.c_str(), target.c_str());
+            aConnectedPort = a;
+            bIsConnected = true;
 
             if (bpA.pair != kMaxHostInstances && bpB.pair != kMaxHostInstances)
             {
@@ -1874,13 +1881,17 @@ void HostConnector::hostConnectBlockToBlock(const uint8_t blockA, const uint8_t 
                 }
             }
 
-            ++a;
-            ++astart;
+            // try finding another a input port for next b output port
+            astart = a + 1;
             break;
         }
 
-        if (astart == 1)
-            astart = 0;
+        if (!bIsConnected && (aConnectedPort != pluginA->ports.size())) {
+            // didn't find a new a port to connect from -> connect latest found a port to b port
+            origin = format("effect_%d:%s", bpA.id, pluginA->ports[aConnectedPort].symbol.c_str());
+            target = format("effect_%d:%s", bpB.id, pluginB->ports[b].symbol.c_str());
+            _host.connect(origin.c_str(), target.c_str());
+        }
     }
 }
 
