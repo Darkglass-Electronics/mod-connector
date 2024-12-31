@@ -11,6 +11,11 @@ struct cc_scalepoint {
     float value;
 };
 
+typedef struct {
+    const char* symbol;
+    float value;
+} flushed_param;
+
 /**
  * TODO document me
  */
@@ -191,6 +196,14 @@ struct Host {
      * TODO condition as enum
      */
     bool param_monitor(int16_t instance_number, const char* param_symbol, const char* cond_op, float value);
+
+    /**
+     * flush several param values at once and trigger reset if available
+     */
+    bool params_flush(int16_t instance_number,
+                      uint8_t reset_value,
+                      unsigned int param_count,
+                      const flushed_param* params);
 
     /**
      * set the value of a patch property
