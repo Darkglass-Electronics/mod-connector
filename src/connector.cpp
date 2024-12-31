@@ -10,6 +10,9 @@
 #include <fstream>
 #include <map>
 
+#define KXSTUDIO__Reset_full 1
+#define KXSTUDIO__Reset_soft 2
+
 #define JSON_BANK_VERSION_CURRENT 0
 #define JSON_BANK_VERSION_MIN_SUPPORTED 0
 #define JSON_BANK_VERSION_MAX_SUPPORTED 0
@@ -1242,6 +1245,10 @@ bool HostConnector::switchPreset(const uint8_t preset)
     const Current old = _current;
     bool oldloaded[NUM_BLOCKS_PER_PRESET];
 
+    // preallocating some data
+    std::vector<flushed_param> params;
+    params.reserve(MAX_PARAMS_PER_BLOCK);
+
     // copy new preset to current data
     static_cast<Preset&>(_current) = _presets[preset];
     _current.preset = preset;
@@ -1354,6 +1361,8 @@ bool HostConnector::switchPreset(const uint8_t preset)
                         _host.bypass(bp.pair, !defblockdata.enabled);
                 }
 
+                params.clear();
+
                 for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
                 {
                     const HostConnector::Parameter& defparameterdata(defblockdata.parameters[p]);
@@ -1364,11 +1373,13 @@ bool HostConnector::switchPreset(const uint8_t preset)
                     if (defparameterdata.value == oldparameterdata.value)
                         continue;
 
-                    _host.param_set(bp.id, defparameterdata.symbol.c_str(), defparameterdata.value);
-
-                    if (bp.pair != kMaxHostInstances)
-                        _host.param_set(bp.pair, defparameterdata.symbol.c_str(), defparameterdata.value);
+                    params.push_back({ defparameterdata.symbol.c_str(), defparameterdata.value });
                 }
+
+                _host.params_flush(bp.id, KXSTUDIO__Reset_full, params.size(), params.data());
+
+                if (bp.pair != kMaxHostInstances)
+                    _host.params_flush(bp.pair, KXSTUDIO__Reset_full, params.size(), params.data());
 
                 continue;
             }
@@ -1407,17 +1418,21 @@ bool HostConnector::switchPreset(const uint8_t preset)
                     _host.bypass(bp.pair, true);
             }
 
+            params.clear();
+
             for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
             {
                 const HostConnector::Parameter& defparameterdata(defblockdata.parameters[p]);
                 if (isNullURI(defparameterdata.symbol))
                     break;
 
-                _host.param_set(bp.id, defparameterdata.symbol.c_str(), defparameterdata.value);
-
-                if (bp.pair != kMaxHostInstances)
-                    _host.param_set(bp.pair, defparameterdata.symbol.c_str(), defparameterdata.value);
+                params.push_back({ defparameterdata.symbol.c_str(), defparameterdata.value });
             }
+
+            _host.params_flush(bp.id, KXSTUDIO__Reset_full, params.size(), params.data());
+
+            if (bp.pair != kMaxHostInstances)
+                _host.params_flush(bp.pair, KXSTUDIO__Reset_full, params.size(), params.data());
         }
     }
 
@@ -1430,6 +1445,10 @@ bool HostConnector::switchScene(const uint8_t scene)
 {
     if (_current.scene == scene || scene > NUM_SCENES_PER_PRESET)
         return false;
+
+    // preallocating some data
+    std::vector<flushed_param> params;
+    params.reserve(MAX_PARAMS_PER_BLOCK);
 
     _current.scene = scene;
 
@@ -1447,6 +1466,8 @@ bool HostConnector::switchScene(const uint8_t scene)
         if (bp.id == kMaxHostInstances)
             continue;
 
+        params.clear();
+
         for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
         {
             HostConnector::Parameter& paramdata(blockdata.parameters[p]);
@@ -1459,11 +1480,13 @@ bool HostConnector::switchScene(const uint8_t scene)
 
             paramdata.value = blockdata.sceneValues[_current.scene][p].value;
 
-            _host.param_set(bp.id, paramdata.symbol.c_str(), paramdata.value);
-
-            if (bp.pair != kMaxHostInstances)
-                _host.param_set(bp.pair, paramdata.symbol.c_str(), paramdata.value);
+            params.push_back({ paramdata.symbol.c_str(), paramdata.value });
         }
+
+        _host.params_flush(bp.id, KXSTUDIO__Reset_soft, params.size(), params.data());
+
+        if (bp.pair != kMaxHostInstances)
+            _host.params_flush(bp.pair, KXSTUDIO__Reset_soft, params.size(), params.data());
     }
 
     return true;
