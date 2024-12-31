@@ -268,6 +268,15 @@ struct Host::Impl
             return false;
         }
 
+        /* set non-blocking mode on feedback port, so we can poke to see if there are any messages */
+       #ifdef _WIN32
+        const unsigned long nonblocking = 1;
+        ::ioctlsocket(sockets.feedback, FIONBIO, &nonblocking);
+       #else
+        const int socketflags = ::fcntl(sockets.feedback, F_GETFL);
+        ::fcntl(sockets.feedback, F_SETFL, socketflags | O_NONBLOCK);
+       #endif
+
         return true;
     }
 
@@ -558,26 +567,9 @@ struct Host::Impl
 
     bool _poll(FeedbackCallback* const callback, std::string& error)
     {
-        // set non-blocking mode, so we can poke to see if there are any messages
-       #ifdef _WIN32
-        const unsigned long nonblocking = 1;
-        ::ioctlsocket(sockets.feedback, FIONBIO, &nonblocking);
-       #else
-        const int socketflags = ::fcntl(sockets.feedback, F_GETFL);
-        ::fcntl(sockets.feedback, F_SETFL, socketflags | O_NONBLOCK);
-       #endif
-
         // read first byte
         char firstbyte = '\0';
         int r = recv(sockets.feedback, &firstbyte, 1, 0);
-
-        // set blocking mode again, so we block-wait until message is fully delivered
-       #ifdef _WIN32
-        const unsigned long blocking = 0;
-        ::ioctlsocket(sockets.feedback, FIONBIO, &blocking);
-       #else
-        ::fcntl(sockets.feedback, F_SETFL, socketflags & ~O_NONBLOCK);
-       #endif
 
         // nothing to read, quit
         if (r == 0)
@@ -588,6 +580,15 @@ struct Host::Impl
             error = "read error";
             return false;
         }
+
+        // set blocking mode, so we block-wait until message is fully delivered
+       #ifdef _WIN32
+        const unsigned long blocking = 0;
+        ::ioctlsocket(sockets.feedback, FIONBIO, &blocking);
+       #else
+        const int socketflags = ::fcntl(sockets.feedback, F_GETFL);
+        ::fcntl(sockets.feedback, F_SETFL, socketflags & ~O_NONBLOCK);
+       #endif
 
         // use stack buffer first, in case of small messages
         char stackbuffer[128] = { firstbyte, };
@@ -635,6 +636,14 @@ struct Host::Impl
                 break;
             }
         }
+
+        // set non-blocking mode again
+       #ifdef _WIN32
+        const unsigned long nonblocking = 1;
+        ::ioctlsocket(sockets.feedback, FIONBIO, &nonblocking);
+       #else
+        ::fcntl(sockets.feedback, F_SETFL, socketflags | O_NONBLOCK);
+       #endif
 
         if (std::strncmp(buffer, "audio_monitor ", 14) == 0)
         {
