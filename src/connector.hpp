@@ -29,6 +29,10 @@
 #define NUM_BLOCKS_PER_PRESET 6
 #endif
 
+#ifndef NUM_BLOCK_CHAIN_ROWS
+#define NUM_BLOCK_CHAIN_ROWS 1
+#endif
+
 #ifndef MAX_PARAMS_PER_BLOCK
 #define MAX_PARAMS_PER_BLOCK 60
 #endif
@@ -68,6 +72,14 @@
 #error NUM_BLOCKS_PER_PRESET > UINT8_MAX, need to adjust data types
 #endif
 
+#if NUM_BLOCK_CHAIN_ROWS > UINT8_MAX
+#error NUM_BLOCK_CHAIN_ROWS > UINT8_MAX, need to adjust data types
+#endif
+
+#if NUM_BLOCKS_PER_PRESET * NUM_BLOCK_CHAIN_ROWS > UINT16_MAX
+#error NUM_BLOCKS_PER_PRESET * NUM_BLOCK_CHAIN_ROWS > UINT16_MAX, need to adjust data types
+#endif
+
 #if MAX_PARAMS_PER_BLOCK > UINT8_MAX
 #error MAX_PARAMS_PER_BLOCK > UINT8_MAX, need to adjust data types
 #endif
@@ -79,11 +91,18 @@
 
 // --------------------------------------------------------------------------------------------------------------------
 
-static constexpr const uint16_t kMaxHostInstances = NUM_PRESETS_PER_BANK * (NUM_BLOCKS_PER_PRESET * 4);
+static constexpr const uint16_t kMaxHostInstances = NUM_BLOCKS_PER_PRESET * 2 /* dual-mono pair */
+                                                  * NUM_BLOCK_CHAIN_ROWS
+                                                  * NUM_PRESETS_PER_BANK;
 static_assert(kMaxHostInstances < MAX_MOD_HOST_PLUGIN_INSTANCES,
               "maximum amount of instances is bigger than what mod-host can do");
 
 struct HostInstanceMapper {
+    struct BlockAndRow {
+        uint8_t block;
+        uint8_t row;
+    };
+
     struct BlockPair {
         uint16_t id;
         uint16_t pair;
@@ -91,7 +110,7 @@ struct HostInstanceMapper {
 
     struct {
         struct {
-            BlockPair blocks[NUM_BLOCKS_PER_PRESET];
+            BlockPair blocks[NUM_BLOCKS_PER_PRESET * NUM_BLOCK_CHAIN_ROWS];
         } presets[NUM_PRESETS_PER_BANK];
     } map;
 
@@ -102,10 +121,15 @@ struct HostInstanceMapper {
         reset();
     }
 
-    uint16_t add(const uint8_t preset, const uint8_t block)
+    uint16_t add(const uint8_t preset, const uint8_t row, const uint8_t block)
     {
-        assert(map.presets[preset].blocks[block].id == kMaxHostInstances);
-        assert(map.presets[preset].blocks[block].pair == kMaxHostInstances);
+        assert(preset < NUM_PRESETS_PER_BANK);
+        assert(row < NUM_BLOCK_CHAIN_ROWS);
+        assert(block < NUM_BLOCKS_PER_PRESET);
+
+        const uint16_t rblock = block * row;
+        assert(map.presets[preset].blocks[rblock].id == kMaxHostInstances);
+        assert(map.presets[preset].blocks[rblock].pair == kMaxHostInstances);
 
         for (uint16_t id = 0; id < kMaxHostInstances; ++id)
         {
@@ -113,7 +137,7 @@ struct HostInstanceMapper {
                 continue;
 
             used[id] = true;
-            map.presets[preset].blocks[block].id = id;
+            map.presets[preset].blocks[rblock].id = id;
 
             return id;
         }
@@ -122,10 +146,15 @@ struct HostInstanceMapper {
         abort();
     }
 
-    uint16_t add_pair(const uint8_t preset, const uint8_t block)
+    uint16_t add_pair(const uint8_t preset, const uint8_t row, const uint8_t block)
     {
-        assert(map.presets[preset].blocks[block].id != kMaxHostInstances);
-        assert(map.presets[preset].blocks[block].pair == kMaxHostInstances);
+        assert(preset < NUM_PRESETS_PER_BANK);
+        assert(row < NUM_BLOCK_CHAIN_ROWS);
+        assert(block < NUM_BLOCKS_PER_PRESET);
+
+        const uint16_t rblock = block * row;
+        assert(map.presets[preset].blocks[rblock].id != kMaxHostInstances);
+        assert(map.presets[preset].blocks[rblock].pair == kMaxHostInstances);
 
         for (uint16_t id2 = 0; id2 < kMaxHostInstances; ++id2)
         {
@@ -133,7 +162,7 @@ struct HostInstanceMapper {
                 continue;
 
             used[id2] = true;
-            map.presets[preset].blocks[block].pair = id2;
+            map.presets[preset].blocks[rblock].pair = id2;
 
             return id2;
         }
@@ -142,64 +171,91 @@ struct HostInstanceMapper {
         abort();
     }
 
-    BlockPair remove(const uint8_t preset, const uint8_t block)
+    BlockPair remove(const uint8_t preset, const uint8_t row, const uint8_t block)
     {
-        assert(map.presets[preset].blocks[block].id != kMaxHostInstances);
+        assert(preset < NUM_PRESETS_PER_BANK);
+        assert(row < NUM_BLOCK_CHAIN_ROWS);
+        assert(block < NUM_BLOCKS_PER_PRESET);
 
-        const uint16_t id = map.presets[preset].blocks[block].id;
-        const uint16_t id2 = map.presets[preset].blocks[block].pair;
+        const uint16_t rblock = block * row;
+        assert(map.presets[preset].blocks[rblock].id != kMaxHostInstances);
 
-        map.presets[preset].blocks[block].id = kMaxHostInstances;
+        const uint16_t id = map.presets[preset].blocks[rblock].id;
+        const uint16_t id2 = map.presets[preset].blocks[rblock].pair;
+
+        map.presets[preset].blocks[rblock].id = kMaxHostInstances;
         used[id] = false;
 
         if (id2 != kMaxHostInstances)
         {
-            map.presets[preset].blocks[block].pair = kMaxHostInstances;
+            map.presets[preset].blocks[rblock].pair = kMaxHostInstances;
             used[id2] = false;
         }
 
         return { id, id2 };
     }
 
-    uint16_t remove_pair(const uint8_t preset, const uint8_t block)
+    uint16_t remove_pair(const uint8_t preset, const uint8_t row, const uint8_t block)
     {
-        assert(map.presets[preset].blocks[block].id != kMaxHostInstances);
-        assert(map.presets[preset].blocks[block].pair != kMaxHostInstances);
+        assert(preset < NUM_PRESETS_PER_BANK);
+        assert(row < NUM_BLOCK_CHAIN_ROWS);
+        assert(block < NUM_BLOCKS_PER_PRESET);
 
-        const uint16_t id2 = map.presets[preset].blocks[block].pair;
+        const uint16_t rblock = block * row;
+        assert(map.presets[preset].blocks[rblock].id != kMaxHostInstances);
+        assert(map.presets[preset].blocks[rblock].pair != kMaxHostInstances);
 
-        map.presets[preset].blocks[block].pair = kMaxHostInstances;
+        const uint16_t id2 = map.presets[preset].blocks[rblock].pair;
+
+        map.presets[preset].blocks[rblock].pair = kMaxHostInstances;
         used[id2] = false;
 
         return id2;
     }
 
-    BlockPair get(const uint8_t preset, const uint8_t block) const
+    BlockPair get(const uint8_t preset, const uint8_t row, const uint8_t block) const
     {
-        return map.presets[preset].blocks[block];
+        assert(preset < NUM_PRESETS_PER_BANK);
+        assert(row < NUM_BLOCK_CHAIN_ROWS);
+        assert(block < NUM_BLOCKS_PER_PRESET);
+
+        return map.presets[preset].blocks[block * row];
     }
 
-    uint8_t get_block_with_id(const uint8_t preset, const uint16_t id) const
+    BlockAndRow get_block_with_id(const uint8_t preset, const uint16_t id) const
     {
-        for (uint8_t b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
+        for (uint8_t b = 0; b < NUM_BLOCKS_PER_PRESET * NUM_BLOCK_CHAIN_ROWS; ++b)
         {
             if (map.presets[preset].blocks[b].id == id)
-                return b;
+                return {
+                    static_cast<uint8_t>(b % NUM_BLOCKS_PER_PRESET),
+                    static_cast<uint8_t>(b / NUM_BLOCKS_PER_PRESET)
+                };
+
             if (map.presets[preset].blocks[b].pair == id)
-                return NUM_BLOCKS_PER_PRESET;
+                break;
         }
 
-        return NUM_BLOCKS_PER_PRESET;
+        return { NUM_BLOCKS_PER_PRESET, NUM_BLOCK_CHAIN_ROWS };
     }
 
     void reset()
     {
         for (uint8_t p = 0; p < NUM_PRESETS_PER_BANK; ++p)
-            for (uint8_t b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
+            for (uint8_t b = 0; b < NUM_BLOCKS_PER_PRESET * NUM_BLOCK_CHAIN_ROWS; ++b)
                 map.presets[p].blocks[b].id = map.presets[p].blocks[b].pair = kMaxHostInstances;
 
         std::memset(used, 0, sizeof(bool) * kMaxHostInstances);
     }
+
+    // convenience calls for single-row builds
+   #if NUM_BLOCK_CHAIN_ROWS == 1
+    inline uint16_t  add(const uint8_t preset, const uint8_t block)         { return add(preset, 0, block);         }
+    inline uint16_t  add_pair(const uint8_t preset, const uint8_t block)    { return add_pair(preset, 0, block);    }
+    inline BlockPair remove(const uint8_t preset, const uint8_t block)      { return remove(preset, 0, block);      }
+    inline uint16_t  remove_pair(const uint8_t preset, const uint8_t block) { return remove_pair(preset, 0, block); }
+    inline BlockPair get(const uint8_t preset, const uint8_t block)         { return get(preset, 0, block);         }
+   #endif
 };
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -228,6 +284,7 @@ struct HostConnector : Host::FeedbackCallback {
                 } log;
                 // kParameterSet
                 struct {
+                    uint8_t row;
                     uint8_t block;
                     uint8_t index;
                     const char* symbol;
@@ -235,6 +292,7 @@ struct HostConnector : Host::FeedbackCallback {
                 } parameterSet;
                 // kPatchSet
                 struct {
+                    uint8_t row;
                     uint8_t block;
                     const char* key;
                     char type;
@@ -308,8 +366,11 @@ struct HostConnector : Host::FeedbackCallback {
 
     struct Preset {
         std::string name;
-        std::vector<Block> blocks;
-        std::list<Binding> bindings[NUM_BINDING_ACTUATORS];
+        std::list<Binding> bindings[NUM_BINDING_ACTUATORS]; // TODO private ?
+    private:
+        friend class HostConnector;
+        friend class WebSocketConnector;
+        std::vector<Block> blocks; // TODO use NUM_BLOCK_CHAIN_ROWS ?
     };
 
     struct Current : Preset {
@@ -318,6 +379,24 @@ struct HostConnector : Host::FeedbackCallback {
         uint8_t numLoadedPlugins = 0;
         bool dirty = false;
         std::string filename;
+
+        /* FIXME needed?
+        inline Block& block(const uint8_t row, const uint8_t block)
+        {
+            assert(row < NUM_BLOCK_CHAIN_ROWS);
+            assert(block < NUM_BLOCKS_PER_PRESET);
+
+            return blocks[static_cast<uint16_t>(row) * NUM_BLOCK_CHAIN_ROWS + block];
+        }
+        */
+
+        inline const Block& cblock(const uint8_t row, const uint8_t block) const
+        {
+            assert(row < NUM_BLOCK_CHAIN_ROWS);
+            assert(block < NUM_BLOCKS_PER_PRESET);
+
+            return blocks[static_cast<uint16_t>(row) * NUM_BLOCK_CHAIN_ROWS + block];
+        }
     };
 
     // connection to mod-host, handled internally
@@ -526,8 +605,13 @@ private:
     void hostFeedbackCallback(const HostFeedbackData& data) override;
 
     void hostReady();
+
+    static void allocPreset(Preset& preset);
+    static void resetPreset(Preset& preset);
 };
 
 typedef HostConnector::Callback::Data HostCallbackData;
+typedef HostInstanceMapper::BlockAndRow HostBlockAndRow;
+typedef HostInstanceMapper::BlockPair HostBlockPair;
 
 // --------------------------------------------------------------------------------------------------------------------
