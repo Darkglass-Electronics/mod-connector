@@ -248,7 +248,7 @@ struct HostInstanceMapper {
         std::memset(used, 0, sizeof(bool) * kMaxHostInstances);
     }
 
-    // convenience calls for single-row builds
+    // convenience calls for single-chain builds
    #if NUM_BLOCK_CHAIN_ROWS == 1
     inline uint16_t  add(const uint8_t preset, const uint8_t block)         { return add(preset, 0, block);         }
     inline uint16_t  add_pair(const uint8_t preset, const uint8_t block)    { return add_pair(preset, 0, block);    }
@@ -356,6 +356,7 @@ struct HostConnector : Host::FeedbackCallback {
     };
 
     struct Binding {
+        uint8_t row;
         uint8_t block;
         std::string parameterSymbol;
         struct {
@@ -370,7 +371,7 @@ struct HostConnector : Host::FeedbackCallback {
     private:
         friend class HostConnector;
         friend class WebSocketConnector;
-        std::vector<Block> blocks; // TODO use NUM_BLOCK_CHAIN_ROWS ?
+        std::vector<Block> blocks[NUM_BLOCK_CHAIN_ROWS];
     };
 
     struct Current : Preset {
@@ -379,6 +380,25 @@ struct HostConnector : Host::FeedbackCallback {
         uint8_t numLoadedPlugins = 0;
         bool dirty = false;
         std::string filename;
+
+        inline const Block& cblock(const uint8_t row, const uint8_t block) const
+        {
+            assert(row < NUM_BLOCK_CHAIN_ROWS);
+            assert(block < NUM_BLOCKS_PER_PRESET);
+            return blocks[row][block];
+        }
+
+        // convenience calls for single-chain builds
+       #if NUM_BLOCK_CHAIN_ROWS == 1
+        inline const Block& cblock(const uint8_t block) const
+        {
+            assert(block < NUM_BLOCKS_PER_PRESET);
+            return blocks[0][block];
+        }
+       #endif
+
+    private:
+        friend class HostConnector;
 
         /* FIXME needed?
         inline Block& block(const uint8_t row, const uint8_t block)
@@ -389,14 +409,6 @@ struct HostConnector : Host::FeedbackCallback {
             return blocks[static_cast<uint16_t>(row) * NUM_BLOCK_CHAIN_ROWS + block];
         }
         */
-
-        inline const Block& cblock(const uint8_t row, const uint8_t block) const
-        {
-            assert(row < NUM_BLOCK_CHAIN_ROWS);
-            assert(block < NUM_BLOCKS_PER_PRESET);
-
-            return blocks[static_cast<uint16_t>(row) * NUM_BLOCK_CHAIN_ROWS + block];
-        }
     };
 
     // connection to mod-host, handled internally
@@ -498,16 +510,34 @@ public:
 
     // enable or disable/bypass a block
     // returning false means the block was unchanged
-    bool enableBlock(uint8_t block, bool enable);
+    bool enableBlock(uint8_t row, uint8_t block, bool enable);
 
-    // reorder a block into a new position
+    // reorder a block into aconst  new position
     // returning false means the current chain was unchanged
-    bool reorderBlock(uint8_t orig, uint8_t dest);
+    bool reorderBlock(uint8_t row, uint8_t orig, uint8_t dest);
 
     // replace a block with another lv2 plugin (referenced by its URI)
     // passing null or empty string as the URI means clearing the block
     // returning false means the block was unchanged
-    bool replaceBlock(uint8_t block, const char* uri);
+    bool replaceBlock(uint8_t row, uint8_t block, const char* uri);
+
+    // convenience calls for single-chain builds
+   #if NUM_BLOCK_CHAIN_ROWS == 1
+    inline bool enableBlock(const uint8_t block, const bool enable)
+    {
+        return enableBlock(0, block, enable);
+    }
+
+    inline bool reorderBlock(const uint8_t orig, const uint8_t dest)
+    {
+        return reorderBlock(0, orig, dest);
+    }
+
+    inline bool replaceBlock(const uint8_t block, const char* const uri)
+    {
+        return replaceBlock(0, block, uri);
+    }
+   #endif
 
     // ----------------------------------------------------------------------------------------------------------------
     // scene handling
