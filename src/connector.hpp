@@ -204,30 +204,6 @@ struct HostInstanceMapper {
 
 // --------------------------------------------------------------------------------------------------------------------
 
-union HostPatchData {
-    int32_t b;
-    int32_t i;
-    int64_t l;
-    float f;
-    double g;
-    const char* s;
-    const char* p;
-    const char* u;
-    struct {
-        uint32_t num;
-        char type;
-        union {
-            const int32_t* b;
-            const int32_t* i;
-            const int64_t* l;
-            const float* f;
-            const double* g;
-        } data;
-    } v;
-};
-
-// --------------------------------------------------------------------------------------------------------------------
-
 struct HostConnector : Host::FeedbackCallback {
     struct Callback {
         struct Data {

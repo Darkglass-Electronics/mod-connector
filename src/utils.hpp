@@ -6,6 +6,15 @@
 #include <string>
 
 // --------------------------------------------------------------------------------------------------------------------
+// convert bool to string
+
+static inline constexpr
+const char* bool2str(const bool b) noexcept
+{
+    return b ? "true" : "false";
+}
+
+// --------------------------------------------------------------------------------------------------------------------
 // check if an URI is null
 
 static inline constexpr

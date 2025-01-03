@@ -6,15 +6,37 @@
 #include <cstdint>
 #include <string>
 
-struct cc_scalepoint {
+typedef struct {
     const char* label;
     float value;
-};
+} cc_scalepoint;
 
 typedef struct {
     const char* symbol;
     float value;
 } flushed_param;
+
+typedef union {
+    int32_t b;
+    int32_t i;
+    int64_t l;
+    float f;
+    double g;
+    const char* s;
+    const char* p;
+    const char* u;
+    struct {
+        uint32_t num;
+        char type;
+        union {
+            const int32_t* b;
+            const int32_t* i;
+            const int64_t* l;
+            const float* f;
+            const double* g;
+        } data;
+    } v;
+} HostPatchData;
 
 /**
  * TODO document me
@@ -68,27 +90,7 @@ struct Host {
                     int effect_id;
                     const char* key;
                     char type;
-                    union {
-                        int32_t b;
-                        int32_t i;
-                        int64_t l;
-                        float f;
-                        double g;
-                        const char* s;
-                        const char* p;
-                        const char* u;
-                        struct {
-                            uint32_t num;
-                            char type;
-                            union {
-                                const int32_t* b;
-                                const int32_t* i;
-                                const int64_t* l;
-                                const float* f;
-                                const double* g;
-                            } data;
-                        } v;
-                    } data;
+                    HostPatchData data;
                 } patchSet;
                 struct {
                     int8_t program;

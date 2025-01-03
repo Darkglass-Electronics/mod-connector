@@ -138,8 +138,6 @@ bool HostConnector::reconnect()
 
 // --------------------------------------------------------------------------------------------------------------------
 
-static constexpr const char* bool2str(bool b) { return b ? "true" : "false"; }
-
 void HostConnector::printStateForDebug(const bool withBlocks, const bool withParams, const bool withBindings)
 {
     fprintf(stderr, "------------------------------------------------------------------\n");
