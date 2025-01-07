@@ -52,8 +52,6 @@ static void resetBlock(HostConnector::Block& blockdata)
             blockdata.sceneValues[s][p].used = false;
 }
 
-// --------------------------------------------------------------------------------------------------------------------
-
 static void allocBlock(HostConnector::Block& blockdata)
 {
     blockdata.parameters.resize(MAX_PARAMS_PER_BLOCK);
@@ -61,6 +59,8 @@ static void allocBlock(HostConnector::Block& blockdata)
     for (uint8_t s = 0; s <= NUM_SCENES_PER_PRESET; ++s)
         blockdata.sceneValues[s].resize(MAX_PARAMS_PER_BLOCK);
 }
+
+// --------------------------------------------------------------------------------------------------------------------
 
 static bool getSupportedPluginIO(const Lv2Plugin* const plugin, uint8_t& numInputs, uint8_t& numOutputs)
 {
@@ -843,12 +843,12 @@ void HostConnector::clearCurrentPreset()
 
     for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
     {
-        for (uint8_t b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
+        for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
         {
-            if (! isNullURI(_current.blocks[row][b].uri))
-                hostRemoveInstanceForBlock(row, b);
+            if (! isNullURI(_current.blocks[row][bl].uri))
+                hostRemoveInstanceForBlock(row, bl);
 
-            resetBlock(_current.blocks[row][b]);
+            resetBlock(_current.blocks[row][bl]);
         }
     }
 
@@ -1197,8 +1197,8 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
         else
         {
             bool loaded[NUM_BLOCKS_PER_PRESET];
-            for (uint8_t b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
-                loaded[b] = !isNullURI(_current.blocks[row][b].uri);
+            for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
+                loaded[bl] = !isNullURI(_current.blocks[row][bl].uri);
 
             // find surrounding plugins
             uint8_t before = NUM_BLOCKS_PER_PRESET;
@@ -1217,11 +1217,11 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
             uint8_t after = NUM_BLOCKS_PER_PRESET;
             if (block != NUM_BLOCKS_PER_PRESET - 1)
             {
-                for (uint8_t b = block + 1; b < NUM_BLOCKS_PER_PRESET; ++b)
+                for (uint8_t bl = block + 1; bl < NUM_BLOCKS_PER_PRESET; ++bl)
                 {
-                    if (loaded[b])
+                    if (loaded[bl])
                     {
-                        after = b;
+                        after = bl;
                         break;
                     }
                 }
@@ -1252,8 +1252,8 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
         else
         {
             bool loaded[NUM_BLOCKS_PER_PRESET];
-            for (uint8_t b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
-                loaded[b] = !isNullURI(_current.blocks[row][b].uri);
+            for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
+                loaded[bl] = !isNullURI(_current.blocks[row][bl].uri);
 
             // find previous plugin
             uint8_t start = 0;
@@ -1320,15 +1320,15 @@ bool HostConnector::switchPreset(const uint8_t preset)
         {
             for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
             {
-                for (uint8_t b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
+                for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
                 {
-                    if (! (oldloaded[row][b] = !isNullURI(old.blocks[row][b].uri)))
+                    if (! (oldloaded[row][bl] = !isNullURI(old.blocks[row][bl].uri)))
                         continue;
 
-                    hostDisconnectAllBlockInputs(row, b);
-                    hostDisconnectAllBlockOutputs(row, b);
+                    hostDisconnectAllBlockInputs(row, bl);
+                    hostDisconnectAllBlockOutputs(row, bl);
 
-                    const HostBlockPair hbp = _mapper.get(old.preset, row, b);
+                    const HostBlockPair hbp = _mapper.get(old.preset, row, bl);
 
                     if (hbp.id != kMaxHostInstances)
                         _host.activate(hbp.id, 0);
@@ -1343,12 +1343,12 @@ bool HostConnector::switchPreset(const uint8_t preset)
         uint8_t last = 0;
         for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
         {
-            for (uint8_t b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
+            for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
             {
-                if (isNullURI(_current.blocks[row][b].uri))
+                if (isNullURI(_current.blocks[row][bl].uri))
                     continue;
 
-                const HostBlockPair hbp = _mapper.get(_current.preset, row, b);
+                const HostBlockPair hbp = _mapper.get(_current.preset, row, bl);
 
                 if (hbp.id != kMaxHostInstances)
                     _host.activate(hbp.id, 1);
@@ -1360,11 +1360,11 @@ bool HostConnector::switchPreset(const uint8_t preset)
                 if (row == 0)
                 {
                     if (++_current.numLoadedPlugins == 1)
-                        hostConnectBlockToSystemInput(row, b);
+                        hostConnectBlockToSystemInput(row, bl);
                     else
-                        hostConnectBlockToBlock(row, last, b);
+                        hostConnectBlockToBlock(row, last, bl);
 
-                    last = b;
+                    last = bl;
                 }
             }
         }
@@ -1394,18 +1394,18 @@ bool HostConnector::switchPreset(const uint8_t preset)
 
         for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
         {
-            for (uint8_t b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
+            for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
             {
-                const Block& defblockdata = defaults.blocks[row][b];
-                const Block& oldblockdata = defaults.blocks[row][b];
+                const Block& defblockdata = defaults.blocks[row][bl];
+                const Block& oldblockdata = defaults.blocks[row][bl];
 
                 // using same plugin (or both empty)
-                if (defblockdata.uri == old.blocks[row][b].uri)
+                if (defblockdata.uri == old.blocks[row][bl].uri)
                 {
                     if (isNullURI(defblockdata.uri))
                         continue;
 
-                    const HostBlockPair hbp = _mapper.get(old.preset, row, b);
+                    const HostBlockPair hbp = _mapper.get(old.preset, row, bl);
                     if (hbp.id == kMaxHostInstances)
                         continue;
 
@@ -1441,9 +1441,9 @@ bool HostConnector::switchPreset(const uint8_t preset)
                 }
 
                 // different plugin, unload old one if there is any
-                if (oldloaded[row][b])
+                if (oldloaded[row][bl])
                 {
-                    const HostBlockPair hbp = _mapper.remove(old.preset, row, b);
+                    const HostBlockPair hbp = _mapper.remove(old.preset, row, bl);
 
                     if (hbp.id != kMaxHostInstances)
                         _host.remove(hbp.id);
@@ -1453,16 +1453,16 @@ bool HostConnector::switchPreset(const uint8_t preset)
                 }
 
                 // nothing else to do if block is empty
-                if (isNullURI(defaults.blocks[row][b].uri))
+                if (isNullURI(defaults.blocks[row][bl].uri))
                     continue;
 
                 // otherwise load default plugin
-                HostBlockPair hbp = { _mapper.add(old.preset, row, b), kMaxHostInstances };
+                HostBlockPair hbp = { _mapper.add(old.preset, row, bl), kMaxHostInstances };
                 _host.preload(defblockdata.uri.c_str(), hbp.id);
 
-                if (hostPresetBlockShouldBeStereo(defaults, row, b))
+                if (hostPresetBlockShouldBeStereo(defaults, row, bl))
                 {
-                    hbp.pair = _mapper.add_pair(old.preset, row, b);
+                    hbp.pair = _mapper.add_pair(old.preset, row, bl);
                     _host.preload(defblockdata.uri.c_str(), hbp.pair);
                 }
 
@@ -1513,15 +1513,15 @@ bool HostConnector::switchScene(const uint8_t scene)
 
     for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
     {
-        for (uint8_t b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
+        for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
         {
-            HostConnector::Block& blockdata(_current.blocks[row][b]);
+            HostConnector::Block& blockdata(_current.blocks[row][bl]);
             if (isNullURI(blockdata.uri))
                 continue;
             if (! blockdata.meta.hasScenes)
                 continue;
 
-            const HostBlockPair hbp = _mapper.get(_current.preset, row, b);
+            const HostBlockPair hbp = _mapper.get(_current.preset, row, bl);
             if (hbp.id == kMaxHostInstances)
                 continue;
 
@@ -1898,8 +1898,8 @@ void HostConnector::hostConnectAll(const uint8_t row, uint8_t blockStart, uint8_
     // _host.disconnect(JACK_CAPTURE_PORT_2, JACK_PLAYBACK_PORT_2);
 
     bool loaded[NUM_BLOCKS_PER_PRESET];
-    for (uint8_t b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
-        loaded[b] = !isNullURI(_current.blocks[row][b].uri);
+    for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
+        loaded[bl] = !isNullURI(_current.blocks[row][bl].uri);
 
     // first plugin
     for (uint8_t b = 0; b <= blockEnd; ++b)
@@ -1938,11 +1938,11 @@ void HostConnector::hostConnectAll(const uint8_t row, uint8_t blockStart, uint8_
 
     if (blockEnd != NUM_BLOCKS_PER_PRESET - 1)
     {
-        for (uint8_t b = blockEnd + 1; b < NUM_BLOCKS_PER_PRESET; ++b)
+        for (uint8_t bl = blockEnd + 1; bl < NUM_BLOCKS_PER_PRESET; ++bl)
         {
-            if (loaded[b])
+            if (loaded[bl])
             {
-                blockEnd = b;
+                blockEnd = bl;
                 break;
             }
         }
@@ -2077,14 +2077,14 @@ void HostConnector::hostDisconnectAll()
 {
     for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
     {
-        for (uint8_t b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
+        for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
         {
-            const HostConnector::Block& blockdata(_current.blocks[row][b]);
+            const HostConnector::Block& blockdata(_current.blocks[row][bl]);
             if (isNullURI(blockdata.uri))
                 continue;
 
-            hostDisconnectAllBlockInputs(row, b);
-            hostDisconnectAllBlockOutputs(row, b);
+            hostDisconnectAllBlockInputs(row, bl);
+            hostDisconnectAllBlockOutputs(row, bl);
         }
     }
 }
@@ -2129,9 +2129,10 @@ void HostConnector::hostClearAndLoadCurrentBank()
             const bool active = _current.preset == pr;
             bool previousPluginStereoOut = false;
 
-            for (uint8_t b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
+            for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
             {
-                const HostConnector::Block& blockdata(active ? _current.blocks[row][b] : _presets[pr].blocks[row][b]);
+                const HostConnector::Block& blockdata(active ? _current.blocks[row][bl]
+                                                             : _presets[pr].blocks[row][bl]);
                 if (isNullURI(blockdata.uri))
                     continue;
 
@@ -2158,7 +2159,7 @@ void HostConnector::hostClearAndLoadCurrentBank()
                 };
 
                 const bool dualmono = previousPluginStereoOut && blockdata.meta.isMonoIn;
-                const uint16_t instance = _mapper.add(pr, row, b);
+                const uint16_t instance = _mapper.add(pr, row, bl);
 
                 bool added = loadInstance(instance);
 
@@ -2166,7 +2167,7 @@ void HostConnector::hostClearAndLoadCurrentBank()
                 {
                     if (dualmono)
                     {
-                        const uint16_t pair = _mapper.add_pair(pr, row, b);
+                        const uint16_t pair = _mapper.add_pair(pr, row, bl);
 
                         if (! loadInstance(pair))
                         {
@@ -2179,9 +2180,9 @@ void HostConnector::hostClearAndLoadCurrentBank()
                 if (! added)
                 {
                     if (active)
-                        resetBlock(_current.blocks[row][b]);
+                        resetBlock(_current.blocks[row][bl]);
 
-                    _mapper.remove(pr, row, b);
+                    _mapper.remove(pr, row, bl);
                     continue;
                 }
 
@@ -2191,11 +2192,11 @@ void HostConnector::hostClearAndLoadCurrentBank()
                 if (active && row == 0)
                 {
                     if (++_current.numLoadedPlugins == 1)
-                        hostConnectBlockToSystemInput(row, b);
+                        hostConnectBlockToSystemInput(row, bl);
                     else
-                        hostConnectBlockToBlock(row, last, b);
+                        hostConnectBlockToBlock(row, last, bl);
 
-                    last = b;
+                    last = bl;
                 }
             }
         }
