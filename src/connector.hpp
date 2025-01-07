@@ -133,18 +133,18 @@ struct HostConnector : Host::FeedbackCallback {
         bool dirty = false;
         std::string filename;
 
-       #if NUM_BLOCK_CHAIN_ROWS == 1
-        inline const Block& block(const uint8_t block) const noexcept
-        {
-            assert(block < NUM_BLOCKS_PER_PRESET);
-            return blocks[0][block];
-        }
-       #else
         inline const Block& block(const uint8_t row, const uint8_t block) const noexcept
         {
             assert(row < NUM_BLOCK_CHAIN_ROWS);
             assert(block < NUM_BLOCKS_PER_PRESET);
             return blocks[row][block];
+        }
+
+       #if NUM_BLOCK_CHAIN_ROWS == 1
+        inline const Block& block(const uint8_t block) const noexcept
+        {
+            assert(block < NUM_BLOCKS_PER_PRESET);
+            return blocks[0][block];
         }
        #endif
     };
