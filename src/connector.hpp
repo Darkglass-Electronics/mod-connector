@@ -29,6 +29,10 @@
 #define NUM_BLOCKS_PER_PRESET 6
 #endif
 
+#ifndef NUM_BLOCK_CHAIN_ROWS
+#define NUM_BLOCK_CHAIN_ROWS 1
+#endif
+
 #ifndef MAX_PARAMS_PER_BLOCK
 #define MAX_PARAMS_PER_BLOCK 60
 #endif
@@ -68,6 +72,14 @@
 #error NUM_BLOCKS_PER_PRESET > UINT8_MAX, need to adjust data types
 #endif
 
+#if NUM_BLOCK_CHAIN_ROWS > UINT8_MAX
+#error NUM_BLOCK_CHAIN_ROWS > UINT8_MAX, need to adjust data types
+#endif
+
+#if NUM_BLOCKS_PER_PRESET * NUM_BLOCK_CHAIN_ROWS > UINT16_MAX
+#error NUM_BLOCKS_PER_PRESET * NUM_BLOCK_CHAIN_ROWS > UINT16_MAX, need to adjust data types
+#endif
+
 #if MAX_PARAMS_PER_BLOCK > UINT8_MAX
 #error MAX_PARAMS_PER_BLOCK > UINT8_MAX, need to adjust data types
 #endif
@@ -79,11 +91,18 @@
 
 // --------------------------------------------------------------------------------------------------------------------
 
-static constexpr const uint16_t kMaxHostInstances = NUM_PRESETS_PER_BANK * (NUM_BLOCKS_PER_PRESET * 4);
+static constexpr const uint16_t kMaxHostInstances = NUM_BLOCKS_PER_PRESET * 2 /* dual-mono pair */
+                                                  * NUM_BLOCK_CHAIN_ROWS
+                                                  * NUM_PRESETS_PER_BANK;
 static_assert(kMaxHostInstances < MAX_MOD_HOST_PLUGIN_INSTANCES,
               "maximum amount of instances is bigger than what mod-host can do");
 
 struct HostInstanceMapper {
+    struct BlockAndRow {
+        uint8_t block;
+        uint8_t row;
+    };
+
     struct BlockPair {
         uint16_t id;
         uint16_t pair;
@@ -91,7 +110,7 @@ struct HostInstanceMapper {
 
     struct {
         struct {
-            BlockPair blocks[NUM_BLOCKS_PER_PRESET];
+            BlockPair blocks[NUM_BLOCKS_PER_PRESET * NUM_BLOCK_CHAIN_ROWS];
         } presets[NUM_PRESETS_PER_BANK];
     } map;
 
@@ -102,10 +121,15 @@ struct HostInstanceMapper {
         reset();
     }
 
-    uint16_t add(const uint8_t preset, const uint8_t block)
+    uint16_t add(const uint8_t preset, const uint8_t row, const uint8_t block)
     {
-        assert(map.presets[preset].blocks[block].id == kMaxHostInstances);
-        assert(map.presets[preset].blocks[block].pair == kMaxHostInstances);
+        assert(preset < NUM_PRESETS_PER_BANK);
+        assert(row < NUM_BLOCK_CHAIN_ROWS);
+        assert(block < NUM_BLOCKS_PER_PRESET);
+
+        const uint16_t rblock = row * NUM_BLOCKS_PER_PRESET + block;
+        assert(map.presets[preset].blocks[rblock].id == kMaxHostInstances);
+        assert(map.presets[preset].blocks[rblock].pair == kMaxHostInstances);
 
         for (uint16_t id = 0; id < kMaxHostInstances; ++id)
         {
@@ -113,7 +137,7 @@ struct HostInstanceMapper {
                 continue;
 
             used[id] = true;
-            map.presets[preset].blocks[block].id = id;
+            map.presets[preset].blocks[rblock].id = id;
 
             return id;
         }
@@ -122,10 +146,15 @@ struct HostInstanceMapper {
         abort();
     }
 
-    uint16_t add_pair(const uint8_t preset, const uint8_t block)
+    uint16_t add_pair(const uint8_t preset, const uint8_t row, const uint8_t block)
     {
-        assert(map.presets[preset].blocks[block].id != kMaxHostInstances);
-        assert(map.presets[preset].blocks[block].pair == kMaxHostInstances);
+        assert(preset < NUM_PRESETS_PER_BANK);
+        assert(row < NUM_BLOCK_CHAIN_ROWS);
+        assert(block < NUM_BLOCKS_PER_PRESET);
+
+        const uint16_t rblock = row * NUM_BLOCKS_PER_PRESET + block;
+        assert(map.presets[preset].blocks[rblock].id != kMaxHostInstances);
+        assert(map.presets[preset].blocks[rblock].pair == kMaxHostInstances);
 
         for (uint16_t id2 = 0; id2 < kMaxHostInstances; ++id2)
         {
@@ -133,7 +162,7 @@ struct HostInstanceMapper {
                 continue;
 
             used[id2] = true;
-            map.presets[preset].blocks[block].pair = id2;
+            map.presets[preset].blocks[rblock].pair = id2;
 
             return id2;
         }
@@ -142,60 +171,79 @@ struct HostInstanceMapper {
         abort();
     }
 
-    BlockPair remove(const uint8_t preset, const uint8_t block)
+    BlockPair remove(const uint8_t preset, const uint8_t row, const uint8_t block)
     {
-        assert(map.presets[preset].blocks[block].id != kMaxHostInstances);
+        assert(preset < NUM_PRESETS_PER_BANK);
+        assert(row < NUM_BLOCK_CHAIN_ROWS);
+        assert(block < NUM_BLOCKS_PER_PRESET);
 
-        const uint16_t id = map.presets[preset].blocks[block].id;
-        const uint16_t id2 = map.presets[preset].blocks[block].pair;
+        const uint16_t rblock = row * NUM_BLOCKS_PER_PRESET + block;
+        assert(map.presets[preset].blocks[rblock].id != kMaxHostInstances);
 
-        map.presets[preset].blocks[block].id = kMaxHostInstances;
+        const uint16_t id = map.presets[preset].blocks[rblock].id;
+        const uint16_t id2 = map.presets[preset].blocks[rblock].pair;
+
+        map.presets[preset].blocks[rblock].id = kMaxHostInstances;
         used[id] = false;
 
         if (id2 != kMaxHostInstances)
         {
-            map.presets[preset].blocks[block].pair = kMaxHostInstances;
+            map.presets[preset].blocks[rblock].pair = kMaxHostInstances;
             used[id2] = false;
         }
 
         return { id, id2 };
     }
 
-    uint16_t remove_pair(const uint8_t preset, const uint8_t block)
+    uint16_t remove_pair(const uint8_t preset, const uint8_t row, const uint8_t block)
     {
-        assert(map.presets[preset].blocks[block].id != kMaxHostInstances);
-        assert(map.presets[preset].blocks[block].pair != kMaxHostInstances);
+        assert(preset < NUM_PRESETS_PER_BANK);
+        assert(row < NUM_BLOCK_CHAIN_ROWS);
+        assert(block < NUM_BLOCKS_PER_PRESET);
 
-        const uint16_t id2 = map.presets[preset].blocks[block].pair;
+        const uint16_t rblock = row * NUM_BLOCKS_PER_PRESET + block;
+        assert(map.presets[preset].blocks[rblock].id != kMaxHostInstances);
+        assert(map.presets[preset].blocks[rblock].pair != kMaxHostInstances);
 
-        map.presets[preset].blocks[block].pair = kMaxHostInstances;
+        const uint16_t id2 = map.presets[preset].blocks[rblock].pair;
+
+        map.presets[preset].blocks[rblock].pair = kMaxHostInstances;
         used[id2] = false;
 
         return id2;
     }
 
-    BlockPair get(const uint8_t preset, const uint8_t block) const
+    BlockPair get(const uint8_t preset, const uint8_t row, const uint8_t block) const
     {
-        return map.presets[preset].blocks[block];
+        assert(preset < NUM_PRESETS_PER_BANK);
+        assert(row < NUM_BLOCK_CHAIN_ROWS);
+        assert(block < NUM_BLOCKS_PER_PRESET);
+
+        const uint16_t rblock = row * NUM_BLOCKS_PER_PRESET + block;
+        return map.presets[preset].blocks[rblock];
     }
 
-    uint8_t get_block_with_id(const uint8_t preset, const uint16_t id) const
+    BlockAndRow get_block_with_id(const uint8_t preset, const uint16_t id) const
     {
-        for (uint8_t b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
+        for (uint8_t b = 0; b < NUM_BLOCKS_PER_PRESET * NUM_BLOCK_CHAIN_ROWS; ++b)
         {
             if (map.presets[preset].blocks[b].id == id)
-                return b;
+                return {
+                    static_cast<uint8_t>(b % NUM_BLOCKS_PER_PRESET),
+                    static_cast<uint8_t>(b / NUM_BLOCKS_PER_PRESET)
+                };
+
             if (map.presets[preset].blocks[b].pair == id)
-                return NUM_BLOCKS_PER_PRESET;
+                break;
         }
 
-        return NUM_BLOCKS_PER_PRESET;
+        return { NUM_BLOCKS_PER_PRESET, NUM_BLOCK_CHAIN_ROWS };
     }
 
     void reset()
     {
         for (uint8_t p = 0; p < NUM_PRESETS_PER_BANK; ++p)
-            for (uint8_t b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
+            for (uint8_t b = 0; b < NUM_BLOCKS_PER_PRESET * NUM_BLOCK_CHAIN_ROWS; ++b)
                 map.presets[p].blocks[b].id = map.presets[p].blocks[b].pair = kMaxHostInstances;
 
         std::memset(used, 0, sizeof(bool) * kMaxHostInstances);
@@ -228,6 +276,7 @@ struct HostConnector : Host::FeedbackCallback {
                 } log;
                 // kParameterSet
                 struct {
+                    uint8_t row;
                     uint8_t block;
                     uint8_t index;
                     const char* symbol;
@@ -235,6 +284,7 @@ struct HostConnector : Host::FeedbackCallback {
                 } parameterSet;
                 // kPatchSet
                 struct {
+                    uint8_t row;
                     uint8_t block;
                     const char* key;
                     char type;
@@ -298,6 +348,7 @@ struct HostConnector : Host::FeedbackCallback {
     };
 
     struct Binding {
+        uint8_t row;
         uint8_t block;
         std::string parameterSymbol;
         struct {
@@ -308,8 +359,11 @@ struct HostConnector : Host::FeedbackCallback {
 
     struct Preset {
         std::string name;
-        std::vector<Block> blocks;
-        std::list<Binding> bindings[NUM_BINDING_ACTUATORS];
+        std::list<Binding> bindings[NUM_BINDING_ACTUATORS]; // TODO private ?
+    private:
+        friend class HostConnector;
+        friend class WebSocketConnector;
+        std::vector<Block> blocks[NUM_BLOCK_CHAIN_ROWS];
     };
 
     struct Current : Preset {
@@ -318,6 +372,21 @@ struct HostConnector : Host::FeedbackCallback {
         uint8_t numLoadedPlugins = 0;
         bool dirty = false;
         std::string filename;
+
+       #if NUM_BLOCK_CHAIN_ROWS == 1
+        inline const Block& block(const uint8_t block) const noexcept
+        {
+            assert(block < NUM_BLOCKS_PER_PRESET);
+            return blocks[0][block];
+        }
+       #else
+        inline const Block& block(const uint8_t row, const uint8_t block) const noexcept
+        {
+            assert(row < NUM_BLOCK_CHAIN_ROWS);
+            assert(block < NUM_BLOCKS_PER_PRESET);
+            return blocks[row][block];
+        }
+       #endif
     };
 
     // connection to mod-host, handled internally
@@ -419,16 +488,34 @@ public:
 
     // enable or disable/bypass a block
     // returning false means the block was unchanged
-    bool enableBlock(uint8_t block, bool enable);
+    bool enableBlock(uint8_t row, uint8_t block, bool enable);
 
-    // reorder a block into a new position
+    // reorder a block into aconst  new position
     // returning false means the current chain was unchanged
-    bool reorderBlock(uint8_t orig, uint8_t dest);
+    bool reorderBlock(uint8_t row, uint8_t orig, uint8_t dest);
 
     // replace a block with another lv2 plugin (referenced by its URI)
     // passing null or empty string as the URI means clearing the block
     // returning false means the block was unchanged
-    bool replaceBlock(uint8_t block, const char* uri);
+    bool replaceBlock(uint8_t row, uint8_t block, const char* uri);
+
+    // convenience calls for single-chain builds
+   #if NUM_BLOCK_CHAIN_ROWS == 1
+    inline bool enableBlock(const uint8_t block, const bool enable)
+    {
+        return enableBlock(0, block, enable);
+    }
+
+    inline bool reorderBlock(const uint8_t orig, const uint8_t dest)
+    {
+        return reorderBlock(0, orig, dest);
+    }
+
+    inline bool replaceBlock(const uint8_t block, const char* const uri)
+    {
+        return replaceBlock(0, block, uri);
+    }
+   #endif
 
     // ----------------------------------------------------------------------------------------------------------------
     // scene handling
@@ -441,29 +528,65 @@ public:
     // bindings NOTICE WORK-IN-PROGRESS
 
     // add a block binding (for enable/disable control)
-    bool addBlockBinding(uint8_t hwid, uint8_t block);
+    bool addBlockBinding(uint8_t hwid, uint8_t row, uint8_t block);
 
     // add a block parameter binding
-    bool addBlockParameterBinding(uint8_t hwid, uint8_t block, uint8_t paramIndex);
+    bool addBlockParameterBinding(uint8_t hwid, uint8_t row, uint8_t block, uint8_t paramIndex);
 
     // remove a block binding (for enable/disable control)
-    bool removeBlockBinding(uint8_t hwid, uint8_t block);
+    bool removeBlockBinding(uint8_t hwid, uint8_t row, uint8_t block);
 
     // remove a block parameter binding
-    bool removeBlockParameterBinding(uint8_t hwid, uint8_t block, uint8_t paramIndex);
+    bool removeBlockParameterBinding(uint8_t hwid, uint8_t row, uint8_t block, uint8_t paramIndex);
 
     // reorder bindings
     bool reorderBlockBinding(uint8_t hwid, uint8_t dest);
+
+    // convenience calls for single-chain builds
+   #if NUM_BLOCK_CHAIN_ROWS == 1
+    inline bool addBlockBinding(const uint8_t hwid, const uint8_t block)
+    {
+        return addBlockBinding(hwid, 0, block);
+    }
+
+    inline bool addBlockParameterBinding(const uint8_t hwid, const uint8_t block, const uint8_t paramIndex)
+    {
+        return addBlockParameterBinding(hwid, 0, block, paramIndex);
+    }
+
+    inline bool removeBlockBinding(const uint8_t hwid, const uint8_t block)
+    {
+        return removeBlockBinding(hwid, 0, block);
+    }
+
+    inline bool removeBlockParameterBinding(const uint8_t hwid, const uint8_t block, const uint8_t paramIndex)
+    {
+        return removeBlockParameterBinding(hwid, 0, block, paramIndex);
+    }
+   #endif
 
     // ----------------------------------------------------------------------------------------------------------------
     // parameters
 
     // set a block parameter value
     // NOTE value must already be sanitized!
-    void setBlockParameter(uint8_t block, uint8_t paramIndex, float value);
+    void setBlockParameter(uint8_t row, uint8_t block, uint8_t paramIndex, float value);
 
     // enable monitoring for block output parameter
-    void monitorBlockOutputParameter(uint8_t block, uint8_t paramIndex);
+    void monitorBlockOutputParameter(uint8_t row, uint8_t block, uint8_t paramIndex);
+
+    // convenience calls for single-chain builds
+   #if NUM_BLOCK_CHAIN_ROWS == 1
+    inline void setBlockParameter(const uint8_t block, const uint8_t paramIndex, const float value)
+    {
+        setBlockParameter(0, block, paramIndex, value);
+    }
+
+    inline void monitorBlockOutputParameter(const uint8_t block, const uint8_t paramIndex)
+    {
+        monitorBlockOutputParameter(0, block, paramIndex);
+    }
+   #endif
 
     // ----------------------------------------------------------------------------------------------------------------
     // tool handling NOTICE WORK-IN-PROGRESS
@@ -492,42 +615,55 @@ public:
     // WIP details below this point
 
     // set a block property
-    void setBlockProperty(uint8_t block, const char* uri, const char* value);
+    void setBlockProperty(uint8_t row, uint8_t block, const char* uri, const char* value);
+
+    // convenience calls for single-chain builds
+   #if NUM_BLOCK_CHAIN_ROWS == 1
+    inline void setBlockProperty(const uint8_t block, const char* uri, const char* value)
+    {
+        setBlockProperty(0, block, uri, value);
+    }
+   #endif
 
 protected:
     // load host state as stored in the `current` struct
     // also preloads the other presets in the bank
     void hostClearAndLoadCurrentBank();
 
-    void hostConnectAll(uint8_t blockStart = 0, uint8_t blockEnd = NUM_BLOCKS_PER_PRESET - 1);
-    void hostConnectBlockToBlock(uint8_t blockA, uint8_t blockB);
-    void hostConnectBlockToSystemInput(uint8_t block);
-    void hostConnectBlockToSystemOutput(uint8_t block);
+    void hostConnectAll(uint8_t row, uint8_t blockStart = 0, uint8_t blockEnd = NUM_BLOCKS_PER_PRESET - 1);
+    void hostConnectBlockToBlock(uint8_t row, uint8_t blockA, uint8_t blockB);
+    void hostConnectBlockToSystemInput(uint8_t row, uint8_t block);
+    void hostConnectBlockToSystemOutput(uint8_t row, uint8_t block);
 
     void hostDisconnectAll();
-    void hostDisconnectAllBlockInputs(uint8_t block);
-    void hostDisconnectAllBlockOutputs(uint8_t block);
+    void hostDisconnectAllBlockInputs(uint8_t row, uint8_t block);
+    void hostDisconnectAllBlockOutputs(uint8_t row, uint8_t block);
 
-    void hostEnsureStereoChain(uint8_t blockStart, uint8_t blockEnd);
+    void hostEnsureStereoChain(uint8_t row, uint8_t blockStart, uint8_t blockEnd);
 
-    bool hostPresetBlockShouldBeStereo(const Preset& presetdata, uint8_t block);
+    bool hostPresetBlockShouldBeStereo(const Preset& presetdata, uint8_t row, uint8_t block);
 
     // remove all bindings related to a block
-    void hostRemoveAllBlockBindings(uint8_t block);
+    void hostRemoveAllBlockBindings(uint8_t row, uint8_t block);
 
-    void hostRemoveInstanceForBlock(uint8_t block);
+    void hostRemoveInstanceForBlock(uint8_t row, uint8_t block);
 
 private:
-    void hostConnectSystemInputAction(uint8_t block, bool connect);
-    void hostConnectSystemOutputAction(uint8_t block, bool connect);
-    void hostDisconnectBlockAction(uint8_t block, bool outputs);
+    void hostConnectSystemInputAction(uint8_t row, uint8_t block, bool connect);
+    void hostConnectSystemOutputAction(uint8_t row, uint8_t block, bool connect);
+    void hostDisconnectBlockAction(uint8_t row, uint8_t block, bool outputs);
 
     // internal feedback handling, for updating parameter values
     void hostFeedbackCallback(const HostFeedbackData& data) override;
 
     void hostReady();
+
+    static void allocPreset(Preset& preset);
+    static void resetPreset(Preset& preset);
 };
 
 typedef HostConnector::Callback::Data HostCallbackData;
+typedef HostInstanceMapper::BlockAndRow HostBlockAndRow;
+typedef HostInstanceMapper::BlockPair HostBlockPair;
 
 // --------------------------------------------------------------------------------------------------------------------
