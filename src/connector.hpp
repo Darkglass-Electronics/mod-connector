@@ -91,6 +91,10 @@ struct HostConnector : Host::FeedbackCallback {
 
     struct Block {
         bool enabled = false;
+       #if NUM_BLOCK_CHAIN_ROWS != 1
+        uint8_t linkedRow = UINT8_MAX;
+        uint8_t linkedBlock = UINT8_MAX;
+       #endif
         std::string quickPotSymbol;
         std::string uri;
         struct {
@@ -392,8 +396,12 @@ protected:
 
     void hostConnectAll(uint8_t row, uint8_t blockStart = 0, uint8_t blockEnd = NUM_BLOCKS_PER_PRESET - 1);
     void hostConnectBlockToBlock(uint8_t row, uint8_t blockA, uint8_t blockB);
-    void hostConnectBlockToSystemInput(uint8_t row, uint8_t block);
-    void hostConnectBlockToSystemOutput(uint8_t row, uint8_t block);
+   #if NUM_BLOCK_CHAIN_ROWS != 1
+    void hostConnectBlockToChainInput(uint8_t row, uint8_t block);
+    void hostConnectBlockToChainOutput(uint8_t row, uint8_t block);
+   #endif
+    void hostConnectBlockToSystemInput(uint8_t block);
+    void hostConnectBlockToSystemOutput(uint8_t block);
 
     void hostDisconnectAll();
     void hostDisconnectAllBlockInputs(uint8_t row, uint8_t block);
@@ -409,8 +417,8 @@ protected:
     void hostRemoveInstanceForBlock(uint8_t row, uint8_t block);
 
 private:
-    void hostConnectSystemInputAction(uint8_t row, uint8_t block, bool connect);
-    void hostConnectSystemOutputAction(uint8_t row, uint8_t block, bool connect);
+    void hostConnectSystemInputAction(uint8_t block, bool connect);
+    void hostConnectSystemOutputAction(uint8_t block, bool connect);
     void hostDisconnectBlockAction(uint8_t row, uint8_t block, bool outputs);
 
     // internal feedback handling, for updating parameter values
