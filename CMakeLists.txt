@@ -81,6 +81,7 @@ if(PROJECT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR AND NOT MOD_CONNECTOR_LIB_TEST)
     PRIVATE
       src/connector.cpp
       src/host.cpp
+      src/instance_mapper.cpp
       src/lv2.cpp
       src/main.cpp
       src/utils.cpp
@@ -113,6 +114,7 @@ else()
     INTERFACE
       ${CMAKE_CURRENT_LIST_DIR}/src/connector.cpp
       ${CMAKE_CURRENT_LIST_DIR}/src/host.cpp
+      ${CMAKE_CURRENT_LIST_DIR}/src/instance_mapper.cpp
       ${CMAKE_CURRENT_LIST_DIR}/src/lv2.cpp
       ${CMAKE_CURRENT_LIST_DIR}/src/utils.cpp
   )

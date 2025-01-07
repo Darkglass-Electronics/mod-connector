@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2024 Filipe Coelho <falktx@darkglass.com>
+// SPDX-FileCopyrightText: 2024-2025 Filipe Coelho <falktx@darkglass.com>
 // SPDX-License-Identifier: ISC
 
 #include "connector.hpp"
@@ -943,8 +943,6 @@ bool HostConnector::reorderBlock(const uint8_t row, const uint8_t orig, const ui
     printf("HostConnector::reorderBlock(%u, %u) - reconnect %d, start %u, end %u\n",
            orig, dest, reconnect, blockStart, blockEnd);
 
-    auto& mpreset = _mapper.map.presets[_current.preset];
-
     const Host::NonBlockingScope hnbs(_host);
 
     if (reconnect && ! blockIsEmpty)
@@ -969,7 +967,6 @@ bool HostConnector::reorderBlock(const uint8_t row, const uint8_t orig, const ui
             }
 
             std::swap(_current.blocks[row][i], _current.blocks[row][i - 1]);
-            std::swap(mpreset.blocks[i], mpreset.blocks[i - 1]); // TODO
         }
 
         if (reconnect)
@@ -994,7 +991,6 @@ bool HostConnector::reorderBlock(const uint8_t row, const uint8_t orig, const ui
                 hostDisconnectAllBlockOutputs(row, i + 1);
             }
             std::swap(_current.blocks[row][i], _current.blocks[row][i + 1]);
-            std::swap(mpreset.blocks[i], mpreset.blocks[i + 1]); // TODO
         }
 
         if (reconnect)
@@ -1003,6 +999,8 @@ bool HostConnector::reorderBlock(const uint8_t row, const uint8_t orig, const ui
             hostConnectAll(row, orig, dest);
         }
     }
+
+    _mapper.reorder(_current.preset, row, orig, dest);
 
     // update bindings
     for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
