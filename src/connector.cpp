@@ -2748,10 +2748,28 @@ void HostConnector::hostReady()
 {
     const Host::NonBlockingScope hnbs(_host);
 
-    _host.monitor_audio_levels(JACK_CAPTURE_PORT_1, true);
-    _host.monitor_audio_levels(JACK_CAPTURE_PORT_2, true);
-    _host.monitor_audio_levels(JACK_PLAYBACK_MONITOR_PORT_1, true);
-    _host.monitor_audio_levels(JACK_PLAYBACK_MONITOR_PORT_2, true);
+    // clang doesn't support constexpr string functions
+   #ifdef __clang__
+    #define constexprstr
+   #else
+    #define constexprstr constexpr
+   #endif
+
+    // assume we dont want mod-host side monitoring if input is a plugin
+    if constexprstr (std::strncmp(JACK_CAPTURE_PORT_1, "effect_", 7) != 0)
+        _host.monitor_audio_levels(JACK_CAPTURE_PORT_1, true);
+
+    if constexprstr (std::strncmp(JACK_CAPTURE_PORT_1, "effect_", 7) != 0 &&
+                     std::strcmp(JACK_CAPTURE_PORT_1, JACK_CAPTURE_PORT_2) != 0)
+        _host.monitor_audio_levels(JACK_CAPTURE_PORT_2, true);
+
+    // assume we dont want mod-host side monitoring if output is a plugin
+    if constexprstr (std::strncmp(JACK_PLAYBACK_MONITOR_PORT_1, "effect_", 7) != 0)
+        _host.monitor_audio_levels(JACK_PLAYBACK_MONITOR_PORT_1, true);
+
+    if constexprstr (std::strncmp(JACK_PLAYBACK_MONITOR_PORT_2, "effect_", 7) != 0 &&
+                     std::strcmp(JACK_PLAYBACK_MONITOR_PORT_1, JACK_PLAYBACK_MONITOR_PORT_2) != 0)
+        _host.monitor_audio_levels(JACK_PLAYBACK_MONITOR_PORT_2, true);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
