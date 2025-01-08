@@ -813,8 +813,8 @@ void HostConnector::clearCurrentPreset()
     _current.dirty = true;
 
     // direct connections
-    _host.connect(JACK_CAPTURE_PORT_1, JACK_PLAYBACK_PORT_1);
-    _host.connect(JACK_CAPTURE_PORT_2, JACK_PLAYBACK_PORT_2);
+    _host.connect(jackCapturePort1.c_str(), jackPlaybackPort1.c_str());
+    _host.connect(jackCapturePort2.c_str(), jackPlaybackPort2.c_str());
 
     _host.feature_enable(Host::kFeatureProcessing, Host::kProcessingOnWithFadeIn);
 }
@@ -1142,8 +1142,8 @@ bool HostConnector::replaceBlock(const uint8_t block, const char* const uri)
         // replace old direct connections if this is the first plugin
         if (_current.numLoadedPlugins == 1)
         {
-            _host.disconnect(JACK_CAPTURE_PORT_1, JACK_PLAYBACK_PORT_1);
-            _host.disconnect(JACK_CAPTURE_PORT_2, JACK_PLAYBACK_PORT_2);
+            _host.disconnect(jackCapturePort1.c_str(), jackPlaybackPort1.c_str());
+            _host.disconnect(jackCapturePort2.c_str(), jackPlaybackPort2.c_str());
             hostConnectBlockToSystemInput(block);
             hostConnectBlockToSystemOutput(block);
         }
@@ -1200,8 +1200,8 @@ bool HostConnector::replaceBlock(const uint8_t block, const char* const uri)
         // use direct connections if there are no plugins
         if (_current.numLoadedPlugins == 0)
         {
-            _host.connect(JACK_CAPTURE_PORT_1, JACK_PLAYBACK_PORT_1);
-            _host.connect(JACK_CAPTURE_PORT_2, JACK_PLAYBACK_PORT_2);
+            _host.connect(jackCapturePort1.c_str(), jackPlaybackPort1.c_str());
+            _host.connect(jackCapturePort2.c_str(), jackPlaybackPort2.c_str());
         }
         else
         {
@@ -1267,8 +1267,8 @@ bool HostConnector::switchPreset(const uint8_t preset)
         {
             std::memset(oldloaded, 0, sizeof(oldloaded));
 
-            _host.disconnect(JACK_CAPTURE_PORT_1, JACK_PLAYBACK_PORT_1);
-            _host.disconnect(JACK_CAPTURE_PORT_2, JACK_PLAYBACK_PORT_2);
+            _host.disconnect(jackCapturePort1.c_str(), jackPlaybackPort1.c_str());
+            _host.disconnect(jackCapturePort2.c_str(), jackPlaybackPort2.c_str());
         }
         else
         {
@@ -1315,8 +1315,8 @@ bool HostConnector::switchPreset(const uint8_t preset)
 
         if (_current.numLoadedPlugins == 0)
         {
-            _host.connect(JACK_CAPTURE_PORT_1, JACK_PLAYBACK_PORT_1);
-            _host.connect(JACK_CAPTURE_PORT_2, JACK_PLAYBACK_PORT_2);
+            _host.connect(jackCapturePort1.c_str(), jackPlaybackPort1.c_str());
+            _host.connect(jackCapturePort2.c_str(), jackPlaybackPort2.c_str());
         }
         else
         {
@@ -1770,6 +1770,46 @@ void HostConnector::connectTool2Tool(uint8_t toolAIndex,
 
 // --------------------------------------------------------------------------------------------------------------------
 
+void HostConnector::toolOutAsCapturePort(uint8_t toolIndex, 
+                          const char* symbol, 
+                          uint8_t capturePortIndex)
+{
+    assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
+    assert(symbol != nullptr && *symbol != '\0');
+    assert(capturePortIndex < kNCapturePorts);
+    
+    switch (capturePortIndex) {
+        case 0:
+            jackCapturePort1 = format("effect_%d:%s", MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, symbol);
+            break;
+        case 1:
+            jackCapturePort2 = format("effect_%d:%s", MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, symbol);
+            break;
+    }
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::toolInAsPlaybackPort(uint8_t toolIndex, 
+                          const char* symbol, 
+                          uint8_t playbackPortIndex)
+{
+    assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
+    assert(symbol != nullptr && *symbol != '\0');
+    assert(playbackPortIndex < kNPlaybackPorts);
+
+    switch (playbackPortIndex) {
+        case 0:
+            jackPlaybackPort1 = format("effect_%d:%s", MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, symbol);
+            break;
+        case 1:
+            jackPlaybackPort2 = format("effect_%d:%s", MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, symbol);
+            break;
+    }
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 void HostConnector::setToolParameter(const uint8_t toolIndex, const char* const symbol, const float value)
 {
     assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
@@ -1822,14 +1862,14 @@ void HostConnector::hostConnectAll(uint8_t blockStart, uint8_t blockEnd)
     if (_current.numLoadedPlugins == 0)
     {
         // direct connections
-        _host.connect(JACK_CAPTURE_PORT_1, JACK_PLAYBACK_PORT_1);
-        _host.connect(JACK_CAPTURE_PORT_2, JACK_PLAYBACK_PORT_2);
+        _host.connect(jackCapturePort1.c_str(), jackPlaybackPort1.c_str());
+        _host.connect(jackCapturePort2.c_str(), jackPlaybackPort2.c_str());
         return;
     }
 
     // direct connections
-    // _host.disconnect(JACK_CAPTURE_PORT_1, JACK_PLAYBACK_PORT_1);
-    // _host.disconnect(JACK_CAPTURE_PORT_2, JACK_PLAYBACK_PORT_2);
+    // _host.disconnect(jackCapturePort1.c_str(), jackPlaybackPort1.c_str());
+    // _host.disconnect(jackCapturePort2.c_str(), jackPlaybackPort2.c_str());
 
     bool loaded[NUM_BLOCKS_PER_PRESET];
     for (uint8_t b = 0; b < NUM_BLOCKS_PER_PRESET; ++b)
@@ -2129,8 +2169,8 @@ void HostConnector::hostClearAndLoadCurrentBank()
 
     if (_current.numLoadedPlugins == 0)
     {
-        _host.connect(JACK_CAPTURE_PORT_1, JACK_PLAYBACK_PORT_1);
-        _host.connect(JACK_CAPTURE_PORT_2, JACK_PLAYBACK_PORT_2);
+        _host.connect(jackCapturePort1.c_str(), jackPlaybackPort1.c_str());
+        _host.connect(jackCapturePort2.c_str(), jackPlaybackPort2.c_str());
     }
     else
     {
@@ -2163,14 +2203,14 @@ void HostConnector::hostConnectSystemInputAction(const uint8_t block, const bool
         if ((plugin->ports[i].flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != Lv2PortIsAudio)
             continue;
 
-        origin = j++ == 0 ? JACK_CAPTURE_PORT_1 : JACK_CAPTURE_PORT_2;
+        origin = j++ == 0 ? jackCapturePort1.c_str() : jackCapturePort2.c_str();
         target = format("effect_%d:%s", bp.id, plugin->ports[i].symbol.c_str());
         (_host.*call)(origin, target.c_str());
 
         if (bp.pair != kMaxHostInstances)
         {
             target = format("effect_%d:%s", bp.pair, plugin->ports[i].symbol.c_str());
-            (_host.*call)(JACK_CAPTURE_PORT_2, target.c_str());
+            (_host.*call)(jackCapturePort2.c_str(), target.c_str());
             return;
         }
     }
@@ -2201,19 +2241,19 @@ void HostConnector::hostConnectSystemOutputAction(const uint8_t block, const boo
             continue;
 
         origin = format("effect_%d:%s", bp.id, plugin->ports[i].symbol.c_str());
-        target = dsti++ == 0 ? JACK_PLAYBACK_PORT_1 : JACK_PLAYBACK_PORT_2;
+        target = dsti++ == 0 ? jackPlaybackPort1.c_str() : jackPlaybackPort2.c_str();
         (_host.*call)(origin.c_str(), target);
 
         if (bp.pair != kMaxHostInstances)
         {
             origin = format("effect_%d:%s", bp.pair, plugin->ports[i].symbol.c_str());
-            (_host.*call)(origin.c_str(), JACK_PLAYBACK_PORT_2);
+            (_host.*call)(origin.c_str(), jackPlaybackPort2.c_str());
             return;
         }
     }
 
     if (dsti == 1)
-        (_host.*call)(origin.c_str(), JACK_PLAYBACK_PORT_2);
+        (_host.*call)(origin.c_str(), jackPlaybackPort2.c_str());
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -2478,8 +2518,8 @@ void HostConnector::hostReady()
 {
     const Host::NonBlockingScope hnbs(_host);
 
-    _host.monitor_audio_levels(JACK_CAPTURE_PORT_1, true);
-    _host.monitor_audio_levels(JACK_CAPTURE_PORT_2, true);
+    _host.monitor_audio_levels(jackCapturePort1.c_str(), true);
+    _host.monitor_audio_levels(jackCapturePort2.c_str(), true);
     _host.monitor_audio_levels(JACK_PLAYBACK_MONITOR_PORT_1, true);
     _host.monitor_audio_levels(JACK_PLAYBACK_MONITOR_PORT_2, true);
 }
