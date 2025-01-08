@@ -35,6 +35,10 @@ static void resetParam(HostConnector::Parameter& paramdata)
 static void resetBlock(HostConnector::Block& blockdata)
 {
     blockdata.enabled = false;
+   #if NUM_BLOCK_CHAIN_ROWS != 1
+    blockdata.linkedRow = UINT8_MAX;
+    blockdata.linkedBlock = UINT8_MAX;
+   #endif
     blockdata.quickPotSymbol.clear();
     blockdata.uri.clear();
     blockdata.meta.quickPotIndex = 0;
@@ -319,6 +323,10 @@ bool HostConnector::loadBankFromFile(const char* const filename)
 
                     if (! jblocks.contains(jblockid))
                     {
+                        // fallback only valid for first row
+                        if (row != 0)
+                            continue;
+
                         // fallback: try loading single-row file
                         jblockid = std::to_string(bl + 1);
 
@@ -363,6 +371,10 @@ bool HostConnector::loadBankFromFile(const char* const filename)
                     }
 
                     blockdata.enabled = true;
+                   #if NUM_BLOCK_CHAIN_ROWS != 1
+                    blockdata.linkedRow = UINT8_MAX;
+                    blockdata.linkedBlock = UINT8_MAX;
+                   #endif
                     blockdata.uri = uri;
                     blockdata.quickPotSymbol.clear();
 
@@ -1101,6 +1113,10 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
         if (added)
         {
             blockdata.enabled = true;
+           #if NUM_BLOCK_CHAIN_ROWS != 1
+            blockdata.linkedRow = UINT8_MAX;
+            blockdata.linkedBlock = UINT8_MAX;
+           #endif
             blockdata.uri = uri;
             blockdata.quickPotSymbol.clear();
 

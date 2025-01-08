@@ -2,7 +2,6 @@ CompileFlags:
   Add: [-std=c++17, -Wall, -Wextra, -I/usr/include/lilv-0]
 
 Diagnostics:
-  # Tweak Clang-Tidy checks.
   ClangTidy:
     Add: [performance*, modernize*, readability*]
     Remove: [
