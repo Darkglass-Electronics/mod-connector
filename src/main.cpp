@@ -227,7 +227,7 @@ struct WebSocketConnector : QObject,
 
                 // TODO
                 const QJsonObject block(blocks[blockid].toObject());
-                Block& blockdata(presetdata.chain[0].blocks[blockidi]);
+                Block& blockdata(presetdata.chains[0].blocks[blockidi]);
 
                 printf("DEBUG: now handling block %d\n", blockidi);
 
