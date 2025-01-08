@@ -122,13 +122,19 @@ struct HostConnector : Host::FeedbackCallback {
         } meta;
     };
 
+    struct ChainRow {
+        std::vector<Block> blocks;
+        std::array<std::string, 2> inputs;
+        std::array<std::string, 2> outputs;
+    };
+
     struct Preset {
         std::string name;
         std::array<std::list<Binding>, NUM_BINDING_ACTUATORS> bindings; // TODO private ?
     private:
         friend struct HostConnector;
         friend class WebSocketConnector;
-        std::array<std::vector<Block>, NUM_BLOCK_CHAIN_ROWS> blocks;
+        std::array<ChainRow, NUM_BLOCK_CHAIN_ROWS> chains;
     };
 
     struct Current : Preset {
@@ -138,18 +144,18 @@ struct HostConnector : Host::FeedbackCallback {
         bool dirty = false;
         std::string filename;
 
+       #if NUM_BLOCK_CHAIN_ROWS != 1
         [[nodiscard]] inline const Block& block(const uint8_t row, const uint8_t block) const noexcept
         {
             assert(row < NUM_BLOCK_CHAIN_ROWS);
             assert(block < NUM_BLOCKS_PER_PRESET);
-            return blocks[row][block];
+            return chains[row].blocks[block];
         }
-
-       #if NUM_BLOCK_CHAIN_ROWS == 1
+       #else
         [[nodiscard]] inline const Block& block(const uint8_t block) const noexcept
         {
             assert(block < NUM_BLOCKS_PER_PRESET);
-            return blocks[0][block];
+            return chains[0].blocks[block];
         }
        #endif
     };
@@ -401,12 +407,8 @@ protected:
 
     void hostConnectAll(uint8_t row, uint8_t blockStart = 0, uint8_t blockEnd = NUM_BLOCKS_PER_PRESET - 1);
     void hostConnectBlockToBlock(uint8_t row, uint8_t blockA, uint8_t blockB);
-   #if NUM_BLOCK_CHAIN_ROWS != 1
     void hostConnectBlockToChainInput(uint8_t row, uint8_t block);
     void hostConnectBlockToChainOutput(uint8_t row, uint8_t block);
-   #endif
-    void hostConnectBlockToSystemInput(uint8_t block);
-    void hostConnectBlockToSystemOutput(uint8_t block);
 
     void hostDisconnectAll();
     void hostDisconnectAllBlockInputs(uint8_t row, uint8_t block);
@@ -414,16 +416,14 @@ protected:
 
     void hostEnsureStereoChain(uint8_t row, uint8_t blockStart, uint8_t blockEnd);
 
-    bool hostPresetBlockShouldBeStereo(const Preset& presetdata, uint8_t row, uint8_t block);
-
     // remove all bindings related to a block
     void hostRemoveAllBlockBindings(uint8_t row, uint8_t block);
 
     void hostRemoveInstanceForBlock(uint8_t row, uint8_t block);
 
 private:
-    void hostConnectSystemInputAction(uint8_t block, bool connect);
-    void hostConnectSystemOutputAction(uint8_t block, bool connect);
+    void hostConnectChainInputAction(uint8_t row, uint8_t block, bool connect);
+    void hostConnectChainOutputAction(uint8_t row, uint8_t block, bool connect);
     void hostDisconnectBlockAction(uint8_t row, uint8_t block, bool outputs);
 
     // internal feedback handling, for updating parameter values

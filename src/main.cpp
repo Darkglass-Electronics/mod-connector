@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2024 Filipe Coelho <falktx@darkglass.com>
+// SPDX-FileCopyrightText: 2024-2025 Filipe Coelho <falktx@darkglass.com>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 #include "connector.hpp"
@@ -227,7 +227,7 @@ struct WebSocketConnector : QObject,
 
                 // TODO
                 const QJsonObject block(blocks[blockid].toObject());
-                Block& blockdata(presetdata.blocks[0][blockidi]);
+                Block& blockdata(presetdata.chain[0].blocks[blockidi]);
 
                 printf("DEBUG: now handling block %d\n", blockidi);
 
