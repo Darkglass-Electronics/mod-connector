@@ -3,6 +3,7 @@
 
 #include "lv2.hpp"
 
+#include <cassert>
 #include <cstring>
 #include <cstdint>
 #include <map>
@@ -156,6 +157,9 @@ struct Lv2World::Impl
 
     const Lv2Plugin* getPluginByURI(const char* const uri)
     {
+        assert(uri != nullptr);
+        assert(*uri != '\0');
+
         if (pluginscache[uri] == nullptr)
         {
             LilvNode* const urinode = lilv_new_uri(world, uri);

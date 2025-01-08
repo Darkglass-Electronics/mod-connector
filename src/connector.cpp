@@ -370,8 +370,8 @@ bool HostConnector::loadBankFromFile(const char* const filename)
                     const std::string uri = jblock["uri"].get<std::string>();
 
                     const Lv2Plugin* const plugin = !isNullURI(uri)
-                                                ? lv2world.get_plugin_by_uri(uri.c_str())
-                                                : nullptr;
+                                                  ? lv2world.get_plugin_by_uri(uri.c_str())
+                                                  : nullptr;
 
                     if (plugin == nullptr)
                     {
@@ -877,7 +877,7 @@ void HostConnector::clearCurrentPreset()
     {
         for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
         {
-            if (! isNullURI(_current.chains[row].blocks[bl].uri))
+            if (!isNullURI(_current.chains[row].blocks[bl].uri))
                 hostRemoveInstanceForBlock(row, bl);
 
             resetBlock(_current.chains[row].blocks[bl]);
@@ -1077,14 +1077,10 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
 
     const Host::NonBlockingScope hnbs(_host);
 
-    if (! isNullURI(uri))
+    if (!isNullURI(uri))
     {
         const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(uri);
-        if (plugin == nullptr)
-        {
-            fprintf(stderr, "HostConnector::replaceBlock(%u, %s) - plugin not available, rejected\n", block, uri);
-            return false;
-        }
+        assert_return(plugin != nullptr, false);
 
         // we only do changes after verifying that the requested plugin exists and is valid
         uint8_t numInputs, numOutputs;
@@ -1094,7 +1090,7 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
             return false;
         }
 
-        if (! isNullURI(blockdata.uri))
+        if (!isNullURI(blockdata.uri))
         {
             --_current.numLoadedPlugins;
             hostRemoveAllBlockBindings(row, block);
@@ -1204,7 +1200,7 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
             _mapper.remove(_current.preset, row, block);
         }
     }
-    else if (! isNullURI(blockdata.uri))
+    else if (!isNullURI(blockdata.uri))
     {
         --_current.numLoadedPlugins;
         hostRemoveAllBlockBindings(row, block);
@@ -1217,7 +1213,7 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
         return false;
     }
 
-    if (! isNullURI(blockdata.uri))
+    if (!isNullURI(blockdata.uri))
     {
         ++_current.numLoadedPlugins;
 
@@ -2210,7 +2206,7 @@ void HostConnector::hostClearAndLoadCurrentBank()
         for (uint8_t pr = 0; pr < NUM_PRESETS_PER_BANK; ++pr)
         {
             const bool active = _current.preset == pr;
-            bool chainStarted = false;
+            bool firstBlock = true;
             bool previousPluginStereoOut;
 
             // related to active preset only
@@ -2225,35 +2221,11 @@ void HostConnector::hostClearAndLoadCurrentBank()
                 if (isNullURI(blockdata.uri))
                     continue;
 
-               #if NUM_BLOCK_CHAIN_ROWS != 1
-                bool isChainPoint = false;
-               #endif
-
-                // starting the chain with this block
-                if (! chainStarted)
+                if (firstBlock)
                 {
-                    chainStarted = true;
-                   #if NUM_BLOCK_CHAIN_ROWS != 1
-                    if (row != 0)
-                    {
-                        // assert(blockdata.linkedRow != UINT8_MAX);
-                        // assert(blockdata.linkedBlock != UINT8_MAX);
-                        isChainPoint = true;
-                    }
-                    else
-                   #endif
-                    {
-                        previousPluginStereoOut = chaindata.inputs[0] != chaindata.inputs[1];
-                    }
+                    firstBlock = false;
+                    previousPluginStereoOut = chaindata.inputs[0] != chaindata.inputs[1];
                 }
-               #if NUM_BLOCK_CHAIN_ROWS != 1
-                // chain already started but ending with this block
-                else if (row != 0 && blockdata.linkedRow != UINT8_MAX)
-                {
-                    chainStarted = false;
-                    isChainPoint = true;
-                }
-               #endif
 
                 const auto loadInstance = [=](const uint16_t instance)
                 {
@@ -2318,7 +2290,7 @@ void HostConnector::hostClearAndLoadCurrentBank()
                 }
             }
 
-            if (active)
+            if (active && numLoadedPlugins != 0)
             {
                 _current.numLoadedPlugins += numLoadedPlugins;
 
@@ -2356,14 +2328,13 @@ void HostConnector::hostConnectChainInputAction(const uint8_t row, const uint8_t
 {
     assert(row < NUM_BLOCK_CHAIN_ROWS);
     assert(block < NUM_BLOCKS_PER_PRESET);
+    assert(!isNullURI(_current.chains[row].blocks[block].uri));
 
     const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(_current.chains[row].blocks[block].uri.c_str());
-    if (plugin == nullptr)
-        return;
+    assert_return(plugin != nullptr,);
 
     const HostBlockPair hbp = _mapper.get(_current.preset, row, block);
-    if (hbp.id == kMaxHostInstances)
-        return;
+    assert_return(hbp.id != kMaxHostInstances,);
 
     bool (Host::*call)(const char*, const char*) = connect ? &Host::connect : &Host::disconnect;
     std::string origin, target;
@@ -2395,6 +2366,7 @@ void HostConnector::hostConnectChainOutputAction(const uint8_t row, const uint8_
 {
     assert(row < NUM_BLOCK_CHAIN_ROWS);
     assert(block < NUM_BLOCKS_PER_PRESET);
+    assert(!isNullURI(_current.chains[row].blocks[block].uri));
 
     const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(_current.chains[row].blocks[block].uri.c_str());
     assert_return(plugin != nullptr,);
@@ -2436,7 +2408,7 @@ void HostConnector::hostDisconnectBlockAction(const uint8_t row, const uint8_t b
 {
     assert(row < NUM_BLOCK_CHAIN_ROWS);
     assert(block < NUM_BLOCKS_PER_PRESET);
-    assert_return(!isNullURI(_current.chains[row].blocks[block].uri),);
+    assert(!isNullURI(_current.chains[row].blocks[block].uri));
 
     const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(_current.chains[row].blocks[block].uri.c_str());
     assert_return(plugin != nullptr,);
