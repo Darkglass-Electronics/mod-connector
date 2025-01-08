@@ -35,6 +35,7 @@ struct HostInstanceMapper {
     BlockAndRow get_block_with_id(uint8_t preset, uint16_t id) const noexcept;
     void reset() noexcept;
     void reorder(uint8_t preset, uint8_t row, uint8_t orig, uint8_t dest) noexcept;
+    void swap(uint8_t preset, uint8_t rowA, uint8_t blockA, uint8_t rowB, uint8_t blockB) noexcept;
 
 private:
     struct {

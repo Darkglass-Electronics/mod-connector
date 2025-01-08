@@ -279,6 +279,10 @@ public:
     {
         return replaceBlock(0, block, uri);
     }
+   #else
+    // move a block into a new row, by swapping position with an empty block
+    // returning false means the current chain was unchanged
+    bool swapBlockRow(uint8_t row, uint8_t block, uint8_t emptyRow, uint8_t emptyBlock);
    #endif
 
     // ----------------------------------------------------------------------------------------------------------------

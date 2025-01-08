@@ -136,6 +136,8 @@ HostInstanceMapper::BlockPair HostInstanceMapper::get(const uint8_t preset,
 HostInstanceMapper::BlockAndRow HostInstanceMapper::get_block_with_id(const uint8_t preset,
                                                                       const uint16_t id) const noexcept
 {
+    assert(preset < NUM_PRESETS_PER_BANK);
+
     for (uint8_t b = 0; b < NUM_BLOCKS_PER_PRESET * NUM_BLOCK_CHAIN_ROWS; ++b)
     {
         if (map.presets[preset].blocks[b].id == id)
@@ -169,6 +171,7 @@ void HostInstanceMapper::reorder(const uint8_t preset,
                                  const uint8_t orig,
                                  const uint8_t dest) noexcept
 {
+    assert(preset < NUM_PRESETS_PER_BANK);
     assert(row < NUM_BLOCK_CHAIN_ROWS);
     assert(orig < NUM_BLOCKS_PER_PRESET);
     assert(dest < NUM_BLOCKS_PER_PRESET);
@@ -187,6 +190,26 @@ void HostInstanceMapper::reorder(const uint8_t preset,
         for (int i = orig; i < dest; ++i)
             std::swap(mpreset.blocks[offset + i], mpreset.blocks[offset + i + 1]);
     }
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostInstanceMapper::swap(const uint8_t preset,
+                              const uint8_t rowA,
+                              const uint8_t blockA,
+                              const uint8_t rowB,
+                              const uint8_t blockB) noexcept
+{
+    assert(preset < NUM_PRESETS_PER_BANK);
+    assert(rowA < NUM_BLOCK_CHAIN_ROWS);
+    assert(blockA < NUM_BLOCKS_PER_PRESET);
+    assert(rowB < NUM_BLOCK_CHAIN_ROWS);
+    assert(blockB < NUM_BLOCKS_PER_PRESET);
+    assert(rowA != rowB);
+
+    const uint16_t rblockA = rowA * NUM_BLOCKS_PER_PRESET + blockA;
+    const uint16_t rblockB = rowB * NUM_BLOCKS_PER_PRESET + blockB;
+    std::swap(map.presets[preset].blocks[rblockA], map.presets[preset].blocks[rblockB]);
 }
 
 // --------------------------------------------------------------------------------------------------------------------

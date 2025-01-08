@@ -1281,6 +1281,51 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
 
 // --------------------------------------------------------------------------------------------------------------------
 
+#if NUM_BLOCK_CHAIN_ROWS != 1
+
+bool HostConnector::swapBlockRow(const uint8_t row,
+                                 const uint8_t block,
+                                 const uint8_t emptyRow,
+                                 const uint8_t emptyBlock)
+{
+    assert(row < NUM_BLOCK_CHAIN_ROWS);
+    assert(block < NUM_BLOCKS_PER_PRESET);
+    assert(emptyRow < NUM_BLOCK_CHAIN_ROWS);
+    assert(emptyBlock < NUM_BLOCKS_PER_PRESET);
+    assert(row != emptyRow);
+    assert(isNullURI(_current.blocks[emptyRow][emptyBlock].uri));
+
+    HostConnector::Block& blockdata(_current.blocks[row][block]);
+
+    // TODO reconnect ports
+
+    std::swap(_current.blocks[row][block], _current.blocks[emptyRow][emptyBlock]);
+
+    _mapper.swap(_current.preset, row, block, emptyRow, emptyBlock);
+
+    // update bindings
+    for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
+    {
+        for (HostConnector::Binding& bindingdata : _current.bindings[hwid])
+        {
+            if (bindingdata.row != row)
+                continue;
+            if (bindingdata.block != block)
+                continue;
+
+            bindingdata.row = emptyRow;
+            bindingdata.block = emptyBlock;
+        }
+    }
+
+    _current.dirty = true;
+    return true;
+}
+
+#endif // NUM_BLOCK_CHAIN_ROWS != 1
+
+// --------------------------------------------------------------------------------------------------------------------
+
 bool HostConnector::switchPreset(const uint8_t preset)
 {
     if (_current.preset == preset || preset >= NUM_PRESETS_PER_BANK)
