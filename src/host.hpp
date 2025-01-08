@@ -6,17 +6,17 @@
 #include <cstdint>
 #include <string>
 
-typedef struct {
+struct cc_scalepoint {
     const char* label;
     float value;
-} cc_scalepoint;
+};
 
-typedef struct {
+struct flushed_param {
     const char* symbol;
     float value;
-} flushed_param;
+};
 
-typedef union {
+union HostPatchData {
     int32_t b;
     int32_t i;
     int64_t l;
@@ -36,7 +36,7 @@ typedef union {
             const double* g;
         } data;
     } v;
-} HostPatchData;
+};
 
 /**
  * TODO document me
@@ -117,7 +117,7 @@ struct Host {
             };
         };
 
-        virtual ~FeedbackCallback() {};
+        virtual ~FeedbackCallback() = default;
         virtual void hostFeedbackCallback(const Data& data) = 0;
     };
 
@@ -407,7 +407,7 @@ struct Host {
    /**
      * poll feedback port for messages, triggering a callback for each one
      */
-    bool poll_feedback(FeedbackCallback* callback);
+    bool poll_feedback(FeedbackCallback* callback) const;
 
     Host();
     ~Host();
@@ -434,4 +434,4 @@ private:
     Impl* const impl;
 };
 
-typedef Host::FeedbackCallback::Data HostFeedbackData;
+using HostFeedbackData = Host::FeedbackCallback::Data;

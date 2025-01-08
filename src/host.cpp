@@ -556,7 +556,7 @@ struct Host::Impl
     // ----------------------------------------------------------------------------------------------------------------
     // feedback port handling
 
-    bool poll(FeedbackCallback* const callback)
+    bool poll(FeedbackCallback* const callback) const
     {
         std::string error;
 
@@ -565,7 +565,7 @@ struct Host::Impl
         return error.empty();
     }
 
-    bool _poll(FeedbackCallback* const callback, std::string& error)
+    bool _poll(FeedbackCallback* const callback, std::string& error) const
     {
         // read first byte
         char firstbyte = '\0';
@@ -764,7 +764,7 @@ struct Host::Impl
                     {
                         for (uint32_t i = 0; i < d.patchSet.data.v.num && *msgbuffer != '\0'; ++i)
                         {
-                            if ((sep = std::strchr(sep, ':')))
+                            if ((sep = std::strchr(sep, ':')) != nullptr)
                                 *sep++ = '\0';
 
                             data[i] = std::atoi(msgbuffer);
@@ -784,7 +784,7 @@ struct Host::Impl
                     {
                         for (uint32_t i = 0; i < d.patchSet.data.v.num && *msgbuffer != '\0'; ++i)
                         {
-                            if ((sep = std::strchr(sep, ':')))
+                            if ((sep = std::strchr(sep, ':')) != nullptr)
                                 *sep++ = '\0';
 
                             data[i] = std::atof(msgbuffer);
@@ -804,7 +804,7 @@ struct Host::Impl
                     {
                         for (uint32_t i = 0; i < d.patchSet.data.v.num && *msgbuffer != '\0'; ++i)
                         {
-                            if ((sep = std::strchr(sep, ':')))
+                            if ((sep = std::strchr(sep, ':')) != nullptr)
                                 *sep++ = '\0';
 
                             data[i] = std::atof(msgbuffer);
@@ -824,7 +824,7 @@ struct Host::Impl
                     {
                         for (uint32_t i = 0; i < d.patchSet.data.v.num && *msgbuffer != '\0'; ++i)
                         {
-                            if ((sep = std::strchr(sep, ':')))
+                            if ((sep = std::strchr(sep, ':')) != nullptr)
                                 *sep++ = '\0';
 
                             data[i] = std::atof(msgbuffer);
@@ -1063,6 +1063,9 @@ Host::NonBlockingScope::~NonBlockingScope()
 #else
 static bool valid_jack_port(const char* const port)
 {
+    // must contain at least 3 characters
+    if (std::strlen(port) < 3)
+        return false;
     // must contain at least 1 client/port name separator
     if (std::strchr(port, ':') == nullptr)
         return false;
@@ -1190,7 +1193,7 @@ std::string Host::preset_show(const char* const preset_uri)
     HostResponse resp = {};
     if (impl->writeMessageAndWait(format("preset_show %s", preset_uri), kHostResponseString, &resp))
     {
-        const std::string ret(resp.data.s);
+        std::string ret(resp.data.s);
         std::free(resp.data.s);
         return ret;
     }
@@ -1303,7 +1306,7 @@ std::string Host::licensee(const int16_t instance_number)
     HostResponse resp = {};
     if (impl->writeMessageAndWait(format("licensee %d", instance_number), kHostResponseString, &resp))
     {
-        const std::string ret(resp.data.s);
+        std::string ret(resp.data.s);
         std::free(resp.data.s);
         return ret;
     }
@@ -1580,7 +1583,7 @@ bool Host::set_bpb(const double beats_per_bar)
 
 bool Host::transport(const bool rolling, const double beats_per_bar, const double beats_per_minute)
 {
-    return impl->writeMessageAndWait(format("transport %d %f %f", rolling, beats_per_bar, beats_per_minute));
+    return impl->writeMessageAndWait(format("transport %d %f %f", rolling ? 1 : 0, beats_per_bar, beats_per_minute));
 }
 
 bool Host::transport_sync(const char* const mode)
@@ -1593,7 +1596,7 @@ bool Host::output_data_ready()
     return impl->writeMessageAndWait("output_data_ready");
 }
 
-bool Host::poll_feedback(FeedbackCallback* const callback)
+bool Host::poll_feedback(FeedbackCallback* const callback) const
 {
     return impl->poll(callback);
 }

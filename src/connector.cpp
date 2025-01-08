@@ -21,8 +21,8 @@
 static constexpr const char* kBindingActuatorIDs[NUM_BINDING_ACTUATORS] = { BINDING_ACTUATOR_IDS };
 #endif
 
-typedef std::list<HostConnector::Binding>::iterator BindingIterator;
-typedef std::list<HostConnector::Binding>::const_iterator BindingIteratorConst;
+using BindingIterator = std::list<HostConnector::Binding>::iterator;
+using BindingIteratorConst = std::list<HostConnector::Binding>::const_iterator;
 
 // --------------------------------------------------------------------------------------------------------------------
 
@@ -65,12 +65,12 @@ static void allocBlock(HostConnector::Block& blockdata)
 static bool getSupportedPluginIO(const Lv2Plugin* const plugin, uint8_t& numInputs, uint8_t& numOutputs)
 {
     numInputs = numOutputs = 0;
-    for (size_t i = 0; i < plugin->ports.size(); ++i)
+    for (const Lv2Port& port : plugin->ports)
     {
-        if ((plugin->ports[i].flags & Lv2PortIsAudio) == 0)
+        if ((port.flags & Lv2PortIsAudio) == 0)
             continue;
 
-        if (plugin->ports[i].flags & Lv2PortIsOutput)
+        if ((port.flags & Lv2PortIsOutput) != 0)
         {
             if (++numOutputs > 2)
                 break;
@@ -387,7 +387,7 @@ bool HostConnector::loadBankFromFile(const char* const filename)
                     {
                         if ((plugin->ports[i].flags & Lv2PortIsControl) == 0)
                             continue;
-                        if (plugin->ports[i].flags & Lv2ParameterHidden)
+                        if ((plugin->ports[i].flags & Lv2ParameterHidden) != 0)
                             continue;
 
                         switch (plugin->ports[i].designation)
@@ -480,7 +480,7 @@ bool HostConnector::loadBankFromFile(const char* const filename)
 
                         if (isNullURI(paramdata.symbol))
                             continue;
-                        if (paramdata.meta.flags & Lv2PortIsOutput)
+                        if ((paramdata.meta.flags & Lv2PortIsOutput) != 0)
                             continue;
 
                         paramdata.value = std::max(paramdata.meta.min,
@@ -528,7 +528,7 @@ bool HostConnector::loadBankFromFile(const char* const filename)
 
                             if (isNullURI(paramdata.symbol))
                                 continue;
-                            if (paramdata.meta.flags & Lv2PortIsOutput)
+                            if ((paramdata.meta.flags & Lv2PortIsOutput) != 0)
                                 continue;
 
                             SceneParameterValue& sceneparamdata = blockdata.sceneValues[sid][parameterIndex];
@@ -628,7 +628,7 @@ bool HostConnector::loadBankFromFile(const char* const filename)
 
                             if (isNullURI(paramdata.symbol))
                                 break;
-                            if (paramdata.meta.flags & Lv2PortIsOutput)
+                            if ((paramdata.meta.flags & Lv2PortIsOutput) != 0)
                                 continue;
 
                             if (paramdata.symbol == symbol)
@@ -694,7 +694,7 @@ bool HostConnector::saveBankToFile(const char* const filename)
                 Parameter& paramdata = blockdata.parameters[p];
                 if (isNullURI(paramdata.symbol))
                     break;
-                if (paramdata.meta.flags & Lv2PortIsOutput)
+                if ((paramdata.meta.flags & Lv2PortIsOutput) != 0)
                     continue;
 
                 if (blockdata.sceneValues[0][p].used)
@@ -780,7 +780,7 @@ bool HostConnector::saveBankToFile(const char* const filename)
 
                         if (isNullURI(paramdata.symbol))
                             break;
-                        if (paramdata.meta.flags & Lv2PortIsOutput)
+                        if ((paramdata.meta.flags & Lv2PortIsOutput) != 0)
                             continue;
 
                         const std::string jparamid = std::to_string(p + 1);
@@ -884,7 +884,7 @@ bool HostConnector::enableBlock(const uint8_t row, const uint8_t block, const bo
     HostConnector::Block& blockdata(_current.blocks[row][block]);
     if (isNullURI(blockdata.uri))
     {
-        fprintf(stderr, "HostConnector::enableBlock(%u, %d) - block not in use, rejected\n", block, enable);
+        fprintf(stderr, "HostConnector::enableBlock(%u, %s) - block not in use, rejected\n", block, bool2str(enable));
         return false;
     }
 
@@ -940,8 +940,8 @@ bool HostConnector::reorderBlock(const uint8_t row, const uint8_t orig, const ui
         return false;
     }
 
-    printf("HostConnector::reorderBlock(%u, %u) - reconnect %d, start %u, end %u\n",
-           orig, dest, reconnect, blockStart, blockEnd);
+    printf("HostConnector::reorderBlock(%u, %u) - reconnect %s, start %u, end %u\n",
+           orig, dest, bool2str(reconnect), blockStart, blockEnd);
 
     const Host::NonBlockingScope hnbs(_host);
 
@@ -1117,7 +1117,7 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
             {
                 if ((plugin->ports[i].flags & Lv2PortIsControl) == 0)
                     continue;
-                if (plugin->ports[i].flags & Lv2ParameterHidden)
+                if ((plugin->ports[i].flags & Lv2ParameterHidden) != 0)
                     continue;
 
                 switch (plugin->ports[i].designation)
@@ -1197,7 +1197,7 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
         // otherwise we need to add ourselves more carefully
         else
         {
-            bool loaded[NUM_BLOCKS_PER_PRESET];
+            std::array<bool, NUM_BLOCKS_PER_PRESET> loaded;
             for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
                 loaded[bl] = !isNullURI(_current.blocks[row][bl].uri);
 
@@ -1252,7 +1252,7 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
         }
         else
         {
-            bool loaded[NUM_BLOCKS_PER_PRESET];
+            std::array<bool, NUM_BLOCKS_PER_PRESET> loaded;
             for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
                 loaded[bl] = !isNullURI(_current.blocks[row][bl].uri);
 
@@ -1377,10 +1377,10 @@ bool HostConnector::switchPreset(const uint8_t preset)
                     const HostBlockPair hbp = _mapper.get(old.preset, row, bl);
 
                     if (hbp.id != kMaxHostInstances)
-                        _host.activate(hbp.id, 0);
+                        _host.activate(hbp.id, false);
 
                     if (hbp.pair != kMaxHostInstances)
-                        _host.activate(hbp.pair, 0);
+                        _host.activate(hbp.pair, false);
                 }
             }
         }
@@ -1397,10 +1397,10 @@ bool HostConnector::switchPreset(const uint8_t preset)
                 const HostBlockPair hbp = _mapper.get(_current.preset, row, bl);
 
                 if (hbp.id != kMaxHostInstances)
-                    _host.activate(hbp.id, 1);
+                    _host.activate(hbp.id, true);
 
                 if (hbp.pair != kMaxHostInstances)
-                    _host.activate(hbp.pair, 1);
+                    _host.activate(hbp.pair, true);
 
                 // TODO
                 if (row == 0)
@@ -1578,7 +1578,7 @@ bool HostConnector::switchScene(const uint8_t scene)
                 HostConnector::Parameter& paramdata(blockdata.parameters[p]);
                 if (isNullURI(paramdata.symbol))
                     break;
-                if (paramdata.meta.flags & Lv2PortIsOutput)
+                if ((paramdata.meta.flags & Lv2PortIsOutput) != 0)
                     continue;
                 if (! blockdata.sceneValues[_current.scene][p].used)
                     continue;
@@ -1634,7 +1634,7 @@ bool HostConnector::addBlockParameterBinding(const uint8_t hwid,
     const HostConnector::Parameter& paramdata(blockdata.parameters[paramIndex]);
     if (isNullURI(paramdata.symbol))
         return false;
-    if (paramdata.meta.flags & Lv2PortIsOutput)
+    if ((paramdata.meta.flags & Lv2PortIsOutput) != 0)
         return false;
 
     _current.bindings[hwid].push_back({ row, block, paramdata.symbol, { paramIndex } });
@@ -1685,7 +1685,7 @@ bool HostConnector::removeBlockParameterBinding(const uint8_t hwid,
     const HostConnector::Parameter& paramdata(blockdata.parameters[paramIndex]);
     if (isNullURI(paramdata.symbol))
         return false;
-    if (paramdata.meta.flags & Lv2PortIsOutput)
+    if ((paramdata.meta.flags & Lv2PortIsOutput) != 0)
         return false;
 
     std::list<HostConnector::Binding>& bindings(_current.bindings[hwid]);
@@ -1788,7 +1788,7 @@ void HostConnector::setBlockParameter(const uint8_t row,
     HostConnector::Parameter& paramdata(blockdata.parameters[paramIndex]);
     if (isNullURI(paramdata.symbol))
         return;
-    if (paramdata.meta.flags & Lv2PortIsOutput)
+    if ((paramdata.meta.flags & Lv2PortIsOutput) != 0)
         return;
 
     _current.dirty = true;
@@ -1835,7 +1835,7 @@ void HostConnector::monitorBlockOutputParameter(const uint8_t row, const uint8_t
     if (isNullURI(paramdata.symbol))
         return;
 
-    if (paramdata.meta.flags & Lv2PortIsOutput)
+    if ((paramdata.meta.flags & Lv2PortIsOutput) != 0)
         _host.monitor_output(hbp.id, paramdata.symbol.c_str());
 }
 
@@ -1943,7 +1943,7 @@ void HostConnector::hostConnectAll(const uint8_t row, uint8_t blockStart, uint8_
     // _host.disconnect(JACK_CAPTURE_PORT_1, JACK_PLAYBACK_PORT_1);
     // _host.disconnect(JACK_CAPTURE_PORT_2, JACK_PLAYBACK_PORT_2);
 
-    bool loaded[NUM_BLOCKS_PER_PRESET];
+    std::array<bool, NUM_BLOCKS_PER_PRESET> loaded;
     for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
         loaded[bl] = !isNullURI(_current.blocks[row][bl].uri);
 
@@ -2495,17 +2495,17 @@ void HostConnector::hostDisconnectBlockAction(const uint8_t row, const uint8_t b
     const unsigned int ioflags = Lv2PortIsAudio | (outputs ? Lv2PortIsOutput : 0);
     std::string origin;
 
-    for (size_t i = 0; i < plugin->ports.size(); ++i)
+    for (const Lv2Port& port : plugin->ports)
     {
-        if ((plugin->ports[i].flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != ioflags)
+        if ((port.flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != ioflags)
             continue;
 
-        origin = format("effect_%d:%s", hbp.id, plugin->ports[i].symbol.c_str());
+        origin = format("effect_%d:%s", hbp.id, port.symbol.c_str());
         _host.disconnect_all(origin.c_str());
 
         if (hbp.pair != kMaxHostInstances)
         {
-            origin = format("effect_%d:%s", hbp.pair, plugin->ports[i].symbol.c_str());
+            origin = format("effect_%d:%s", hbp.pair, port.symbol.c_str());
             _host.disconnect_all(origin.c_str());
             return;
         }
@@ -2756,18 +2756,18 @@ void HostConnector::hostReady()
    #endif
 
     // assume we dont want mod-host side monitoring if input is a plugin
-    if constexprstr (std::strncmp(JACK_CAPTURE_PORT_1, "effect_", 7) != 0)
+    if constexprstr (std::strncmp(JACK_CAPTURE_PORT_1, MOD_HOST_EFFECT_PREFIX, MOD_HOST_EFFECT_PREFIX_LEN) != 0)
         _host.monitor_audio_levels(JACK_CAPTURE_PORT_1, true);
 
-    if constexprstr (std::strncmp(JACK_CAPTURE_PORT_1, "effect_", 7) != 0 &&
+    if constexprstr (std::strncmp(JACK_CAPTURE_PORT_1, MOD_HOST_EFFECT_PREFIX, MOD_HOST_EFFECT_PREFIX_LEN) != 0 &&
                      std::strcmp(JACK_CAPTURE_PORT_1, JACK_CAPTURE_PORT_2) != 0)
         _host.monitor_audio_levels(JACK_CAPTURE_PORT_2, true);
 
     // assume we dont want mod-host side monitoring if output is a plugin
-    if constexprstr (std::strncmp(JACK_PLAYBACK_MONITOR_PORT_1, "effect_", 7) != 0)
+    if constexprstr (std::strncmp(JACK_PLAYBACK_MONITOR_PORT_1, MOD_HOST_EFFECT_PREFIX, MOD_HOST_EFFECT_PREFIX_LEN) != 0)
         _host.monitor_audio_levels(JACK_PLAYBACK_MONITOR_PORT_1, true);
 
-    if constexprstr (std::strncmp(JACK_PLAYBACK_MONITOR_PORT_2, "effect_", 7) != 0 &&
+    if constexprstr (std::strncmp(JACK_PLAYBACK_MONITOR_PORT_2, MOD_HOST_EFFECT_PREFIX, MOD_HOST_EFFECT_PREFIX_LEN) != 0 &&
                      std::strcmp(JACK_PLAYBACK_MONITOR_PORT_1, JACK_PLAYBACK_MONITOR_PORT_2) != 0)
         _host.monitor_audio_levels(JACK_PLAYBACK_MONITOR_PORT_2, true);
 }

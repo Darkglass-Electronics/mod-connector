@@ -5,6 +5,8 @@
 
 #include "config.h"
 
+#include <array>
+
 // --------------------------------------------------------------------------------------------------------------------
 
 static constexpr const uint16_t kMaxHostInstances = NUM_BLOCKS_PER_PRESET * 2 /* dual-mono pair */
@@ -31,24 +33,25 @@ struct HostInstanceMapper {
     uint16_t add_pair(uint8_t preset, uint8_t row, uint8_t block) noexcept;
     BlockPair remove(uint8_t preset, uint8_t row, uint8_t block) noexcept;
     uint16_t remove_pair(uint8_t preset, uint8_t row, uint8_t block) noexcept;
-    BlockPair get(uint8_t preset, uint8_t row, uint8_t block) const noexcept;
-    BlockAndRow get_block_with_id(uint8_t preset, uint16_t id) const noexcept;
+    [[nodiscard]] BlockPair get(uint8_t preset, uint8_t row, uint8_t block) const noexcept;
+    [[nodiscard]] BlockAndRow get_block_with_id(uint8_t preset, uint16_t id) const noexcept;
     void reset() noexcept;
     void reorder(uint8_t preset, uint8_t row, uint8_t orig, uint8_t dest) noexcept;
     void swap(uint8_t preset, uint8_t rowA, uint8_t blockA, uint8_t rowB, uint8_t blockB) noexcept;
 
 private:
     struct {
-        struct {
-            BlockPair blocks[NUM_BLOCKS_PER_PRESET * NUM_BLOCK_CHAIN_ROWS];
-        } presets[NUM_PRESETS_PER_BANK];
+        struct PresetBlocks {
+            std::array<BlockPair, NUM_BLOCKS_PER_PRESET * NUM_BLOCK_CHAIN_ROWS> blocks;
+        };
+        std::array<PresetBlocks, NUM_PRESETS_PER_BANK> presets;
     } map;
 
-    bool used[kMaxHostInstances];
+    std::array<bool, kMaxHostInstances> used;
 };
 
-typedef HostInstanceMapper::BlockAndRow HostBlockAndRow;
-typedef HostInstanceMapper::BlockPair HostBlockPair;
+using HostBlockAndRow = HostInstanceMapper::BlockAndRow;
+using HostBlockPair = HostInstanceMapper::BlockPair;
 
 // --------------------------------------------------------------------------------------------------------------------
 

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2024 Filipe Coelho <falktx@darkglass.com>
+// SPDX-FileCopyrightText: 2024-2025 Filipe Coelho <falktx@darkglass.com>
 // SPDX-License-Identifier: ISC
 
 #pragma once
@@ -121,17 +121,17 @@ struct Lv2World {
 
    /* get the amount of lv2 plugins
     */
-    uint32_t get_plugin_count() const noexcept;
+    [[nodiscard]] uint32_t get_plugin_count() const noexcept;
  
    /* get the plugin @a index
     * can return null in case of error or the plugin requires unsupported features
     */
-    const Lv2Plugin* get_plugin_by_index(uint32_t index) const;
+    [[nodiscard]] const Lv2Plugin* get_plugin_by_index(uint32_t index) const;
 
    /* get the plugin with a known uri
     * can return null in case of error or the plugin requires unsupported features
     */
-    const Lv2Plugin* get_plugin_by_uri(const char* uri) const;
+    [[nodiscard]] const Lv2Plugin* get_plugin_by_uri(const char* uri) const;
 
     Lv2World();
     ~Lv2World();
@@ -143,6 +143,7 @@ private:
 
 // --------------------------------------------------------------------------------------------------------------------
 
+[[maybe_unused]]
 static constexpr inline
 const char* lv2_category_name(Lv2Category category)
 {

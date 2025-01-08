@@ -157,11 +157,11 @@ HostInstanceMapper::BlockAndRow HostInstanceMapper::get_block_with_id(const uint
 
 void HostInstanceMapper::reset() noexcept
 {
-    for (uint8_t p = 0; p < NUM_PRESETS_PER_BANK; ++p)
-        for (uint8_t b = 0; b < NUM_BLOCKS_PER_PRESET * NUM_BLOCK_CHAIN_ROWS; ++b)
-            map.presets[p].blocks[b].id = map.presets[p].blocks[b].pair = kMaxHostInstances;
+    for (auto& preset : map.presets)
+        for (auto &block : preset.blocks)
+            block.id = block.pair = kMaxHostInstances;
 
-    std::memset(used, 0, sizeof(used));
+    used.fill(false);
 }
 
 // --------------------------------------------------------------------------------------------------------------------

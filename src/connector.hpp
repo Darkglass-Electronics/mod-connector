@@ -8,6 +8,7 @@
 #include "lv2.hpp"
 
 #include <cassert>
+#include <array>
 #include <list>
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -66,7 +67,7 @@ struct HostConnector : Host::FeedbackCallback {
             };
         };
 
-        virtual ~Callback() {};
+        virtual ~Callback() = default;
         virtual void hostConnectorCallback(const Data& data) = 0;
     };
 
@@ -108,7 +109,7 @@ struct HostConnector : Host::FeedbackCallback {
             std::string abbreviation;
         } meta;
         std::vector<Parameter> parameters;
-        std::vector<SceneParameterValue> sceneValues[NUM_SCENES_PER_PRESET + 1];
+        std::array<std::vector<SceneParameterValue>, NUM_SCENES_PER_PRESET + 1> sceneValues;
     };
 
     struct Binding {
@@ -123,11 +124,11 @@ struct HostConnector : Host::FeedbackCallback {
 
     struct Preset {
         std::string name;
-        std::list<Binding> bindings[NUM_BINDING_ACTUATORS]; // TODO private ?
+        std::array<std::list<Binding>, NUM_BINDING_ACTUATORS> bindings; // TODO private ?
     private:
-        friend class HostConnector;
+        friend struct HostConnector;
         friend class WebSocketConnector;
-        std::vector<Block> blocks[NUM_BLOCK_CHAIN_ROWS];
+        std::array<std::vector<Block>, NUM_BLOCK_CHAIN_ROWS> blocks;
     };
 
     struct Current : Preset {
@@ -137,7 +138,7 @@ struct HostConnector : Host::FeedbackCallback {
         bool dirty = false;
         std::string filename;
 
-        inline const Block& block(const uint8_t row, const uint8_t block) const noexcept
+        [[nodiscard]] inline const Block& block(const uint8_t row, const uint8_t block) const noexcept
         {
             assert(row < NUM_BLOCK_CHAIN_ROWS);
             assert(block < NUM_BLOCKS_PER_PRESET);
@@ -145,7 +146,7 @@ struct HostConnector : Host::FeedbackCallback {
         }
 
        #if NUM_BLOCK_CHAIN_ROWS == 1
-        inline const Block& block(const uint8_t block) const noexcept
+        [[nodiscard]] inline const Block& block(const uint8_t block) const noexcept
         {
             assert(block < NUM_BLOCKS_PER_PRESET);
             return blocks[0][block];
@@ -164,7 +165,7 @@ protected:
     Current _current;
 
     // default state for each preset
-    Preset _presets[NUM_PRESETS_PER_BANK];
+    std::array<Preset, NUM_PRESETS_PER_BANK> _presets;
 
     // current connector callback
     Callback* _callback = nullptr;
@@ -209,11 +210,11 @@ public:
 
     // get the preset at @a index
     // returns the preset state from the current bank (which might be different from the current state)
-    const Preset& getBankPreset(uint8_t preset) const;
+    [[nodiscard]] const Preset& getBankPreset(uint8_t preset) const;
 
     // get the current preset at @a index
     // returns current state if preset is currently active, otherwise the preset state from the current bank
-    const Preset& getCurrentPreset(uint8_t preset) const;
+     [[nodiscard]] const Preset& getCurrentPreset(uint8_t preset) const;
 
     // ----------------------------------------------------------------------------------------------------------------
     // file handling
@@ -434,6 +435,6 @@ private:
     static void resetPreset(Preset& preset);
 };
 
-typedef HostConnector::Callback::Data HostCallbackData;
+using HostCallbackData = HostConnector::Callback::Data;
 
 // --------------------------------------------------------------------------------------------------------------------

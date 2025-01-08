@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2024 Filipe Coelho <falktx@darkglass.com>
+// SPDX-FileCopyrightText: 2024-2025 Filipe Coelho <falktx@darkglass.com>
 // SPDX-License-Identifier: ISC
 
 #include "lv2.hpp"
@@ -10,7 +10,7 @@
 
 #include <lilv/lilv.h>
 
-#ifdef HAVE_LV2_1_18
+#if defined(HAVE_LV2_1_18) || (defined(__has_include) && __has_include(<lv2/atom/atom.h>))
 #include <lv2/atom/atom.h>
 #include <lv2/morph/morph.h>
 #include <lv2/patch/patch.h>
@@ -87,7 +87,7 @@ struct Lv2NamespaceDefinitions {
     {
     }
 
-    void free()
+    void free() const
     {
         lilv_node_free(dargkglass_abbreviation);
         lilv_node_free(lv2core_default);
@@ -415,7 +415,7 @@ struct Lv2World::Impl
                         lilv_nodes_free(nodes);
                     }
 
-                    if (retport.flags & Lv2PortIsControl)
+                    if ((retport.flags & Lv2PortIsControl) != 0)
                     {
                         if (LilvNodes* const nodes = lilv_port_get_value(plugin, port, ns.lv2core_portProperty))
                         {
