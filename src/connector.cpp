@@ -315,7 +315,7 @@ bool HostConnector::loadBankFromFile(const char* const filename)
                     }
                    #else
                     // multiple rows, load row + block id if available
-                    jblockid = format("%u:%u", row + 1, bl + 1);
+                    std::string jblockid = format("%u:%u", row + 1, bl + 1);
 
                     if (! jblocks.contains(jblockid))
                     {
@@ -2328,7 +2328,8 @@ void HostConnector::hostClearAndLoadCurrentBank()
            #if NUM_BLOCK_CHAIN_ROWS != 1
             if (row != 0)
             {
-                hostConnectBlockToChainOutput(row, last, bl);
+                // TODO
+                // hostConnectBlockToChainOutput(row, last, bl);
             }
             else
            #endif
