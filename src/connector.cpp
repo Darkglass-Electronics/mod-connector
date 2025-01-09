@@ -1403,7 +1403,7 @@ bool HostConnector::switchPreset(const uint8_t preset)
             {
                 for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
                 {
-                    if (! (oldloaded[row][bl] = !isNullURI(old.chains[row].blocks[bl].uri)))
+                    if (! (oldloaded[row][bl] = !isNullBlock(old.chains[row].blocks[bl])))
                         continue;
 
                     hostDisconnectAllBlockInputs(row, bl);
@@ -1421,12 +1421,15 @@ bool HostConnector::switchPreset(const uint8_t preset)
         }
 
         // step 3: activate and connect all plugins in new preset
-        uint8_t last = 0;
+        uint8_t lastBlockInRow0 = 0;
         for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
         {
+            uint8_t last = 0;
+            uint8_t numLoadedPlugins = 0;
+
             for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
             {
-                if (isNullURI(_current.chains[row].blocks[bl].uri))
+                if (isNullBlock(_current.chains[row].blocks[bl]))
                     continue;
 
                 const HostBlockPair hbp = _mapper.get(_current.preset, row, bl);
@@ -1437,15 +1440,28 @@ bool HostConnector::switchPreset(const uint8_t preset)
                 if (hbp.pair != kMaxHostInstances)
                     _host.activate(hbp.pair, true);
 
-                // TODO
-                if (row == 0)
-                {
-                    if (++_current.numLoadedPlugins == 1)
-                        hostConnectBlockToChainInput(row, bl);
-                    else
-                        hostConnectBlockToBlock(row, last, bl);
+                if (++numLoadedPlugins == 1)
+                    hostConnectBlockToChainInput(row, bl);
+                else
+                    hostConnectBlockToBlock(row, last, bl);
 
-                    last = bl;
+                last = bl;
+            }
+
+            if (numLoadedPlugins != 0)
+            {
+                _current.numLoadedPlugins += numLoadedPlugins;
+
+               #if NUM_BLOCK_CHAIN_ROWS != 1
+                if (row != 0)
+                {
+                    hostConnectBlockToChainOutput(row, last);
+                }
+                else
+               #endif
+                // handled outside the loop, so the last connection we do is for system audio output
+                {
+                    lastBlockInRow0 = last;
                 }
             }
         }
@@ -1457,7 +1473,7 @@ bool HostConnector::switchPreset(const uint8_t preset)
         }
         else
         {
-            hostConnectBlockToChainOutput(0, last);
+            hostConnectBlockToChainOutput(0, lastBlockInRow0);
         }
 
         // step 3: fade in
@@ -1483,7 +1499,7 @@ bool HostConnector::switchPreset(const uint8_t preset)
                 // using same plugin (or both empty)
                 if (defblockdata.uri == old.chains[row].blocks[bl].uri)
                 {
-                    if (isNullURI(defblockdata.uri))
+                    if (isNullBlock(defblockdata))
                         continue;
 
                     const HostBlockPair hbp = _mapper.get(old.preset, row, bl);
