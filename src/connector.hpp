@@ -221,9 +221,8 @@ public:
     // ----------------------------------------------------------------------------------------------------------------
     // file handling
 
-    // load bank from a file and store the first preset in the `current` struct
-    // automatically calls loadCurrent() if the file contains valid state, otherwise does nothing
-    // returning false means the current chain was unchanged
+    // load bank from a file and activate the first preset
+    // returning false means the current chain was unchanged, likely because the file contains invalid state
     bool loadBankFromFile(const char* filename);
 
     // save bank state as stored in the `current` struct into a new file
@@ -238,6 +237,10 @@ public:
 
     // ----------------------------------------------------------------------------------------------------------------
     // preset handling
+
+    // load preset from a file, automatically activated if preset number matches active preset
+    // returning false means the current chain was unchanged, likely because the file contains invalid state
+    bool loadPresetFromFile(uint8_t preset, const char* filename);
 
     // clear current preset
     // sets dirty flag if any blocks were removed
@@ -421,6 +424,10 @@ private:
     void hostConnectChainInputAction(uint8_t row, uint8_t block, bool connect);
     void hostConnectChainOutputAction(uint8_t row, uint8_t block, bool connect);
     void hostDisconnectBlockAction(uint8_t row, uint8_t block, bool outputs);
+
+    template<class nlohmann_json>
+    [[nodiscard]]
+    uint8_t hostLoadPreset(uint8_t preset, nlohmann_json& json);
 
     // internal feedback handling, for updating parameter values
     void hostFeedbackCallback(const HostFeedbackData& data) override;

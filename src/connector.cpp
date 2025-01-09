@@ -20,6 +20,10 @@
 #define JSON_BANK_VERSION_MIN_SUPPORTED 0
 #define JSON_BANK_VERSION_MAX_SUPPORTED 0
 
+#define JSON_PRESET_VERSION_CURRENT 0
+#define JSON_PRESET_VERSION_MIN_SUPPORTED 0
+#define JSON_PRESET_VERSION_MAX_SUPPORTED 0
+
 #ifdef BINDING_ACTUATOR_IDS
 static constexpr const char* kBindingActuatorIDs[NUM_BINDING_ACTUATORS] = { BINDING_ACTUATOR_IDS };
 #endif
@@ -372,351 +376,33 @@ bool HostConnector::loadBankFromFile(const char* const filename)
         return false;
     }
 
-    uint8_t numLoadedPlugins = 0;
+    auto& jpresets = j["presets"];
+    uint8_t numLoadedPluginsInFirstPreset = 0;
 
-    do {
-        auto& jpresets = j["presets"];
-        for (uint8_t pr = 0; pr < NUM_PRESETS_PER_BANK; ++pr)
+    for (uint8_t pr = 0; pr < NUM_PRESETS_PER_BANK; ++pr)
+    {
+        Preset& preset = _presets[pr];
+        const std::string jpresetid = std::to_string(pr + 1);
+
+        if (! jpresets.contains(jpresetid))
         {
-            Preset& preset = _presets[pr];
-            const std::string jpresetid = std::to_string(pr + 1);
-
-            if (! jpresets.contains(jpresetid))
-            {
-                mod_log_info("loadBankFromFile(\"%s\"): missing preset #%u, loading empty", filename, pr + 1);
-                resetPreset(preset);
-                continue;
-            }
-
-            std::string name;
-
-            auto& jpreset = jpresets[jpresetid];
-            if (jpreset.contains("name"))
-            {
-                try {
-                    name = jpreset["name"].get<std::string>();
-                } catch (...) {}
-            }
-
-            if (! jpreset.contains("blocks"))
-            {
-                mod_log_info("loadBankFromFile(\"%s\"): preset #%u does not include blocks, loading empty",
-                             filename, pr + 1);
-                resetPreset(preset);
-                preset.name = name;
-                continue;
-            }
-
-            preset.name = name;
-
-            auto& jblocks = jpreset["blocks"];
-            for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
-            {
-                for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
-                {
-                    Block& blockdata = preset.chains[row].blocks[bl];
-
-                   #if NUM_BLOCK_CHAIN_ROWS == 1
-                    // single row, load direct block id if available
-                    std::string jblockid = std::to_string(bl + 1);
-
-                    if (! jblocks.contains(jblockid))
-                    {
-                        // fallback: try loading multi-row file with 1st row
-                        jblockid = format("1:%u", bl + 1);
-
-                        if (! jblocks.contains(jblockid))
-                        {
-                            resetBlock(blockdata);
-                            continue;
-                        }
-                    }
-                   #else
-                    // multiple rows, load row + block id if available
-                    std::string jblockid = format("%u:%u", row + 1, bl + 1);
-
-                    if (! jblocks.contains(jblockid))
-                    {
-                        // fallback only valid for first row
-                        if (row != 0)
-                            continue;
-
-                        // fallback: try loading single-row file
-                        jblockid = std::to_string(bl + 1);
-
-                        if (! jblocks.contains(jblockid))
-                        {
-                            resetBlock(blockdata);
-                            continue;
-                        }
-                    }
-                   #endif
-
-                    auto& jblock = jblocks[jblockid];
-                    if (! jblock.contains("uri"))
-                    {
-                        mod_log_info("loadBankFromFile(\"%s\"): preset #%u / block #%u does not include uri, loading empty",
-                                     filename, pr + 1, bl + 1);
-                        resetBlock(blockdata);
-                        continue;
-                    }
-
-                    const std::string uri = jblock["uri"].get<std::string>();
-
-                    const Lv2Plugin* const plugin = !isNullURI(uri)
-                                                  ? lv2world.get_plugin_by_uri(uri.c_str())
-                                                  : nullptr;
-
-                    if (plugin == nullptr)
-                    {
-                        mod_log_info("loadBankFromFile(\"%s\"): plugin with uri '%s' not available, using empty block",
-                                     filename, uri.c_str());
-                        resetBlock(blockdata);
-                        continue;
-                    }
-
-                    uint8_t numInputs, numOutputs, numSideInputs, numSideOutputs;
-                    if (!getSupportedPluginIO(plugin, numInputs, numOutputs, numSideInputs, numSideOutputs))
-                    {
-                        mod_log_info("loadBankFromFile(\"%s\"): plugin with uri '%s' has invalid IO, using empty block",
-                                     filename, uri.c_str());
-                        resetBlock(blockdata);
-                        continue;
-                    }
-
-                    std::map<std::string, uint8_t> symbolToIndexMap;
-                    initBlock(blockdata, plugin, numInputs, numOutputs, symbolToIndexMap);
-
-                    if (jblock.contains("enabled"))
-                        blockdata.enabled = jblock["enabled"].get<bool>();
-
-                    if (pr == 0)
-                        ++numLoadedPlugins;
-
-                    try {
-                        const std::string quickpot = jblock["quickpot"].get<std::string>();
-
-                        if (!quickpot.empty())
-                        {
-                            if (const auto it = symbolToIndexMap.find(quickpot); it != symbolToIndexMap.end())
-                            {
-                                blockdata.quickPotSymbol = quickpot;
-                                blockdata.meta.quickPotIndex = it->second;
-                            }
-                        }
-
-                    } catch (...) {}
-
-                    if (! jblock.contains("parameters"))
-                        continue;
-
-                    auto& jparams = jblock["parameters"];
-                    for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
-                    {
-                        const std::string jparamid = std::to_string(p + 1);
-
-                        if (! jparams.contains(jparamid))
-                            continue;
-
-                        auto& jparam = jparams[jparamid];
-                        if (! (jparam.contains("symbol") && jparam.contains("value")))
-                        {
-                            mod_log_info("loadBankFromFile(\"%s\"): param #%u is missing symbol and/or value",
-                                         filename, p + 1);
-                            continue;
-                        }
-
-                        const std::string symbol = jparam["symbol"].get<std::string>();
-
-                        if (symbolToIndexMap.find(symbol) == symbolToIndexMap.end())
-                        {
-                            mod_log_info("loadBankFromFile(\"%s\"): param with '%s' symbol does not exist in plugin",
-                                         filename, symbol.c_str());
-                            continue;
-                        }
-
-                        const uint8_t parameterIndex = symbolToIndexMap[symbol];
-                        Parameter& paramdata = blockdata.parameters[parameterIndex];
-
-                        if (isNullURI(paramdata.symbol))
-                            continue;
-                        if ((paramdata.meta.flags & Lv2PortIsOutput) != 0)
-                            continue;
-
-                        paramdata.value = std::max(paramdata.meta.min,
-                                                   std::min<float>(paramdata.meta.max,
-                                                                   jparam["value"].get<double>()));
-                    }
-
-                    if (! jblock.contains("scenes"))
-                        continue;
-
-                    auto& jallscenes = jblock["scenes"];
-                    for (uint8_t sid = 1; sid <= NUM_SCENES_PER_PRESET; ++sid)
-                    {
-                        const std::string jsceneid = std::to_string(sid);
-
-                        if (! jallscenes.contains(jsceneid))
-                            continue;
-
-                        auto& jscenes = jallscenes[jsceneid];
-                        if (! jscenes.is_array())
-                        {
-                            mod_log_info("loadBankFromFile(\"%s\"): preset #%u scenes are not arrays",
-                                         filename, pr + 1);
-                            continue;
-                        }
-
-                        for (auto& jscene : jscenes)
-                        {
-                            if (! (jscene.contains("symbol") && jscene.contains("value")))
-                            {
-                                mod_log_info("loadBankFromFile(\"%s\"): scene param is missing symbol and/or value",
-                                             filename);
-                                continue;
-                            }
-
-                            const std::string symbol = jscene["symbol"].get<std::string>();
-
-                            if (symbolToIndexMap.find(symbol) == symbolToIndexMap.end())
-                            {
-                                mod_log_info("loadBankFromFile(\"%s\"): scene param with '%s' symbol does not exist",
-                                             filename, symbol.c_str());
-                                continue;
-                            }
-
-                            const uint8_t parameterIndex = symbolToIndexMap[symbol];
-                            const Parameter& paramdata = blockdata.parameters[parameterIndex];
-
-                            if (isNullURI(paramdata.symbol))
-                                continue;
-                            if ((paramdata.meta.flags & Lv2PortIsOutput) != 0)
-                                continue;
-
-                            SceneParameterValue& sceneparamdata = blockdata.sceneValues[sid][parameterIndex];
-
-                            sceneparamdata.used = true;
-                            sceneparamdata.value = std::max(paramdata.meta.min,
-                                                            std::min<float>(paramdata.meta.max,
-                                                                            jscene["value"].get<double>()));
-
-                            // extra data for when scenes are in use
-                            blockdata.meta.hasScenes = true;
-                            blockdata.sceneValues[0][parameterIndex].used = true;
-                            blockdata.sceneValues[0][parameterIndex].value = paramdata.value;
-                        }
-                    }
-                }
-            }
-
-            for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
-                preset.bindings[hwid].clear();
-
-            if (! jpreset.contains("bindings"))
-            {
-                mod_log_info("loadBankFromFile(\"%s\"): preset #%u does not include any bindings", filename, pr + 1);
-                continue;
-            }
-
-            auto& jallbindings = jpreset["bindings"];
-            for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
-            {
-               #ifdef BINDING_ACTUATOR_IDS
-                const std::string jbindingsid = kBindingActuatorIDs[hwid];
-               #else
-                const std::string jbindingsid = std::to_string(hwid + 1);
-               #endif
-
-                if (! jallbindings.contains(jbindingsid))
-                {
-                    mod_log_info("loadBankFromFile(\"%s\"): preset #%u does not include bindings for hw '%s'",
-                                 filename, pr + 1, jbindingsid.c_str());
-                    continue;
-                }
-
-                auto& jbindings = jallbindings[jbindingsid];
-                if (! jbindings.is_array())
-                {
-                    mod_log_info("loadBankFromFile(\"%s\"): preset #%u bindings are not arrays", filename, pr + 1);
-                    continue;
-                }
-
-                for (auto& jbinding : jbindings)
-                {
-                    if (! (jbinding.contains("block") && jbinding.contains("symbol")))
-                    {
-                        mod_log_info("loadBankFromFile(\"%s\"): binding is missing block and/or symbol", filename);
-                        continue;
-                    }
-
-                    const int block = jbinding["block"].get<int>();
-                    if (block < 1 || block > NUM_BLOCKS_PER_PRESET)
-                    {
-                        mod_log_info("loadBankFromFile(\"%s\"): binding has out of bounds block %d", filename, block);
-                        continue;
-                    }
-                    int row = 1;
-                    if (jbinding.contains("row"))
-                    {
-                        row = jbinding["row"].get<int>();
-                        if (row < 1 || row > NUM_BLOCK_CHAIN_ROWS)
-                        {
-                           #if NUM_BLOCK_CHAIN_ROWS != 1
-                            mod_log_info("loadBankFromFile(\"%s\"): binding has out of bounds block %d", filename, block);
-                           #endif
-                            continue;
-                        }
-                    }
-                    const Block& blockdata = preset.chains[row - 1].blocks[block - 1];
-
-                    const std::string symbol = jbinding["symbol"].get<std::string>();
-
-                    if (symbol == ":bypass")
-                    {
-                        preset.bindings[hwid].push_back({
-                            .row = static_cast<uint8_t>(row - 1),
-                            .block = static_cast<uint8_t>(block - 1),
-                            .parameterSymbol = ":bypass",
-                            .meta = {
-                                .parameterIndex = 0,
-                            },
-                        });
-                    }
-                    else
-                    {
-                        for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
-                        {
-                            const Parameter& paramdata = blockdata.parameters[p];
-
-                            if (isNullURI(paramdata.symbol))
-                                break;
-                            if ((paramdata.meta.flags & Lv2PortIsOutput) != 0)
-                                continue;
-
-                            if (paramdata.symbol == symbol)
-                            {
-                                preset.bindings[hwid].push_back({
-                                    .row = static_cast<uint8_t>(row - 1),
-                                    .block = static_cast<uint8_t>(block - 1),
-                                    .parameterSymbol = symbol,
-                                    .meta = {
-                                        .parameterIndex = p,
-                                    },
-                                });
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
+            mod_log_info("loadBankFromFile(\"%s\"): missing preset %u, loading empty", filename, pr);
+            resetPreset(preset);
+            continue;
         }
-    } while(false);
+
+        auto& jpreset = jpresets[jpresetid];
+        const uint8_t numLoadedPlugins = hostLoadPreset(pr, jpreset);
+
+        if (pr == 0)
+            numLoadedPluginsInFirstPreset = numLoadedPlugins;
+    }
 
     // always start with the first preset and scene
     static_cast<Preset&>(_current) = _presets[0];
     _current.preset = 0;
     _current.scene = 0;
-    _current.numLoadedPlugins = numLoadedPlugins;
+    _current.numLoadedPlugins = numLoadedPluginsInFirstPreset;
     _current.dirty = false;
     _current.filename = filename;
 
@@ -893,6 +579,61 @@ bool HostConnector::saveBankToFile(const char* const filename)
 
     _current.dirty = false;
     _current.filename = filename;
+    return true;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+bool HostConnector::loadPresetFromFile(const uint8_t preset, const char* const filename)
+{
+    assert(preset < NUM_PRESETS_PER_BANK);
+    mod_log_debug("loadPresetFromFile(\"%s\")", filename);
+
+    std::ifstream f(filename);
+    nlohmann::json j;
+
+    try {
+        j = nlohmann::json::parse(f);
+    } catch (...) {
+        return false;
+    }
+
+    if (! (j.contains("preset") && j.contains("type") && j.contains("version")))
+        return false;
+
+    try {
+        if (j["type"].get<std::string>() != "preset")
+        {
+            mod_log_warn("loadPresetFromFile(\"%s\"): failed, file is not preset type", filename);
+            return false;
+        }
+
+        const int version = j["version"].get<int>();
+        if (version < JSON_PRESET_VERSION_MIN_SUPPORTED || version > JSON_PRESET_VERSION_MAX_SUPPORTED)
+        {
+            mod_log_warn("loadPresetFromFile(\"%s\"): failed, version mismatch", filename);
+            return false;
+        }
+
+        j = j["preset"].get<nlohmann::json>();
+    } catch (...) {
+        return false;
+    }
+
+    const uint8_t numLoadedPlugins = hostLoadPreset(preset, j);
+
+    if (preset == _current.preset)
+    {
+        // always start with the first scene
+        static_cast<Preset&>(_current) = _presets[preset];
+        _current.scene = 0;
+        _current.numLoadedPlugins = numLoadedPlugins;
+    }
+
+    // TODO trigger host changes
+
+    _current.dirty = false;
+    // _current.filename = filename;
     return true;
 }
 
@@ -2612,6 +2353,337 @@ void HostConnector::hostRemoveInstanceForBlock(const uint8_t row, const uint8_t 
 
     if (hbp.pair != kMaxHostInstances)
         _host.remove(hbp.pair);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+// nlohmann::json
+
+template<class nlohmann_json>
+uint8_t HostConnector::hostLoadPreset(const uint8_t preset, nlohmann_json& json)
+{
+    assert(preset < NUM_PRESETS_PER_BANK);
+
+    nlohmann::json& jpreset = static_cast<nlohmann::json&>(json);
+
+    std::string name;
+    Preset& presetdata = _presets[preset];
+
+    if (jpreset.contains("name"))
+    {
+        try {
+            name = jpreset["name"].get<std::string>();
+        } catch (...) {}
+    }
+
+    if (!jpreset.contains("blocks"))
+    {
+        mod_log_info("hostLoadPreset(%u): preset does not include blocks, loading empty", preset);
+        resetPreset(presetdata);
+        presetdata.name = name;
+        return 0;
+    }
+
+    uint8_t numLoadedPlugins = 0;
+    presetdata.name = name;
+
+    auto& jblocks = jpreset["blocks"];
+    for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
+    {
+        for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
+        {
+            Block& blockdata = presetdata.chains[row].blocks[bl];
+
+           #if NUM_BLOCK_CHAIN_ROWS == 1
+            // single row, load direct block id if available
+            std::string jblockid = std::to_string(bl + 1);
+
+            if (! jblocks.contains(jblockid))
+            {
+                // fallback: try loading multi-row file with 1st row
+                jblockid = format("1:%u", bl + 1);
+
+                if (! jblocks.contains(jblockid))
+                {
+                    resetBlock(blockdata);
+                    continue;
+                }
+            }
+           #else
+            // multiple rows, load row + block id if available
+            std::string jblockid = format("%u:%u", row + 1, bl + 1);
+
+            if (! jblocks.contains(jblockid))
+            {
+                // fallback only valid for first row
+                if (row != 0)
+                    continue;
+
+                // fallback: try loading single-row file
+                jblockid = std::to_string(bl + 1);
+
+                if (! jblocks.contains(jblockid))
+                {
+                    resetBlock(blockdata);
+                    continue;
+                }
+            }
+           #endif
+
+            auto& jblock = jblocks[jblockid];
+            if (! jblock.contains("uri"))
+            {
+                mod_log_info("hostLoadPreset(%u): block %u does not include uri, loading empty", preset, bl);
+                resetBlock(blockdata);
+                continue;
+            }
+
+            const std::string uri = jblock["uri"].get<std::string>();
+
+            const Lv2Plugin* const plugin = !isNullURI(uri)
+                                            ? lv2world.get_plugin_by_uri(uri.c_str())
+                                            : nullptr;
+
+            if (plugin == nullptr)
+            {
+                mod_log_info("hostLoadPreset(%u): plugin with uri '%s' not available, using empty block",
+                             preset, uri.c_str());
+                resetBlock(blockdata);
+                continue;
+            }
+
+            uint8_t numInputs, numOutputs, numSideInputs, numSideOutputs;
+            if (!getSupportedPluginIO(plugin, numInputs, numOutputs, numSideInputs, numSideOutputs))
+            {
+                mod_log_info("hostLoadPreset(%u): plugin with uri '%s' has invalid IO, using empty block",
+                             preset, uri.c_str());
+                resetBlock(blockdata);
+                continue;
+            }
+
+            std::map<std::string, uint8_t> symbolToIndexMap;
+            initBlock(blockdata, plugin, numInputs, numOutputs, symbolToIndexMap);
+
+            if (jblock.contains("enabled"))
+                blockdata.enabled = jblock["enabled"].get<bool>();
+
+            if (preset == 0)
+                ++numLoadedPlugins;
+
+            try {
+                const std::string quickpot = jblock["quickpot"].get<std::string>();
+
+                if (!quickpot.empty())
+                {
+                    if (const auto it = symbolToIndexMap.find(quickpot); it != symbolToIndexMap.end())
+                    {
+                        blockdata.quickPotSymbol = quickpot;
+                        blockdata.meta.quickPotIndex = it->second;
+                    }
+                }
+
+            } catch (...) {}
+
+            if (! jblock.contains("parameters"))
+                continue;
+
+            auto& jparams = jblock["parameters"];
+            for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+            {
+                const std::string jparamid = std::to_string(p + 1);
+
+                if (! jparams.contains(jparamid))
+                    continue;
+
+                auto& jparam = jparams[jparamid];
+                if (! (jparam.contains("symbol") && jparam.contains("value")))
+                {
+                    mod_log_info("hostLoadPreset(%u): param %u is missing symbol and/or value", preset, p);
+                    continue;
+                }
+
+                const std::string symbol = jparam["symbol"].get<std::string>();
+
+                if (symbolToIndexMap.find(symbol) == symbolToIndexMap.end())
+                {
+                    mod_log_info("hostLoadPreset(%u): param with '%s' symbol does not exist in plugin",
+                                 preset, symbol.c_str());
+                    continue;
+                }
+
+                const uint8_t parameterIndex = symbolToIndexMap[symbol];
+                Parameter& paramdata = blockdata.parameters[parameterIndex];
+
+                if (isNullURI(paramdata.symbol))
+                    continue;
+                if ((paramdata.meta.flags & Lv2PortIsOutput) != 0)
+                    continue;
+
+                paramdata.value = std::max(paramdata.meta.min,
+                                            std::min<float>(paramdata.meta.max,
+                                                            jparam["value"].get<double>()));
+            }
+
+            if (! jblock.contains("scenes"))
+                continue;
+
+            auto& jallscenes = jblock["scenes"];
+            for (uint8_t sid = 1; sid <= NUM_SCENES_PER_PRESET; ++sid)
+            {
+                const std::string jsceneid = std::to_string(sid);
+
+                if (! jallscenes.contains(jsceneid))
+                    continue;
+
+                auto& jscenes = jallscenes[jsceneid];
+                if (! jscenes.is_array())
+                {
+                    mod_log_info("hostLoadPreset(%u): preset scenes are not arrays", preset);
+                    continue;
+                }
+
+                for (auto& jscene : jscenes)
+                {
+                    if (! (jscene.contains("symbol") && jscene.contains("value")))
+                    {
+                        mod_log_info("hostLoadPreset(%u): scene param is missing symbol and/or value", preset);
+                        continue;
+                    }
+
+                    const std::string symbol = jscene["symbol"].get<std::string>();
+
+                    if (symbolToIndexMap.find(symbol) == symbolToIndexMap.end())
+                    {
+                        mod_log_info("hostLoadPreset(%u): scene param with '%s' symbol does not exist",
+                                     preset, symbol.c_str());
+                        continue;
+                    }
+
+                    const uint8_t parameterIndex = symbolToIndexMap[symbol];
+                    const Parameter& paramdata = blockdata.parameters[parameterIndex];
+
+                    if (isNullURI(paramdata.symbol))
+                        continue;
+                    if ((paramdata.meta.flags & Lv2PortIsOutput) != 0)
+                        continue;
+
+                    SceneParameterValue& sceneparamdata = blockdata.sceneValues[sid][parameterIndex];
+
+                    sceneparamdata.used = true;
+                    sceneparamdata.value = std::max(paramdata.meta.min,
+                                                    std::min<float>(paramdata.meta.max,
+                                                                    jscene["value"].get<double>()));
+
+                    // extra data for when scenes are in use
+                    blockdata.meta.hasScenes = true;
+                    blockdata.sceneValues[0][parameterIndex].used = true;
+                    blockdata.sceneValues[0][parameterIndex].value = paramdata.value;
+                }
+            }
+        }
+    }
+
+    for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
+        presetdata.bindings[hwid].clear();
+
+    if (! jpreset.contains("bindings"))
+    {
+        mod_log_info("hostLoadPreset(%u): preset does not include any bindings", preset);
+        return numLoadedPlugins;
+    }
+
+    auto& jallbindings = jpreset["bindings"];
+    for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
+    {
+       #ifdef BINDING_ACTUATOR_IDS
+        const std::string jbindingsid = kBindingActuatorIDs[hwid];
+       #else
+        const std::string jbindingsid = std::to_string(hwid + 1);
+       #endif
+
+        if (! jallbindings.contains(jbindingsid))
+        {
+            mod_log_info("hostLoadPreset(%u): preset does not include bindings for hw '%s'",
+                         preset, jbindingsid.c_str());
+            continue;
+        }
+
+        auto& jbindings = jallbindings[jbindingsid];
+        if (! jbindings.is_array())
+        {
+            mod_log_info("hostLoadPreset(%u): preset bindings are not arrays", preset);
+            continue;
+        }
+
+        for (auto& jbinding : jbindings)
+        {
+            if (! (jbinding.contains("block") && jbinding.contains("symbol")))
+            {
+                mod_log_info("hostLoadPreset(%u): binding is missing block and/or symbol", preset);
+                continue;
+            }
+
+            const int block = jbinding["block"].get<int>();
+            if (block < 1 || block > NUM_BLOCKS_PER_PRESET)
+            {
+                mod_log_info("hostLoadPreset(%u): binding has out of bounds block %d", preset, block);
+                continue;
+            }
+            int row = 1;
+            if (jbinding.contains("row"))
+            {
+                row = jbinding["row"].get<int>();
+                if (row < 1 || row > NUM_BLOCK_CHAIN_ROWS)
+                {
+                   #if NUM_BLOCK_CHAIN_ROWS != 1
+                    mod_log_info("hostLoadPreset(%u): binding has out of bounds block %d", preset, block);
+                   #endif
+                    continue;
+                }
+            }
+            const Block& blockdata = presetdata.chains[row - 1].blocks[block - 1];
+
+            const std::string symbol = jbinding["symbol"].get<std::string>();
+
+            if (symbol == ":bypass")
+            {
+                presetdata.bindings[hwid].push_back({
+                    .row = static_cast<uint8_t>(row - 1),
+                    .block = static_cast<uint8_t>(block - 1),
+                    .parameterSymbol = ":bypass",
+                    .meta = {
+                        .parameterIndex = 0,
+                    },
+                });
+            }
+            else
+            {
+                for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                {
+                    const Parameter& paramdata = blockdata.parameters[p];
+
+                    if (isNullURI(paramdata.symbol))
+                        break;
+                    if ((paramdata.meta.flags & Lv2PortIsOutput) != 0)
+                        continue;
+
+                    if (paramdata.symbol == symbol)
+                    {
+                        presetdata.bindings[hwid].push_back({
+                            .row = static_cast<uint8_t>(row - 1),
+                            .block = static_cast<uint8_t>(block - 1),
+                            .parameterSymbol = symbol,
+                            .meta = {
+                                .parameterIndex = p,
+                            },
+                        });
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    return numLoadedPlugins;
 }
 
 // --------------------------------------------------------------------------------------------------------------------
