@@ -11,7 +11,8 @@
 
 static constexpr const uint16_t kMaxHostInstances = NUM_BLOCKS_PER_PRESET * 2 /* dual-mono pair */
                                                   * NUM_BLOCK_CHAIN_ROWS
-                                                  * NUM_PRESETS_PER_BANK;
+                                                  * NUM_PRESETS_PER_BANK
+                                                  + 2 /* reserved space for block replacement */;
 static_assert(kMaxHostInstances < MAX_MOD_HOST_PLUGIN_INSTANCES,
               "maximum amount of instances is bigger than what mod-host can do");
 

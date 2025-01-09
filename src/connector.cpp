@@ -66,27 +66,31 @@ static void allocBlock(HostConnector::Block& blockdata)
 
 // --------------------------------------------------------------------------------------------------------------------
 
-static bool getSupportedPluginIO(const Lv2Plugin* const plugin, uint8_t& numInputs, uint8_t& numOutputs)
+static bool getSupportedPluginIO(const Lv2Plugin* const plugin,
+                                 uint8_t& numInputs,
+                                 uint8_t& numOutputs,
+                                 uint8_t& numSideInputs,
+                                 uint8_t& numSideOutputs)
 {
-    numInputs = numOutputs = 0;
+    numInputs = numOutputs = numSideInputs = numSideOutputs = 0;
     for (const Lv2Port& port : plugin->ports)
     {
         if ((port.flags & Lv2PortIsAudio) == 0)
             continue;
 
-        if ((port.flags & Lv2PortIsOutput) != 0)
+        if ((port.flags & Lv2PortIsSidechain) != 0)
         {
-            if (++numOutputs > 2)
+            if (++((port.flags & Lv2PortIsOutput) != 0 ? numSideOutputs : numSideInputs) > 1)
                 break;
         }
         else
         {
-            if (++numInputs > 2)
+            if (++((port.flags & Lv2PortIsOutput) != 0 ? numOutputs : numInputs) > 2)
                 break;
         }
     }
 
-    return numInputs <= 2 && numOutputs <= 2;
+    return numInputs <= 2 && numOutputs <= 2 && numSideInputs <= 1 && numSideOutputs <= 1;
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -102,7 +106,7 @@ static bool shouldBlockBeStereo(const HostConnector::ChainRow& chaindata, const 
 {
     assert(block < NUM_BLOCKS_PER_PRESET);
 
-    if (chaindata.inputs[0] != chaindata.inputs[1])
+    if (chaindata.capture[0] != chaindata.capture[1])
         return true;
 
     for (uint8_t bl = block - 1; bl != UINT8_MAX; --bl)
@@ -383,16 +387,16 @@ bool HostConnector::loadBankFromFile(const char* const filename)
                     if (plugin == nullptr)
                     {
                         printf("HostConnector::loadBankFromFile: plugin with uri '%s' not available, using empty block\n",
-                            uri.c_str());
+                               uri.c_str());
                         resetBlock(blockdata);
                         continue;
                     }
 
-                    uint8_t numInputs, numOutputs;
-                    if (! getSupportedPluginIO(plugin, numInputs, numOutputs))
+                    uint8_t numInputs, numOutputs, numSideInputs, numSideOutputs;
+                    if (!getSupportedPluginIO(plugin, numInputs, numOutputs, numSideInputs, numSideOutputs))
                     {
                         printf("HostConnector::loadBankFromFile: plugin with uri '%s' has invalid IO, using empty block\n",
-                            uri.c_str());
+                               uri.c_str());
                         resetBlock(blockdata);
                         continue;
                     }
@@ -1076,7 +1080,10 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
     assert(row < NUM_BLOCK_CHAIN_ROWS);
     assert(block < NUM_BLOCKS_PER_PRESET);
 
-    Block& blockdata(_current.chains[row].blocks[block]);
+    ChainRow& chaindata(_current.chains[row]);
+    assert_return(!chaindata.capture[0].empty(), false);
+
+    Block& blockdata(chaindata.blocks[block]);
 
     const Host::NonBlockingScope hnbs(_host);
 
@@ -1086,11 +1093,31 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
         assert_return(plugin != nullptr, false);
 
         // we only do changes after verifying that the requested plugin exists and is valid
-        uint8_t numInputs, numOutputs;
-        if (! getSupportedPluginIO(plugin, numInputs, numOutputs))
+        uint8_t numInputs, numOutputs, numSideInputs, numSideOutputs;
+        if (!getSupportedPluginIO(plugin, numInputs, numOutputs, numSideInputs, numSideOutputs))
         {
             fprintf(stderr, "HostConnector::replaceBlock(%u, %s) - unsupported IO, rejected\n", block, uri);
             return false;
+        }
+
+        // next row must be available for use if adding side IO
+        if (numSideInputs != 0 || numSideOutputs != 0)
+        {
+            assert_return(row + 1 < NUM_BLOCK_CHAIN_ROWS, false);
+
+            // side input requires something to connect from
+            if (numSideInputs != 0)
+            {
+                assert_return(!_current.chains[row + 1].playback[0].empty(), false);
+                assert_return(!_current.chains[row + 1].playback[1].empty(), false);
+            }
+
+            // TESTING only 1 valid side capture for now
+            if (numSideOutputs != 0)
+            {
+                assert_return(_current.chains[row + 1].capture[0].empty(), false);
+                assert_return(_current.chains[row + 1].capture[1].empty(), false);
+            }
         }
 
         if (!isNullURI(blockdata.uri))
@@ -1101,9 +1128,10 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
         }
 
         // activate dual mono if previous plugin is stereo or also dualmono
-        bool dualmono = numInputs == 1 && shouldBlockBeStereo(_current.chains[row], block);
+        bool dualmono = numInputs == 1 && shouldBlockBeStereo(chaindata, block);
 
         const uint16_t instance = _mapper.add(_current.preset, row, block);
+        uint16_t pair = kMaxHostInstances;
 
         bool added = _host.add(uri, instance);
         if (added)
@@ -1112,7 +1140,7 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
 
             if (dualmono)
             {
-                const uint16_t pair = _mapper.add_pair(_current.preset, row, block);
+                pair = _mapper.add_pair(_current.preset, row, block);
 
                 if (! _host.add(uri, pair))
                 {
@@ -1148,14 +1176,14 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
             blockdata.meta.abbreviation = plugin->abbreviation;
 
             uint8_t numParams = 0;
-            for (size_t i = 0; i < plugin->ports.size() && numParams < MAX_PARAMS_PER_BLOCK; ++i)
+            for (const Lv2Port& port : plugin->ports)
             {
-                if ((plugin->ports[i].flags & Lv2PortIsControl) == 0)
+                if ((port.flags & Lv2PortIsControl) == 0)
                     continue;
-                if ((plugin->ports[i].flags & Lv2ParameterHidden) != 0)
+                if ((port.flags & Lv2ParameterHidden) != 0)
                     continue;
 
-                switch (plugin->ports[i].designation)
+                switch (port.designation)
                 {
                 case kLv2DesignationNone:
                     break;
@@ -1164,25 +1192,28 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
                     // skip parameter
                     continue;
                 case kLv2DesignationQuickPot:
-                    blockdata.quickPotSymbol = plugin->ports[i].symbol;
+                    blockdata.quickPotSymbol = port.symbol;
                     blockdata.meta.quickPotIndex = numParams;
                     break;
                 }
 
                 blockdata.parameters[numParams++] = {
-                    .symbol = plugin->ports[i].symbol,
-                    .value = plugin->ports[i].def,
+                    .symbol = port.symbol,
+                    .value = port.def,
                     .meta = {
-                        .flags = plugin->ports[i].flags,
-                        .def = plugin->ports[i].def,
-                        .min = plugin->ports[i].min,
-                        .max = plugin->ports[i].max,
-                        .name = plugin->ports[i].name,
-                        .shortname = plugin->ports[i].shortname,
-                        .unit = plugin->ports[i].unit,
-                        .scalePoints = plugin->ports[i].scalePoints,
+                        .flags = port.flags,
+                        .def = port.def,
+                        .min = port.min,
+                        .max = port.max,
+                        .name = port.name,
+                        .shortname = port.shortname,
+                        .unit = port.unit,
+                        .scalePoints = port.scalePoints,
                     },
                 };
+
+                if (numParams == MAX_PARAMS_PER_BLOCK)
+                    break;
             }
 
             if (blockdata.quickPotSymbol.empty() && numParams != 0)
@@ -1195,6 +1226,60 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
             {
                 for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
                     blockdata.sceneValues[s][p].used = false;
+            }
+
+            if (numSideInputs == 1)
+            {
+                constexpr uint32_t flagsToCheck = Lv2PortIsAudio|Lv2PortIsSidechain|Lv2PortIsOutput;
+                constexpr uint32_t flagsWanted = Lv2PortIsAudio|Lv2PortIsSidechain;
+
+                for (const Lv2Port& port : plugin->ports)
+                {
+                    if ((port.flags & flagsToCheck) != flagsWanted)
+                        continue;
+
+                    _current.chains[row + 1].playback[0] = format(MOD_HOST_EFFECT_PREFIX "%d:%s",
+                                                                  instance,
+                                                                  port.symbol.c_str());
+
+                    if (pair != kMaxHostInstances)
+                        _current.chains[row + 1].playback[1] = format(MOD_HOST_EFFECT_PREFIX "%d:%s",
+                                                                      pair,
+                                                                      port.symbol.c_str());
+                    else
+                        _current.chains[row + 1].playback[1] = _current.chains[row + 1].playback[0];
+                    break;
+                }
+            }
+
+            if (numSideOutputs == 1)
+            {
+                constexpr uint32_t flags = Lv2PortIsAudio|Lv2PortIsSidechain|Lv2PortIsOutput;
+
+                for (const Lv2Port& port : plugin->ports)
+                {
+                    if ((port.flags & flags) != flags)
+                        continue;
+
+                    _current.chains[row + 1].capture[0] = format(MOD_HOST_EFFECT_PREFIX "%d:%s",
+                                                                 instance,
+                                                                 port.symbol.c_str());
+
+                    if (pair != kMaxHostInstances)
+                        _current.chains[row + 1].capture[1] = format(MOD_HOST_EFFECT_PREFIX "%d:%s",
+                                                                     pair,
+                                                                     port.symbol.c_str());
+                    else
+                        _current.chains[row + 1].capture[1] = _current.chains[row + 1].capture[0];
+
+                    // if there is no playback side defined yet, use system one
+                    if (_current.chains[row + 1].playback[0].empty())
+                    {
+                        _current.chains[row + 1].playback[0] = JACK_PLAYBACK_PORT_1;
+                        _current.chains[row + 1].playback[1] = JACK_PLAYBACK_PORT_2;
+                    }
+                    break;
+                }
             }
         }
         else
@@ -1234,7 +1319,7 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
         {
             std::array<bool, NUM_BLOCKS_PER_PRESET> loaded;
             for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
-                loaded[bl] = !isNullURI(_current.chains[row].blocks[bl].uri);
+                loaded[bl] = !isNullURI(chaindata.blocks[bl].uri);
 
             // find surrounding plugins
             uint8_t before = NUM_BLOCKS_PER_PRESET;
@@ -1289,7 +1374,7 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
         {
             std::array<bool, NUM_BLOCKS_PER_PRESET> loaded;
             for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
-                loaded[bl] = !isNullURI(_current.chains[row].blocks[bl].uri);
+                loaded[bl] = !isNullURI(chaindata.blocks[bl].uri);
 
             // find previous plugin
             uint8_t start = 0;
@@ -1910,7 +1995,9 @@ void HostConnector::connectToolAudioInput(const uint8_t toolIndex,
     assert(symbol != nullptr && *symbol != '\0');
     assert(jackPort != nullptr && *jackPort != '\0');
 
-    _host.connect(jackPort, format("effect_%d:%s", MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, symbol).c_str());
+    _host.connect(jackPort, format(MOD_HOST_EFFECT_PREFIX "%d:%s", 
+                                   MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex,
+                                   symbol).c_str());
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -1923,7 +2010,9 @@ void HostConnector::connectToolAudioOutput(const uint8_t toolIndex,
     assert(symbol != nullptr && *symbol != '\0');
     assert(jackPort != nullptr && *jackPort != '\0');
 
-    _host.connect(format("effect_%d:%s", MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, symbol).c_str(), jackPort);
+    _host.connect(format(MOD_HOST_EFFECT_PREFIX "%d:%s",
+                         MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex,
+                         symbol).c_str(), jackPort);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -1987,14 +2076,14 @@ void HostConnector::hostConnectAll(const uint8_t row, uint8_t blockStart, uint8_
     if (_current.numLoadedPlugins == 0)
     {
         // direct connections
-        _host.connect(chain.inputs[0].c_str(), chain.outputs[0].c_str());
-        _host.connect(chain.inputs[1].c_str(), chain.outputs[1].c_str());
+        _host.connect(chain.capture[0].c_str(), chain.playback[0].c_str());
+        _host.connect(chain.capture[1].c_str(), chain.playback[1].c_str());
         return;
     }
 
     // direct connections
-    _host.disconnect(chain.inputs[0].c_str(), chain.outputs[0].c_str());
-    _host.disconnect(chain.inputs[1].c_str(), chain.outputs[1].c_str());
+    _host.disconnect(chain.capture[0].c_str(), chain.playback[0].c_str());
+    _host.disconnect(chain.capture[1].c_str(), chain.playback[1].c_str());
 
     std::array<bool, NUM_BLOCKS_PER_PRESET> loaded;
     for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
@@ -2091,26 +2180,26 @@ void HostConnector::hostConnectBlockToBlock(const uint8_t row, const uint8_t blo
 
     for (size_t a = 0, astart = 0, b = 0; b < pluginB->ports.size(); ++b)
     {
-        if ((pluginB->ports[b].flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != Lv2PortIsAudio)
+        if ((pluginB->ports[b].flags & (Lv2PortIsAudio|Lv2PortIsOutput|Lv2PortIsSidechain)) != Lv2PortIsAudio)
             continue;
 
         bool bIsConnected = false;
 
         for (a = astart; a < pluginA->ports.size(); ++a)
         {
-            if ((pluginA->ports[a].flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != (Lv2PortIsAudio|Lv2PortIsOutput))
+            if ((pluginA->ports[a].flags & (Lv2PortIsAudio|Lv2PortIsOutput|Lv2PortIsSidechain)) != (Lv2PortIsAudio|Lv2PortIsOutput))
                 continue;
 
-            origin = format("effect_%d:%s", hbpA.id, pluginA->ports[a].symbol.c_str());
-            target = format("effect_%d:%s", hbpB.id, pluginB->ports[b].symbol.c_str());
+            origin = format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbpA.id, pluginA->ports[a].symbol.c_str());
+            target = format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbpB.id, pluginB->ports[b].symbol.c_str());
             _host.connect(origin.c_str(), target.c_str());
             aConnectedPort = a;
             bIsConnected = true;
 
             if (hbpA.pair != kMaxHostInstances && hbpB.pair != kMaxHostInstances)
             {
-                origin = format("effect_%d:%s", hbpA.pair, pluginA->ports[a].symbol.c_str());
-                target = format("effect_%d:%s", hbpB.pair, pluginB->ports[b].symbol.c_str());
+                origin = format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbpA.pair, pluginA->ports[a].symbol.c_str());
+                target = format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbpB.pair, pluginB->ports[b].symbol.c_str());
                 _host.connect(origin.c_str(), target.c_str());
                 return;
             }
@@ -2119,11 +2208,11 @@ void HostConnector::hostConnectBlockToBlock(const uint8_t row, const uint8_t blo
             {
                 for (size_t b2 = b + 1; b2 < pluginB->ports.size(); ++b2)
                 {
-                    if ((pluginB->ports[b2].flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != Lv2PortIsAudio)
+                    if ((pluginB->ports[b2].flags & (Lv2PortIsAudio|Lv2PortIsOutput|Lv2PortIsSidechain)) != Lv2PortIsAudio)
                         continue;
 
-                    origin = format("effect_%d:%s", hbpA.pair, pluginA->ports[a].symbol.c_str());
-                    target = format("effect_%d:%s", hbpB.id, pluginB->ports[b2].symbol.c_str());
+                    origin = format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbpA.pair, pluginA->ports[a].symbol.c_str());
+                    target = format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbpB.id, pluginB->ports[b2].symbol.c_str());
                     _host.connect(origin.c_str(), target.c_str());
                 }
                 return;
@@ -2133,11 +2222,11 @@ void HostConnector::hostConnectBlockToBlock(const uint8_t row, const uint8_t blo
             {
                 for (size_t a2 = a + 1; a2 < pluginA->ports.size(); ++a2)
                 {
-                    if ((pluginA->ports[a2].flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != (Lv2PortIsAudio|Lv2PortIsOutput))
+                    if ((pluginA->ports[a2].flags & (Lv2PortIsAudio|Lv2PortIsOutput|Lv2PortIsSidechain)) != (Lv2PortIsAudio|Lv2PortIsOutput))
                         continue;
 
-                    origin = format("effect_%d:%s", hbpA.id, pluginA->ports[a2].symbol.c_str());
-                    target = format("effect_%d:%s", hbpB.pair, pluginB->ports[b].symbol.c_str());
+                    origin = format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbpA.id, pluginA->ports[a2].symbol.c_str());
+                    target = format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbpB.pair, pluginB->ports[b].symbol.c_str());
                     _host.connect(origin.c_str(), target.c_str());
                     return;
                 }
@@ -2150,8 +2239,8 @@ void HostConnector::hostConnectBlockToBlock(const uint8_t row, const uint8_t blo
 
         if (!bIsConnected && (aConnectedPort != pluginA->ports.size())) {
             // didn't find a new a port to connect from -> connect latest found a port to b port
-            origin = format("effect_%d:%s", hbpA.id, pluginA->ports[aConnectedPort].symbol.c_str());
-            target = format("effect_%d:%s", hbpB.id, pluginB->ports[b].symbol.c_str());
+            origin = format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbpA.id, pluginA->ports[aConnectedPort].symbol.c_str());
+            target = format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbpB.id, pluginB->ports[b].symbol.c_str());
             _host.connect(origin.c_str(), target.c_str());
         }
     }
@@ -2245,7 +2334,7 @@ void HostConnector::hostClearAndLoadCurrentBank()
                 if (firstBlock)
                 {
                     firstBlock = false;
-                    previousPluginStereoOut = chaindata.inputs[0] != chaindata.inputs[1];
+                    previousPluginStereoOut = chaindata.capture[0] != chaindata.capture[1];
                 }
 
                 const auto loadInstance = [=](const uint16_t instance)
@@ -2364,16 +2453,18 @@ void HostConnector::hostConnectChainInputAction(const uint8_t row, const uint8_t
     {
         if ((plugin->ports[i].flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != Lv2PortIsAudio)
             continue;
+        if ((plugin->ports[i].flags & Lv2PortIsSidechain) != 0)
+            continue;
 
-        origin = _current.chains[row].inputs[j++];
-        target = format("effect_%d:%s", hbp.id, plugin->ports[i].symbol.c_str());
+        origin = _current.chains[row].capture[j++];
+        target = format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbp.id, plugin->ports[i].symbol.c_str());
         assert_continue(!origin.empty());
         (_host.*call)(origin.c_str(), target.c_str());
 
         if (hbp.pair != kMaxHostInstances)
         {
-            origin = _current.chains[row].inputs[j++];
-            target = format("effect_%d:%s", hbp.pair, plugin->ports[i].symbol.c_str());
+            origin = _current.chains[row].capture[j++];
+            target = format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbp.pair, plugin->ports[i].symbol.c_str());
             assert_continue(!origin.empty());
             (_host.*call)(origin.c_str(), target.c_str());
             return;
@@ -2403,16 +2494,18 @@ void HostConnector::hostConnectChainOutputAction(const uint8_t row, const uint8_
     {
         if ((plugin->ports[i].flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != (Lv2PortIsAudio|Lv2PortIsOutput))
             continue;
+        if ((plugin->ports[i].flags & Lv2PortIsSidechain) != 0)
+            continue;
 
-        origin = format("effect_%d:%s", hbp.id, plugin->ports[i].symbol.c_str());
-        target = _current.chains[row].outputs[dsti++];
+        origin = format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbp.id, plugin->ports[i].symbol.c_str());
+        target = _current.chains[row].playback[dsti++];
         assert_continue(!target.empty());
         (_host.*call)(origin.c_str(), target.c_str());
 
         if (hbp.pair != kMaxHostInstances)
         {
-            origin = format("effect_%d:%s", hbp.pair, plugin->ports[i].symbol.c_str());
-            target = _current.chains[row].outputs[dsti++];
+            origin = format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbp.pair, plugin->ports[i].symbol.c_str());
+            target = _current.chains[row].playback[dsti++];
             assert_continue(!target.empty());
             (_host.*call)(origin.c_str(), target.c_str());
             return;
@@ -2420,7 +2513,7 @@ void HostConnector::hostConnectChainOutputAction(const uint8_t row, const uint8_
     }
 
     if (dsti == 1)
-        (_host.*call)(origin.c_str(), _current.chains[row].outputs[1].c_str());
+        (_host.*call)(origin.c_str(), _current.chains[row].playback[1].c_str());
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -2445,12 +2538,12 @@ void HostConnector::hostDisconnectBlockAction(const uint8_t row, const uint8_t b
         if ((port.flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != ioflags)
             continue;
 
-        origin = format("effect_%d:%s", hbp.id, port.symbol.c_str());
+        origin = format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbp.id, port.symbol.c_str());
         _host.disconnect_all(origin.c_str());
 
         if (hbp.pair != kMaxHostInstances)
         {
-            origin = format("effect_%d:%s", hbp.pair, port.symbol.c_str());
+            origin = format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbp.pair, port.symbol.c_str());
             _host.disconnect_all(origin.c_str());
             return;
         }
@@ -2704,23 +2797,17 @@ void HostConnector::allocPreset(Preset& preset)
 void HostConnector::resetPreset(Preset& preset)
 {
     preset.name.clear();
-    preset.chains[0].inputs[0] = JACK_CAPTURE_PORT_1;
-    preset.chains[0].inputs[1] = JACK_CAPTURE_PORT_2;
-    preset.chains[0].outputs[0] = JACK_PLAYBACK_PORT_1;
-    preset.chains[0].outputs[1] = JACK_PLAYBACK_PORT_2;
+    preset.chains[0].capture[0] = JACK_CAPTURE_PORT_1;
+    preset.chains[0].capture[1] = JACK_CAPTURE_PORT_2;
+    preset.chains[0].playback[0] = JACK_PLAYBACK_PORT_1;
+    preset.chains[0].playback[1] = JACK_PLAYBACK_PORT_2;
 
     for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
     {
         if (row != 0)
         {
-            preset.chains[row].inputs.fill({});
-            preset.chains[row].outputs.fill({});
-
-            // FIXME REMOVE THIS
-            preset.chains[row].inputs[0] = JACK_CAPTURE_PORT_1;
-            preset.chains[row].inputs[1] = JACK_CAPTURE_PORT_2;
-            preset.chains[row].outputs[0] = JACK_PLAYBACK_PORT_1;
-            preset.chains[row].outputs[1] = JACK_PLAYBACK_PORT_2;
+            preset.chains[row].capture.fill({});
+            preset.chains[row].playback.fill({});
         }
 
         for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)

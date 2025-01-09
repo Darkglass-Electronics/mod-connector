@@ -124,8 +124,8 @@ struct HostConnector : Host::FeedbackCallback {
 
     struct ChainRow {
         std::vector<Block> blocks;
-        std::array<std::string, 2> inputs;
-        std::array<std::string, 2> outputs;
+        std::array<std::string, 2> capture;
+        std::array<std::string, 2> playback;
     };
 
     struct Preset {
