@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2024-2025 Filipe Coelho <falktx@darkglass.com>
 // SPDX-License-Identifier: ISC
 
+#define MOD_LOG_GROUP "lv2"
+
 #include "lv2.hpp"
 
 #include <cassert>

@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2024-2025 Filipe Coelho <falktx@darkglass.com>
 // SPDX-License-Identifier: ISC
 
+#define MOD_LOG_GROUP "host"
+
 #include "host.hpp"
 #include "config.h"
 #include "utils.hpp"
@@ -332,6 +334,13 @@ struct Host::Impl
             return false;
         }
 
+       #ifndef NDEBUG
+        const bool canDebug = message != "output_data_ready";
+        if (canDebug) {
+            mod_log_debug("%s: sending '%s'", __func__, message.c_str());
+        }
+       #endif
+
         // write message to socket
         {
             const char* buffer = message.c_str();
@@ -359,7 +368,7 @@ struct Host::Impl
 
             ++numNonBlockingOps;
 
-            // fprintf(stderr, "Host::writeMessageAndWait() '%s' | %d\n", message.c_str(), numNonBlockingOps);
+            mod_log_debug3("%s: non-block send, numNonBlockingOps: %u", __func__, numNonBlockingOps);
         }
         else
         {
@@ -414,12 +423,20 @@ struct Host::Impl
             }
 
             if (! last_error.empty())
-            {   
+            {
+                mod_log_warn("error: %s", last_error.c_str());
+
                 if (stackbuffer != buffer)
                     std::free(buffer);
 
                 return false;
             }
+
+           #ifndef NDEBUG
+            if (canDebug) {
+                mod_log_debug("%s: received response: '%s'", __func__, buffer);
+            }
+           #endif
 
             // special handling for string replies, read all incoming data
             if (respType == kHostResponseString)
@@ -470,8 +487,6 @@ struct Host::Impl
             // bool ok = false;
             const int respcode = std::atoi(respbuffer);
 
-            // printf("wrote '%s', got resp %d '%s' '%s'\n", message.c_str(), respcode, respbuffer, respdata);
-
             /*
             if (! ok)
             {
@@ -519,7 +534,7 @@ struct Host::Impl
         int r;
         last_error.clear();
 
-        // fprintf(stderr, "Host::wait() begin %d ------------------------------\n", numNonBlockingOps);
+        mod_log_debug("%s: begin, numNonBlockingOps: %u", __func__, numNonBlockingOps);
 
         while (numNonBlockingOps != 0)
         {
@@ -533,24 +548,26 @@ struct Host::Impl
                 if (c == '\0')
                 {
                     --numNonBlockingOps;
-                    // fprintf(stderr, "\nHost::wait() next %d ------------------------------\n", numNonBlockingOps);
+                    mod_log_debug3("%s: next, numNonBlockingOps: %u", __func__, numNonBlockingOps);
                 }
             }
             /* Error */
             else if (r < 0)
             {
                 last_error = "read error";
+                mod_log_warn("error: %s", last_error.c_str());
                 return false;
             }
             /* Client disconnected */
             else
             {
                 last_error = "disconnected";
+                mod_log_warn("error: %s", last_error.c_str());
                 return false;
             }
         }
 
-        // fprintf(stderr, "Host::wait() end %d ------------------------------\n", numNonBlockingOps);
+        mod_log_debug("%s: end, numNonBlockingOps: %u", __func__, numNonBlockingOps);
         return true;
     }
 
@@ -998,7 +1015,7 @@ struct Host::Impl
         }
         else
         {
-            fprintf(stderr, "got feedback '%s'\n", buffer);
+            mod_log_warn("unknown feedback messge '%s'\n", buffer);
         }
 
         if (stackbuffer != buffer)
@@ -1272,7 +1289,7 @@ bool Host::params_flush(const int16_t instance_number,
 {
     VALIDATE_INSTANCE_NUMBER(instance_number)
 
-    std::string msg = format("patch_set %d %u %u", instance_number, reset_value, param_count);
+    std::string msg = format("params_flush %d %u %u", instance_number, reset_value, param_count);
 
     for (unsigned int i = 0; i < param_count; ++i)
     {
