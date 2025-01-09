@@ -32,11 +32,15 @@
 #endif
 
 #ifndef LV2_CORE__enabled
-#define LV2_CORE__enabled LV2_CORE_PREFIX "#enabled"
+#define LV2_CORE__enabled LV2_CORE_PREFIX "enabled"
+#endif
+
+#ifndef LV2_CORE__isSideChain
+#define LV2_CORE__isSideChain LV2_CORE_PREFIX "isSideChain"
 #endif
 
 #ifndef LV2_CORE__shortName
-#define LV2_CORE__shortName LV2_CORE_PREFIX "#shortName"
+#define LV2_CORE__shortName LV2_CORE_PREFIX "shortName"
 #endif
 
 #define LILV_NS_DARKGLASS "http://www.darkglass.com/lv2/ns"
@@ -419,7 +423,22 @@ struct Lv2World::Impl
                         lilv_nodes_free(nodes);
                     }
 
-                    if ((retport.flags & Lv2PortIsControl) != 0)
+                    /**/ if ((retport.flags & Lv2PortIsAudio) != 0)
+                    {
+                        if (LilvNodes* const nodes = lilv_port_get_value(plugin, port, ns.lv2core_portProperty))
+                        {
+                            LILV_FOREACH(nodes, itprop, nodes)
+                            {
+                                const char* const propuri = lilv_node_as_string(lilv_nodes_get(nodes, itprop));
+
+                                if (std::strcmp(propuri, LV2_CORE__isSideChain) == 0)
+                                    retport.flags |= Lv2PortIsSidechain;
+                            }
+
+                            lilv_nodes_free(nodes);
+                        }
+                    }
+                    else if ((retport.flags & Lv2PortIsControl) != 0)
                     {
                         if (LilvNodes* const nodes = lilv_port_get_value(plugin, port, ns.lv2core_portProperty))
                         {

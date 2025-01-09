@@ -91,6 +91,13 @@ static bool getSupportedPluginIO(const Lv2Plugin* const plugin, uint8_t& numInpu
 
 // --------------------------------------------------------------------------------------------------------------------
 
+static bool isNullBlock(const HostConnector::Block& blockdata)
+{
+    return isNullURI(blockdata.uri);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 static bool shouldBlockBeStereo(const HostConnector::ChainRow& chaindata, const uint8_t block)
 {
     assert(block < NUM_BLOCKS_PER_PRESET);
@@ -100,7 +107,7 @@ static bool shouldBlockBeStereo(const HostConnector::ChainRow& chaindata, const 
 
     for (uint8_t bl = block - 1; bl != UINT8_MAX; --bl)
     {
-        if (isNullURI(chaindata.blocks[bl].uri))
+        if (isNullBlock(chaindata.blocks[bl]))
             continue;
         if (chaindata.blocks[bl].meta.isStereoOut)
             return true;
@@ -960,7 +967,7 @@ bool HostConnector::reorderBlock(const uint8_t row, const uint8_t orig, const ui
     {
         if (orig == i)
             continue;
-        if (isNullURI(_current.chains[row].blocks[i].uri))
+        if (isNullBlock(_current.chains[row].blocks[i]))
             continue;
         reconnect = true;
         break;
