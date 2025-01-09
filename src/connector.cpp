@@ -11,6 +11,7 @@
 #include <cstring>
 #include <fstream>
 #include <map>
+#include <optional>
 
 #define KXSTUDIO__Reset_full 1
 #define KXSTUDIO__Reset_soft 2
@@ -37,18 +38,15 @@ static void resetParam(HostConnector::Parameter& paramdata)
 static void resetBlock(HostConnector::Block& blockdata)
 {
     blockdata.enabled = false;
-   #if NUM_BLOCK_CHAIN_ROWS != 1
-    blockdata.linkedRow = UINT8_MAX;
-    blockdata.linkedBlock = UINT8_MAX;
-   #endif
-    blockdata.quickPotSymbol.clear();
     blockdata.uri.clear();
+    blockdata.quickPotSymbol.clear();
     blockdata.meta.quickPotIndex = 0;
     blockdata.meta.hasScenes = false;
     blockdata.meta.isChainPoint = false;
     blockdata.meta.isMonoIn = false;
     blockdata.meta.isStereoOut = false;
     blockdata.meta.name.clear();
+    blockdata.meta.abbreviation.clear();
 
     for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
         resetParam(blockdata.parameters[p]);
@@ -66,6 +64,81 @@ static void allocBlock(HostConnector::Block& blockdata)
         blockdata.sceneValues[s].resize(MAX_PARAMS_PER_BLOCK);
 }
 
+static void initBlock(HostConnector::Block& blockdata,
+                      const Lv2Plugin* const plugin,
+                      const uint8_t numInputs,
+                      const uint8_t numOutputs,
+                      std::optional<std::map<std::string, uint8_t>> symbolToIndexMapOpt = {})
+{
+    assert(plugin != nullptr);
+
+    blockdata.enabled = true;
+    blockdata.uri = plugin->uri;
+    blockdata.quickPotSymbol.clear();
+
+    blockdata.meta.quickPotIndex = 0;
+    blockdata.meta.hasScenes = false;
+    blockdata.meta.isChainPoint = false;
+    blockdata.meta.isMonoIn = numInputs == 1;
+    blockdata.meta.isStereoOut = numOutputs == 2;
+    blockdata.meta.name = plugin->name;
+    blockdata.meta.abbreviation = plugin->abbreviation;
+
+    uint8_t numParams = 0;
+    for (const Lv2Port& port : plugin->ports)
+    {
+        if ((port.flags & (Lv2PortIsControl|Lv2ParameterHidden)) != Lv2PortIsControl)
+            continue;
+
+        switch (port.designation)
+        {
+        case kLv2DesignationNone:
+            break;
+        case kLv2DesignationEnabled:
+        case kLv2DesignationReset:
+            // skip parameter
+            continue;
+        case kLv2DesignationQuickPot:
+            blockdata.quickPotSymbol = port.symbol;
+            blockdata.meta.quickPotIndex = numParams;
+            break;
+        }
+
+        if (symbolToIndexMapOpt.has_value())
+            symbolToIndexMapOpt.value()[port.symbol] = numParams;
+
+        blockdata.parameters[numParams++] = {
+            .symbol = port.symbol,
+            .value = port.def,
+            .meta = {
+                .flags = port.flags,
+                .def = port.def,
+                .min = port.min,
+                .max = port.max,
+                .name = port.name,
+                .shortname = port.shortname,
+                .unit = port.unit,
+                .scalePoints = port.scalePoints,
+            },
+        };
+
+        if (numParams == MAX_PARAMS_PER_BLOCK)
+            break;
+    }
+
+    if (blockdata.quickPotSymbol.empty() && numParams != 0)
+        blockdata.quickPotSymbol = blockdata.parameters[0].symbol;
+
+    for (uint8_t p = numParams; p < MAX_PARAMS_PER_BLOCK; ++p)
+        resetParam(blockdata.parameters[p]);
+
+    for (uint8_t s = 0; s <= NUM_SCENES_PER_PRESET; ++s)
+    {
+        for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+            blockdata.sceneValues[s][p].used = false;
+    }
+}
+
 // --------------------------------------------------------------------------------------------------------------------
 
 static bool getSupportedPluginIO(const Lv2Plugin* const plugin,
@@ -74,6 +147,8 @@ static bool getSupportedPluginIO(const Lv2Plugin* const plugin,
                                  uint8_t& numSideInputs,
                                  uint8_t& numSideOutputs)
 {
+    assert(plugin != nullptr);
+
     numInputs = numOutputs = numSideInputs = numSideOutputs = 0;
     for (const Lv2Port& port : plugin->ports)
     {
@@ -409,21 +484,8 @@ bool HostConnector::loadBankFromFile(const char* const filename)
                         continue;
                     }
 
-                    blockdata.enabled = true;
-                   #if NUM_BLOCK_CHAIN_ROWS != 1
-                    blockdata.linkedRow = UINT8_MAX;
-                    blockdata.linkedBlock = UINT8_MAX;
-                   #endif
-                    blockdata.uri = uri;
-                    blockdata.quickPotSymbol.clear();
-
-                    blockdata.meta.quickPotIndex = 0;
-                    blockdata.meta.hasScenes = false;
-                    blockdata.meta.isChainPoint = false;
-                    blockdata.meta.isMonoIn = numInputs == 1;
-                    blockdata.meta.isStereoOut = numOutputs == 2;
-                    blockdata.meta.name = plugin->name;
-                    blockdata.meta.abbreviation = plugin->abbreviation;
+                    std::map<std::string, uint8_t> symbolToIndexMap;
+                    initBlock(blockdata, plugin, numInputs, numOutputs, symbolToIndexMap);
 
                     if (jblock.contains("enabled"))
                         blockdata.enabled = jblock["enabled"].get<bool>();
@@ -431,73 +493,19 @@ bool HostConnector::loadBankFromFile(const char* const filename)
                     if (pr == 0)
                         ++numLoadedPlugins;
 
-                    // parameters are always filled from lv2 metadata first, then overriden with json data
-                    uint8_t numParams = 0;
-                    std::map<std::string, uint8_t> symbolToIndexMap;
-                    for (size_t i = 0; i < plugin->ports.size() && numParams < MAX_PARAMS_PER_BLOCK; ++i)
-                    {
-                        if ((plugin->ports[i].flags & Lv2PortIsControl) == 0)
-                            continue;
-                        if ((plugin->ports[i].flags & Lv2ParameterHidden) != 0)
-                            continue;
-
-                        switch (plugin->ports[i].designation)
-                        {
-                        case kLv2DesignationNone:
-                            break;
-                        case kLv2DesignationEnabled:
-                        case kLv2DesignationReset:
-                            // skip parameter
-                            continue;
-                        case kLv2DesignationQuickPot:
-                            blockdata.quickPotSymbol = plugin->ports[i].symbol;
-                            blockdata.meta.quickPotIndex = numParams;
-                            break;
-                        }
-
-                        Parameter& paramdata = blockdata.parameters[numParams];
-
-                        paramdata.symbol = plugin->ports[i].symbol;
-                        paramdata.value = plugin->ports[i].def;
-
-                        paramdata.meta.flags = plugin->ports[i].flags;
-                        paramdata.meta.def = plugin->ports[i].def;
-                        paramdata.meta.min = plugin->ports[i].min;
-                        paramdata.meta.max = plugin->ports[i].max;
-                        paramdata.meta.name = plugin->ports[i].name;
-                        paramdata.meta.shortname = plugin->ports[i].shortname;
-                        paramdata.meta.unit = plugin->ports[i].unit;
-                        paramdata.meta.scalePoints = plugin->ports[i].scalePoints;
-
-                        symbolToIndexMap[paramdata.symbol] = numParams++;
-                    }
-
-                    for (uint8_t p = numParams; p < MAX_PARAMS_PER_BLOCK; ++p)
-                        resetParam(blockdata.parameters[p]);
-
-                    for (uint8_t s = 0; s <= NUM_SCENES_PER_PRESET; ++s)
-                    {
-                        for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
-                            blockdata.sceneValues[s][p].used = false;
-                    }
-
                     try {
                         const std::string quickpot = jblock["quickpot"].get<std::string>();
 
-                        for (uint8_t p = 0; p < numParams; ++p)
+                        if (!quickpot.empty())
                         {
-                            if (blockdata.parameters[p].symbol == quickpot)
+                            if (const auto it = symbolToIndexMap.find(quickpot); it != symbolToIndexMap.end())
                             {
                                 blockdata.quickPotSymbol = quickpot;
-                                blockdata.meta.quickPotIndex = p;
-                                break;
+                                blockdata.meta.quickPotIndex = it->second;
                             }
                         }
 
                     } catch (...) {}
-
-                    if (blockdata.quickPotSymbol.empty() && numParams != 0)
-                        blockdata.quickPotSymbol = blockdata.parameters[0].symbol;
 
                     if (! jblock.contains("parameters"))
                         continue;
@@ -536,8 +544,8 @@ bool HostConnector::loadBankFromFile(const char* const filename)
                             continue;
 
                         paramdata.value = std::max(paramdata.meta.min,
-                                                std::min<float>(paramdata.meta.max,
-                                                                jparam["value"].get<double>()));
+                                                   std::min<float>(paramdata.meta.max,
+                                                                   jparam["value"].get<double>()));
                     }
 
                     if (! jblock.contains("scenes"))
@@ -1178,74 +1186,7 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
 
         if (added)
         {
-            blockdata.enabled = true;
-           #if NUM_BLOCK_CHAIN_ROWS != 1
-            blockdata.linkedRow = UINT8_MAX;
-            blockdata.linkedBlock = UINT8_MAX;
-           #endif
-            blockdata.uri = uri;
-            blockdata.quickPotSymbol.clear();
-
-            blockdata.meta.quickPotIndex = 0;
-            blockdata.meta.hasScenes = false;
-            blockdata.meta.isChainPoint = false;
-            blockdata.meta.isMonoIn = numInputs == 1;
-            blockdata.meta.isStereoOut = numOutputs == 2;
-            blockdata.meta.name = plugin->name;
-            blockdata.meta.abbreviation = plugin->abbreviation;
-
-            uint8_t numParams = 0;
-            for (const Lv2Port& port : plugin->ports)
-            {
-                if ((port.flags & Lv2PortIsControl) == 0)
-                    continue;
-                if ((port.flags & Lv2ParameterHidden) != 0)
-                    continue;
-
-                switch (port.designation)
-                {
-                case kLv2DesignationNone:
-                    break;
-                case kLv2DesignationEnabled:
-                case kLv2DesignationReset:
-                    // skip parameter
-                    continue;
-                case kLv2DesignationQuickPot:
-                    blockdata.quickPotSymbol = port.symbol;
-                    blockdata.meta.quickPotIndex = numParams;
-                    break;
-                }
-
-                blockdata.parameters[numParams++] = {
-                    .symbol = port.symbol,
-                    .value = port.def,
-                    .meta = {
-                        .flags = port.flags,
-                        .def = port.def,
-                        .min = port.min,
-                        .max = port.max,
-                        .name = port.name,
-                        .shortname = port.shortname,
-                        .unit = port.unit,
-                        .scalePoints = port.scalePoints,
-                    },
-                };
-
-                if (numParams == MAX_PARAMS_PER_BLOCK)
-                    break;
-            }
-
-            if (blockdata.quickPotSymbol.empty() && numParams != 0)
-                blockdata.quickPotSymbol = blockdata.parameters[0].symbol;
-
-            for (uint8_t p = numParams; p < MAX_PARAMS_PER_BLOCK; ++p)
-                resetParam(blockdata.parameters[p]);
-
-            for (uint8_t s = 0; s <= NUM_SCENES_PER_PRESET; ++s)
-            {
-                for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
-                    blockdata.sceneValues[s][p].used = false;
-            }
+            initBlock(blockdata, plugin, numInputs, numOutputs);
 
             if (numSideInputs == 1)
             {

@@ -92,10 +92,6 @@ struct HostConnector : Host::FeedbackCallback {
 
     struct Block {
         bool enabled = false;
-       #if NUM_BLOCK_CHAIN_ROWS != 1
-        uint8_t linkedRow = UINT8_MAX;
-        uint8_t linkedBlock = UINT8_MAX;
-       #endif
         std::string quickPotSymbol;
         std::string uri;
         struct {
