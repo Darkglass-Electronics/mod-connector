@@ -955,9 +955,11 @@ bool HostConnector::reorderBlock(const uint8_t row, const uint8_t orig, const ui
         return false;
     }
 
+    ChainRow& chain = _current.chains[row];
+
     // check if we need to re-do any connections
     bool reconnect = false;
-    const bool blockIsEmpty = isNullURI(_current.chains[row].blocks[orig].uri);
+    const bool blockIsEmpty = isNullBlock(chain.blocks[orig]);
     const uint8_t left = std::min(orig, dest);
     const uint8_t right = std::max(orig, dest);
     const uint8_t blockStart = std::max(0, left - 1);
@@ -967,7 +969,7 @@ bool HostConnector::reorderBlock(const uint8_t row, const uint8_t orig, const ui
     {
         if (orig == i)
             continue;
-        if (isNullBlock(_current.chains[row].blocks[i]))
+        if (isNullBlock(chain.blocks[i]))
             continue;
         reconnect = true;
         break;
@@ -979,8 +981,8 @@ bool HostConnector::reorderBlock(const uint8_t row, const uint8_t orig, const ui
         return false;
     }
 
-    printf("HostConnector::reorderBlock(%u, %u) - reconnect %s, start %u, end %u\n",
-           orig, dest, bool2str(reconnect), blockStart, blockEnd);
+    printf("HostConnector::reorderBlock(%u, %u) - reconnect %s, blockIsEmpty %s, start %u, end %u\n",
+           orig, dest, bool2str(reconnect), bool2str(blockIsEmpty), blockStart, blockEnd);
 
     const Host::NonBlockingScope hnbs(_host);
 
@@ -1005,13 +1007,7 @@ bool HostConnector::reorderBlock(const uint8_t row, const uint8_t orig, const ui
                 hostDisconnectAllBlockOutputs(row, i - 1);
             }
 
-            std::swap(_current.chains[row].blocks[i], _current.chains[row].blocks[i - 1]);
-        }
-
-        if (reconnect)
-        {
-            hostEnsureStereoChain(row, blockStart, blockEnd);
-            hostConnectAll(row, dest, orig);
+            std::swap(chain.blocks[i], chain.blocks[i - 1]);
         }
     }
 
@@ -1029,17 +1025,17 @@ bool HostConnector::reorderBlock(const uint8_t row, const uint8_t orig, const ui
                 hostDisconnectAllBlockInputs(row, i + 1);
                 hostDisconnectAllBlockOutputs(row, i + 1);
             }
-            std::swap(_current.chains[row].blocks[i], _current.chains[row].blocks[i + 1]);
-        }
-
-        if (reconnect)
-        {
-            hostEnsureStereoChain(row, blockStart, blockEnd);
-            hostConnectAll(row, orig, dest);
+            std::swap(chain.blocks[i], chain.blocks[i + 1]);
         }
     }
 
     _mapper.reorder(_current.preset, row, orig, dest);
+
+    if (reconnect)
+    {
+        hostEnsureStereoChain(row, blockStart, blockEnd);
+        hostConnectAll(row, left, right);
+    }
 
     // update bindings
     for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
@@ -1970,23 +1966,25 @@ void HostConnector::hostConnectAll(const uint8_t row, uint8_t blockStart, uint8_
     assert(blockStart <= blockEnd);
     assert(blockEnd < NUM_BLOCKS_PER_PRESET);
 
+    ChainRow& chain = _current.chains[row];
+
     if (_current.numLoadedPlugins == 0)
     {
         // direct connections
-        _host.connect(JACK_CAPTURE_PORT_1, JACK_PLAYBACK_PORT_1);
-        _host.connect(JACK_CAPTURE_PORT_2, JACK_PLAYBACK_PORT_2);
+        _host.connect(chain.inputs[0].c_str(), chain.outputs[0].c_str());
+        _host.connect(chain.inputs[1].c_str(), chain.outputs[1].c_str());
         return;
     }
 
     // direct connections
-    // _host.disconnect(JACK_CAPTURE_PORT_1, JACK_PLAYBACK_PORT_1);
-    // _host.disconnect(JACK_CAPTURE_PORT_2, JACK_PLAYBACK_PORT_2);
+    _host.disconnect(chain.inputs[0].c_str(), chain.outputs[0].c_str());
+    _host.disconnect(chain.inputs[1].c_str(), chain.outputs[1].c_str());
 
     std::array<bool, NUM_BLOCKS_PER_PRESET> loaded;
     for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
-        loaded[bl] = !isNullURI(_current.chains[row].blocks[bl].uri);
+        loaded[bl] = !isNullBlock(chain.blocks[bl]);
 
-    // first plugin
+    // first blocks
     for (uint8_t bl = 0; bl <= blockEnd; ++bl)
     {
         if (loaded[bl])
@@ -1997,7 +1995,7 @@ void HostConnector::hostConnectAll(const uint8_t row, uint8_t blockStart, uint8_
         }
     }
 
-    // last plugin
+    // last blocks
     for (uint8_t bl = NUM_BLOCKS_PER_PRESET - 1; bl >= blockStart && bl != UINT8_MAX; --bl)
     {
         if (loaded[bl])
@@ -2033,7 +2031,7 @@ void HostConnector::hostConnectAll(const uint8_t row, uint8_t blockStart, uint8_
         }
     }
 
-    // now we can connect between plugins
+    // now we can connect between blocks
     for (uint8_t bl1 = blockStart; bl1 < blockEnd; ++bl1)
     {
         if (! loaded[bl1])
