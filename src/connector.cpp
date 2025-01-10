@@ -331,7 +331,7 @@ const HostConnector::Preset& HostConnector::getCurrentPreset(const uint8_t prese
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::loadBankFromPresetFiles(std::array<std::string, NUM_PRESETS_PER_BANK> filenames)
+void HostConnector::loadBankFromPresetFiles(const std::array<std::string, NUM_PRESETS_PER_BANK>& filenames)
 {
     mod_log_debug("loadBankFromPresetFiles(...)");
 
@@ -423,7 +423,7 @@ void HostConnector::loadBankFromPresetFiles(std::array<std::string, NUM_PRESETS_
 
 // --------------------------------------------------------------------------------------------------------------------
 
-bool HostConnector::saveBankToPresetFiles(std::array<std::string, NUM_PRESETS_PER_BANK> filenames)
+bool HostConnector::saveBankToPresetFiles(const std::array<std::string, NUM_PRESETS_PER_BANK>& filenames)
 {
     mod_log_debug("saveBankToPresetFiles(...)");
 

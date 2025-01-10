@@ -222,10 +222,10 @@ public:
     // bank handling
 
     // load bank from a set of preset files and activate the first
-    void loadBankFromPresetFiles(std::array<std::string, NUM_PRESETS_PER_BANK> filenames);
+    void loadBankFromPresetFiles(const std::array<std::string, NUM_PRESETS_PER_BANK>& filenames);
 
     // save all presets (from the non-current data)
-    bool saveBankToPresetFiles(std::array<std::string, NUM_PRESETS_PER_BANK> filenames);
+    bool saveBankToPresetFiles(const std::array<std::string, NUM_PRESETS_PER_BANK>& filenames);
 
     // ----------------------------------------------------------------------------------------------------------------
     // preset handling
