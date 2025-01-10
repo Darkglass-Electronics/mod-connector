@@ -16,10 +16,6 @@
 #define KXSTUDIO__Reset_full 1
 #define KXSTUDIO__Reset_soft 2
 
-#define JSON_BANK_VERSION_CURRENT 0
-#define JSON_BANK_VERSION_MIN_SUPPORTED 0
-#define JSON_BANK_VERSION_MAX_SUPPORTED 0
-
 #define JSON_PRESET_VERSION_CURRENT 0
 #define JSON_PRESET_VERSION_MIN_SUPPORTED 0
 #define JSON_PRESET_VERSION_MAX_SUPPORTED 0
@@ -335,64 +331,80 @@ const HostConnector::Preset& HostConnector::getCurrentPreset(const uint8_t prese
 
 // --------------------------------------------------------------------------------------------------------------------
 
-bool HostConnector::loadBankFromFile(const char* const filename)
+void HostConnector::loadBankFromPresetFiles(std::array<std::string, NUM_PRESETS_PER_BANK> filenames)
 {
-    mod_log_debug("loadBankFromFile(\"%s\")", filename);
+    mod_log_debug("loadBankFromPresetFiles(...)");
 
-    std::ifstream f(filename);
-    nlohmann::json j;
-
-    try {
-        j = nlohmann::json::parse(f);
-    } catch (...) {
-        return false;
-    }
-
-    if (! (j.contains("bank") && j.contains("type") && j.contains("version")))
-        return false;
-
-    try {
-        if (j["type"].get<std::string>() != "bank")
-        {
-            mod_log_warn("loadBankFromFile(\"%s\"): failed, file is not bank type", filename);
-            return false;
-        }
-
-        const int version = j["version"].get<int>();
-        if (version < JSON_BANK_VERSION_MIN_SUPPORTED || version > JSON_BANK_VERSION_MAX_SUPPORTED)
-        {
-            mod_log_warn("loadBankFromFile(\"%s\"): failed, version mismatch", filename);
-            return false;
-        }
-
-        j = j["bank"].get<nlohmann::json>();
-    } catch (...) {
-        return false;
-    }
-
-    if (! j.contains("presets"))
-    {
-        mod_log_warn("loadBankFromFile(\"%s\"): bank does not include presets", filename);
-        return false;
-    }
-
-    auto& jpresets = j["presets"];
     uint8_t numLoadedPluginsInFirstPreset = 0;
 
     for (uint8_t pr = 0; pr < NUM_PRESETS_PER_BANK; ++pr)
     {
         Preset& presetdata = _presets[pr];
-        const std::string jpresetid = std::to_string(pr + 1);
 
-        if (! jpresets.contains(jpresetid))
-        {
-            mod_log_info("loadBankFromFile(\"%s\"): missing preset %u, loading empty", filename, pr);
+        std::ifstream f(filenames[pr]);
+        nlohmann::json j;
+
+        try {
+            j = nlohmann::json::parse(f);
+        } catch (const std::exception& e) {
+            mod_log_warn("failed to parse \"%s\": %s", filenames[pr].c_str(), e.what());
+            resetPreset(presetdata);
+            continue;
+        } catch (...) {
+            mod_log_warn("failed to parse \"%s\": unknown exception", filenames[pr].c_str());
             resetPreset(presetdata);
             continue;
         }
 
-        auto& jpreset = jpresets[jpresetid];
-        const uint8_t numLoadedPlugins = hostLoadPreset(presetdata, jpreset);
+        if (! j.contains("preset"))
+        {
+            mod_log_warn("failed to load \"%s\": missing required fields 'preset'", filenames[pr].c_str());
+            resetPreset(presetdata);
+            continue;
+        }
+
+        if (! j.contains("type"))
+        {
+            mod_log_warn("failed to load \"%s\": missing required field 'type'", filenames[pr].c_str());
+            resetPreset(presetdata);
+            continue;
+        }
+
+        if (! j.contains("version"))
+        {
+            mod_log_warn("failed to load \"%s\": missing required field 'version'", filenames[pr].c_str());
+            resetPreset(presetdata);
+            continue;
+        }
+
+        try {
+            if (j["type"].get<std::string>() != "preset")
+            {
+                mod_log_warn("failed to load \"%s\": file is not preset type", filenames[pr].c_str());
+                resetPreset(presetdata);
+                continue;
+            }
+
+            const int version = j["version"].get<int>();
+            if (version < JSON_PRESET_VERSION_MIN_SUPPORTED || version > JSON_PRESET_VERSION_MAX_SUPPORTED)
+            {
+                mod_log_warn("failed to load \"%s\": version mismatch", filenames[pr].c_str());
+                resetPreset(presetdata);
+                continue;
+            }
+
+            j = j["preset"].get<nlohmann::json>();
+        } catch (const std::exception& e) {
+            mod_log_warn("failed to parse \"%s\": %s", filenames[pr].c_str(), e.what());
+            resetPreset(presetdata);
+            continue;
+        } catch (...) {
+            mod_log_warn("failed to parse \"%s\": unknown exception", filenames[pr].c_str());
+            resetPreset(presetdata);
+            continue;
+        }
+
+        const uint8_t numLoadedPlugins = hostLoadPreset(presetdata, j);
 
         if (pr == 0)
             numLoadedPluginsInFirstPreset = numLoadedPlugins;
@@ -404,93 +416,46 @@ bool HostConnector::loadBankFromFile(const char* const filename)
     _current.scene = 0;
     _current.numLoadedPlugins = numLoadedPluginsInFirstPreset;
     _current.dirty = false;
-    _current.filename = filename;
 
     const Host::NonBlockingScope hnbs(_host);
     hostClearAndLoadCurrentBank();
-    return true;
 }
 
 // --------------------------------------------------------------------------------------------------------------------
 
-bool HostConnector::saveBank()
+bool HostConnector::saveBankToPresetFiles(std::array<std::string, NUM_PRESETS_PER_BANK> filenames)
 {
-    mod_log_debug("saveBank()");
+    mod_log_debug("saveBankToPresetFiles(...)");
 
-    if (_current.filename.empty())
-        return false;
+    for (uint8_t pr = 0; pr < NUM_PRESETS_PER_BANK; ++pr) {
+        assert_return(!filenames[pr].empty(), false);
+    }
 
-    return saveBankToFile(_current.filename.c_str());
-}
-
-// --------------------------------------------------------------------------------------------------------------------
-
-bool HostConnector::saveBankToFile(const char* const filename)
-{
-    mod_log_debug("saveBankToFile(\"%s\")", filename);
-
-    // copy current data into preset data
-    _presets[_current.preset] = static_cast<Preset&>(_current);
-
-    // store parameter values from default scene, if in use
-    for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
+    for (uint8_t pr = 0; pr < NUM_PRESETS_PER_BANK; ++pr)
     {
-        for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
-        {
-            Block& blockdata = _presets[_current.preset].chains[row].blocks[bl];
-            if (isNullBlock(blockdata))
-                continue;
-
-            for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
-            {
-                Parameter& paramdata = blockdata.parameters[p];
-                if (isNullURI(paramdata.symbol))
-                    break;
-                if ((paramdata.meta.flags & Lv2PortIsOutput) != 0)
-                    continue;
-
-                if (blockdata.sceneValues[0][p].used)
-                    paramdata.value = blockdata.sceneValues[0][p].value;
+        nlohmann::json j;
+        do {
+            try {
+                j["version"] = JSON_PRESET_VERSION_CURRENT;
+                j["type"] = "preset";
+                j["preset"] = nlohmann::json::object({});
+            } catch (...) {
+                break;
             }
-        }
-    }
 
-    nlohmann::json j;
-    try {
-        j["version"] = JSON_BANK_VERSION_CURRENT;
-        j["type"] = "bank";
+            hostSavePreset(_presets[pr], j["preset"]);
+        } while (false);
 
-        auto& jbank = j["bank"] = nlohmann::json::object({
-            { "presets", nlohmann::json::object({}) },
-        });
-
-        auto& jpresets = jbank["presets"];
-
-        for (uint8_t pr = 0; pr < NUM_PRESETS_PER_BANK; ++pr)
-        {
-            const Preset& presetdata = _presets[pr];
-            const std::string jpresetid = std::to_string(pr + 1);
-
-            auto& jpreset = jpresets[jpresetid];
-            hostSavePreset(presetdata, jpreset);
-        }
-    } catch (...) {
-        return false;
-    }
-
-    {
-        std::ofstream o(filename);
+        std::ofstream o(filenames[pr]);
         o << std::setw(2) << j << std::endl;
     }
 
-    _current.dirty = false;
-    _current.filename = filename;
     return true;
 }
 
 // --------------------------------------------------------------------------------------------------------------------
 
-bool HostConnector::loadCurrentPresetFromFile(const char* const filename)
+bool HostConnector::loadCurrentPresetFromFile(const char* const filename, const bool replaceDefault)
 {
     mod_log_debug("loadCurrentPresetFromFile(\"%s\")", filename);
 
@@ -535,8 +500,8 @@ bool HostConnector::loadCurrentPresetFromFile(const char* const filename)
     // switch old preset with new one
     hostSwitchPreset(old);
 
-    // FIXME replace default preset data too??
-    _presets[_current.preset] = _current;
+    if (replaceDefault)
+        _presets[_current.preset] = _current;
 
     return true;
 }
@@ -554,6 +519,32 @@ bool HostConnector::saveCurrentPresetToFile(const char* filename)
         j["preset"] = nlohmann::json::object({});
     } catch (...) {
         return false;
+    }
+
+    // copy current data into preset data
+    _presets[_current.preset] = static_cast<Preset&>(_current);
+
+    // store parameter values from default scene, if in use
+    for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
+    {
+        for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
+        {
+            Block& blockdata = _current.chains[row].blocks[bl];
+            if (isNullBlock(blockdata))
+                continue;
+
+            for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+            {
+                Parameter& paramdata = blockdata.parameters[p];
+                if (isNullURI(paramdata.symbol))
+                    break;
+                if ((paramdata.meta.flags & Lv2PortIsOutput) != 0)
+                    continue;
+
+                if (blockdata.sceneValues[0][p].used)
+                    paramdata.value = blockdata.sceneValues[0][p].value;
+            }
+        }
     }
 
     hostSavePreset(_current, j["preset"]);

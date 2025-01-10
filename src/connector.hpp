@@ -219,25 +219,20 @@ public:
      [[nodiscard]] const Preset& getCurrentPreset(uint8_t preset) const;
 
     // ----------------------------------------------------------------------------------------------------------------
-    // file handling
+    // bank handling
 
-    // load bank from a file and activate the first preset
-    // returning false means the current chain was unchanged, likely because the file contains invalid state
-    bool loadBankFromFile(const char* filename);
+    // load bank from a set of preset files and activate the first
+    void loadBankFromPresetFiles(std::array<std::string, NUM_PRESETS_PER_BANK> filenames);
 
-    // save bank state as stored in the `current` struct into a file
-    bool saveBankToFile(const char* filename);
-
-    // save bank state as stored in the `current` struct
-    // a bank must have been loaded or saved to a file before, so that `current.filename` is valid
-    bool saveBank();
+    // save all presets (from the non-current data)
+    bool saveBankToPresetFiles(std::array<std::string, NUM_PRESETS_PER_BANK> filenames);
 
     // ----------------------------------------------------------------------------------------------------------------
     // preset handling
 
-    // load preset from a file, automatically replacing the current preset
+    // load preset from a file, automatically replacing the current preset and optionally the default too
     // returning false means the current chain was unchanged, likely because the file contains invalid state
-    bool loadCurrentPresetFromFile(const char* filename);
+    bool loadCurrentPresetFromFile(const char* filename, bool replaceDefault);
 
     // save current preset to a file
     bool saveCurrentPresetToFile(const char* filename);
