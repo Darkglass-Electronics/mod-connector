@@ -98,9 +98,10 @@ struct HostConnector : Host::FeedbackCallback {
             // convenience meta-data, not stored in json state
             uint8_t quickPotIndex;
             bool hasScenes = false;
-            bool isChainPoint = false;
-            bool isMonoIn = false;
-            bool isStereoOut = false;
+            uint8_t numInputs = 0;
+            uint8_t numOutputs = 0;
+            uint8_t numSideInputs = 0;
+            uint8_t numSideOutputs = 0;
             std::string name;
             std::string abbreviation;
         } meta;
@@ -412,7 +413,7 @@ protected:
     void hostDisconnectAllBlockInputs(uint8_t row, uint8_t block);
     void hostDisconnectAllBlockOutputs(uint8_t row, uint8_t block);
 
-    void hostEnsureStereoChain(uint8_t row, uint8_t blockStart, uint8_t blockEnd);
+    void hostEnsureStereoChain(uint8_t row, uint8_t blockStart);
 
     // remove all bindings related to a block
     void hostRemoveAllBlockBindings(uint8_t row, uint8_t block);

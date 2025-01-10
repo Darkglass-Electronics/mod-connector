@@ -42,9 +42,10 @@ static void resetBlock(HostConnector::Block& blockdata)
     blockdata.quickPotSymbol.clear();
     blockdata.meta.quickPotIndex = 0;
     blockdata.meta.hasScenes = false;
-    blockdata.meta.isChainPoint = false;
-    blockdata.meta.isMonoIn = false;
-    blockdata.meta.isStereoOut = false;
+    blockdata.meta.numInputs = 0;
+    blockdata.meta.numOutputs = 0;
+    blockdata.meta.numSideInputs = 0;
+    blockdata.meta.numSideOutputs = 0;
     blockdata.meta.name.clear();
     blockdata.meta.abbreviation.clear();
 
@@ -68,6 +69,8 @@ static void initBlock(HostConnector::Block& blockdata,
                       const Lv2Plugin* const plugin,
                       const uint8_t numInputs,
                       const uint8_t numOutputs,
+                      const uint8_t numSideInputs,
+                      const uint8_t numSideOutputs,
                       std::optional<std::map<std::string, uint8_t>> symbolToIndexMapOpt = {})
 {
     assert(plugin != nullptr);
@@ -78,9 +81,10 @@ static void initBlock(HostConnector::Block& blockdata,
 
     blockdata.meta.quickPotIndex = 0;
     blockdata.meta.hasScenes = false;
-    blockdata.meta.isChainPoint = false;
-    blockdata.meta.isMonoIn = numInputs == 1;
-    blockdata.meta.isStereoOut = numOutputs == 2;
+    blockdata.meta.numInputs = numInputs;
+    blockdata.meta.numOutputs = numOutputs;
+    blockdata.meta.numSideInputs = numSideInputs;
+    blockdata.meta.numSideOutputs = numSideOutputs;
     blockdata.meta.name = plugin->name;
     blockdata.meta.abbreviation = plugin->abbreviation;
 
@@ -190,7 +194,7 @@ static bool shouldBlockBeStereo(const HostConnector::ChainRow& chaindata, const 
     {
         if (isNullBlock(chaindata.blocks[bl]))
             continue;
-        if (chaindata.blocks[bl].meta.isStereoOut)
+        if (chaindata.blocks[bl].meta.numOutputs == 2)
             return true;
     }
 
@@ -267,9 +271,10 @@ void HostConnector::printStateForDebug(const bool withBlocks, const bool withPar
             {
                 fprintf(stderr, "\t\tQuick Pot: '%s' | %u\n", blockdata.quickPotSymbol.c_str(), blockdata.meta.quickPotIndex);
                 fprintf(stderr, "\t\tHas scenes: %s\n", bool2str(blockdata.meta.hasScenes));
-                fprintf(stderr, "\t\tIs chain point: %s\n", bool2str(blockdata.meta.isChainPoint));
-                fprintf(stderr, "\t\tIs mono in: %s\n", bool2str(blockdata.meta.isMonoIn));
-                fprintf(stderr, "\t\tIs stereo out: %s\n", bool2str(blockdata.meta.isStereoOut));
+                fprintf(stderr, "\t\tnumInputs: %u\n", blockdata.meta.numInputs);
+                fprintf(stderr, "\t\tnumOutputs: %u\n", blockdata.meta.numOutputs);
+                fprintf(stderr, "\t\tnumSideInputs: %u\n", blockdata.meta.numSideInputs);
+                fprintf(stderr, "\t\tnumSideOutputs: %u\n", blockdata.meta.numSideOutputs);
             }
 
             for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK && withParams; ++p)
@@ -626,9 +631,9 @@ void HostConnector::setCurrentPresetName(const char* const name)
 
 bool HostConnector::enableBlock(const uint8_t row, const uint8_t block, const bool enable)
 {
+    mod_log_debug("enableBlock(%u, %u, %s)", row, block, bool2str(enable));
     assert(row < NUM_BLOCK_CHAIN_ROWS);
     assert(block < NUM_BLOCKS_PER_PRESET);
-    mod_log_debug("enableBlock(%u, %u, %s)", row, block, bool2str(enable));
 
     Block& blockdata(_current.chains[row].blocks[block]);
     assert_return(!isNullBlock(blockdata), false);
@@ -650,10 +655,10 @@ bool HostConnector::enableBlock(const uint8_t row, const uint8_t block, const bo
 
 bool HostConnector::reorderBlock(const uint8_t row, const uint8_t orig, const uint8_t dest)
 {
+    mod_log_debug("reorderBlock(%u, %u, %u)", row, orig, dest);
     assert(row < NUM_BLOCK_CHAIN_ROWS);
     assert(orig < NUM_BLOCKS_PER_PRESET);
     assert(dest < NUM_BLOCKS_PER_PRESET);
-    mod_log_debug("reorderBlock(%u, %u, %u)", row, orig, dest);
 
     if (orig == dest)
     {
@@ -707,7 +712,7 @@ bool HostConnector::reorderBlock(const uint8_t row, const uint8_t orig, const ui
     {
         for (int i = orig; i > dest; --i)
         {
-            if (reconnect)
+            if (reconnect && !isNullBlock(chain.blocks[i - 1]))
             {
                 hostDisconnectAllBlockInputs(row, i - 1);
                 hostDisconnectAllBlockOutputs(row, i - 1);
@@ -725,7 +730,7 @@ bool HostConnector::reorderBlock(const uint8_t row, const uint8_t orig, const ui
     {
         for (int i = orig; i < dest; ++i)
         {
-            if (reconnect)
+            if (reconnect && !isNullBlock(chain.blocks[i + 1]))
             {
                 hostDisconnectAllBlockInputs(row, i + 1);
                 hostDisconnectAllBlockOutputs(row, i + 1);
@@ -737,10 +742,7 @@ bool HostConnector::reorderBlock(const uint8_t row, const uint8_t orig, const ui
     _mapper.reorder(_current.preset, row, orig, dest);
 
     if (reconnect)
-    {
-        hostEnsureStereoChain(row, blockStart, blockEnd);
-        hostConnectAll(row, left, right);
-    }
+        hostEnsureStereoChain(row, blockStart);
 
     // update bindings
     for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
@@ -778,9 +780,9 @@ bool HostConnector::reorderBlock(const uint8_t row, const uint8_t orig, const ui
 
 bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const char* const uri)
 {
+    mod_log_debug("replaceBlock(%u, %u, \"%s\")", row, block, uri);
     assert(row < NUM_BLOCK_CHAIN_ROWS);
     assert(block < NUM_BLOCKS_PER_PRESET);
-    mod_log_debug("replaceBlock(%u, %u, \"%s\")", row, block, uri);
 
     ChainRow& chaindata(_current.chains[row]);
     assert_return(!chaindata.capture[0].empty(), false);
@@ -861,7 +863,7 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
 
         if (added)
         {
-            initBlock(blockdata, plugin, numInputs, numOutputs);
+            initBlock(blockdata, plugin, numInputs, numOutputs, numSideInputs, numSideOutputs);
 
             if (numSideInputs == 1)
             {
@@ -993,8 +995,13 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
             else
                 before = 0;
 
-            hostEnsureStereoChain(row, before, NUM_BLOCKS_PER_PRESET - 1);
-            hostConnectAll(row, before, NUM_BLOCKS_PER_PRESET - 1);
+            hostEnsureStereoChain(row, before);
+        }
+
+        if (blockdata.meta.numSideOutputs != 0)
+        {
+            assert(row + 1 < NUM_BLOCK_CHAIN_ROWS);
+            hostEnsureStereoChain(row + 1, 0);
         }
     }
     else
@@ -1025,8 +1032,7 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
                 }
             }
 
-            hostEnsureStereoChain(row, start, NUM_BLOCKS_PER_PRESET - 1);
-            hostConnectAll(row, start, NUM_BLOCKS_PER_PRESET - 1);
+            hostEnsureStereoChain(row, start);
         }
     }
 
@@ -1043,35 +1049,54 @@ bool HostConnector::swapBlockRow(const uint8_t row,
                                  const uint8_t emptyRow,
                                  const uint8_t emptyBlock)
 {
+    mod_log_debug("swapBlockRow(%u, %u, %u, %u)", row, block, emptyRow, emptyBlock);
     assert(row < NUM_BLOCK_CHAIN_ROWS);
     assert(block < NUM_BLOCKS_PER_PRESET);
     assert(emptyRow < NUM_BLOCK_CHAIN_ROWS);
     assert(emptyBlock < NUM_BLOCKS_PER_PRESET);
     assert(row != emptyRow);
+    assert(!_current.chains[row].capture[0].empty());
+    assert(!_current.chains[emptyRow].capture[0].empty());
+    assert(!isNullBlock(_current.chains[row].blocks[block]));
     assert(isNullBlock(_current.chains[emptyRow].blocks[emptyBlock]));
-    mod_log_debug("swapBlockRow(%u, %u, %u, %u)", row, block, emptyRow, emptyBlock);
 
-    Block& blockdata(_current.chains[row].blocks[block]);
-
-    // TODO reconnect ports
-
-    std::swap(_current.chains[row].blocks[block], _current.chains[emptyRow].blocks[emptyBlock]);
-
-    _mapper.swap(_current.preset, row, block, emptyRow, emptyBlock);
-
-    // update bindings
-    for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
+    // scope for fade-out, disconnect, reconnect, fade-in
     {
-        for (Binding& bindingdata : _current.bindings[hwid])
-        {
-            if (bindingdata.row != row)
-                continue;
-            if (bindingdata.block != block)
-                continue;
+        const Host::NonBlockingScope hnbs(_host);
 
-            bindingdata.row = emptyRow;
-            bindingdata.block = emptyBlock;
+        // step 1: fade out
+        _host.feature_enable(Host::kFeatureProcessing, Host::kProcessingOffWithFadeOut);
+
+        // step 2: disconnect all ports from moving block
+        hostDisconnectAllBlockInputs(row, block);
+        hostDisconnectAllBlockOutputs(row, block);
+
+        // step 3: swap data
+        std::swap(_current.chains[row].blocks[block], _current.chains[emptyRow].blocks[emptyBlock]);
+
+        _mapper.swap(_current.preset, row, block, emptyRow, emptyBlock);
+
+        for (std::list<Binding>& bindings : _current.bindings)
+        {
+            for (Binding& bindingdata : bindings)
+            {
+                if (bindingdata.row == row && bindingdata.block == block)
+                {
+                    bindingdata.row = emptyRow;
+                    bindingdata.block = emptyBlock;
+                }
+            }
         }
+
+        // step 4: reconnect ports
+        hostEnsureStereoChain(row, block - (block != 0 ? 1 : 0));
+
+        // NOTE previous call already handles sidechain connections
+        if (_current.chains[row].blocks[block].meta.numSideOutputs == 0)
+            hostEnsureStereoChain(emptyRow, emptyBlock - (emptyBlock != 0 ? 1 : 0));
+
+        // step 5: fade in
+        _host.feature_enable(Host::kFeatureProcessing, Host::kProcessingOnWithFadeIn);
     }
 
     _current.dirty = true;
@@ -1084,8 +1109,8 @@ bool HostConnector::swapBlockRow(const uint8_t row,
 
 bool HostConnector::switchPreset(const uint8_t preset)
 {
-    assert(preset < NUM_PRESETS_PER_BANK);
     mod_log_debug("switchPreset(%u)", preset);
+    assert(preset < NUM_PRESETS_PER_BANK);
 
     if (_current.preset == preset)
         return false;
@@ -1106,8 +1131,8 @@ bool HostConnector::switchPreset(const uint8_t preset)
 
 bool HostConnector::switchScene(const uint8_t scene)
 {
-    assert(scene < NUM_SCENES_PER_PRESET);
     mod_log_debug("switchScene(%u)", scene);
+    assert(scene < NUM_SCENES_PER_PRESET);
 
     if (_current.scene == scene)
         return false;
@@ -1165,10 +1190,10 @@ bool HostConnector::switchScene(const uint8_t scene)
 
 bool HostConnector::addBlockBinding(const uint8_t hwid, const uint8_t row, const uint8_t block)
 {
+    mod_log_debug("addBlockBinding(%u, %u, %u)", hwid, row, block);
     assert(hwid < NUM_BINDING_ACTUATORS);
     assert(row < NUM_BLOCK_CHAIN_ROWS);
     assert(block < NUM_BLOCKS_PER_PRESET);
-    mod_log_debug("addBlockBinding(%u, %u, %u)", hwid, row, block);
 
     const Block& blockdata(_current.chains[row].blocks[block]);
     assert_return(!isNullBlock(blockdata), false);
@@ -1185,11 +1210,11 @@ bool HostConnector::addBlockParameterBinding(const uint8_t hwid,
                                              const uint8_t block,
                                              const uint8_t paramIndex)
 {
+    mod_log_debug("addBlockParameterBinding(%u, %u, %u, %u)", hwid, row, block, paramIndex);
     assert(hwid < NUM_BINDING_ACTUATORS);
     assert(row < NUM_BLOCK_CHAIN_ROWS);
     assert(block < NUM_BLOCKS_PER_PRESET);
     assert(paramIndex < MAX_PARAMS_PER_BLOCK);
-    mod_log_debug("addBlockParameterBinding(%u, %u, %u, %u)", hwid, row, block, paramIndex);
 
     const Block& blockdata(_current.chains[row].blocks[block]);
     assert_return(!isNullBlock(blockdata), false);
@@ -1207,10 +1232,10 @@ bool HostConnector::addBlockParameterBinding(const uint8_t hwid,
 
 bool HostConnector::removeBlockBinding(const uint8_t hwid, const uint8_t row, const uint8_t block)
 {
+    mod_log_debug("removeBlockBinding(%u, %u, %u)", hwid, row, block);
     assert(hwid < NUM_BINDING_ACTUATORS);
     assert(row < NUM_BLOCK_CHAIN_ROWS);
     assert(block < NUM_BLOCKS_PER_PRESET);
-    mod_log_debug("removeBlockBinding(%u, %u, %u)", hwid, row, block);
 
     const Block& blockdata(_current.chains[row].blocks[block]);
     assert_return(!isNullBlock(blockdata), false);
@@ -1236,11 +1261,11 @@ bool HostConnector::removeBlockParameterBinding(const uint8_t hwid,
                                                 const uint8_t block,
                                                 const uint8_t paramIndex)
 {
+    mod_log_debug("removeBlockParameterBinding(%u, %u, %u, %u)", hwid, row, block, paramIndex);
     assert(hwid < NUM_BINDING_ACTUATORS);
     assert(row < NUM_BLOCK_CHAIN_ROWS);
     assert(block < NUM_BLOCKS_PER_PRESET);
     assert(paramIndex < MAX_PARAMS_PER_BLOCK);
-    mod_log_debug("removeBlockParameterBinding(%u, %u, %u, %u)", hwid, row, block, paramIndex);
 
     const Block& blockdata(_current.chains[row].blocks[block]);
     assert_return(!isNullBlock(blockdata), false);
@@ -1271,9 +1296,9 @@ bool HostConnector::removeBlockParameterBinding(const uint8_t hwid,
 
 bool HostConnector::reorderBlockBinding(const uint8_t hwid, const uint8_t dest)
 {
+    mod_log_debug("reorderBlockBinding(%u, %u)", hwid, dest);
     assert(hwid < NUM_BINDING_ACTUATORS);
     assert(dest < NUM_BINDING_ACTUATORS);
-    mod_log_debug("reorderBlockBinding(%u, %u)", hwid, dest);
 
     if (hwid == dest)
     {
@@ -1337,10 +1362,10 @@ void HostConnector::setBlockParameter(const uint8_t row,
                                       const uint8_t paramIndex,
                                       const float value)
 {
+    mod_log_debug("setBlockParameter(%u, %u, %u, %f)", row, block, paramIndex, value);
     assert(row < NUM_BLOCK_CHAIN_ROWS);
     assert(block < NUM_BLOCKS_PER_PRESET);
     assert(paramIndex < MAX_PARAMS_PER_BLOCK);
-    mod_log_debug("setBlockParameter(%u, %u, %u, %f)", row, block, paramIndex, value);
 
     Block& blockdata(_current.chains[row].blocks[block]);
     assert_return(!isNullBlock(blockdata),);
@@ -1380,10 +1405,10 @@ void HostConnector::setBlockParameter(const uint8_t row,
 
 void HostConnector::monitorBlockOutputParameter(const uint8_t row, const uint8_t block, const uint8_t paramIndex)
 {
+    mod_log_debug("monitorBlockOutputParameter(%u, %u, %u)", row, block, paramIndex);
     assert(row < NUM_BLOCK_CHAIN_ROWS);
     assert(block < NUM_BLOCKS_PER_PRESET);
     assert(paramIndex < MAX_PARAMS_PER_BLOCK);
-    mod_log_debug("monitorBlockOutputParameter(%u, %u, %u)", row, block, paramIndex);
 
     const Block& blockdata(_current.chains[row].blocks[block]);
     assert_return(!isNullBlock(blockdata),);
@@ -1402,8 +1427,8 @@ void HostConnector::monitorBlockOutputParameter(const uint8_t row, const uint8_t
 
 bool HostConnector::enableTool(const uint8_t toolIndex, const char* const uri)
 {
-    assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
     mod_log_debug("enableTool(%u, \"%s\")", toolIndex, uri);
+    assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
 
     return isNullURI(uri) ? _host.remove(MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex)
                           : _host.add(uri, MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex);
@@ -1415,10 +1440,10 @@ void HostConnector::connectToolAudioInput(const uint8_t toolIndex,
                                           const char* const symbol,
                                           const char* const jackPort)
 {
+    mod_log_debug("connectToolAudioInput(%u, \"%s\", \"%s\")", toolIndex, symbol, jackPort);
     assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
     assert(symbol != nullptr && *symbol != '\0');
     assert(jackPort != nullptr && *jackPort != '\0');
-    mod_log_debug("connectToolAudioInput(%u, \"%s\", \"%s\")", toolIndex, symbol, jackPort);
 
     _host.connect(jackPort, format(MOD_HOST_EFFECT_PREFIX "%d:%s", 
                                    MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex,
@@ -1431,10 +1456,10 @@ void HostConnector::connectToolAudioOutput(const uint8_t toolIndex,
                                            const char* const symbol,
                                            const char* const jackPort)
 {
+    mod_log_debug("connectToolAudioOutput(%u, \"%s\", \"%s\")", toolIndex, symbol, jackPort);
     assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
     assert(symbol != nullptr && *symbol != '\0');
     assert(jackPort != nullptr && *jackPort != '\0');
-    mod_log_debug("connectToolAudioOutput(%u, \"%s\", \"%s\")", toolIndex, symbol, jackPort);
 
     _host.connect(format(MOD_HOST_EFFECT_PREFIX "%d:%s",
                          MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex,
@@ -1445,9 +1470,9 @@ void HostConnector::connectToolAudioOutput(const uint8_t toolIndex,
 
 void HostConnector::setToolParameter(const uint8_t toolIndex, const char* const symbol, const float value)
 {
+    mod_log_debug("setToolParameter(%u, \"%s\", %f)", toolIndex, symbol, value);
     assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
     assert(symbol != nullptr && *symbol != '\0');
-    mod_log_debug("setToolParameter(%u, \"%s\", %f)", toolIndex, symbol, value);
 
     _host.param_set(MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, symbol, value);
 }
@@ -1456,9 +1481,9 @@ void HostConnector::setToolParameter(const uint8_t toolIndex, const char* const 
 
 void HostConnector::monitorToolOutputParameter(const uint8_t toolIndex, const char* const symbol)
 {
+    mod_log_debug("monitorToolOutputParameter(%u, \"%s\")", toolIndex, symbol);
     assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
     assert(symbol != nullptr && *symbol != '\0');
-    mod_log_debug("monitorToolOutputParameter(%u, \"%s\")", toolIndex, symbol);
 
     _host.monitor_output(MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, symbol);
 }
@@ -1470,11 +1495,11 @@ void HostConnector::setBlockProperty(const uint8_t row,
                                      const char* const uri,
                                      const char* const value)
 {
+    mod_log_debug("setBlockProperty(%u, %u, \"%s\", \"%s\")", row, block, uri, value);
     assert(row < NUM_BLOCK_CHAIN_ROWS);
     assert(block < NUM_BLOCKS_PER_PRESET);
     assert(uri != nullptr && *uri != '\0');
     assert(value != nullptr);
-    mod_log_debug("setBlockProperty(%u, %u, \"%s\", \"%s\")", row, block, uri, value);
 
     const Block& blockdata(_current.chains[row].blocks[block]);
     assert_return(!isNullBlock(blockdata),);
@@ -1492,102 +1517,9 @@ void HostConnector::setBlockProperty(const uint8_t row,
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::hostConnectAll(const uint8_t row, uint8_t blockStart, uint8_t blockEnd)
-{
-    assert(row < NUM_BLOCK_CHAIN_ROWS);
-    assert(blockStart <= blockEnd);
-    assert(blockEnd < NUM_BLOCKS_PER_PRESET);
-
-    ChainRow& chain = _current.chains[row];
-    assert(!chain.capture[0].empty());
-    assert(!chain.capture[1].empty());
-    assert(!chain.playback[0].empty());
-    assert(!chain.playback[1].empty());
-
-    if (_current.numLoadedPlugins == 0)
-    {
-        // direct connections
-        _host.connect(chain.capture[0].c_str(), chain.playback[0].c_str());
-        _host.connect(chain.capture[1].c_str(), chain.playback[1].c_str());
-        return;
-    }
-
-    // direct connections
-    _host.disconnect(chain.capture[0].c_str(), chain.playback[0].c_str());
-    _host.disconnect(chain.capture[1].c_str(), chain.playback[1].c_str());
-
-    std::array<bool, NUM_BLOCKS_PER_PRESET> loaded;
-    for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
-        loaded[bl] = !isNullBlock(chain.blocks[bl]);
-
-    // first blocks
-    for (uint8_t bl = 0; bl <= blockEnd; ++bl)
-    {
-        if (loaded[bl])
-        {
-            if (bl >= blockStart && bl <= blockEnd)
-                hostConnectBlockToChainInput(row, bl);
-            break;
-        }
-    }
-
-    // last blocks
-    for (uint8_t bl = NUM_BLOCKS_PER_PRESET - 1; bl >= blockStart && bl != UINT8_MAX; --bl)
-    {
-        if (loaded[bl])
-        {
-            if (bl >= blockStart && bl <= blockEnd)
-                hostConnectBlockToChainOutput(row, bl);
-            break;
-        }
-    }
-
-    // find connecting blocks
-    if (blockStart != 0)
-    {
-        for (uint8_t bl = blockStart - 1; bl != UINT8_MAX; --bl)
-        {
-            if (loaded[bl])
-            {
-                blockStart = bl;
-                break;
-            }
-        }
-    }
-
-    if (blockEnd != NUM_BLOCKS_PER_PRESET - 1)
-    {
-        for (uint8_t bl = blockEnd + 1; bl < NUM_BLOCKS_PER_PRESET; ++bl)
-        {
-            if (loaded[bl])
-            {
-                blockEnd = bl;
-                break;
-            }
-        }
-    }
-
-    // now we can connect between blocks
-    for (uint8_t bl1 = blockStart; bl1 < blockEnd; ++bl1)
-    {
-        if (! loaded[bl1])
-            continue;
-
-        for (uint8_t bl2 = bl1 + 1; bl2 <= blockEnd; ++bl2)
-        {
-            if (! loaded[bl2])
-                continue;
-
-            hostConnectBlockToBlock(row, bl1, bl2);
-            break;
-        }
-    }
-}
-
-// --------------------------------------------------------------------------------------------------------------------
-
 void HostConnector::hostConnectBlockToBlock(const uint8_t row, const uint8_t blockA, const uint8_t blockB)
 {
+    mod_log_debug("hostConnectBlockToBlock(%u, %u, %u)", row, blockA, blockB);
     assert(row < NUM_BLOCK_CHAIN_ROWS);
     assert(blockA < NUM_BLOCKS_PER_PRESET);
     assert(blockB < NUM_BLOCKS_PER_PRESET);
@@ -1695,6 +1627,8 @@ void HostConnector::hostConnectBlockToChainOutput(const uint8_t row, const uint8
 
 void HostConnector::hostDisconnectAll()
 {
+    mod_log_debug("hostDisconnectAll()");
+
     for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
     {
         for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
@@ -1726,6 +1660,8 @@ void HostConnector::hostDisconnectAllBlockOutputs(const uint8_t row, const uint8
 
 void HostConnector::hostClearAndLoadCurrentBank()
 {
+    mod_log_debug("hostClearAndLoadCurrentBank()");
+
     if (_firstboot)
     {
         _firstboot = false;
@@ -1788,7 +1724,7 @@ void HostConnector::hostClearAndLoadCurrentBank()
                     return false;
                 };
 
-                const bool dualmono = previousPluginStereoOut && blockdata.meta.isMonoIn;
+                const bool dualmono = previousPluginStereoOut && blockdata.meta.numInputs == 1;
                 const uint16_t instance = _mapper.add(pr, row, bl);
 
                 bool added = loadInstance(instance);
@@ -1816,7 +1752,7 @@ void HostConnector::hostClearAndLoadCurrentBank()
                     continue;
                 }
 
-                previousPluginStereoOut = blockdata.meta.isStereoOut || dualmono;
+                previousPluginStereoOut = blockdata.meta.numOutputs == 2 || dualmono;
 
                 // dealing with connections after this point, only valid if preset is the active one
                 if (active)
@@ -1866,6 +1802,7 @@ void HostConnector::hostClearAndLoadCurrentBank()
 
 void HostConnector::hostConnectChainInputAction(const uint8_t row, const uint8_t block, const bool connect)
 {
+    mod_log_debug("hostConnectChainInputAction(%u, %u, %s)", row, block, bool2str(connect));
     assert(row < NUM_BLOCK_CHAIN_ROWS);
     assert(block < NUM_BLOCKS_PER_PRESET);
     assert(!isNullBlock(_current.chains[row].blocks[block]));
@@ -1906,6 +1843,7 @@ void HostConnector::hostConnectChainInputAction(const uint8_t row, const uint8_t
 
 void HostConnector::hostConnectChainOutputAction(const uint8_t row, const uint8_t block, const bool connect)
 {
+    mod_log_debug("hostConnectChainOutputAction(%u, %u, %s)", row, block, bool2str(connect));
     assert(row < NUM_BLOCK_CHAIN_ROWS);
     assert(block < NUM_BLOCKS_PER_PRESET);
     assert(!isNullBlock(_current.chains[row].blocks[block]));
@@ -1950,6 +1888,7 @@ void HostConnector::hostConnectChainOutputAction(const uint8_t row, const uint8_
 
 void HostConnector::hostDisconnectBlockAction(const uint8_t row, const uint8_t block, const bool outputs)
 {
+    mod_log_debug("hostDisconnectBlockAction(%u, %u, %s)", row, block, bool2str(outputs));
     assert(row < NUM_BLOCK_CHAIN_ROWS);
     assert(block < NUM_BLOCKS_PER_PRESET);
     assert(!isNullBlock(_current.chains[row].blocks[block]));
@@ -1965,7 +1904,7 @@ void HostConnector::hostDisconnectBlockAction(const uint8_t row, const uint8_t b
 
     for (const Lv2Port& port : plugin->ports)
     {
-        if ((port.flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != ioflags)
+        if ((port.flags & (Lv2PortIsAudio|Lv2PortIsOutput|Lv2PortIsSidechain)) != ioflags)
             continue;
 
         origin = format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbp.id, port.symbol.c_str());
@@ -1982,53 +1921,160 @@ void HostConnector::hostDisconnectBlockAction(const uint8_t row, const uint8_t b
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::hostEnsureStereoChain(const uint8_t row, const uint8_t blockStart, const uint8_t blockEnd)
+void HostConnector::hostEnsureStereoChain(const uint8_t row, const uint8_t blockStart)
 {
+    mod_log_debug("hostEnsureStereoChain(%u, %u)", row, blockStart);
     assert(row < NUM_BLOCK_CHAIN_ROWS);
-    assert(blockStart <= blockEnd);
-    assert(blockEnd < NUM_BLOCKS_PER_PRESET);
+    assert(blockStart < NUM_BLOCKS_PER_PRESET);
 
-    bool previousPluginStereoOut = shouldBlockBeStereo(_current.chains[row], blockStart);
+    ChainRow& chain = _current.chains[row];
+    assert(!chain.capture[0].empty());
+    assert(!chain.capture[1].empty());
+    assert(!chain.playback[0].empty());
+    assert(!chain.playback[1].empty());
 
-    for (uint8_t bl = blockStart; bl <= blockEnd; ++bl)
+    // bool changed = false;
+    bool previousPluginStereoOut = shouldBlockBeStereo(chain, blockStart);
+
+    // ----------------------------------------------------------------------------------------------------------------
+    // part 1: deal with dual-mono and disconnect blocks where needed
+
+    for (uint8_t bl = blockStart; bl < NUM_BLOCKS_PER_PRESET; ++bl)
     {
-        const Block& blockdata(_current.chains[row].blocks[bl]);
+        const Block& blockdata(chain.blocks[bl]);
         if (isNullBlock(blockdata))
             continue;
 
         const bool oldDualmono = _mapper.get(_current.preset, row, bl).pair != kMaxHostInstances;
-        const bool newDualmono = previousPluginStereoOut && blockdata.meta.isMonoIn;
+        const bool newDualmono = previousPluginStereoOut && blockdata.meta.numInputs == 1;
 
-        if (oldDualmono != newDualmono)
+        previousPluginStereoOut = blockdata.meta.numOutputs == 2 || newDualmono;
+
+        if (oldDualmono == newDualmono)
+            continue;
+
+        // changed = true;
+
+        if (newDualmono)
         {
-            if (newDualmono)
-            {
-                const uint16_t pair = _mapper.add_pair(_current.preset, row, bl);
+            const uint16_t pair = _mapper.add_pair(_current.preset, row, bl);
 
-                if (_host.add(blockdata.uri.c_str(), pair))
+            if (_host.add(blockdata.uri.c_str(), pair))
+            {
+                if (!blockdata.enabled)
+                    _host.bypass(pair, true);
+
+                for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
                 {
-                    if (!blockdata.enabled)
-                        _host.bypass(pair, true);
-
-                    for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
-                    {
-                        const Parameter& parameterdata(blockdata.parameters[p]);
-                        if (isNullURI(parameterdata.symbol))
-                            break;
-                        _host.param_set(pair, parameterdata.symbol.c_str(), parameterdata.value);
-                    }
-
-                    // disconnect ports, we might have mono to stereo connections
-                    hostDisconnectAllBlockOutputs(row, bl);
+                    const Parameter& parameterdata(blockdata.parameters[p]);
+                    if (isNullURI(parameterdata.symbol))
+                        break;
+                    _host.param_set(pair, parameterdata.symbol.c_str(), parameterdata.value);
                 }
-            }
-            else
-            {
-                _host.remove(_mapper.remove_pair(_current.preset, row, bl));
+
+                // disconnect ports, we might have mono to stereo connections
+                hostDisconnectAllBlockOutputs(row, bl);
             }
         }
+        else
+        {
+            _host.remove(_mapper.remove_pair(_current.preset, row, bl));
+        }
 
-        previousPluginStereoOut = blockdata.meta.isStereoOut || newDualmono;
+        if (blockdata.meta.numSideOutputs != 0)
+        {
+            assert_continue(row + 1 < NUM_BLOCK_CHAIN_ROWS);
+            hostEnsureStereoChain(row + 1, 0);
+        }
+    }
+
+    // ----------------------------------------------------------------------------------------------------------------
+    // part 2: handle connections
+
+    std::array<bool, NUM_BLOCKS_PER_PRESET> loaded;
+    uint8_t numLoadedPlugins = 0;
+    for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
+    {
+        if ((loaded[bl] = !isNullBlock(chain.blocks[bl])))
+            ++numLoadedPlugins;
+    }
+
+    if (numLoadedPlugins == 0)
+    {
+        // direct connections
+        _host.connect(chain.capture[0].c_str(), chain.playback[0].c_str());
+        _host.connect(chain.capture[1].c_str(), chain.playback[1].c_str());
+        return;
+    }
+
+    // direct connections
+    _host.disconnect(chain.capture[0].c_str(), chain.playback[0].c_str());
+    _host.disconnect(chain.capture[1].c_str(), chain.playback[1].c_str());
+
+    // first block
+    for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
+    {
+        if (loaded[bl])
+        {
+            if (bl >= blockStart)
+                hostConnectBlockToChainInput(row, bl);
+            break;
+        }
+    }
+
+    // last block
+    for (uint8_t bl = NUM_BLOCKS_PER_PRESET - 1; bl != UINT8_MAX; --bl)
+    {
+        if (loaded[bl])
+        {
+            if (bl >= blockStart)
+                hostConnectBlockToChainOutput(row, bl);
+            break;
+        }
+    }
+
+    // find connecting blocks
+    uint8_t firstBlock = blockStart;
+    uint8_t lastBlock = blockStart;
+
+    if (firstBlock != 0)
+    {
+        for (uint8_t bl = firstBlock - 1; bl != UINT8_MAX; --bl)
+        {
+            if (loaded[bl])
+            {
+                firstBlock = bl;
+                break;
+            }
+        }
+    }
+
+    if (lastBlock != NUM_BLOCKS_PER_PRESET - 1)
+    {
+        for (uint8_t bl = lastBlock + 1; bl < NUM_BLOCKS_PER_PRESET; ++bl)
+        {
+            if (loaded[bl])
+            {
+                lastBlock = bl;
+                break;
+            }
+        }
+    }
+
+    // now we can connect between blocks
+    for (uint8_t bl1 = firstBlock; bl1 <= lastBlock; ++bl1)
+    {
+        if (! loaded[bl1])
+            continue;
+
+        for (uint8_t bl2 = bl1 + 1; bl2 < NUM_BLOCKS_PER_PRESET; ++bl2)
+        {
+            if (! loaded[bl2])
+                continue;
+
+            hostConnectBlockToBlock(row, bl1, bl2);
+            break;
+        }
     }
 }
 
@@ -2036,6 +2082,7 @@ void HostConnector::hostEnsureStereoChain(const uint8_t row, const uint8_t block
 
 void HostConnector::hostRemoveAllBlockBindings(const uint8_t row, const uint8_t block)
 {
+    mod_log_debug("hostRemoveAllBlockBindings(%u, %u)", row, block);
     assert(row < NUM_BLOCK_CHAIN_ROWS);
     assert(block < NUM_BLOCKS_PER_PRESET);
 
@@ -2062,6 +2109,7 @@ void HostConnector::hostRemoveAllBlockBindings(const uint8_t row, const uint8_t 
 
 void HostConnector::hostRemoveInstanceForBlock(const uint8_t row, const uint8_t block)
 {
+    mod_log_debug("hostRemoveInstanceForBlock(%u, %u)", row, block);
     assert(row < NUM_BLOCK_CHAIN_ROWS);
     assert(block < NUM_BLOCKS_PER_PRESET);
 
@@ -2174,7 +2222,7 @@ uint8_t HostConnector::hostLoadPreset(Preset& presetdata, nlohmann_json& json)
             }
 
             std::map<std::string, uint8_t> symbolToIndexMap;
-            initBlock(blockdata, plugin, numInputs, numOutputs, symbolToIndexMap);
+            initBlock(blockdata, plugin, numInputs, numOutputs, numSideInputs, numSideOutputs, symbolToIndexMap);
 
             if (jblock.contains("enabled"))
                 blockdata.enabled = jblock["enabled"].get<bool>();
@@ -2504,6 +2552,8 @@ void HostConnector::hostSavePreset(const Preset& presetdata, nlohmann_json& json
 
 void HostConnector::hostSwitchPreset(const Current& old)
 {
+    mod_log_debug("hostSwitchPreset(...)");
+
     bool oldloaded[NUM_BLOCK_CHAIN_ROWS][NUM_BLOCKS_PER_PRESET];
 
     // preallocating some data
@@ -2610,7 +2660,7 @@ void HostConnector::hostSwitchPreset(const Current& old)
             hostConnectBlockToChainOutput(0, lastBlockInRow0);
         }
 
-        // step 3: fade in
+        // step 4: fade in
         _host.feature_enable(Host::kFeatureProcessing, Host::kProcessingOnWithFadeIn);
     }
 
