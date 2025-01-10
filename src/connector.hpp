@@ -126,6 +126,7 @@ struct HostConnector : Host::FeedbackCallback {
 
     struct Preset {
         std::string name;
+        std::string filename;
         std::array<std::list<Binding>, NUM_BINDING_ACTUATORS> bindings; // TODO private ?
     private:
         friend struct HostConnector;
@@ -138,7 +139,6 @@ struct HostConnector : Host::FeedbackCallback {
         uint8_t scene = 0;
         uint8_t numLoadedPlugins = 0;
         bool dirty = false;
-        std::string filename;
 
        #if NUM_BLOCK_CHAIN_ROWS != 1
         [[nodiscard]] inline const Block& block(const uint8_t row, const uint8_t block) const noexcept
@@ -225,11 +225,8 @@ public:
     // returning false means the current chain was unchanged, likely because the file contains invalid state
     bool loadBankFromFile(const char* filename);
 
-    // save bank state as stored in the `current` struct into a new file
+    // save bank state as stored in the `current` struct into a file
     bool saveBankToFile(const char* filename);
-
-    // ----------------------------------------------------------------------------------------------------------------
-    // file handling
 
     // save bank state as stored in the `current` struct
     // a bank must have been loaded or saved to a file before, so that `current.filename` is valid
@@ -238,9 +235,16 @@ public:
     // ----------------------------------------------------------------------------------------------------------------
     // preset handling
 
-    // load preset from a file, automatically activated if preset number matches active preset
+    // load preset from a file, automatically replacing the current preset
     // returning false means the current chain was unchanged, likely because the file contains invalid state
-    bool loadPresetFromFile(uint8_t preset, const char* filename);
+    bool loadCurrentPresetFromFile(const char* filename);
+
+    // save current preset to a file
+    bool saveCurrentPresetToFile(const char* filename);
+
+    // save current preset
+    // a preset must have been loaded or saved to a file before, so that `current.filename` is valid
+    bool saveCurrentPreset();
 
     // clear current preset
     // sets dirty flag if any blocks were removed
@@ -426,8 +430,12 @@ private:
     void hostDisconnectBlockAction(uint8_t row, uint8_t block, bool outputs);
 
     template<class nlohmann_json>
-    [[nodiscard]]
-    uint8_t hostLoadPreset(uint8_t preset, nlohmann_json& json);
+    uint8_t hostLoadPreset(Preset& presetdata, nlohmann_json& json);
+
+    template<class nlohmann_json>
+    void hostSavePreset(const Preset& presetdata, nlohmann_json& json) const;
+
+    void hostSwitchPreset(const Current& old);
 
     // internal feedback handling, for updating parameter values
     void hostFeedbackCallback(const HostFeedbackData& data) override;

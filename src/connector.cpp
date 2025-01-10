@@ -381,18 +381,18 @@ bool HostConnector::loadBankFromFile(const char* const filename)
 
     for (uint8_t pr = 0; pr < NUM_PRESETS_PER_BANK; ++pr)
     {
-        Preset& preset = _presets[pr];
+        Preset& presetdata = _presets[pr];
         const std::string jpresetid = std::to_string(pr + 1);
 
         if (! jpresets.contains(jpresetid))
         {
             mod_log_info("loadBankFromFile(\"%s\"): missing preset %u, loading empty", filename, pr);
-            resetPreset(preset);
+            resetPreset(presetdata);
             continue;
         }
 
         auto& jpreset = jpresets[jpresetid];
-        const uint8_t numLoadedPlugins = hostLoadPreset(pr, jpreset);
+        const uint8_t numLoadedPlugins = hostLoadPreset(presetdata, jpreset);
 
         if (pr == 0)
             numLoadedPluginsInFirstPreset = numLoadedPlugins;
@@ -468,105 +468,11 @@ bool HostConnector::saveBankToFile(const char* const filename)
 
         for (uint8_t pr = 0; pr < NUM_PRESETS_PER_BANK; ++pr)
         {
-            const Preset& preset = _presets[pr];
+            const Preset& presetdata = _presets[pr];
             const std::string jpresetid = std::to_string(pr + 1);
 
-            auto& jpreset = jpresets[jpresetid] = nlohmann::json::object({
-                { "bindings", nlohmann::json::object({}) },
-                { "blocks", nlohmann::json::object({}) },
-                { "name", preset.name },
-            });
-
-            auto& jallbindings = jpreset["bindings"];
-
-            for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
-            {
-               #ifdef BINDING_ACTUATOR_IDS
-                const std::string jbindingsid = kBindingActuatorIDs[hwid];
-               #else
-                const std::string jbindingsid = std::to_string(hwid + 1);
-               #endif
-                auto& jbindings = jallbindings[jbindingsid] = nlohmann::json::array();
-
-                for (const Binding& bindingdata : preset.bindings[hwid])
-                {
-                    jbindings.push_back({
-                       #if NUM_BLOCK_CHAIN_ROWS != 1
-                        { "row", bindingdata.row + 1 },
-                       #endif
-                        { "block", bindingdata.block + 1 },
-                        { "symbol", bindingdata.parameterSymbol },
-                    });
-                }
-            }
-
-            auto& jblocks = jpreset["blocks"];
-
-            for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
-            {
-                for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
-                {
-                    const Block& blockdata = preset.chains[row].blocks[bl];
-
-                    if (isNullBlock(blockdata))
-                        continue;
-
-                   #if NUM_BLOCK_CHAIN_ROWS == 1
-                    const std::string jblockid = std::to_string(bl + 1);
-                   #else
-                    const std::string jblockid = format("%u:%u", row + 1, bl + 1);
-                   #endif
-
-                    auto& jblock = jblocks[jblockid] = {
-                        { "enabled", blockdata.enabled },
-                        { "parameters", nlohmann::json::object({}) },
-                        { "quickpot", blockdata.quickPotSymbol },
-                        { "scenes", nlohmann::json::object({}) },
-                        { "uri", /*isNullBlock(blockdata) ? "-" :*/ blockdata.uri },
-                    };
-
-                    auto& jparams = jblock["parameters"];
-                    for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
-                    {
-                        const Parameter& paramdata = blockdata.parameters[p];
-
-                        if (isNullURI(paramdata.symbol))
-                            break;
-                        if ((paramdata.meta.flags & Lv2PortIsOutput) != 0)
-                            continue;
-
-                        const std::string jparamid = std::to_string(p + 1);
-                        jparams[jparamid] = {
-                            { "symbol", paramdata.symbol },
-                            { "value", paramdata.value },
-                        };
-                    }
-
-                    if (blockdata.meta.hasScenes)
-                    {
-                        auto& jallscenes = jblock["scenes"];
-
-                        for (uint8_t sid = 1; sid <= NUM_SCENES_PER_PRESET; ++sid)
-                        {
-                            const std::string jsceneid = std::to_string(sid);
-                            auto& jscenes = jallscenes[jsceneid] = nlohmann::json::array();
-
-                            for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
-                            {
-                                const SceneParameterValue& sceneparamdata = blockdata.sceneValues[sid][p];
-
-                                if (! sceneparamdata.used)
-                                    continue;
-
-                                jscenes.push_back({
-                                    { "symbol", blockdata.parameters[p].symbol },
-                                    { "value", sceneparamdata.value },
-                                });
-                            }
-                        }
-                    }
-                }
-            }
+            auto& jpreset = jpresets[jpresetid];
+            hostSavePreset(presetdata, jpreset);
         }
     } catch (...) {
         return false;
@@ -584,10 +490,9 @@ bool HostConnector::saveBankToFile(const char* const filename)
 
 // --------------------------------------------------------------------------------------------------------------------
 
-bool HostConnector::loadPresetFromFile(const uint8_t preset, const char* const filename)
+bool HostConnector::loadCurrentPresetFromFile(const char* const filename)
 {
-    assert(preset < NUM_PRESETS_PER_BANK);
-    mod_log_debug("loadPresetFromFile(\"%s\")", filename);
+    mod_log_debug("loadCurrentPresetFromFile(\"%s\")", filename);
 
     std::ifstream f(filename);
     nlohmann::json j;
@@ -620,21 +525,59 @@ bool HostConnector::loadPresetFromFile(const uint8_t preset, const char* const f
         return false;
     }
 
-    const uint8_t numLoadedPlugins = hostLoadPreset(preset, j);
+    // store old active preset in memory before doing anything
+    const Current old = _current;
 
-    if (preset == _current.preset)
-    {
-        // always start with the first scene
-        static_cast<Preset&>(_current) = _presets[preset];
-        _current.scene = 0;
-        _current.numLoadedPlugins = numLoadedPlugins;
+    // load new preset data
+    hostLoadPreset(_current, j);
+    _current.filename = filename;
+
+    // switch old preset with new one
+    hostSwitchPreset(old);
+
+    // FIXME replace default preset data too??
+    _presets[_current.preset] = _current;
+
+    return true;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+bool HostConnector::saveCurrentPresetToFile(const char* filename)
+{
+    mod_log_debug("saveCurrentPresetToFile(\"%s\")", filename);
+
+    nlohmann::json j;
+    try {
+        j["version"] = JSON_PRESET_VERSION_CURRENT;
+        j["type"] = "preset";
+        j["preset"] = nlohmann::json::object({});
+    } catch (...) {
+        return false;
     }
 
-    // TODO trigger host changes
+    hostSavePreset(_current, j["preset"]);
+
+    {
+        std::ofstream o(filename);
+        o << std::setw(2) << j << std::endl;
+    }
 
     _current.dirty = false;
-    // _current.filename = filename;
+    _current.filename = filename;
     return true;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+bool HostConnector::saveCurrentPreset()
+{
+    mod_log_debug("saveCurrentPreset()");
+
+    if (_current.filename.empty())
+        return false;
+
+    return saveCurrentPresetToFile(_current.filename.c_str());
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -1158,228 +1101,13 @@ bool HostConnector::switchPreset(const uint8_t preset)
 
     // store old active preset in memory before doing anything
     const Current old = _current;
-    bool oldloaded[NUM_BLOCK_CHAIN_ROWS][NUM_BLOCKS_PER_PRESET];
-
-    // preallocating some data
-    std::vector<flushed_param> params;
-    params.reserve(MAX_PARAMS_PER_BLOCK);
 
     // copy new preset to current data
     static_cast<Preset&>(_current) = _presets[preset];
     _current.preset = preset;
-    _current.scene = 0;
-    _current.dirty = false;
-    _current.numLoadedPlugins = 0;
 
-    // scope for fade-out, old deactivate, new activate, fade-in
-    {
-        const Host::NonBlockingScope hnbs(_host);
-
-        // step 1: fade out
-        _host.feature_enable(Host::kFeatureProcessing, Host::kProcessingOffWithFadeOut);
-
-        // step 2: disconnect and deactivate all plugins in old preset
-        // NOTE not removing plugins, done after processing is reenabled
-        if (old.numLoadedPlugins == 0)
-        {
-            std::memset(oldloaded, 0, sizeof(oldloaded));
-
-            _host.disconnect(JACK_CAPTURE_PORT_1, JACK_PLAYBACK_PORT_1);
-            _host.disconnect(JACK_CAPTURE_PORT_2, JACK_PLAYBACK_PORT_2);
-        }
-        else
-        {
-            for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
-            {
-                for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
-                {
-                    if (! (oldloaded[row][bl] = !isNullBlock(old.chains[row].blocks[bl])))
-                        continue;
-
-                    hostDisconnectAllBlockInputs(row, bl);
-                    hostDisconnectAllBlockOutputs(row, bl);
-
-                    const HostBlockPair hbp = _mapper.get(old.preset, row, bl);
-
-                    if (hbp.id != kMaxHostInstances)
-                        _host.activate(hbp.id, false);
-
-                    if (hbp.pair != kMaxHostInstances)
-                        _host.activate(hbp.pair, false);
-                }
-            }
-        }
-
-        // step 3: activate and connect all plugins in new preset
-        uint8_t lastBlockInRow0 = 0;
-        for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
-        {
-            uint8_t last = 0;
-            uint8_t numLoadedPlugins = 0;
-
-            for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
-            {
-                if (isNullBlock(_current.chains[row].blocks[bl]))
-                    continue;
-
-                const HostBlockPair hbp = _mapper.get(_current.preset, row, bl);
-
-                if (hbp.id != kMaxHostInstances)
-                    _host.activate(hbp.id, true);
-
-                if (hbp.pair != kMaxHostInstances)
-                    _host.activate(hbp.pair, true);
-
-                if (++numLoadedPlugins == 1)
-                    hostConnectBlockToChainInput(row, bl);
-                else
-                    hostConnectBlockToBlock(row, last, bl);
-
-                last = bl;
-            }
-
-            if (numLoadedPlugins != 0)
-            {
-                _current.numLoadedPlugins += numLoadedPlugins;
-
-               #if NUM_BLOCK_CHAIN_ROWS != 1
-                if (row != 0)
-                {
-                    hostConnectBlockToChainOutput(row, last);
-                }
-                else
-               #endif
-                // handled outside the loop, so the last connection we do is for system audio output
-                {
-                    lastBlockInRow0 = last;
-                }
-            }
-        }
-
-        if (_current.numLoadedPlugins == 0)
-        {
-            _host.connect(JACK_CAPTURE_PORT_1, JACK_PLAYBACK_PORT_1);
-            _host.connect(JACK_CAPTURE_PORT_2, JACK_PLAYBACK_PORT_2);
-        }
-        else
-        {
-            hostConnectBlockToChainOutput(0, lastBlockInRow0);
-        }
-
-        // step 3: fade in
-        _host.feature_enable(Host::kFeatureProcessing, Host::kProcessingOnWithFadeIn);
-    }
-
-    // audio is now processing new preset
-
-    // scope for preloading default state on old preset
-    {
-        const Preset& defaults = _presets[old.preset];
-        // bool defloaded[NUM_BLOCKS_PER_PRESET];
-
-        const Host::NonBlockingScope hnbs(_host);
-
-        for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
-        {
-            for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
-            {
-                const Block& defblockdata = defaults.chains[row].blocks[bl];
-                const Block& oldblockdata = defaults.chains[row].blocks[bl];
-
-                // using same plugin (or both empty)
-                if (defblockdata.uri == old.chains[row].blocks[bl].uri)
-                {
-                    if (isNullBlock(defblockdata))
-                        continue;
-
-                    const HostBlockPair hbp = _mapper.get(old.preset, row, bl);
-                    if (hbp.id == kMaxHostInstances)
-                        continue;
-
-                    if (defblockdata.enabled != oldblockdata.enabled)
-                    {
-                        _host.bypass(hbp.id, !defblockdata.enabled);
-
-                        if (hbp.pair != kMaxHostInstances)
-                            _host.bypass(hbp.pair, !defblockdata.enabled);
-                    }
-
-                    params.clear();
-
-                    for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
-                    {
-                        const Parameter& defparameterdata(defblockdata.parameters[p]);
-                        const Parameter& oldparameterdata(oldblockdata.parameters[p]);
-
-                        if (isNullURI(defparameterdata.symbol))
-                            break;
-                        if (defparameterdata.value == oldparameterdata.value)
-                            continue;
-
-                        params.push_back({ defparameterdata.symbol.c_str(), defparameterdata.value });
-                    }
-
-                    _host.params_flush(hbp.id, KXSTUDIO__Reset_full, params.size(), params.data());
-
-                    if (hbp.pair != kMaxHostInstances)
-                        _host.params_flush(hbp.pair, KXSTUDIO__Reset_full, params.size(), params.data());
-
-                    continue;
-                }
-
-                // different plugin, unload old one if there is any
-                if (oldloaded[row][bl])
-                {
-                    const HostBlockPair hbp = _mapper.remove(old.preset, row, bl);
-
-                    if (hbp.id != kMaxHostInstances)
-                        _host.remove(hbp.id);
-
-                    if (hbp.pair != kMaxHostInstances)
-                        _host.remove(hbp.pair);
-                }
-
-                // nothing else to do if block is empty
-                if (isNullBlock(defaults.chains[row].blocks[bl]))
-                    continue;
-
-                // otherwise load default plugin
-                HostBlockPair hbp = { _mapper.add(old.preset, row, bl), kMaxHostInstances };
-                _host.preload(defblockdata.uri.c_str(), hbp.id);
-
-                if (shouldBlockBeStereo(defaults.chains[row], bl))
-                {
-                    hbp.pair = _mapper.add_pair(old.preset, row, bl);
-                    _host.preload(defblockdata.uri.c_str(), hbp.pair);
-                }
-
-                if (!defblockdata.enabled)
-                {
-                    _host.bypass(hbp.id, true);
-
-                    if (hbp.pair != kMaxHostInstances)
-                        _host.bypass(hbp.pair, true);
-                }
-
-                params.clear();
-
-                for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
-                {
-                    const Parameter& defparameterdata(defblockdata.parameters[p]);
-                    if (isNullURI(defparameterdata.symbol))
-                        break;
-
-                    params.push_back({ defparameterdata.symbol.c_str(), defparameterdata.value });
-                }
-
-                _host.params_flush(hbp.id, KXSTUDIO__Reset_full, params.size(), params.data());
-
-                if (hbp.pair != kMaxHostInstances)
-                    _host.params_flush(hbp.pair, KXSTUDIO__Reset_full, params.size(), params.data());
-            }
-        }
-    }
-
+    // switch old preset with new one
+    hostSwitchPreset(old);
     return true;
 }
 
@@ -2356,17 +2084,13 @@ void HostConnector::hostRemoveInstanceForBlock(const uint8_t row, const uint8_t 
 }
 
 // --------------------------------------------------------------------------------------------------------------------
-// nlohmann::json
 
 template<class nlohmann_json>
-uint8_t HostConnector::hostLoadPreset(const uint8_t preset, nlohmann_json& json)
+uint8_t HostConnector::hostLoadPreset(Preset& presetdata, nlohmann_json& json)
 {
-    assert(preset < NUM_PRESETS_PER_BANK);
-
     nlohmann::json& jpreset = static_cast<nlohmann::json&>(json);
 
     std::string name;
-    Preset& presetdata = _presets[preset];
 
     if (jpreset.contains("name"))
     {
@@ -2377,7 +2101,7 @@ uint8_t HostConnector::hostLoadPreset(const uint8_t preset, nlohmann_json& json)
 
     if (!jpreset.contains("blocks"))
     {
-        mod_log_info("hostLoadPreset(%u): preset does not include blocks, loading empty", preset);
+        mod_log_info("hostLoadPreset(): preset does not include blocks, loading empty");
         resetPreset(presetdata);
         presetdata.name = name;
         return 0;
@@ -2432,7 +2156,7 @@ uint8_t HostConnector::hostLoadPreset(const uint8_t preset, nlohmann_json& json)
             auto& jblock = jblocks[jblockid];
             if (! jblock.contains("uri"))
             {
-                mod_log_info("hostLoadPreset(%u): block %u does not include uri, loading empty", preset, bl);
+                mod_log_info("hostLoadPreset(): block %u does not include uri, loading empty", bl);
                 resetBlock(blockdata);
                 continue;
             }
@@ -2445,8 +2169,7 @@ uint8_t HostConnector::hostLoadPreset(const uint8_t preset, nlohmann_json& json)
 
             if (plugin == nullptr)
             {
-                mod_log_info("hostLoadPreset(%u): plugin with uri '%s' not available, using empty block",
-                             preset, uri.c_str());
+                mod_log_info("hostLoadPreset(): plugin with uri '%s' not available, using empty block", uri.c_str());
                 resetBlock(blockdata);
                 continue;
             }
@@ -2454,8 +2177,7 @@ uint8_t HostConnector::hostLoadPreset(const uint8_t preset, nlohmann_json& json)
             uint8_t numInputs, numOutputs, numSideInputs, numSideOutputs;
             if (!getSupportedPluginIO(plugin, numInputs, numOutputs, numSideInputs, numSideOutputs))
             {
-                mod_log_info("hostLoadPreset(%u): plugin with uri '%s' has invalid IO, using empty block",
-                             preset, uri.c_str());
+                mod_log_info("hostLoadPreset(): plugin with uri '%s' has invalid IO, using empty block", uri.c_str());
                 resetBlock(blockdata);
                 continue;
             }
@@ -2466,8 +2188,7 @@ uint8_t HostConnector::hostLoadPreset(const uint8_t preset, nlohmann_json& json)
             if (jblock.contains("enabled"))
                 blockdata.enabled = jblock["enabled"].get<bool>();
 
-            if (preset == 0)
-                ++numLoadedPlugins;
+            ++numLoadedPlugins;
 
             try {
                 const std::string quickpot = jblock["quickpot"].get<std::string>();
@@ -2497,7 +2218,7 @@ uint8_t HostConnector::hostLoadPreset(const uint8_t preset, nlohmann_json& json)
                 auto& jparam = jparams[jparamid];
                 if (! (jparam.contains("symbol") && jparam.contains("value")))
                 {
-                    mod_log_info("hostLoadPreset(%u): param %u is missing symbol and/or value", preset, p);
+                    mod_log_info("hostLoadPreset(): param %u is missing symbol and/or value", p);
                     continue;
                 }
 
@@ -2505,8 +2226,7 @@ uint8_t HostConnector::hostLoadPreset(const uint8_t preset, nlohmann_json& json)
 
                 if (symbolToIndexMap.find(symbol) == symbolToIndexMap.end())
                 {
-                    mod_log_info("hostLoadPreset(%u): param with '%s' symbol does not exist in plugin",
-                                 preset, symbol.c_str());
+                    mod_log_info("hostLoadPreset(): param with '%s' symbol does not exist in plugin", symbol.c_str());
                     continue;
                 }
 
@@ -2537,7 +2257,7 @@ uint8_t HostConnector::hostLoadPreset(const uint8_t preset, nlohmann_json& json)
                 auto& jscenes = jallscenes[jsceneid];
                 if (! jscenes.is_array())
                 {
-                    mod_log_info("hostLoadPreset(%u): preset scenes are not arrays", preset);
+                    mod_log_info("hostLoadPreset(): preset scenes are not arrays");
                     continue;
                 }
 
@@ -2545,7 +2265,7 @@ uint8_t HostConnector::hostLoadPreset(const uint8_t preset, nlohmann_json& json)
                 {
                     if (! (jscene.contains("symbol") && jscene.contains("value")))
                     {
-                        mod_log_info("hostLoadPreset(%u): scene param is missing symbol and/or value", preset);
+                        mod_log_info("hostLoadPreset(): scene param is missing symbol and/or value");
                         continue;
                     }
 
@@ -2553,8 +2273,7 @@ uint8_t HostConnector::hostLoadPreset(const uint8_t preset, nlohmann_json& json)
 
                     if (symbolToIndexMap.find(symbol) == symbolToIndexMap.end())
                     {
-                        mod_log_info("hostLoadPreset(%u): scene param with '%s' symbol does not exist",
-                                     preset, symbol.c_str());
+                        mod_log_info("hostLoadPreset(): scene param with '%s' symbol does not exist", symbol.c_str());
                         continue;
                     }
 
@@ -2587,7 +2306,7 @@ uint8_t HostConnector::hostLoadPreset(const uint8_t preset, nlohmann_json& json)
 
     if (! jpreset.contains("bindings"))
     {
-        mod_log_info("hostLoadPreset(%u): preset does not include any bindings", preset);
+        mod_log_info("hostLoadPreset(): preset does not include any bindings");
         return numLoadedPlugins;
     }
 
@@ -2602,15 +2321,14 @@ uint8_t HostConnector::hostLoadPreset(const uint8_t preset, nlohmann_json& json)
 
         if (! jallbindings.contains(jbindingsid))
         {
-            mod_log_info("hostLoadPreset(%u): preset does not include bindings for hw '%s'",
-                         preset, jbindingsid.c_str());
+            mod_log_info("hostLoadPreset(): preset does not include bindings for hw '%s'", jbindingsid.c_str());
             continue;
         }
 
         auto& jbindings = jallbindings[jbindingsid];
         if (! jbindings.is_array())
         {
-            mod_log_info("hostLoadPreset(%u): preset bindings are not arrays", preset);
+            mod_log_info("hostLoadPreset(): preset bindings are not arrays");
             continue;
         }
 
@@ -2618,14 +2336,14 @@ uint8_t HostConnector::hostLoadPreset(const uint8_t preset, nlohmann_json& json)
         {
             if (! (jbinding.contains("block") && jbinding.contains("symbol")))
             {
-                mod_log_info("hostLoadPreset(%u): binding is missing block and/or symbol", preset);
+                mod_log_info("hostLoadPreset(): binding is missing block and/or symbol");
                 continue;
             }
 
             const int block = jbinding["block"].get<int>();
             if (block < 1 || block > NUM_BLOCKS_PER_PRESET)
             {
-                mod_log_info("hostLoadPreset(%u): binding has out of bounds block %d", preset, block);
+                mod_log_info("hostLoadPreset(): binding has out of bounds block %d", block);
                 continue;
             }
             int row = 1;
@@ -2635,7 +2353,7 @@ uint8_t HostConnector::hostLoadPreset(const uint8_t preset, nlohmann_json& json)
                 if (row < 1 || row > NUM_BLOCK_CHAIN_ROWS)
                 {
                    #if NUM_BLOCK_CHAIN_ROWS != 1
-                    mod_log_info("hostLoadPreset(%u): binding has out of bounds block %d", preset, block);
+                    mod_log_info("hostLoadPreset(): binding has out of bounds block %d", block);
                    #endif
                     continue;
                 }
@@ -2684,6 +2402,336 @@ uint8_t HostConnector::hostLoadPreset(const uint8_t preset, nlohmann_json& json)
     }
 
     return numLoadedPlugins;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+template<class nlohmann_json>
+void HostConnector::hostSavePreset(const Preset& presetdata, nlohmann_json& json) const
+{
+    nlohmann::json& jpreset = static_cast<nlohmann::json&>(json);
+
+    jpreset = nlohmann::json::object({
+        { "bindings", nlohmann::json::object({}) },
+        { "blocks", nlohmann::json::object({}) },
+        { "name", presetdata.name },
+    });
+
+    auto& jallbindings = jpreset["bindings"];
+
+    for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
+    {
+       #ifdef BINDING_ACTUATOR_IDS
+        const std::string jbindingsid = kBindingActuatorIDs[hwid];
+       #else
+        const std::string jbindingsid = std::to_string(hwid + 1);
+       #endif
+        auto& jbindings = jallbindings[jbindingsid] = nlohmann::json::array();
+
+        for (const Binding& bindingdata : presetdata.bindings[hwid])
+        {
+            jbindings.push_back({
+                #if NUM_BLOCK_CHAIN_ROWS != 1
+                { "row", bindingdata.row + 1 },
+                #endif
+                { "block", bindingdata.block + 1 },
+                { "symbol", bindingdata.parameterSymbol },
+            });
+        }
+    }
+
+    auto& jblocks = jpreset["blocks"];
+
+    for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
+    {
+        for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
+        {
+            const Block& blockdata = presetdata.chains[row].blocks[bl];
+
+            if (isNullBlock(blockdata))
+                continue;
+
+           #if NUM_BLOCK_CHAIN_ROWS == 1
+            const std::string jblockid = std::to_string(bl + 1);
+           #else
+            const std::string jblockid = format("%u:%u", row + 1, bl + 1);
+           #endif
+
+            auto& jblock = jblocks[jblockid] = {
+                { "enabled", blockdata.enabled },
+                { "parameters", nlohmann::json::object({}) },
+                { "quickpot", blockdata.quickPotSymbol },
+                { "scenes", nlohmann::json::object({}) },
+                { "uri", /*isNullBlock(blockdata) ? "-" :*/ blockdata.uri },
+            };
+
+            auto& jparams = jblock["parameters"];
+            for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+            {
+                const Parameter& paramdata = blockdata.parameters[p];
+
+                if (isNullURI(paramdata.symbol))
+                    break;
+                if ((paramdata.meta.flags & Lv2PortIsOutput) != 0)
+                    continue;
+
+                const std::string jparamid = std::to_string(p + 1);
+                jparams[jparamid] = {
+                    { "symbol", paramdata.symbol },
+                    { "value", paramdata.value },
+                };
+            }
+
+            if (blockdata.meta.hasScenes)
+            {
+                auto& jallscenes = jblock["scenes"];
+
+                for (uint8_t sid = 1; sid <= NUM_SCENES_PER_PRESET; ++sid)
+                {
+                    const std::string jsceneid = std::to_string(sid);
+                    auto& jscenes = jallscenes[jsceneid] = nlohmann::json::array();
+
+                    for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                    {
+                        const SceneParameterValue& sceneparamdata = blockdata.sceneValues[sid][p];
+
+                        if (! sceneparamdata.used)
+                            continue;
+
+                        jscenes.push_back({
+                            { "symbol", blockdata.parameters[p].symbol },
+                            { "value", sceneparamdata.value },
+                        });
+                    }
+                }
+            }
+        }
+    }
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::hostSwitchPreset(const Current& old)
+{
+    bool oldloaded[NUM_BLOCK_CHAIN_ROWS][NUM_BLOCKS_PER_PRESET];
+
+    // preallocating some data
+    std::vector<flushed_param> params;
+    params.reserve(MAX_PARAMS_PER_BLOCK);
+
+    // always start with the first scene
+    _current.scene = 0;
+    _current.dirty = false;
+    _current.numLoadedPlugins = 0;
+
+    // scope for fade-out, old deactivate, new activate, fade-in
+    {
+        const Host::NonBlockingScope hnbs(_host);
+
+        // step 1: fade out
+        _host.feature_enable(Host::kFeatureProcessing, Host::kProcessingOffWithFadeOut);
+
+        // step 2: disconnect and deactivate all plugins in old preset
+        // NOTE not removing plugins, done after processing is reenabled
+        if (old.numLoadedPlugins == 0)
+        {
+            std::memset(oldloaded, 0, sizeof(oldloaded));
+
+            _host.disconnect(JACK_CAPTURE_PORT_1, JACK_PLAYBACK_PORT_1);
+            _host.disconnect(JACK_CAPTURE_PORT_2, JACK_PLAYBACK_PORT_2);
+        }
+        else
+        {
+            for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
+            {
+                for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
+                {
+                    if (! (oldloaded[row][bl] = !isNullBlock(old.chains[row].blocks[bl])))
+                        continue;
+
+                    hostDisconnectAllBlockInputs(row, bl);
+                    hostDisconnectAllBlockOutputs(row, bl);
+
+                    const HostBlockPair hbp = _mapper.get(old.preset, row, bl);
+
+                    if (hbp.id != kMaxHostInstances)
+                        _host.activate(hbp.id, false);
+
+                    if (hbp.pair != kMaxHostInstances)
+                        _host.activate(hbp.pair, false);
+                }
+            }
+        }
+
+        // step 3: activate and connect all plugins in new preset
+        uint8_t lastBlockInRow0 = 0;
+        for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
+        {
+            uint8_t last = 0;
+            uint8_t numLoadedPlugins = 0;
+
+            for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
+            {
+                if (isNullBlock(_current.chains[row].blocks[bl]))
+                    continue;
+
+                const HostBlockPair hbp = _mapper.get(_current.preset, row, bl);
+
+                if (hbp.id != kMaxHostInstances)
+                    _host.activate(hbp.id, true);
+
+                if (hbp.pair != kMaxHostInstances)
+                    _host.activate(hbp.pair, true);
+
+                if (++numLoadedPlugins == 1)
+                    hostConnectBlockToChainInput(row, bl);
+                else
+                    hostConnectBlockToBlock(row, last, bl);
+
+                last = bl;
+            }
+
+            if (numLoadedPlugins != 0)
+            {
+                _current.numLoadedPlugins += numLoadedPlugins;
+
+               #if NUM_BLOCK_CHAIN_ROWS != 1
+                if (row != 0)
+                {
+                    hostConnectBlockToChainOutput(row, last);
+                }
+                else
+               #endif
+                // handled outside the loop, so the last connection we do is for system audio output
+                {
+                    lastBlockInRow0 = last;
+                }
+            }
+        }
+
+        if (_current.numLoadedPlugins == 0)
+        {
+            _host.connect(JACK_CAPTURE_PORT_1, JACK_PLAYBACK_PORT_1);
+            _host.connect(JACK_CAPTURE_PORT_2, JACK_PLAYBACK_PORT_2);
+        }
+        else
+        {
+            hostConnectBlockToChainOutput(0, lastBlockInRow0);
+        }
+
+        // step 3: fade in
+        _host.feature_enable(Host::kFeatureProcessing, Host::kProcessingOnWithFadeIn);
+    }
+
+    // audio is now processing new preset
+
+    // scope for preloading default state on old preset
+    {
+        const Preset& defaults = _presets[old.preset];
+        // bool defloaded[NUM_BLOCKS_PER_PRESET];
+
+        const Host::NonBlockingScope hnbs(_host);
+
+        for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
+        {
+            for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
+            {
+                const Block& defblockdata = defaults.chains[row].blocks[bl];
+                const Block& oldblockdata = defaults.chains[row].blocks[bl];
+
+                // using same plugin (or both empty)
+                if (defblockdata.uri == old.chains[row].blocks[bl].uri)
+                {
+                    if (isNullBlock(defblockdata))
+                        continue;
+
+                    const HostBlockPair hbp = _mapper.get(old.preset, row, bl);
+                    if (hbp.id == kMaxHostInstances)
+                        continue;
+
+                    if (defblockdata.enabled != oldblockdata.enabled)
+                    {
+                        _host.bypass(hbp.id, !defblockdata.enabled);
+
+                        if (hbp.pair != kMaxHostInstances)
+                            _host.bypass(hbp.pair, !defblockdata.enabled);
+                    }
+
+                    params.clear();
+
+                    for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                    {
+                        const Parameter& defparameterdata(defblockdata.parameters[p]);
+                        const Parameter& oldparameterdata(oldblockdata.parameters[p]);
+
+                        if (isNullURI(defparameterdata.symbol))
+                            break;
+                        if (defparameterdata.value == oldparameterdata.value)
+                            continue;
+
+                        params.push_back({ defparameterdata.symbol.c_str(), defparameterdata.value });
+                    }
+
+                    _host.params_flush(hbp.id, KXSTUDIO__Reset_full, params.size(), params.data());
+
+                    if (hbp.pair != kMaxHostInstances)
+                        _host.params_flush(hbp.pair, KXSTUDIO__Reset_full, params.size(), params.data());
+
+                    continue;
+                }
+
+                // different plugin, unload old one if there is any
+                if (oldloaded[row][bl])
+                {
+                    const HostBlockPair hbp = _mapper.remove(old.preset, row, bl);
+
+                    if (hbp.id != kMaxHostInstances)
+                        _host.remove(hbp.id);
+
+                    if (hbp.pair != kMaxHostInstances)
+                        _host.remove(hbp.pair);
+                }
+
+                // nothing else to do if block is empty
+                if (isNullBlock(defaults.chains[row].blocks[bl]))
+                    continue;
+
+                // otherwise load default plugin
+                HostBlockPair hbp = { _mapper.add(old.preset, row, bl), kMaxHostInstances };
+                _host.preload(defblockdata.uri.c_str(), hbp.id);
+
+                if (shouldBlockBeStereo(defaults.chains[row], bl))
+                {
+                    hbp.pair = _mapper.add_pair(old.preset, row, bl);
+                    _host.preload(defblockdata.uri.c_str(), hbp.pair);
+                }
+
+                if (!defblockdata.enabled)
+                {
+                    _host.bypass(hbp.id, true);
+
+                    if (hbp.pair != kMaxHostInstances)
+                        _host.bypass(hbp.pair, true);
+                }
+
+                params.clear();
+
+                for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                {
+                    const Parameter& defparameterdata(defblockdata.parameters[p]);
+                    if (isNullURI(defparameterdata.symbol))
+                        break;
+
+                    params.push_back({ defparameterdata.symbol.c_str(), defparameterdata.value });
+                }
+
+                _host.params_flush(hbp.id, KXSTUDIO__Reset_full, params.size(), params.data());
+
+                if (hbp.pair != kMaxHostInstances)
+                    _host.params_flush(hbp.pair, KXSTUDIO__Reset_full, params.size(), params.data());
+            }
+        }
+    }
 }
 
 // --------------------------------------------------------------------------------------------------------------------
