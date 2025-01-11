@@ -239,10 +239,13 @@ std::string HostConnector::getBlockId(const uint8_t row, const uint8_t block) co
 {
     const HostBlockPair hbp = _mapper.get(_current.preset, row, block);
 
-    if (hbp.pair != kMaxHostInstances)
-        return format("effect_%u + effect_%u", hbp.id, hbp.pair);
+    if (hbp.id == kMaxHostInstances)
+        return {};
 
-    return format("effect_%u", hbp.id);
+    if (hbp.pair == kMaxHostInstances)
+        return format("effect_%u", hbp.id);
+
+    return format("effect_%u + effect_%u", hbp.id, hbp.pair);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -1670,6 +1673,12 @@ void HostConnector::hostClearAndLoadCurrentBank()
     _mapper.reset();
     _current.numLoadedPlugins = 0;
 
+    for (uint8_t row = 1; row < NUM_BLOCK_CHAIN_ROWS; ++row)
+    {
+        _current.chains[row].capture.fill({});
+        _current.chains[row].playback.fill({});
+    }
+
     for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
     {
         for (uint8_t pr = 0; pr < NUM_PRESETS_PER_BANK; ++pr)
@@ -2078,8 +2087,8 @@ void HostConnector::hostSetupSideIO(const uint8_t row,
     if (blockdata.meta.numSideOutputs != 0)
     {
         // TESTING only 1 valid side capture for now
-        assert_return(_current.chains[row + 1].capture[0].empty(), false);
-        assert_return(_current.chains[row + 1].capture[1].empty(), false);
+        // assert_return(_current.chains[row + 1].capture[0].empty(), false);
+        // assert_return(_current.chains[row + 1].capture[1].empty(), false);
 
         constexpr uint32_t flags = Lv2PortIsAudio|Lv2PortIsSidechain|Lv2PortIsOutput;
 
@@ -2586,7 +2595,6 @@ void HostConnector::hostSwitchPreset(const Current& old)
     mod_log_debug("hostSwitchPreset(...)");
 
     bool oldloaded[NUM_BLOCK_CHAIN_ROWS][NUM_BLOCKS_PER_PRESET];
-    uint8_t numLoadedPlugins[NUM_BLOCK_CHAIN_ROWS] = {};
 
     // preallocating some data
     std::vector<flushed_param> params;
@@ -2617,6 +2625,8 @@ void HostConnector::hostSwitchPreset(const Current& old)
         {
             for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
             {
+                uint8_t numLoadedPlugins = 0;
+
                 for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
                 {
                     const Block& blockdata(old.chains[row].blocks[bl]);
@@ -2634,10 +2644,10 @@ void HostConnector::hostSwitchPreset(const Current& old)
                     if (hbp.pair != kMaxHostInstances)
                         _host.activate(hbp.pair, false);
 
-                    ++numLoadedPlugins[row];
+                    ++numLoadedPlugins;
                 }
 
-                if (numLoadedPlugins[row] == 0 && !old.chains[row].capture[0].empty())
+                if (numLoadedPlugins == 0 && !old.chains[row].capture[0].empty())
                 {
                     _host.disconnect(old.chains[row].capture[0].c_str(), old.chains[row].playback[0].c_str());
                     _host.disconnect(old.chains[row].capture[1].c_str(), old.chains[row].playback[0].c_str());
@@ -2650,6 +2660,7 @@ void HostConnector::hostSwitchPreset(const Current& old)
         {
             bool first = true;
             uint8_t last = 0;
+            uint8_t numLoadedPlugins = 0;
 
             for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
             {
@@ -2664,21 +2675,18 @@ void HostConnector::hostSwitchPreset(const Current& old)
                 if (hbp.pair != kMaxHostInstances)
                     _host.activate(hbp.pair, true);
 
-                if (first)
-                {
-                    first = false;
+                if (numLoadedPlugins == 0)
                     hostConnectBlockToChainInput(row, bl);
-                }
                 else
-                {
                     hostConnectBlockToBlock(row, last, bl);
-                }
 
                 hostSetupSideIO(row, bl, hbp, nullptr);
+
                 last = bl;
+                ++numLoadedPlugins;
             }
 
-            if (numLoadedPlugins[row] != 0)
+            if (numLoadedPlugins != 0)
             {
                 hostConnectBlockToChainOutput(row, last);
             }
@@ -2688,7 +2696,7 @@ void HostConnector::hostSwitchPreset(const Current& old)
                 _host.connect(_current.chains[row].capture[1].c_str(), _current.chains[row].playback[0].c_str());
             }
 
-            _current.numLoadedPlugins += numLoadedPlugins[row];
+            _current.numLoadedPlugins += numLoadedPlugins;
         }
 
         // step 4: fade in
