@@ -67,22 +67,22 @@ bool isNullURI(const std::string& uri)
 // utilities for logging where levels 0:warn 1:info and 2+:debug, adjustable by "MOD_LOG" env var
 
 [[nodiscard]]
-int _mod_log();
+int _mod_log_level();
 
 #ifdef NDEBUG
 #define mod_log_debug(MSG, ...)
 #define mod_log_debug3(MSG, ...)
 #else
 #define mod_log_debug(MSG, ...) \
-    { if (_mod_log() >= 2) fprintf(stderr, "[" MOD_LOG_GROUP "] " MSG "\n" __VA_OPT__(,) __VA_ARGS__); }
+    { if (_mod_log_level() >= 2) fprintf(stderr, "[" MOD_LOG_GROUP "] " MSG "\n" __VA_OPT__(,) __VA_ARGS__); }
 #define mod_log_debug3(MSG, ...) \
-    { if (_mod_log() >= 3) fprintf(stderr, "[" MOD_LOG_GROUP "] " MSG "\n" __VA_OPT__(,) __VA_ARGS__); }
+    { if (_mod_log_level() >= 3) fprintf(stderr, "[" MOD_LOG_GROUP "] " MSG "\n" __VA_OPT__(,) __VA_ARGS__); }
 #endif
 
 #define mod_log_info(MSG, ...) \
-    { if (_mod_log() >= 1) fprintf(stderr, "[" MOD_LOG_GROUP "] " MSG "\n" __VA_OPT__(,) __VA_ARGS__); }
+    { if (_mod_log_level() >= 1) fprintf(stderr, "[" MOD_LOG_GROUP "] " MSG "\n" __VA_OPT__(,) __VA_ARGS__); }
 #define mod_log_warn(MSG, ...) \
-    { if (_mod_log() >= 0) fprintf(stderr, "[" MOD_LOG_GROUP "] " MSG "\n" __VA_OPT__(,) __VA_ARGS__); }
+    { if (_mod_log_level() >= 0) fprintf(stderr, "[" MOD_LOG_GROUP "] " MSG "\n" __VA_OPT__(,) __VA_ARGS__); }
 
 // --------------------------------------------------------------------------------------------------------------------
 // utility function that formats a std::string via `vsnprintf`

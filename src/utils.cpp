@@ -16,7 +16,7 @@ static int _get_mod_log_level()
     return 0;
 }
 
-int _mod_log()
+int _mod_log_level()
 {
     static int level = _get_mod_log_level();
     return level;

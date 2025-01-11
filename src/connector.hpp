@@ -184,7 +184,6 @@ public:
     HostConnector();
 
     // ----------------------------------------------------------------------------------------------------------------
-    // check valid configuration
 
     // whether the host connection is working
     bool ok = false;
@@ -202,8 +201,14 @@ public:
     // request more host updates
     void requestHostUpdates();
 
+    // ----------------------------------------------------------------------------------------------------------------
+    // debug helpers
+
+    // get internal Id(s) used for debugging
+    [[nodiscard]] std::string getBlockId(uint8_t row, uint8_t block) const;
+
     // print current state for debugging
-    void printStateForDebug(bool withBlocks, bool withParams, bool withBindings);
+    void printStateForDebug(bool withBlocks, bool withParams, bool withBindings) const;
 
     // ----------------------------------------------------------------------------------------------------------------
     // check valid configuration
@@ -412,8 +417,12 @@ protected:
     void hostDisconnectAll();
     void hostDisconnectAllBlockInputs(uint8_t row, uint8_t block);
     void hostDisconnectAllBlockOutputs(uint8_t row, uint8_t block);
+    void hostDisconnectAllBlockOutputs(const Block& blockdata, const HostBlockPair& hbp);
+    void hostDisconnectAllBlockInputs(const Block& blockdata, const HostBlockPair& hbp);
 
     void hostEnsureStereoChain(uint8_t row, uint8_t blockStart);
+
+    void hostSetupSideIO(uint8_t row, uint8_t block, HostBlockPair hbp, const Lv2Plugin* plugin);
 
     // remove all bindings related to a block
     void hostRemoveAllBlockBindings(uint8_t row, uint8_t block);
@@ -423,7 +432,7 @@ protected:
 private:
     void hostConnectChainInputAction(uint8_t row, uint8_t block, bool connect);
     void hostConnectChainOutputAction(uint8_t row, uint8_t block, bool connect);
-    void hostDisconnectBlockAction(uint8_t row, uint8_t block, bool outputs);
+    void hostDisconnectBlockAction(const Block& blockdata, const HostBlockPair& hbp, bool outputs);
 
     template<class nlohmann_json>
     uint8_t hostLoadPreset(Preset& presetdata, nlohmann_json& json);
