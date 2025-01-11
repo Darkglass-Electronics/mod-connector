@@ -25,7 +25,7 @@ void _assert_print(const char* const expr, const char* const file, const int lin
 
 #ifndef NDEBUG
 #define assert_continue(expr) assert(expr)
-#define assert_return(expr, ret) assert(expr)
+#define assert_return(expr, ret) { assert(expr); return ret; }
 #else
 #define assert_continue(expr) \
     { if (__builtin_expect(!(expr),0)) { _assert_print(#expr, __FILE__, __LINE__); } }

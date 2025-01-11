@@ -2050,7 +2050,7 @@ void HostConnector::hostSetupSideIO(const uint8_t row,
         return;
 
     // next row must be available for use if adding side IO
-    assert_return(row + 1 < NUM_BLOCK_CHAIN_ROWS, false);
+    assert_return(row + 1 < NUM_BLOCK_CHAIN_ROWS,);
 
     if (plugin == nullptr)
         plugin = lv2world.get_plugin_by_uri(blockdata.uri.c_str());
@@ -2059,8 +2059,8 @@ void HostConnector::hostSetupSideIO(const uint8_t row,
     // side input requires something to connect from
     if (blockdata.meta.numSideInputs != 0)
     {
-        assert_return(!_current.chains[row + 1].playback[0].empty(), false);
-        assert_return(!_current.chains[row + 1].playback[1].empty(), false);
+        assert_return(!_current.chains[row + 1].playback[0].empty(),);
+        assert_return(!_current.chains[row + 1].playback[1].empty(),);
 
         constexpr uint32_t flagsToCheck = Lv2PortIsAudio|Lv2PortIsSidechain|Lv2PortIsOutput;
         constexpr uint32_t flagsWanted = Lv2PortIsAudio|Lv2PortIsSidechain;
