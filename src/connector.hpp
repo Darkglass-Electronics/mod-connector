@@ -270,7 +270,7 @@ public:
     bool replaceBlock(uint8_t row, uint8_t block, const char* uri);
 
     // convenience calls for single-chain builds
-   #if NUM_BLOCK_CHAIN_ROWS == 1
+   // #if NUM_BLOCK_CHAIN_ROWS == 1
     inline bool enableBlock(const uint8_t block, const bool enable)
     {
         return enableBlock(0, block, enable);
@@ -285,11 +285,11 @@ public:
     {
         return replaceBlock(0, block, uri);
     }
-   #else
+   // #else
     // move a block into a new row, by swapping position with an empty block
     // returning false means the current chain was unchanged
     bool swapBlockRow(uint8_t row, uint8_t block, uint8_t emptyRow, uint8_t emptyBlock);
-   #endif
+   // #endif
 
     // ----------------------------------------------------------------------------------------------------------------
     // scene handling

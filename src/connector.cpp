@@ -788,6 +788,7 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
     assert_return(!chaindata.capture[0].empty(), false);
 
     Block& blockdata(chaindata.blocks[block]);
+    const uint8_t oldNumSideInputs = blockdata.meta.numSideInputs;
 
     const Host::NonBlockingScope hnbs(_host);
 
@@ -995,6 +996,36 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
             else
                 before = 0;
 
+            // disconnect end of next chain
+            if (blockdata.meta.numSideInputs != 0)
+            {
+                assert(row + 1 < NUM_BLOCK_CHAIN_ROWS);
+
+                ChainRow& chain2data(_current.chains[row + 1]);
+                assert(!chain2data.capture[0].empty());
+
+                uint8_t last = NUM_BLOCKS_PER_PRESET;
+                for (uint8_t b = NUM_BLOCKS_PER_PRESET - 1; b != UINT8_MAX; --b)
+                {
+                    if (!isNullBlock(chain2data.blocks[b]))
+                    {
+                        last = b;
+                        hostDisconnectAllBlockOutputs(row + 1, b);
+                        break;
+                    }
+                }
+
+                if (last == NUM_BLOCKS_PER_PRESET)
+                {
+                    _host.disconnect_all(chain2data.capture[0].c_str());
+
+                    if (chain2data.capture[0] != chain2data.capture[1])
+                        _host.disconnect_all(chain2data.capture[1].c_str());
+                }
+
+                hostEnsureStereoChain(row + 1, NUM_BLOCK_CHAIN_ROWS - 1);
+            }
+
             hostEnsureStereoChain(row, before);
         }
 
@@ -1032,6 +1063,15 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
                 }
             }
 
+            // connect end of next chain
+            if (oldNumSideInputs != 0)
+            {
+                assert(row + 1 < NUM_BLOCK_CHAIN_ROWS);
+                _current.chains[row + 1].playback[0] = JACK_PLAYBACK_PORT_1;
+                _current.chains[row + 1].playback[1] = JACK_PLAYBACK_PORT_2;
+                hostEnsureStereoChain(row + 1, NUM_BLOCK_CHAIN_ROWS - 1);
+            }
+
             hostEnsureStereoChain(row, start);
         }
     }
@@ -1042,7 +1082,7 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
 
 // --------------------------------------------------------------------------------------------------------------------
 
-#if NUM_BLOCK_CHAIN_ROWS != 1
+// #if NUM_BLOCK_CHAIN_ROWS != 1
 
 bool HostConnector::swapBlockRow(const uint8_t row,
                                  const uint8_t block,
@@ -1071,7 +1111,32 @@ bool HostConnector::swapBlockRow(const uint8_t row,
         hostDisconnectAllBlockInputs(row, block);
         hostDisconnectAllBlockOutputs(row, block);
 
-        // step 3: swap data
+        // step 3: disconnect sides of chain that gets new block
+        if (emptyBlock != 0)
+        {
+            for (uint8_t bl = emptyBlock - 1; bl != 0; --bl)
+            {
+                if (isNullBlock(_current.chains[emptyRow].blocks[bl]))
+                    continue;
+
+                hostDisconnectAllBlockOutputs(emptyRow, bl);
+                break;
+            }
+        }
+
+        if (emptyBlock != NUM_BLOCKS_PER_PRESET - 1)
+        {
+            for (uint8_t bl = emptyBlock + 1; bl < NUM_BLOCKS_PER_PRESET; ++bl)
+            {
+                if (isNullBlock(_current.chains[emptyRow].blocks[bl]))
+                    continue;
+
+                hostDisconnectAllBlockInputs(emptyRow, bl);
+                break;
+            }
+        }
+
+        // step 4: swap data
         std::swap(_current.chains[row].blocks[block], _current.chains[emptyRow].blocks[emptyBlock]);
 
         _mapper.swap(_current.preset, row, block, emptyRow, emptyBlock);
@@ -1088,14 +1153,14 @@ bool HostConnector::swapBlockRow(const uint8_t row,
             }
         }
 
-        // step 4: reconnect ports
-        hostEnsureStereoChain(row, block - (block != 0 ? 1 : 0));
+        // step 5: reconnect ports
+        hostEnsureStereoChain(row, emptyBlock - (emptyBlock != 0 ? 1 : 0));
 
         // NOTE previous call already handles sidechain connections
-        if (_current.chains[row].blocks[block].meta.numSideOutputs == 0)
-            hostEnsureStereoChain(emptyRow, emptyBlock - (emptyBlock != 0 ? 1 : 0));
+        if (_current.chains[row].blocks[emptyBlock].meta.numSideOutputs == 0)
+            hostEnsureStereoChain(emptyRow, block - (block != 0 ? 1 : 0));
 
-        // step 5: fade in
+        // step 6: fade in
         _host.feature_enable(Host::kFeatureProcessing, Host::kProcessingOnWithFadeIn);
     }
 
@@ -1103,7 +1168,7 @@ bool HostConnector::swapBlockRow(const uint8_t row,
     return true;
 }
 
-#endif // NUM_BLOCK_CHAIN_ROWS != 1
+// #endif // NUM_BLOCK_CHAIN_ROWS != 1
 
 // --------------------------------------------------------------------------------------------------------------------
 
@@ -1524,10 +1589,13 @@ void HostConnector::hostConnectBlockToBlock(const uint8_t row, const uint8_t blo
     assert(blockA < NUM_BLOCKS_PER_PRESET);
     assert(blockB < NUM_BLOCKS_PER_PRESET);
 
-    const Lv2Plugin* const pluginA = lv2world.get_plugin_by_uri(_current.chains[row].blocks[blockA].uri.c_str());
+    Block& blockdataA(_current.chains[row].blocks[blockA]);
+    Block& blockdataB(_current.chains[row].blocks[blockB]);
+
+    const Lv2Plugin* const pluginA = lv2world.get_plugin_by_uri(blockdataA.uri.c_str());
     assert_return(pluginA != nullptr,);
 
-    const Lv2Plugin* const pluginB = lv2world.get_plugin_by_uri(_current.chains[row].blocks[blockB].uri.c_str());
+    const Lv2Plugin* const pluginB = lv2world.get_plugin_by_uri(blockdataB.uri.c_str());
     assert_return(pluginB != nullptr,);
 
     const HostBlockPair hbpA = _mapper.get(_current.preset, row, blockA);
@@ -1538,75 +1606,52 @@ void HostConnector::hostConnectBlockToBlock(const uint8_t row, const uint8_t blo
 
     std::string origin, target;
 
-    // FIXME cleanup this mess, find a better way
-    size_t aConnectedPort = pluginA->ports.size();
+    // collect audio ports from each block
+    std::vector<std::string> portsA;
+    std::vector<std::string> portsB;
+    portsA.reserve(2);
+    portsB.reserve(2);
 
-    for (size_t a = 0, astart = 0, b = 0; b < pluginB->ports.size(); ++b)
+    constexpr uint32_t testFlags = Lv2PortIsAudio|Lv2PortIsOutput|Lv2PortIsSidechain;
+    for (const Lv2Port& port : pluginA->ports)
     {
-        if ((pluginB->ports[b].flags & (Lv2PortIsAudio|Lv2PortIsOutput|Lv2PortIsSidechain)) != Lv2PortIsAudio)
+        if ((port.flags & testFlags) != (Lv2PortIsAudio|Lv2PortIsOutput))
             continue;
 
-        bool bIsConnected = false;
+        portsA.push_back(format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbpA.id, port.symbol.c_str()));
 
-        for (a = astart; a < pluginA->ports.size(); ++a)
+        if (hbpA.pair != kMaxHostInstances)
         {
-            if ((pluginA->ports[a].flags & (Lv2PortIsAudio|Lv2PortIsOutput|Lv2PortIsSidechain)) != (Lv2PortIsAudio|Lv2PortIsOutput))
-                continue;
-
-            origin = format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbpA.id, pluginA->ports[a].symbol.c_str());
-            target = format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbpB.id, pluginB->ports[b].symbol.c_str());
-            _host.connect(origin.c_str(), target.c_str());
-            aConnectedPort = a;
-            bIsConnected = true;
-
-            if (hbpA.pair != kMaxHostInstances && hbpB.pair != kMaxHostInstances)
-            {
-                origin = format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbpA.pair, pluginA->ports[a].symbol.c_str());
-                target = format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbpB.pair, pluginB->ports[b].symbol.c_str());
-                _host.connect(origin.c_str(), target.c_str());
-                return;
-            }
-
-            if (hbpA.pair != kMaxHostInstances)
-            {
-                for (size_t b2 = b + 1; b2 < pluginB->ports.size(); ++b2)
-                {
-                    if ((pluginB->ports[b2].flags & (Lv2PortIsAudio|Lv2PortIsOutput|Lv2PortIsSidechain)) != Lv2PortIsAudio)
-                        continue;
-
-                    origin = format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbpA.pair, pluginA->ports[a].symbol.c_str());
-                    target = format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbpB.id, pluginB->ports[b2].symbol.c_str());
-                    _host.connect(origin.c_str(), target.c_str());
-                }
-                return;
-            }
-
-            if (hbpB.pair != kMaxHostInstances)
-            {
-                for (size_t a2 = a + 1; a2 < pluginA->ports.size(); ++a2)
-                {
-                    if ((pluginA->ports[a2].flags & (Lv2PortIsAudio|Lv2PortIsOutput|Lv2PortIsSidechain)) != (Lv2PortIsAudio|Lv2PortIsOutput))
-                        continue;
-
-                    origin = format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbpA.id, pluginA->ports[a2].symbol.c_str());
-                    target = format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbpB.pair, pluginB->ports[b].symbol.c_str());
-                    _host.connect(origin.c_str(), target.c_str());
-                    return;
-                }
-            }
-
-            // try finding another a input port for next b output port
-            astart = a + 1;
+            portsA.push_back(format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbpA.pair, port.symbol.c_str()));
             break;
         }
+    }
 
-        if (!bIsConnected && (aConnectedPort != pluginA->ports.size())) {
-            // didn't find a new a port to connect from -> connect latest found a port to b port
-            origin = format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbpA.id, pluginA->ports[aConnectedPort].symbol.c_str());
-            target = format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbpB.id, pluginB->ports[b].symbol.c_str());
-            _host.connect(origin.c_str(), target.c_str());
+    for (const Lv2Port& port : pluginB->ports)
+    {
+        if ((port.flags & testFlags) != Lv2PortIsAudio)
+            continue;
+
+        portsB.push_back(format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbpB.id, port.symbol.c_str()));
+
+        if (hbpB.pair != kMaxHostInstances)
+        {
+            portsB.push_back(format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbpB.pair, port.symbol.c_str()));
+            break;
         }
     }
+
+    assert(!portsA.empty());
+    assert(!portsB.empty());
+
+    _host.connect(portsA[0].c_str(), portsB[0].c_str());
+
+    /**/ if (portsA.size() > portsB.size())
+        _host.connect(portsA[1].c_str(), portsB[0].c_str());
+    else if (portsA.size() < portsB.size())
+        _host.connect(portsA[0].c_str(), portsB[1].c_str());
+    else if (portsA.size() == 2)
+        _host.connect(portsA[1].c_str(), portsB[1].c_str());
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -1992,11 +2037,20 @@ void HostConnector::hostEnsureStereoChain(const uint8_t row, const uint8_t block
     // part 2: handle connections
 
     std::array<bool, NUM_BLOCKS_PER_PRESET> loaded;
+    uint8_t firstBlock = UINT8_MAX;
+    uint8_t lastBlock = UINT8_MAX;
     uint8_t numLoadedPlugins = 0;
     for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
     {
         if ((loaded[bl] = !isNullBlock(chain.blocks[bl])))
+        {
             ++numLoadedPlugins;
+
+            if (firstBlock == UINT8_MAX)
+                firstBlock = bl;
+
+            lastBlock = bl;
+        }
     }
 
     if (numLoadedPlugins == 0)
@@ -2007,62 +2061,19 @@ void HostConnector::hostEnsureStereoChain(const uint8_t row, const uint8_t block
         return;
     }
 
+    assert(firstBlock != UINT8_MAX);
+    assert(lastBlock != UINT8_MAX);
+
     // direct connections
     _host.disconnect(chain.capture[0].c_str(), chain.playback[0].c_str());
     _host.disconnect(chain.capture[1].c_str(), chain.playback[1].c_str());
 
-    // first block
-    for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
-    {
-        if (loaded[bl])
-        {
-            if (bl >= blockStart)
-                hostConnectBlockToChainInput(row, bl);
-            break;
-        }
-    }
+    // first and last blocks
+    hostConnectBlockToChainInput(row, firstBlock);
+    hostConnectBlockToChainOutput(row, lastBlock);
 
-    // last block
-    for (uint8_t bl = NUM_BLOCKS_PER_PRESET - 1; bl != UINT8_MAX; --bl)
-    {
-        if (loaded[bl])
-        {
-            if (bl >= blockStart)
-                hostConnectBlockToChainOutput(row, bl);
-            break;
-        }
-    }
-
-    // find connecting blocks
-    uint8_t firstBlock = blockStart;
-    uint8_t lastBlock = blockStart;
-
-    if (firstBlock != 0)
-    {
-        for (uint8_t bl = firstBlock - 1; bl != UINT8_MAX; --bl)
-        {
-            if (loaded[bl])
-            {
-                firstBlock = bl;
-                break;
-            }
-        }
-    }
-
-    if (lastBlock != NUM_BLOCKS_PER_PRESET - 1)
-    {
-        for (uint8_t bl = lastBlock + 1; bl < NUM_BLOCKS_PER_PRESET; ++bl)
-        {
-            if (loaded[bl])
-            {
-                lastBlock = bl;
-                break;
-            }
-        }
-    }
-
-    // now we can connect between blocks
-    for (uint8_t bl1 = firstBlock; bl1 <= lastBlock; ++bl1)
+    // in between blocks
+    for (uint8_t bl1 = firstBlock; bl1 <= lastBlock && bl1 < NUM_BLOCKS_PER_PRESET; ++bl1)
     {
         if (! loaded[bl1])
             continue;
