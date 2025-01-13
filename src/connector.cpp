@@ -908,7 +908,7 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
     {
         for (uint8_t bl = block + 1; bl < NUM_BLOCKS_PER_PRESET; ++bl)
         {
-            if (chaindata.blocks[block].meta.numSideInputs != 0)
+            if (chaindata.blocks[bl].meta.numSideInputs != 0)
             {
                 mod_log_warn("replaceBlock(%u, %u, \"%s\"): cannot remove block, paired with a sidechain input",
                              row, block, uri);
