@@ -1103,8 +1103,8 @@ static bool valid_uri(const char* const uri)
 }
 #define VALIDATE(expr) \
     if (!(expr)) { fprintf(stderr, "host validation failed: " #expr ", line %d\n", __LINE__); abort(); return {}; }
-#define VALIDATE_INSTANCE_NUMBER(n) VALIDATE(n >= 0 && n < 9990)
-#define VALIDATE_INSTANCE_REMOVE_NUMBER(n) VALIDATE(n >= -1 && n < 9990)
+#define VALIDATE_INSTANCE_NUMBER(n) VALIDATE(n >= 0 && n < MAX_MOD_HOST_INSTANCES)
+#define VALIDATE_INSTANCE_REMOVE_NUMBER(n) VALIDATE(n >= -1 && n < MAX_MOD_HOST_INSTANCES)
 #define VALIDATE_JACK_PORT(p) VALIDATE(valid_jack_port(p))
 #define VALIDATE_MIDI_CHANNEL(c) VALIDATE(c >= 0 && c < 16)
 #define VALIDATE_SYMBOL(s) VALIDATE(valid_symbol(s))

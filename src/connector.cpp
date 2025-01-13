@@ -2427,7 +2427,7 @@ void HostConnector::hostFeedbackCallback(const HostFeedbackData& data)
     case HostFeedbackData::kFeedbackParameterSet:
     case HostFeedbackData::kFeedbackOutputMonitor:
         assert(data.paramSet.effect_id >= 0);
-        assert(data.paramSet.effect_id < MAX_MOD_HOST_PLUGIN_INSTANCES + MAX_MOD_HOST_TOOL_INSTANCES);
+        assert(data.paramSet.effect_id < MAX_MOD_HOST_INSTANCES);
 
         if (data.paramSet.effect_id >= MAX_MOD_HOST_PLUGIN_INSTANCES)
         {
@@ -2481,7 +2481,7 @@ void HostConnector::hostFeedbackCallback(const HostFeedbackData& data)
 
     case HostFeedbackData::kFeedbackPatchSet:
         assert(data.patchSet.effect_id >= 0);
-        assert(data.patchSet.effect_id < MAX_MOD_HOST_PLUGIN_INSTANCES + MAX_MOD_HOST_TOOL_INSTANCES);
+        assert(data.patchSet.effect_id < MAX_MOD_HOST_INSTANCES);
         static_assert(sizeof(cdata.toolPatchSet.data) == sizeof(data.patchSet.data), "data size mismatch");
 
         if (data.patchSet.effect_id >= MAX_MOD_HOST_PLUGIN_INSTANCES)

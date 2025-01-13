@@ -78,6 +78,7 @@
 
 #define MAX_MOD_HOST_PLUGIN_INSTANCES 9990
 #define MAX_MOD_HOST_TOOL_INSTANCES   10
+#define MAX_MOD_HOST_INSTANCES        (MAX_MOD_HOST_PLUGIN_INSTANCES + MAX_MOD_HOST_TOOL_INSTANCES)
 
 // --------------------------------------------------------------------------------------------------------------------
 
