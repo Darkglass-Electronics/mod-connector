@@ -1531,62 +1531,6 @@ void HostConnector::toolInAsPlaybackPort(uint8_t toolIndex,
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::connectTool2Tool(uint8_t toolAIndex, 
-                      const char* toolAOutSymbol, 
-                      uint8_t toolBIndex, 
-                      const char* toolBInSymbol)
-{
-    assert(toolAIndex < MAX_MOD_HOST_TOOL_INSTANCES);
-    assert(toolBIndex < MAX_MOD_HOST_TOOL_INSTANCES);
-    assert(toolAOutSymbol != nullptr && *toolAOutSymbol != '\0');
-    assert(toolBInSymbol != nullptr && *toolBInSymbol != '\0');
-
-    _host.connect(format("effect_%d:%s", MAX_MOD_HOST_PLUGIN_INSTANCES + toolAIndex, toolAOutSymbol).c_str(), 
-                  format("effect_%d:%s", MAX_MOD_HOST_PLUGIN_INSTANCES + toolBIndex, toolBInSymbol).c_str());
-}
-
-// --------------------------------------------------------------------------------------------------------------------
-
-void HostConnector::toolOutAsCapturePort(uint8_t toolIndex, 
-                          const char* symbol, 
-                          uint8_t capturePortIndex)
-{
-    assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
-    assert(symbol != nullptr && *symbol != '\0');
-    assert(capturePortIndex < kNCapturePorts);
-    
-    switch (capturePortIndex) {
-        case 0:
-            jackCapturePort1 = format("effect_%d:%s", MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, symbol);
-            break;
-        case 1:
-            jackCapturePort2 = format("effect_%d:%s", MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, symbol);
-            break;
-    }
-}
-
-// --------------------------------------------------------------------------------------------------------------------
-
-void HostConnector::toolInAsPlaybackPort(uint8_t toolIndex, 
-                          const char* symbol, 
-                          uint8_t playbackPortIndex)
-{
-    assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
-    assert(symbol != nullptr && *symbol != '\0');
-    assert(playbackPortIndex < kNPlaybackPorts);
-
-    switch (playbackPortIndex) {
-        case 0:
-            jackPlaybackPort1 = format("effect_%d:%s", MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, symbol);
-            break;
-        case 1:
-            jackPlaybackPort2 = format("effect_%d:%s", MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, symbol);
-            break;
-    }
-}
-
-// --------------------------------------------------------------------------------------------------------------------
-
 void HostConnector::setToolParameter(const uint8_t toolIndex, const char* const symbol, const float value)
 {
     mod_log_debug("setToolParameter(%u, \"%s\", %f)", toolIndex, symbol, value);
