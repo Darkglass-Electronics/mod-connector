@@ -341,6 +341,8 @@ bool HostConnector::canAddSidechainInput(const uint8_t row, const uint8_t block)
         const Block& blockdata(chaindata.blocks[bl]);
         if (isNullBlock(blockdata))
             continue;
+        if (blockdata.meta.numSideInputs != 0)
+            return false;
         if (blockdata.meta.numSideOutputs != 0)
         {
             hasMatchingSource = true;
