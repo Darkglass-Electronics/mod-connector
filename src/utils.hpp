@@ -13,6 +13,8 @@
 #define constexprstr constexpr
 #endif
 
+struct Lv2Plugin;
+
 // --------------------------------------------------------------------------------------------------------------------
 // always valid assert even in release builds, returns a value on failure
 
@@ -94,5 +96,15 @@ __attribute__((format(__MINGW_PRINTF_FORMAT, 1, 2)))
 __attribute__((format(printf, 1, 2)))
 #endif
 std::string format(const char* format, ...);
+
+// --------------------------------------------------------------------------------------------------------------------
+// check if a plugin has compatible IO, while also filling info regarding IO
+
+[[nodiscard]]
+bool getSupportedPluginIO(const Lv2Plugin* plugin,
+                          uint8_t& numInputs,
+                          uint8_t& numOutputs,
+                          uint8_t& numSideInputs,
+                          uint8_t& numSideOutputs);
 
 // --------------------------------------------------------------------------------------------------------------------
