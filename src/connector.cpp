@@ -1820,7 +1820,7 @@ void HostConnector::hostClearAndLoadCurrentBank()
                     previousPluginStereoOut = chaindata.capture[0] != chaindata.capture[1];
                 }
 
-                const auto loadInstance = [=](const uint16_t instance)
+                const auto loadInstance = [=, &blockdata](const uint16_t instance)
                 {
                     if (active ? _host.add(blockdata.uri.c_str(), instance)
                                : _host.preload(blockdata.uri.c_str(), instance))

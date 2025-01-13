@@ -459,6 +459,8 @@ private:
     static void resetPreset(Preset& preset);
 };
 
+using HostBlock = HostConnector::Block;
+using HostParameter = HostConnector::Parameter;
 using HostCallbackData = HostConnector::Callback::Data;
 
 // --------------------------------------------------------------------------------------------------------------------
