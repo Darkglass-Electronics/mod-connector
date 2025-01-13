@@ -211,7 +211,7 @@ public:
     void printStateForDebug(bool withBlocks, bool withParams, bool withBindings) const;
 
     // ----------------------------------------------------------------------------------------------------------------
-    // check valid configuration
+    // current state handling
 
     // public and read-only current preset state
     const Current& current = _current;
@@ -222,7 +222,15 @@ public:
 
     // get the current preset at @a index
     // returns current state if preset is currently active, otherwise the preset state from the current bank
-     [[nodiscard]] const Preset& getCurrentPreset(uint8_t preset) const;
+    [[nodiscard]] const Preset& getCurrentPreset(uint8_t preset) const;
+
+    // check if possible to add a sidechan input/playback/sink block
+    // requires an output/capture/source to be present first, or have an unmatched pair
+    [[nodiscard]] bool canAddSidechainInput(uint8_t row, uint8_t block) const;
+
+    // check if possible to add a sidechan output/capture/source block
+    // requires no sidechain blocks to be present or having matched pairs
+    [[nodiscard]] bool canAddSidechainOutput(uint8_t row, uint8_t block) const;
 
     // ----------------------------------------------------------------------------------------------------------------
     // bank handling
