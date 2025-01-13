@@ -6,6 +6,23 @@
 #include <cstdarg>
 
 // --------------------------------------------------------------------------------------------------------------------
+// utilities for logging where levels 0:warn 1:info and 2:debug, adjustable by "MOD_LOG" env var
+
+static int _get_mod_log_level()
+{
+    if (const char* const log = std::getenv("MOD_LOG"))
+        if (*log != '\0')
+            return std::atoi(log);
+    return 0;
+}
+
+int _mod_log_level()
+{
+    static int level = _get_mod_log_level();
+    return level;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
 // utility function that formats a std::string via `vsnprintf`
 
 std::string format(const char* format, ...)

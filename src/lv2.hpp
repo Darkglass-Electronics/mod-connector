@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2024 Filipe Coelho <falktx@darkglass.com>
+// SPDX-FileCopyrightText: 2024-2025 Filipe Coelho <falktx@darkglass.com>
 // SPDX-License-Identifier: ISC
 
 #pragma once
@@ -63,15 +63,16 @@ enum Lv2Flags {
     Lv2PortIsAudio         = 1 << 0,
     Lv2PortIsControl       = 1 << 1,
     Lv2PortIsOutput        = 1 << 2,
+    Lv2PortIsSidechain     = 1 << 3,
     // property flags
     Lv2PropertyIsPath      = 1 << 0,
     Lv2PropertyIsParameter = 1 << 1,
     Lv2PropertyIsReadOnly  = 1 << 2,
     // common flags
-    Lv2ParameterToggled    = 1 << 3,
-    Lv2ParameterInteger    = 1 << 4,
-    Lv2ParameterEnumerated = 1 << 5,
-    Lv2ParameterHidden     = 1 << 6,
+    Lv2ParameterToggled    = 1 << 4,
+    Lv2ParameterInteger    = 1 << 5,
+    Lv2ParameterEnumerated = 1 << 6,
+    Lv2ParameterHidden     = 1 << 7,
 };
 
 struct Lv2ScalePoint {
@@ -121,17 +122,17 @@ struct Lv2World {
 
    /* get the amount of lv2 plugins
     */
-    uint32_t get_plugin_count() const noexcept;
+    [[nodiscard]] uint32_t get_plugin_count() const noexcept;
  
    /* get the plugin @a index
     * can return null in case of error or the plugin requires unsupported features
     */
-    const Lv2Plugin* get_plugin_by_index(uint32_t index) const;
+    [[nodiscard]] const Lv2Plugin* get_plugin_by_index(uint32_t index) const;
 
    /* get the plugin with a known uri
     * can return null in case of error or the plugin requires unsupported features
     */
-    const Lv2Plugin* get_plugin_by_uri(const char* uri) const;
+    [[nodiscard]] const Lv2Plugin* get_plugin_by_uri(const char* uri) const;
 
     Lv2World();
     ~Lv2World();
@@ -143,6 +144,7 @@ private:
 
 // --------------------------------------------------------------------------------------------------------------------
 
+[[maybe_unused]]
 static constexpr inline
 const char* lv2_category_name(Lv2Category category)
 {

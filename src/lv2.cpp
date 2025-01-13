@@ -1,8 +1,11 @@
-// SPDX-FileCopyrightText: 2024 Filipe Coelho <falktx@darkglass.com>
+// SPDX-FileCopyrightText: 2024-2025 Filipe Coelho <falktx@darkglass.com>
 // SPDX-License-Identifier: ISC
+
+#define MOD_LOG_GROUP "lv2"
 
 #include "lv2.hpp"
 
+#include <cassert>
 #include <cstring>
 #include <cstdint>
 #include <map>
@@ -10,7 +13,7 @@
 
 #include <lilv/lilv.h>
 
-#ifdef HAVE_LV2_1_18
+#if defined(HAVE_LV2_1_18) || (defined(__has_include) && __has_include(<lv2/atom/atom.h>))
 #include <lv2/atom/atom.h>
 #include <lv2/morph/morph.h>
 #include <lv2/patch/patch.h>
@@ -31,11 +34,15 @@
 #endif
 
 #ifndef LV2_CORE__enabled
-#define LV2_CORE__enabled LV2_CORE_PREFIX "#enabled"
+#define LV2_CORE__enabled LV2_CORE_PREFIX "enabled"
+#endif
+
+#ifndef LV2_CORE__isSideChain
+#define LV2_CORE__isSideChain LV2_CORE_PREFIX "isSideChain"
 #endif
 
 #ifndef LV2_CORE__shortName
-#define LV2_CORE__shortName LV2_CORE_PREFIX "#shortName"
+#define LV2_CORE__shortName LV2_CORE_PREFIX "shortName"
 #endif
 
 #define LILV_NS_DARKGLASS "http://www.darkglass.com/lv2/ns"
@@ -87,7 +94,7 @@ struct Lv2NamespaceDefinitions {
     {
     }
 
-    void free()
+    void free() const
     {
         lilv_node_free(dargkglass_abbreviation);
         lilv_node_free(lv2core_default);
@@ -156,6 +163,9 @@ struct Lv2World::Impl
 
     const Lv2Plugin* getPluginByURI(const char* const uri)
     {
+        assert(uri != nullptr);
+        assert(*uri != '\0');
+
         if (pluginscache[uri] == nullptr)
         {
             LilvNode* const urinode = lilv_new_uri(world, uri);
@@ -415,7 +425,22 @@ struct Lv2World::Impl
                         lilv_nodes_free(nodes);
                     }
 
-                    if (retport.flags & Lv2PortIsControl)
+                    /**/ if ((retport.flags & Lv2PortIsAudio) != 0)
+                    {
+                        if (LilvNodes* const nodes = lilv_port_get_value(plugin, port, ns.lv2core_portProperty))
+                        {
+                            LILV_FOREACH(nodes, itprop, nodes)
+                            {
+                                const char* const propuri = lilv_node_as_string(lilv_nodes_get(nodes, itprop));
+
+                                if (std::strcmp(propuri, LV2_CORE__isSideChain) == 0)
+                                    retport.flags |= Lv2PortIsSidechain;
+                            }
+
+                            lilv_nodes_free(nodes);
+                        }
+                    }
+                    else if ((retport.flags & Lv2PortIsControl) != 0)
                     {
                         if (LilvNodes* const nodes = lilv_port_get_value(plugin, port, ns.lv2core_portProperty))
                         {

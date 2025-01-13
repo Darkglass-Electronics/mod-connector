@@ -1,7 +1,10 @@
-// SPDX-FileCopyrightText: 2024 Filipe Coelho <falktx@darkglass.com>
+// SPDX-FileCopyrightText: 2024-2025 Filipe Coelho <falktx@darkglass.com>
 // SPDX-License-Identifier: ISC
 
+#define MOD_LOG_GROUP "host"
+
 #include "host.hpp"
+#include "config.h"
 #include "utils.hpp"
 
 #include <cassert>
@@ -331,6 +334,13 @@ struct Host::Impl
             return false;
         }
 
+       #ifndef NDEBUG
+        const bool canDebug = message != "output_data_ready";
+        if (canDebug) {
+            mod_log_debug("%s: sending '%s'", __func__, message.c_str());
+        }
+       #endif
+
         // write message to socket
         {
             const char* buffer = message.c_str();
@@ -358,7 +368,7 @@ struct Host::Impl
 
             ++numNonBlockingOps;
 
-            // fprintf(stderr, "Host::writeMessageAndWait() '%s' | %d\n", message.c_str(), numNonBlockingOps);
+            mod_log_debug3("%s: non-block send, numNonBlockingOps: %u", __func__, numNonBlockingOps);
         }
         else
         {
@@ -413,12 +423,20 @@ struct Host::Impl
             }
 
             if (! last_error.empty())
-            {   
+            {
+                mod_log_warn("error: %s", last_error.c_str());
+
                 if (stackbuffer != buffer)
                     std::free(buffer);
 
                 return false;
             }
+
+           #ifndef NDEBUG
+            if (canDebug) {
+                mod_log_debug("%s: received response: '%s'", __func__, buffer);
+            }
+           #endif
 
             // special handling for string replies, read all incoming data
             if (respType == kHostResponseString)
@@ -469,8 +487,6 @@ struct Host::Impl
             // bool ok = false;
             const int respcode = std::atoi(respbuffer);
 
-            // printf("wrote '%s', got resp %d '%s' '%s'\n", message.c_str(), respcode, respbuffer, respdata);
-
             /*
             if (! ok)
             {
@@ -518,7 +534,7 @@ struct Host::Impl
         int r;
         last_error.clear();
 
-        // fprintf(stderr, "Host::wait() begin %d ------------------------------\n", numNonBlockingOps);
+        mod_log_debug("%s: begin, numNonBlockingOps: %u", __func__, numNonBlockingOps);
 
         while (numNonBlockingOps != 0)
         {
@@ -532,31 +548,33 @@ struct Host::Impl
                 if (c == '\0')
                 {
                     --numNonBlockingOps;
-                    // fprintf(stderr, "\nHost::wait() next %d ------------------------------\n", numNonBlockingOps);
+                    mod_log_debug3("%s: next, numNonBlockingOps: %u", __func__, numNonBlockingOps);
                 }
             }
             /* Error */
             else if (r < 0)
             {
                 last_error = "read error";
+                mod_log_warn("error: %s", last_error.c_str());
                 return false;
             }
             /* Client disconnected */
             else
             {
                 last_error = "disconnected";
+                mod_log_warn("error: %s", last_error.c_str());
                 return false;
             }
         }
 
-        // fprintf(stderr, "Host::wait() end %d ------------------------------\n", numNonBlockingOps);
+        mod_log_debug("%s: end, numNonBlockingOps: %u", __func__, numNonBlockingOps);
         return true;
     }
 
     // ----------------------------------------------------------------------------------------------------------------
     // feedback port handling
 
-    bool poll(FeedbackCallback* const callback)
+    bool poll(FeedbackCallback* const callback) const
     {
         std::string error;
 
@@ -565,7 +583,7 @@ struct Host::Impl
         return error.empty();
     }
 
-    bool _poll(FeedbackCallback* const callback, std::string& error)
+    bool _poll(FeedbackCallback* const callback, std::string& error) const
     {
         // read first byte
         char firstbyte = '\0';
@@ -764,7 +782,7 @@ struct Host::Impl
                     {
                         for (uint32_t i = 0; i < d.patchSet.data.v.num && *msgbuffer != '\0'; ++i)
                         {
-                            if ((sep = std::strchr(sep, ':')))
+                            if ((sep = std::strchr(sep, ':')) != nullptr)
                                 *sep++ = '\0';
 
                             data[i] = std::atoi(msgbuffer);
@@ -784,7 +802,7 @@ struct Host::Impl
                     {
                         for (uint32_t i = 0; i < d.patchSet.data.v.num && *msgbuffer != '\0'; ++i)
                         {
-                            if ((sep = std::strchr(sep, ':')))
+                            if ((sep = std::strchr(sep, ':')) != nullptr)
                                 *sep++ = '\0';
 
                             data[i] = std::atof(msgbuffer);
@@ -804,7 +822,7 @@ struct Host::Impl
                     {
                         for (uint32_t i = 0; i < d.patchSet.data.v.num && *msgbuffer != '\0'; ++i)
                         {
-                            if ((sep = std::strchr(sep, ':')))
+                            if ((sep = std::strchr(sep, ':')) != nullptr)
                                 *sep++ = '\0';
 
                             data[i] = std::atof(msgbuffer);
@@ -824,7 +842,7 @@ struct Host::Impl
                     {
                         for (uint32_t i = 0; i < d.patchSet.data.v.num && *msgbuffer != '\0'; ++i)
                         {
-                            if ((sep = std::strchr(sep, ':')))
+                            if ((sep = std::strchr(sep, ':')) != nullptr)
                                 *sep++ = '\0';
 
                             data[i] = std::atof(msgbuffer);
@@ -997,7 +1015,7 @@ struct Host::Impl
         }
         else
         {
-            fprintf(stderr, "got feedback '%s'\n", buffer);
+            mod_log_warn("unknown feedback messge '%s'\n", buffer);
         }
 
         if (stackbuffer != buffer)
@@ -1063,6 +1081,9 @@ Host::NonBlockingScope::~NonBlockingScope()
 #else
 static bool valid_jack_port(const char* const port)
 {
+    // must contain at least 3 characters
+    if (std::strlen(port) < 3)
+        return false;
     // must contain at least 1 client/port name separator
     if (std::strchr(port, ':') == nullptr)
         return false;
@@ -1102,7 +1123,7 @@ static bool valid_uri(const char* const uri)
     return true;
 }
 #define VALIDATE(expr) \
-    if (!(expr)) { fprintf(stderr, "host validation failed: " #expr ", line %d\n", __LINE__); abort(); return {}; }
+    if (__builtin_expect(!(expr),0)) { _assert_print(#expr, __FILE__, __LINE__); abort(); return {}; }
 #define VALIDATE_INSTANCE_NUMBER(n) VALIDATE(n >= 0 && n < MAX_MOD_HOST_INSTANCES)
 #define VALIDATE_INSTANCE_REMOVE_NUMBER(n) VALIDATE(n >= -1 && n < MAX_MOD_HOST_INSTANCES)
 #define VALIDATE_JACK_PORT(p) VALIDATE(valid_jack_port(p))
@@ -1190,7 +1211,7 @@ std::string Host::preset_show(const char* const preset_uri)
     HostResponse resp = {};
     if (impl->writeMessageAndWait(format("preset_show %s", preset_uri), kHostResponseString, &resp))
     {
-        const std::string ret(resp.data.s);
+        std::string ret(resp.data.s);
         std::free(resp.data.s);
         return ret;
     }
@@ -1268,7 +1289,7 @@ bool Host::params_flush(const int16_t instance_number,
 {
     VALIDATE_INSTANCE_NUMBER(instance_number)
 
-    std::string msg = format("patch_set %d %u %u", instance_number, reset_value, param_count);
+    std::string msg = format("params_flush %d %u %u", instance_number, reset_value, param_count);
 
     for (unsigned int i = 0; i < param_count; ++i)
     {
@@ -1303,7 +1324,7 @@ std::string Host::licensee(const int16_t instance_number)
     HostResponse resp = {};
     if (impl->writeMessageAndWait(format("licensee %d", instance_number), kHostResponseString, &resp))
     {
-        const std::string ret(resp.data.s);
+        std::string ret(resp.data.s);
         std::free(resp.data.s);
         return ret;
     }
@@ -1580,7 +1601,7 @@ bool Host::set_bpb(const double beats_per_bar)
 
 bool Host::transport(const bool rolling, const double beats_per_bar, const double beats_per_minute)
 {
-    return impl->writeMessageAndWait(format("transport %d %f %f", rolling, beats_per_bar, beats_per_minute));
+    return impl->writeMessageAndWait(format("transport %d %f %f", rolling ? 1 : 0, beats_per_bar, beats_per_minute));
 }
 
 bool Host::transport_sync(const char* const mode)
@@ -1593,7 +1614,7 @@ bool Host::output_data_ready()
     return impl->writeMessageAndWait("output_data_ready");
 }
 
-bool Host::poll_feedback(FeedbackCallback* const callback)
+bool Host::poll_feedback(FeedbackCallback* const callback) const
 {
     return impl->poll(callback);
 }

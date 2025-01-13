@@ -6,7 +6,7 @@ set(CMAKE_POLICY_DEFAULT_CMP0063 NEW)
 set(CMAKE_POLICY_DEFAULT_CMP0069 NEW)
 
 set(CMAKE_C_STANDARD 11)
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 
 set(CMAKE_C_VISIBILITY_PRESET hidden)
 set(CMAKE_CXX_VISIBILITY_PRESET hidden)
@@ -81,6 +81,7 @@ if(PROJECT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR AND NOT MOD_CONNECTOR_LIB_TEST)
     PRIVATE
       src/connector.cpp
       src/host.cpp
+      src/instance_mapper.cpp
       src/lv2.cpp
       src/main.cpp
       src/utils.cpp
@@ -113,6 +114,7 @@ else()
     INTERFACE
       ${CMAKE_CURRENT_LIST_DIR}/src/connector.cpp
       ${CMAKE_CURRENT_LIST_DIR}/src/host.cpp
+      ${CMAKE_CURRENT_LIST_DIR}/src/instance_mapper.cpp
       ${CMAKE_CURRENT_LIST_DIR}/src/lv2.cpp
       ${CMAKE_CURRENT_LIST_DIR}/src/utils.cpp
   )

@@ -1,0 +1,18 @@
+CompileFlags:
+  Add: [-std=c++17, -Wall, -Wextra, -I/usr/include/lilv-0]
+
+Diagnostics:
+  ClangTidy:
+    Add: [performance*, modernize*, readability*]
+    Remove: [
+      modernize-use-auto,
+      modernize-use-trailing-return-type,
+      readability-braces-around-statements,
+      readability-function-cognitive-complexity,
+      readability-identifier-length,
+      readability-identifier-naming,
+      readability-isolate-declaration,
+      readability-uppercase-literal-suffix
+    ]
+    CheckOptions:
+      readability-identifier-naming.VariableCase: CamelCase
