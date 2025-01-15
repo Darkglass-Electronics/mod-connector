@@ -145,37 +145,6 @@ static void initBlock(HostConnector::Block& blockdata,
 
 // --------------------------------------------------------------------------------------------------------------------
 
-static bool getSupportedPluginIO(const Lv2Plugin* const plugin,
-                                 uint8_t& numInputs,
-                                 uint8_t& numOutputs,
-                                 uint8_t& numSideInputs,
-                                 uint8_t& numSideOutputs)
-{
-    assert(plugin != nullptr);
-
-    numInputs = numOutputs = numSideInputs = numSideOutputs = 0;
-    for (const Lv2Port& port : plugin->ports)
-    {
-        if ((port.flags & Lv2PortIsAudio) == 0)
-            continue;
-
-        if ((port.flags & Lv2PortIsSidechain) != 0)
-        {
-            if (++((port.flags & Lv2PortIsOutput) != 0 ? numSideOutputs : numSideInputs) > 1)
-                break;
-        }
-        else
-        {
-            if (++((port.flags & Lv2PortIsOutput) != 0 ? numOutputs : numInputs) > 2)
-                break;
-        }
-    }
-
-    return numInputs <= 2 && numOutputs <= 2 && numSideInputs <= 1 && numSideOutputs <= 1;
-}
-
-// --------------------------------------------------------------------------------------------------------------------
-
 static bool isNullBlock(const HostConnector::Block& blockdata)
 {
     return isNullURI(blockdata.uri);
@@ -347,6 +316,81 @@ const HostConnector::Preset& HostConnector::getCurrentPreset(const uint8_t prese
     assert(preset < NUM_PRESETS_PER_BANK);
 
     return _current.preset != preset ? _presets[preset] : _current;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+bool HostConnector::canAddSidechainInput(const uint8_t row, const uint8_t block) const
+{
+    assert_return(row == 0, false);
+    assert(block < NUM_BLOCKS_PER_PRESET);
+
+    if (_current.numLoadedPlugins == 0)
+        return false;
+
+    // cannot add input/playback/sink on first block
+    if (block == 0)
+        return false;
+
+    const ChainRow& chaindata(_current.chains[0]);
+
+    // must have a matching sidechain output/capture/source before
+    bool hasMatchingSource = false;
+    for (uint8_t bl = block - 1; bl != UINT8_MAX; --bl)
+    {
+        const Block& blockdata(chaindata.blocks[bl]);
+        if (isNullBlock(blockdata))
+            continue;
+        if (blockdata.meta.numSideInputs != 0)
+            return false;
+        if (blockdata.meta.numSideOutputs != 0)
+        {
+            hasMatchingSource = true;
+            break;
+        }
+    }
+
+    if (!hasMatchingSource)
+        return false;
+
+    // must NOT have sidechain input after
+    for (uint8_t bl = block + 1; bl < NUM_BLOCKS_PER_PRESET; ++bl)
+    {
+        const Block& blockdata(chaindata.blocks[bl]);
+        if (isNullBlock(blockdata))
+            continue;
+        if (blockdata.meta.numSideInputs != 0)
+            return false;
+    }
+
+    return true;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+bool HostConnector::canAddSidechainOutput(const uint8_t row, const uint8_t block) const
+{
+    assert_return(row == 0, false);
+    assert(block < NUM_BLOCKS_PER_PRESET);
+
+    if (_current.numLoadedPlugins == 0)
+        return true;
+
+    const ChainRow& chaindata(_current.chains[0]);
+
+    // TODO limit amount of next chains, check for enough space, etc
+
+    for (const Block& blockdata : chaindata.blocks)
+    {
+        if (isNullBlock(blockdata))
+            continue;
+
+        // TODO for now we only allow 1 sidechain output, because WIP development
+        if (blockdata.meta.numSideOutputs != 0)
+            return false;
+    }
+
+    return true;
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -805,6 +849,77 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
     assert_return(!chaindata.capture[0].empty(), false);
 
     Block& blockdata(chaindata.blocks[block]);
+
+    // do not change blocks if attempting to replace plugin with itself
+    if (blockdata.uri == uri)
+    {
+        mod_log_debug("replaceBlock(%u, %u, \"%s\"): uri matches old block, will not replace plugin",
+                      row, block, uri);
+
+        // reset plugin to defaults
+        if (!isNullURI(uri))
+        {
+            std::vector<flushed_param> params;
+            params.reserve(MAX_PARAMS_PER_BLOCK);
+
+            const HostBlockPair hbp = _mapper.get(_current.preset, row, block);
+            assert_return(hbp.id != kMaxHostInstances, false);
+
+            for (uint8_t s = 0; s <= NUM_SCENES_PER_PRESET; ++s)
+                for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                    blockdata.sceneValues[s][p].used = false;
+
+            const Host::NonBlockingScope hnbs(_host);
+
+            if (!blockdata.enabled)
+            {
+                blockdata.enabled = true;
+
+                _host.bypass(hbp.id, false);
+
+                if (hbp.pair != kMaxHostInstances)
+                    _host.bypass(hbp.pair, false);
+            }
+
+            for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+            {
+                Parameter& paramdata(blockdata.parameters[p]);
+                if (isNullURI(paramdata.symbol))
+                    break;
+                if ((paramdata.meta.flags & Lv2PortIsOutput) != 0)
+                    continue;
+
+                if (paramdata.value != paramdata.meta.def)
+                {
+                    paramdata.value = paramdata.meta.def;
+                    params.push_back({ paramdata.symbol.c_str(), paramdata.meta.def });
+                }
+            }
+
+            _host.params_flush(hbp.id, KXSTUDIO__Reset_full, params.size(), params.data());
+
+            if (hbp.pair != kMaxHostInstances)
+                _host.params_flush(hbp.pair, KXSTUDIO__Reset_full, params.size(), params.data());
+        }
+
+        return true;
+    }
+
+    // check if we can remove the block, might be refused due to sidechain setup
+    if (blockdata.meta.numSideOutputs != 0)
+    {
+        for (uint8_t bl = block + 1; bl < NUM_BLOCKS_PER_PRESET; ++bl)
+        {
+            if (chaindata.blocks[bl].meta.numSideInputs != 0)
+            {
+                mod_log_warn("replaceBlock(%u, %u, \"%s\"): cannot remove block, paired with a sidechain input",
+                             row, block, uri);
+                return false;
+            }
+        }
+    }
+
+    // store for later use after we change change blockdata
     const uint8_t oldNumSideInputs = blockdata.meta.numSideInputs;
 
     const Host::NonBlockingScope hnbs(_host);
@@ -818,7 +933,7 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
         uint8_t numInputs, numOutputs, numSideInputs, numSideOutputs;
         if (!getSupportedPluginIO(plugin, numInputs, numOutputs, numSideInputs, numSideOutputs))
         {
-            mod_log_warn("replaceBlock(%u, %s): unsupported IO, rejected", block, uri);
+            mod_log_warn("replaceBlock(%u, %u, %s): unsupported IO, rejected", row, block, uri);
             return false;
         }
 
@@ -879,7 +994,7 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
     }
     else
     {
-        mod_log_warn("replaceBlock(%u, %s): already empty, rejected", block, uri);
+        mod_log_warn("replaceBlock(%u, %u, %s): already empty, rejected", row, block, uri);
         return false;
     }
 
@@ -1734,7 +1849,7 @@ void HostConnector::hostClearAndLoadCurrentBank()
                     previousPluginStereoOut = chaindata.capture[0] != chaindata.capture[1];
                 }
 
-                const auto loadInstance = [=](const uint16_t instance)
+                const auto loadInstance = [=, &blockdata](const uint16_t instance)
                 {
                     if (active ? _host.add(blockdata.uri.c_str(), instance)
                                : _host.preload(blockdata.uri.c_str(), instance))
@@ -1980,9 +2095,8 @@ void HostConnector::hostEnsureStereoChain(const uint8_t row, const uint8_t block
                 if (!blockdata.enabled)
                     _host.bypass(pair, true);
 
-                for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                for (const Parameter& parameterdata : blockdata.parameters)
                 {
-                    const Parameter& parameterdata(blockdata.parameters[p]);
                     if (isNullURI(parameterdata.symbol))
                         break;
                     _host.param_set(pair, parameterdata.symbol.c_str(), parameterdata.value);
@@ -2687,7 +2801,6 @@ void HostConnector::hostSwitchPreset(const Current& old)
         // step 3: activate and connect all plugins in new preset
         for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
         {
-            bool first = true;
             uint8_t last = 0;
             uint8_t numLoadedPlugins = 0;
 

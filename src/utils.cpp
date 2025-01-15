@@ -1,7 +1,8 @@
-// SPDX-FileCopyrightText: 2024 Filipe Coelho <falktx@darkglass.com>
+// SPDX-FileCopyrightText: 2024-2025 Filipe Coelho <falktx@darkglass.com>
 // SPDX-License-Identifier: ISC
 
 #include "utils.hpp"
+#include "lv2.hpp"
 
 #include <cstdarg>
 
@@ -37,7 +38,7 @@ std::string format(const char* format, ...)
     if (size > 0)
     {
         ret.resize(size);
-        std::vsnprintf(&ret[0], size + 1, format, args2);
+        std::vsnprintf(ret.data(), size + 1, format, args2);
     }
 
     va_end(args);
@@ -46,4 +47,42 @@ std::string format(const char* format, ...)
     return ret;
 }
 
+// --------------------------------------------------------------------------------------------------------------------
+// check if a plugin has compatible IO, while also filling info regarding IO
+
+bool getSupportedPluginIO(const Lv2Plugin* const plugin,
+                          uint8_t& numInputs,
+                          uint8_t& numOutputs,
+                          uint8_t& numSideInputs,
+                          uint8_t& numSideOutputs)
+{
+    assert(plugin != nullptr);
+
+    numInputs = numOutputs = numSideInputs = numSideOutputs = 0;
+    for (const Lv2Port& port : plugin->ports)
+    {
+        if ((port.flags & Lv2PortIsAudio) == 0)
+            continue;
+
+        if ((port.flags & Lv2PortIsSidechain) != 0)
+        {
+            if (++((port.flags & Lv2PortIsOutput) != 0 ? numSideOutputs : numSideInputs) > 1)
+                break;
+        }
+        else
+        {
+            if (++((port.flags & Lv2PortIsOutput) != 0 ? numOutputs : numInputs) > 2)
+                break;
+        }
+    }
+
+    if (numInputs == 0 || numOutputs == 0)
+        return false;
+    if (numInputs > 2 || numOutputs > 2)
+        return false;
+    if (numSideInputs > 1 || numSideOutputs > 1)
+        return false;
+
+    return true;
+}
 // --------------------------------------------------------------------------------------------------------------------
