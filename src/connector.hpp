@@ -233,6 +233,8 @@ public:
     // requires no sidechain blocks to be present or having matched pairs
     [[nodiscard]] bool canAddSidechainOutput(uint8_t row, uint8_t block) const;
 
+    void hostReady();
+
     // ----------------------------------------------------------------------------------------------------------------
     // bank handling
 
@@ -400,9 +402,6 @@ public:
     // enable monitoring for tool output parameter
     void monitorToolOutputParameter(uint8_t toolIndex, const char* symbol);
 
-    // monitor audio levels of given port with mod-hosts monitoring
-    void monitorToolAudioLevels(uint8_t toolIndex, const char* symbol);
-
     // ----------------------------------------------------------------------------------------------------------------
     // properties
 
@@ -459,8 +458,6 @@ private:
 
     // internal feedback handling, for updating parameter values
     void hostFeedbackCallback(const HostFeedbackData& data) override;
-
-    void hostReady();
 
     static void allocPreset(Preset& preset);
     static void resetPreset(Preset& preset);

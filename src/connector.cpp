@@ -184,22 +184,13 @@ HostConnector::HostConnector()
     resetPreset(_current);
 
     ok = _host.last_error.empty();
-
-    if (ok)
-        hostReady();
 }
 
 // --------------------------------------------------------------------------------------------------------------------
 
 bool HostConnector::reconnect()
 {
-    if (_host.reconnect())
-    {
-        hostReady();
-        return true;
-    }
-
-    return false;
+    return _host.reconnect();
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -1629,17 +1620,6 @@ void HostConnector::monitorToolOutputParameter(const uint8_t toolIndex, const ch
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::monitorToolAudioLevels(uint8_t toolIndex, const char* symbol)
-{
-    mod_log_debug("monitorToolAudioLevels(%u, \"%s\")", toolIndex, symbol);
-    assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
-    assert(symbol != nullptr && *symbol != '\0');
-
-    _host.monitor_audio_levels(format("effect_%d:%s", MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, symbol).c_str(), true);
-}
-
-// --------------------------------------------------------------------------------------------------------------------
-
 void HostConnector::setBlockProperty(const uint8_t row,
                                      const uint8_t block,
                                      const char* const uri,
@@ -1921,7 +1901,7 @@ void HostConnector::hostClearAndLoadCurrentBank()
                 else if (!_current.chains[row].capture[0].empty())
                 {
                     _host.connect(_current.chains[row].capture[0].c_str(), _current.chains[row].playback[0].c_str());
-                    _host.connect(_current.chains[row].capture[1].c_str(), _current.chains[row].playback[0].c_str());
+                    _host.connect(_current.chains[row].capture[1].c_str(), _current.chains[row].playback[1].c_str());
                 }
 
                 _current.numLoadedPlugins += numLoadedPlugins;
@@ -3074,20 +3054,14 @@ void HostConnector::hostReady()
 {
     const Host::NonBlockingScope hnbs(_host);
 
-    // assume we dont want mod-host side monitoring if input is a plugin
-    if constexprstr (std::strncmp(JACK_CAPTURE_PORT_1, MOD_HOST_EFFECT_PREFIX, MOD_HOST_EFFECT_PREFIX_LEN) != 0)
-        _host.monitor_audio_levels(JACK_CAPTURE_PORT_1, true);
+    _host.monitor_audio_levels(JACK_CAPTURE_PORT_1, true);
 
-    if constexprstr (std::strncmp(JACK_CAPTURE_PORT_1, MOD_HOST_EFFECT_PREFIX, MOD_HOST_EFFECT_PREFIX_LEN) != 0 &&
-                     std::strcmp(JACK_CAPTURE_PORT_1, JACK_CAPTURE_PORT_2) != 0)
+    if constexprstr (std::strcmp(JACK_CAPTURE_PORT_1, JACK_CAPTURE_PORT_2) != 0)
         _host.monitor_audio_levels(JACK_CAPTURE_PORT_2, true);
 
-    // assume we dont want mod-host side monitoring if output is a plugin
-    if constexprstr (std::strncmp(JACK_PLAYBACK_MONITOR_PORT_1, MOD_HOST_EFFECT_PREFIX, MOD_HOST_EFFECT_PREFIX_LEN) != 0)
-        _host.monitor_audio_levels(JACK_PLAYBACK_MONITOR_PORT_1, true);
+    _host.monitor_audio_levels(JACK_PLAYBACK_MONITOR_PORT_1, true);
 
-    if constexprstr (std::strncmp(JACK_PLAYBACK_MONITOR_PORT_2, MOD_HOST_EFFECT_PREFIX, MOD_HOST_EFFECT_PREFIX_LEN) != 0 &&
-                     std::strcmp(JACK_PLAYBACK_MONITOR_PORT_1, JACK_PLAYBACK_MONITOR_PORT_2) != 0)
+    if constexprstr (std::strcmp(JACK_PLAYBACK_MONITOR_PORT_1, JACK_PLAYBACK_MONITOR_PORT_2) != 0)
         _host.monitor_audio_levels(JACK_PLAYBACK_MONITOR_PORT_2, true);
 }
 
