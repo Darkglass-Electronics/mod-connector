@@ -3,7 +3,6 @@
 
 #pragma once
 
-#include "config.h"
 #include "host.hpp"
 #include "instance_mapper.hpp"
 #include "lv2.hpp"

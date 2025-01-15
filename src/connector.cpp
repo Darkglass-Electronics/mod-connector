@@ -1595,6 +1595,7 @@ void HostConnector::connectTool2Tool(uint8_t toolAIndex,
                       uint8_t toolBIndex, 
                       const char* toolBInSymbol)
 {
+    mod_log_debug("connectTool2Tool(%u, \"%s\", %u, \"%s\")", toolAIndex, toolAOutSymbol, toolBIndex, toolBInSymbol);
     assert(toolAIndex < MAX_MOD_HOST_TOOL_INSTANCES);
     assert(toolBIndex < MAX_MOD_HOST_TOOL_INSTANCES);
     assert(toolAOutSymbol != nullptr && *toolAOutSymbol != '\0');
@@ -1633,8 +1634,6 @@ void HostConnector::monitorToolAudioLevels(uint8_t toolIndex, const char* symbol
     mod_log_debug("monitorToolAudioLevels(%u, \"%s\")", toolIndex, symbol);
     assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
     assert(symbol != nullptr && *symbol != '\0');
-
-    const Host::NonBlockingScope hnbs(_host);
 
     _host.monitor_audio_levels(format("effect_%d:%s", MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, symbol).c_str(), true);
 }
