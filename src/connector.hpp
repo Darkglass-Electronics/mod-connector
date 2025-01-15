@@ -386,20 +386,15 @@ public:
     // connect a tool audio output port to another tool's input port
     void connectTool2Tool(uint8_t toolAIndex, const char* toolAOutSymbol, uint8_t toolBIndex, const char* toolBInSymbol);
 
-    // use a tool's output instead of JACK_CAPTURE_PORT_1 or JACK_CAPTURE_PORT_2
-    // NOTE: takes effect only with upcoming connections so works best right after constructor
-    void toolOutAsCapturePort(uint8_t toolIndex, const char* symbol, uint8_t capturePortIndex);
-
-    // use a tool's input instead of JACK_PLAYBACK_PORT_1 or JACK_PLAYBACK_PORT_2
-    // NOTE: takes effect only with upcoming connections so works best right after constructor
-    void toolInAsPlaybackPort(uint8_t toolIndex, const char* symbol, uint8_t playbackPortIndex);
-
     // set a block parameter value
     // NOTE value must already be sanitized!
     void setToolParameter(uint8_t toolIndex, const char* symbol, float value);
 
     // enable monitoring for tool output parameter
     void monitorToolOutputParameter(uint8_t toolIndex, const char* symbol);
+
+    // monitor audio levels of given port with mod-hosts monitoring
+    void monitorToolAudioLevels(uint8_t toolIndex, const char* symbol);
 
     // ----------------------------------------------------------------------------------------------------------------
     // properties
@@ -462,12 +457,6 @@ private:
 
     static void allocPreset(Preset& preset);
     static void resetPreset(Preset& preset);
-
-    std::string jackCapturePort1 { JACK_CAPTURE_PORT_1 };
-    std::string jackCapturePort2 { JACK_CAPTURE_PORT_2 };
-
-    std::string jackPlaybackPort1 { JACK_PLAYBACK_PORT_1 };
-    std::string jackPlaybackPort2 { JACK_PLAYBACK_PORT_2 };
 
     static constexpr uint8_t kNCapturePorts = 2;
     static constexpr uint8_t kNPlaybackPorts = 2;

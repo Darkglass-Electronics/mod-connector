@@ -625,8 +625,8 @@ void HostConnector::clearCurrentPreset()
     _current.dirty = true;
 
     // direct connections
-    _host.connect(jackCapturePort1.c_str(), jackPlaybackPort1.c_str());
-    _host.connect(jackCapturePort2.c_str(), jackPlaybackPort2.c_str());
+    _host.connect(JACK_CAPTURE_PORT_1, JACK_PLAYBACK_PORT_1);
+    _host.connect(JACK_CAPTURE_PORT_2, JACK_PLAYBACK_PORT_2);
 
     _host.feature_enable(Host::kFeatureProcessing, Host::kProcessingOnWithFadeIn);
 }
@@ -889,8 +889,8 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
         if (_current.numLoadedPlugins == 1)
         {
             assert(row == 0);
-            _host.disconnect(jackCapturePort1.c_str(), jackPlaybackPort1.c_str());
-            _host.disconnect(jackCapturePort2.c_str(), jackPlaybackPort2.c_str());
+            _host.disconnect(JACK_CAPTURE_PORT_1, JACK_PLAYBACK_PORT_1);
+            _host.disconnect(JACK_CAPTURE_PORT_2, JACK_PLAYBACK_PORT_2);
             hostConnectBlockToChainInput(row, block);
             hostConnectBlockToChainOutput(row, block);
         }
@@ -982,8 +982,8 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
         // use direct connections if there are no plugins
         if (_current.numLoadedPlugins == 0)
         {
-            _host.connect(jackCapturePort1.c_str(), jackPlaybackPort1.c_str());
-            _host.connect(jackCapturePort2.c_str(), jackPlaybackPort2.c_str());
+            _host.connect(JACK_CAPTURE_PORT_1, JACK_PLAYBACK_PORT_1);
+            _host.connect(JACK_CAPTURE_PORT_2, JACK_PLAYBACK_PORT_2);
         }
         else
         {
@@ -1491,46 +1491,6 @@ void HostConnector::connectTool2Tool(uint8_t toolAIndex,
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::toolOutAsCapturePort(uint8_t toolIndex, 
-                          const char* symbol, 
-                          uint8_t capturePortIndex)
-{
-    assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
-    assert(symbol != nullptr && *symbol != '\0');
-    assert(capturePortIndex < kNCapturePorts);
-    
-    switch (capturePortIndex) {
-        case 0:
-            jackCapturePort1 = format("effect_%d:%s", MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, symbol);
-            break;
-        case 1:
-            jackCapturePort2 = format("effect_%d:%s", MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, symbol);
-            break;
-    }
-}
-
-// --------------------------------------------------------------------------------------------------------------------
-
-void HostConnector::toolInAsPlaybackPort(uint8_t toolIndex, 
-                          const char* symbol, 
-                          uint8_t playbackPortIndex)
-{
-    assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
-    assert(symbol != nullptr && *symbol != '\0');
-    assert(playbackPortIndex < kNPlaybackPorts);
-
-    switch (playbackPortIndex) {
-        case 0:
-            jackPlaybackPort1 = format("effect_%d:%s", MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, symbol);
-            break;
-        case 1:
-            jackPlaybackPort2 = format("effect_%d:%s", MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, symbol);
-            break;
-    }
-}
-
-// --------------------------------------------------------------------------------------------------------------------
-
 void HostConnector::setToolParameter(const uint8_t toolIndex, const char* const symbol, const float value)
 {
     mod_log_debug("setToolParameter(%u, \"%s\", %f)", toolIndex, symbol, value);
@@ -1549,6 +1509,19 @@ void HostConnector::monitorToolOutputParameter(const uint8_t toolIndex, const ch
     assert(symbol != nullptr && *symbol != '\0');
 
     _host.monitor_output(MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, symbol);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::monitorToolAudioLevels(uint8_t toolIndex, const char* symbol)
+{
+    mod_log_debug("monitorToolAudioLevels(%u, \"%s\")", toolIndex, symbol);
+    assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
+    assert(symbol != nullptr && *symbol != '\0');
+
+    const Host::NonBlockingScope hnbs(_host);
+
+    _host.monitor_audio_levels(format("effect_%d:%s", MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, symbol).c_str(), true);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
