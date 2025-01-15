@@ -660,8 +660,7 @@ void HostConnector::clearCurrentPreset()
     _current.dirty = true;
 
     // direct connections
-    _host.connect(JACK_CAPTURE_PORT_1, JACK_PLAYBACK_PORT_1);
-    _host.connect(JACK_CAPTURE_PORT_2, JACK_PLAYBACK_PORT_2);
+    hostConnectChainEndpoints(0);
 
     _host.feature_enable(Host::kFeatureProcessing, Host::kProcessingOnWithFadeIn);
 }
@@ -995,8 +994,7 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
         if (_current.numLoadedPlugins == 1)
         {
             assert(row == 0);
-            _host.disconnect(JACK_CAPTURE_PORT_1, JACK_PLAYBACK_PORT_1);
-            _host.disconnect(JACK_CAPTURE_PORT_2, JACK_PLAYBACK_PORT_2);
+            hostDisconnectChainEndpoints(0);
             hostConnectBlockToChainInput(row, block);
             hostConnectBlockToChainOutput(row, block);
         }
@@ -1088,8 +1086,7 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
         // use direct connections if there are no plugins
         if (_current.numLoadedPlugins == 0)
         {
-            _host.connect(JACK_CAPTURE_PORT_1, JACK_PLAYBACK_PORT_1);
-            _host.connect(JACK_CAPTURE_PORT_2, JACK_PLAYBACK_PORT_2);
+            hostConnectChainEndpoints(0);
         }
         else
         {
@@ -1115,8 +1112,6 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
             if (oldNumSideInputs != 0)
             {
                 assert(row + 1 < NUM_BLOCK_CHAIN_ROWS);
-                _current.chains[row + 1].playback[0] = JACK_PLAYBACK_PORT_1;
-                _current.chains[row + 1].playback[1] = JACK_PLAYBACK_PORT_2;
                 hostEnsureStereoChain(row + 1, NUM_BLOCK_CHAIN_ROWS - 1);
             }
 
@@ -1735,6 +1730,13 @@ void HostConnector::hostConnectBlockToChainOutput(const uint8_t row, const uint8
 
 // --------------------------------------------------------------------------------------------------------------------
 
+void HostConnector::hostConnectChainEndpoints(const uint8_t row)
+{
+    hostConnectChainEndpointsAction(row, true);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 void HostConnector::hostDisconnectAll()
 {
     mod_log_debug("hostDisconnectAll()");
@@ -1759,9 +1761,18 @@ void HostConnector::hostDisconnectAllBlockInputs(const uint8_t row, const uint8_
     hostDisconnectBlockAction(_current.chains[row].blocks[block], _mapper.get(_current.preset, row, block), false);
 }
 
+// --------------------------------------------------------------------------------------------------------------------
+
 void HostConnector::hostDisconnectAllBlockOutputs(const uint8_t row, const uint8_t block)
 {
     hostDisconnectBlockAction(_current.chains[row].blocks[block], _mapper.get(_current.preset, row, block), true);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::hostDisconnectAllBlockInputs(const Block& blockdata, const HostBlockPair& hbp)
+{
+    hostDisconnectBlockAction(blockdata, hbp, true);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -1771,9 +1782,11 @@ void HostConnector::hostDisconnectAllBlockOutputs(const Block& blockdata, const 
     hostDisconnectBlockAction(blockdata, hbp, false);
 }
 
-void HostConnector::hostDisconnectAllBlockInputs(const Block& blockdata, const HostBlockPair& hbp)
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::hostDisconnectChainEndpoints(const uint8_t row)
 {
-    hostDisconnectBlockAction(blockdata, hbp, true);
+    hostConnectChainEndpointsAction(row, false);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -1895,14 +1908,9 @@ void HostConnector::hostClearAndLoadCurrentBank()
             if (active)
             {
                 if (numLoadedPlugins != 0)
-                {
                     hostConnectBlockToChainOutput(row, last);
-                }
                 else if (!_current.chains[row].capture[0].empty())
-                {
-                    _host.connect(_current.chains[row].capture[0].c_str(), _current.chains[row].playback[0].c_str());
-                    _host.connect(_current.chains[row].capture[1].c_str(), _current.chains[row].playback[1].c_str());
-                }
+                    hostConnectChainEndpoints(row);
 
                 _current.numLoadedPlugins += numLoadedPlugins;
             }
@@ -1910,6 +1918,35 @@ void HostConnector::hostClearAndLoadCurrentBank()
     }
 
     _host.feature_enable(Host::kFeatureProcessing, Host::kProcessingOnWithFadeIn);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::hostConnectChainEndpointsAction(const uint8_t row, const bool connect)
+{
+    mod_log_debug("hostConnectChainInputAction(%u, %s)", row, bool2str(connect));
+    assert(row < NUM_BLOCK_CHAIN_ROWS);
+
+    const ChainRow& chain(_current.chains[row]);
+    assert(!chain.capture[0].empty());
+    assert(!chain.capture[1].empty());
+
+    // playback side is allowed to be empty
+    if (chain.playback[0].empty())
+        return;
+
+    assert(!chain.playback[1].empty());
+
+    if (connect)
+    {
+        _host.connect(chain.capture[0].c_str(), chain.playback[0].c_str());
+        _host.connect(chain.capture[1].c_str(), chain.playback[1].c_str());
+    }
+    else
+    {
+        _host.disconnect(chain.capture[0].c_str(), chain.playback[0].c_str());
+        _host.disconnect(chain.capture[1].c_str(), chain.playback[1].c_str());
+    }
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -1960,9 +1997,17 @@ void HostConnector::hostConnectChainOutputAction(const uint8_t row, const uint8_
     mod_log_debug("hostConnectChainOutputAction(%u, %u, %s)", row, block, bool2str(connect));
     assert(row < NUM_BLOCK_CHAIN_ROWS);
     assert(block < NUM_BLOCKS_PER_PRESET);
-    assert(!isNullBlock(_current.chains[row].blocks[block]));
 
-    const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(_current.chains[row].blocks[block].uri.c_str());
+    const ChainRow& chain(_current.chains[row]);
+    assert(!isNullBlock(chain.blocks[block]));
+
+    // playback side is allowed to be empty
+    if (chain.playback[0].empty())
+        return;
+
+    assert(!chain.playback[1].empty());
+
+    const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(chain.blocks[block].uri.c_str());
     assert_return(plugin != nullptr,);
 
     const HostBlockPair hbp = _mapper.get(_current.preset, row, block);
@@ -1980,22 +2025,20 @@ void HostConnector::hostConnectChainOutputAction(const uint8_t row, const uint8_
             continue;
 
         origin = format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbp.id, plugin->ports[i].symbol.c_str());
-        target = _current.chains[row].playback[dsti++];
-        assert_continue(!target.empty());
+        target = chain.playback[dsti++];
         (_host.*call)(origin.c_str(), target.c_str());
 
         if (hbp.pair != kMaxHostInstances)
         {
             origin = format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbp.pair, plugin->ports[i].symbol.c_str());
-            target = _current.chains[row].playback[dsti++];
-            assert_continue(!target.empty());
+            target = chain.playback[dsti++];
             (_host.*call)(origin.c_str(), target.c_str());
             return;
         }
     }
 
     if (dsti == 1)
-        (_host.*call)(origin.c_str(), _current.chains[row].playback[1].c_str());
+        (_host.*call)(origin.c_str(), chain.playback[1].c_str());
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -2040,8 +2083,6 @@ void HostConnector::hostEnsureStereoChain(const uint8_t row, const uint8_t block
     ChainRow& chain = _current.chains[row];
     assert(!chain.capture[0].empty());
     assert(!chain.capture[1].empty());
-    assert(!chain.playback[0].empty());
-    assert(!chain.playback[1].empty());
 
     // bool changed = false;
     bool previousPluginStereoOut = shouldBlockBeStereo(chain, blockStart);
@@ -2120,8 +2161,7 @@ void HostConnector::hostEnsureStereoChain(const uint8_t row, const uint8_t block
     if (numLoadedPlugins == 0)
     {
         // direct connections
-        _host.connect(chain.capture[0].c_str(), chain.playback[0].c_str());
-        _host.connect(chain.capture[1].c_str(), chain.playback[1].c_str());
+        hostConnectChainEndpoints(row);
         return;
     }
 
@@ -2129,8 +2169,7 @@ void HostConnector::hostEnsureStereoChain(const uint8_t row, const uint8_t block
     assert(lastBlock != UINT8_MAX);
 
     // direct connections
-    _host.disconnect(chain.capture[0].c_str(), chain.playback[0].c_str());
-    _host.disconnect(chain.capture[1].c_str(), chain.playback[1].c_str());
+    hostDisconnectChainEndpoints(row);
 
     // first and last blocks
     hostConnectBlockToChainInput(row, firstBlock);
@@ -2181,8 +2220,13 @@ void HostConnector::hostSetupSideIO(const uint8_t row,
     // side input requires something to connect from
     if (blockdata.meta.numSideInputs != 0)
     {
-        assert_return(!_current.chains[row + 1].playback[0].empty(),);
-        assert_return(!_current.chains[row + 1].playback[1].empty(),);
+        // must have matching capture side
+        assert_return(!_current.chains[row + 1].capture[0].empty(),);
+        assert_return(!_current.chains[row + 1].capture[1].empty(),);
+
+        // TESTING only 1 valid playback side for now
+        assert(_current.chains[row + 1].playback[0].empty());
+        assert(_current.chains[row + 1].playback[1].empty());
 
         constexpr uint32_t flagsToCheck = Lv2PortIsAudio|Lv2PortIsSidechain|Lv2PortIsOutput;
         constexpr uint32_t flagsWanted = Lv2PortIsAudio|Lv2PortIsSidechain;
@@ -2209,8 +2253,8 @@ void HostConnector::hostSetupSideIO(const uint8_t row,
     if (blockdata.meta.numSideOutputs != 0)
     {
         // TESTING only 1 valid side capture for now
-        // assert_return(_current.chains[row + 1].capture[0].empty(), false);
-        // assert_return(_current.chains[row + 1].capture[1].empty(), false);
+        assert(_current.chains[row + 1].capture[0].empty());
+        assert(_current.chains[row + 1].capture[1].empty());
 
         constexpr uint32_t flags = Lv2PortIsAudio|Lv2PortIsSidechain|Lv2PortIsOutput;
 
@@ -2230,12 +2274,6 @@ void HostConnector::hostSetupSideIO(const uint8_t row,
             else
                 _current.chains[row + 1].capture[1] = _current.chains[row + 1].capture[0];
 
-            // if there is no playback side defined yet, use system one
-            if (_current.chains[row + 1].playback[0].empty())
-            {
-                _current.chains[row + 1].playback[0] = JACK_PLAYBACK_PORT_1;
-                _current.chains[row + 1].playback[1] = JACK_PLAYBACK_PORT_2;
-            }
             break;
         }
     }
@@ -2282,6 +2320,20 @@ void HostConnector::hostRemoveInstanceForBlock(const uint8_t row, const uint8_t 
 
     if (hbp.pair != kMaxHostInstances)
         _host.remove(hbp.pair);
+
+   #if NUM_BLOCK_CHAIN_ROWS != 1
+    if (row == 0)
+    {
+        const Block& blockdata(_current.chains[row].blocks[block]);
+        assert(!isNullBlock(blockdata));
+
+        if (blockdata.meta.numSideInputs != 0)
+            _current.chains[row + 1].playback.fill({});
+
+        if (blockdata.meta.numSideOutputs != 0)
+            _current.chains[row + 1].capture.fill({});
+    }
+   #endif
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -2739,9 +2791,7 @@ void HostConnector::hostSwitchPreset(const Current& old)
         if (old.numLoadedPlugins == 0)
         {
             std::memset(oldloaded, 0, sizeof(oldloaded));
-
-            _host.disconnect(JACK_CAPTURE_PORT_1, JACK_PLAYBACK_PORT_1);
-            _host.disconnect(JACK_CAPTURE_PORT_2, JACK_PLAYBACK_PORT_2);
+            hostDisconnectChainEndpoints(0);
         }
         else
         {
@@ -2770,10 +2820,7 @@ void HostConnector::hostSwitchPreset(const Current& old)
                 }
 
                 if (numLoadedPlugins == 0 && !old.chains[row].capture[0].empty())
-                {
-                    _host.disconnect(old.chains[row].capture[0].c_str(), old.chains[row].playback[0].c_str());
-                    _host.disconnect(old.chains[row].capture[1].c_str(), old.chains[row].playback[0].c_str());
-                }
+                    hostDisconnectChainEndpoints(row);
             }
         }
 
@@ -2808,14 +2855,9 @@ void HostConnector::hostSwitchPreset(const Current& old)
             }
 
             if (numLoadedPlugins != 0)
-            {
                 hostConnectBlockToChainOutput(row, last);
-            }
             else if (!_current.chains[row].capture[0].empty())
-            {
-                _host.connect(_current.chains[row].capture[0].c_str(), _current.chains[row].playback[0].c_str());
-                _host.connect(_current.chains[row].capture[1].c_str(), _current.chains[row].playback[0].c_str());
-            }
+                hostConnectChainEndpoints(row);
 
             _current.numLoadedPlugins += numLoadedPlugins;
         }

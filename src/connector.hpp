@@ -427,12 +427,14 @@ protected:
     void hostConnectBlockToBlock(uint8_t row, uint8_t blockA, uint8_t blockB);
     void hostConnectBlockToChainInput(uint8_t row, uint8_t block);
     void hostConnectBlockToChainOutput(uint8_t row, uint8_t block);
+    void hostConnectChainEndpoints(uint8_t row);
 
     void hostDisconnectAll();
     void hostDisconnectAllBlockInputs(uint8_t row, uint8_t block);
     void hostDisconnectAllBlockOutputs(uint8_t row, uint8_t block);
-    void hostDisconnectAllBlockOutputs(const Block& blockdata, const HostBlockPair& hbp);
     void hostDisconnectAllBlockInputs(const Block& blockdata, const HostBlockPair& hbp);
+    void hostDisconnectAllBlockOutputs(const Block& blockdata, const HostBlockPair& hbp);
+    void hostDisconnectChainEndpoints(uint8_t row);
 
     void hostEnsureStereoChain(uint8_t row, uint8_t blockStart);
 
@@ -444,6 +446,7 @@ protected:
     void hostRemoveInstanceForBlock(uint8_t row, uint8_t block);
 
 private:
+    void hostConnectChainEndpointsAction(uint8_t row, bool connect);
     void hostConnectChainInputAction(uint8_t row, uint8_t block, bool connect);
     void hostConnectChainOutputAction(uint8_t row, uint8_t block, bool connect);
     void hostDisconnectBlockAction(const Block& blockdata, const HostBlockPair& hbp, bool outputs);
