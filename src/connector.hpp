@@ -8,6 +8,7 @@
 #include "lv2.hpp"
 
 #include <cassert>
+#include <cstdint>
 #include <array>
 #include <list>
 
@@ -232,6 +233,8 @@ public:
     // requires no sidechain blocks to be present or having matched pairs
     [[nodiscard]] bool canAddSidechainOutput(uint8_t row, uint8_t block) const;
 
+    void hostReady();
+
     // ----------------------------------------------------------------------------------------------------------------
     // bank handling
 
@@ -389,6 +392,9 @@ public:
     // connect a tool audio output port to an arbitrary jack input port
     void connectToolAudioOutput(uint8_t toolIndex, const char* symbol, const char* jackPort);
 
+    // connect a tool audio output port to another tool's input port
+    void connectTool2Tool(uint8_t toolAIndex, const char* toolAOutSymbol, uint8_t toolBIndex, const char* toolBInSymbol);
+
     // set a block parameter value
     // NOTE value must already be sanitized!
     void setToolParameter(uint8_t toolIndex, const char* symbol, float value);
@@ -452,8 +458,6 @@ private:
 
     // internal feedback handling, for updating parameter values
     void hostFeedbackCallback(const HostFeedbackData& data) override;
-
-    void hostReady();
 
     static void allocPreset(Preset& preset);
     static void resetPreset(Preset& preset);
