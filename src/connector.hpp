@@ -465,10 +465,6 @@ private:
 
     static void allocPreset(Preset& preset);
     static void resetPreset(Preset& preset);
-
-    static constexpr uint8_t kNCapturePorts = 2;
-    static constexpr uint8_t kNPlaybackPorts = 2;
-
 };
 
 using HostBlock = HostConnector::Block;
