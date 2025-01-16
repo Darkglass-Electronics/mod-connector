@@ -637,9 +637,7 @@ void HostConnector::clearCurrentPreset()
     if (_current.numLoadedPlugins == 0)
         return;
 
-    const Host::NonBlockingScope hnbs(_host);
-
-    _host.feature_enable(Host::kFeatureProcessing, Host::kProcessingOffWithFadeOut);
+    const Host::NonBlockingScopeWithAudioFades hnbs(_host);
 
     for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
     {
@@ -662,7 +660,6 @@ void HostConnector::clearCurrentPreset()
     // direct connections
     hostConnectChainEndpoints(0);
 
-    _host.feature_enable(Host::kFeatureProcessing, Host::kProcessingOnWithFadeIn);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -746,7 +743,7 @@ bool HostConnector::reorderBlock(const uint8_t row, const uint8_t orig, const ui
     mod_log_info("reorderBlock(%u, %u, %u) - reconnect %s, blockIsEmpty %s, start %u, end %u",
                  row, orig, dest, bool2str(reconnect), bool2str(blockIsEmpty), blockStart, blockEnd);
 
-    const Host::NonBlockingScope hnbs(_host);
+    const Host::NonBlockingScopeWithAudioFades hnbs(_host);
 
     if (reconnect && ! blockIsEmpty)
     {
@@ -859,7 +856,7 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
                 for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
                     blockdata.sceneValues[s][p].used = false;
 
-            const Host::NonBlockingScope hnbs(_host);
+            const Host::NonBlockingScopeWithAudioFades hnbs(_host);
 
             if (!blockdata.enabled)
             {
@@ -912,7 +909,7 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
     // store for later use after we change change blockdata
     const uint8_t oldNumSideInputs = blockdata.meta.numSideInputs;
 
-    const Host::NonBlockingScope hnbs(_host);
+    const Host::NonBlockingScopeWithAudioFades hnbs(_host);
 
     if (!isNullURI(uri))
     {
@@ -1145,16 +1142,13 @@ bool HostConnector::swapBlockRow(const uint8_t row,
 
     // scope for fade-out, disconnect, reconnect, fade-in
     {
-        const Host::NonBlockingScope hnbs(_host);
+        const Host::NonBlockingScopeWithAudioFades hnbs(_host);
 
-        // step 1: fade out
-        _host.feature_enable(Host::kFeatureProcessing, Host::kProcessingOffWithFadeOut);
-
-        // step 2: disconnect all ports from moving block
+        // step 1: disconnect all ports from moving block
         hostDisconnectAllBlockInputs(row, block);
         hostDisconnectAllBlockOutputs(row, block);
 
-        // step 3: disconnect sides of chain that gets new block
+        // step 2: disconnect sides of chain that gets new block
         if (emptyBlock != 0)
         {
             for (uint8_t bl = emptyBlock - 1; bl != 0; --bl)
@@ -1179,7 +1173,7 @@ bool HostConnector::swapBlockRow(const uint8_t row,
             }
         }
 
-        // step 4: swap data
+        // step 3: swap data
         std::swap(_current.chains[row].blocks[block], _current.chains[emptyRow].blocks[emptyBlock]);
 
         _mapper.swap(_current.preset, row, block, emptyRow, emptyBlock);
@@ -1196,15 +1190,12 @@ bool HostConnector::swapBlockRow(const uint8_t row,
             }
         }
 
-        // step 5: reconnect ports
+        // step 4: reconnect ports
         hostEnsureStereoChain(row, emptyBlock - (emptyBlock != 0 ? 1 : 0));
 
         // NOTE previous call already handles sidechain connections
         if (_current.chains[row].blocks[emptyBlock].meta.numSideOutputs == 0)
             hostEnsureStereoChain(emptyRow, block - (block != 0 ? 1 : 0));
-
-        // step 6: fade in
-        _host.feature_enable(Host::kFeatureProcessing, Host::kProcessingOnWithFadeIn);
     }
 
     _current.dirty = true;
@@ -1251,7 +1242,10 @@ bool HostConnector::switchScene(const uint8_t scene)
 
     _current.scene = scene;
 
-    const Host::NonBlockingScope hnbs(_host);
+    // TODO: potentially better to do without fades
+    // and set/flush params without reset()
+    // (requires flush without reset in mod-host?)
+    const Host::NonBlockingScopeWithAudioFades hnbs(_host);
 
     for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
     {
@@ -2781,12 +2775,9 @@ void HostConnector::hostSwitchPreset(const Current& old)
 
     // scope for fade-out, old deactivate, new activate, fade-in
     {
-        const Host::NonBlockingScope hnbs(_host);
+        const Host::NonBlockingScopeWithAudioFades hnbs(_host);
 
-        // step 1: fade out
-        _host.feature_enable(Host::kFeatureProcessing, Host::kProcessingOffWithFadeOut);
-
-        // step 2: disconnect and deactivate all plugins in old preset
+        // step 1: disconnect and deactivate all plugins in old preset
         // NOTE not removing plugins, done after processing is reenabled
         if (old.numLoadedPlugins == 0)
         {
@@ -2824,7 +2815,7 @@ void HostConnector::hostSwitchPreset(const Current& old)
             }
         }
 
-        // step 3: activate and connect all plugins in new preset
+        // step 2: activate and connect all plugins in new preset
         for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
         {
             uint8_t last = 0;
@@ -2861,9 +2852,6 @@ void HostConnector::hostSwitchPreset(const Current& old)
 
             _current.numLoadedPlugins += numLoadedPlugins;
         }
-
-        // step 4: fade in
-        _host.feature_enable(Host::kFeatureProcessing, Host::kProcessingOnWithFadeIn);
     }
 
     // audio is now processing new preset
