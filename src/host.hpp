@@ -429,6 +429,20 @@ struct Host {
         ~NonBlockingScope();
     };
 
+   /**
+     * class to activate non-blocking mode during a function scope.
+     * this allows to send a bunch of related messages in quick succession,
+     * while only waiting once (in the class destructor).
+     * This version does audio fade out followed by processing disabling
+     * in the beginning, and at the end processing enabling and fade in.
+     */
+    class NonBlockingScopeWithAudioFades {
+        Host& host;
+    public:
+        NonBlockingScopeWithAudioFades(Host& host);
+        ~NonBlockingScopeWithAudioFades();
+    };
+
 private:
     struct Impl;
     Impl* const impl;
