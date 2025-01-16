@@ -1043,6 +1043,7 @@ private:
    #endif
 
     friend class NonBlockingScope;
+    friend class NonBlockingScopeWithAudioFades;
 };
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -1064,6 +1065,26 @@ Host::NonBlockingScope::~NonBlockingScope()
 {
     assert(host.impl->nonBlockingMode);
 
+    host.impl->nonBlockingMode = false;
+    host.impl->wait();
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+Host::NonBlockingScopeWithAudioFades::NonBlockingScopeWithAudioFades(Host& host_)
+    : host(host_)
+{
+    assert(! host.impl->nonBlockingMode);
+
+    host.impl->nonBlockingMode = true;
+    host.feature_enable(Host::kFeatureProcessing, Host::kProcessingOffWithFadeOut);
+}
+
+Host::NonBlockingScopeWithAudioFades::~NonBlockingScopeWithAudioFades()
+{
+    assert(host.impl->nonBlockingMode);
+
+    host.feature_enable(Host::kFeatureProcessing, Host::kProcessingOnWithFadeIn);
     host.impl->nonBlockingMode = false;
     host.impl->wait();
 }
