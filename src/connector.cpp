@@ -13,6 +13,7 @@
 #include <map>
 #include <optional>
 
+#define KXSTUDIO__Reset_none 0
 #define KXSTUDIO__Reset_full 1
 #define KXSTUDIO__Reset_soft 2
 
@@ -1242,9 +1243,6 @@ bool HostConnector::switchScene(const uint8_t scene)
 
     _current.scene = scene;
 
-    // TODO: potentially better to do without fades
-    // and set/flush params without reset()
-    // (requires flush without reset in mod-host?)
     const Host::NonBlockingScopeWithAudioFades hnbs(_host);
 
     for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
@@ -1278,10 +1276,10 @@ bool HostConnector::switchScene(const uint8_t scene)
                 params.push_back({ paramdata.symbol.c_str(), paramdata.value });
             }
 
-            _host.params_flush(hbp.id, KXSTUDIO__Reset_soft, params.size(), params.data());
+            _host.params_flush(hbp.id, KXSTUDIO__Reset_none, params.size(), params.data());
 
             if (hbp.pair != kMaxHostInstances)
-                _host.params_flush(hbp.pair, KXSTUDIO__Reset_soft, params.size(), params.data());
+                _host.params_flush(hbp.pair, KXSTUDIO__Reset_none, params.size(), params.data());
         }
     }
 
