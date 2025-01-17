@@ -25,8 +25,8 @@
 static constexpr const char* kBindingActuatorIDs[NUM_BINDING_ACTUATORS] = { BINDING_ACTUATOR_IDS };
 #endif
 
-using BindingIterator = std::list<HostConnector::Binding>::iterator;
-using BindingIteratorConst = std::list<HostConnector::Binding>::const_iterator;
+using ParameterBindingIterator = std::list<HostParameterBinding>::iterator;
+using ParameterBindingIteratorConst = std::list<HostParameterBinding>::const_iterator;
 
 // --------------------------------------------------------------------------------------------------------------------
 
@@ -280,15 +280,15 @@ void HostConnector::printStateForDebug(const bool withBlocks, const bool withPar
        #else
         const std::string hwname = std::to_string(hwid + 1);
        #endif
-        fprintf(stderr, "\n\tBindings for '%s':\n", hwname.c_str());
+        fprintf(stderr, "\n\tBindings for '%s', value: %f:\n", hwname.c_str(), _current.bindings[hwid].value);
 
-        if (_current.bindings[hwid].empty())
+        if (_current.bindings[hwid].params.empty())
         {
             fprintf(stderr, "\t\t(empty)\n");
             continue;
         }
 
-        for (const Binding& bindingdata : _current.bindings[hwid])
+        for (const ParameterBinding& bindingdata : _current.bindings[hwid].params)
         {
             fprintf(stderr, "\t\t- Block %u, Parameter '%s' | %u\n",
                     bindingdata.block,
@@ -661,7 +661,10 @@ void HostConnector::clearCurrentPreset()
     }
 
     for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
-        _current.bindings[hwid].clear();
+    {
+        _current.bindings[hwid].value = 0.f;
+        _current.bindings[hwid].params.clear();
+    }
 
     _current.scene = 0;
     _current.numLoadedPlugins = 0;
@@ -831,7 +834,7 @@ bool HostConnector::reorderBlock(const uint8_t row, const uint8_t orig, const ui
     // update bindings
     for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
     {
-        for (Binding& bindingdata : _current.bindings[hwid])
+        for (ParameterBinding& bindingdata : _current.bindings[hwid].params)
         {
             if (bindingdata.row != row)
                 continue;
@@ -1218,9 +1221,9 @@ bool HostConnector::swapBlockRow(const uint8_t row,
 
         _mapper.swap(_current.preset, row, block, emptyRow, emptyBlock);
 
-        for (std::list<Binding>& bindings : _current.bindings)
+        for (Bindings& bindings : _current.bindings)
         {
-            for (Binding& bindingdata : bindings)
+            for (ParameterBinding& bindingdata : bindings.params)
             {
                 if (bindingdata.row == row && bindingdata.block == block)
                 {
@@ -1359,7 +1362,10 @@ bool HostConnector::addBlockBinding(const uint8_t hwid, const uint8_t row, const
     const Block& blockdata(_current.chains[row].blocks[block]);
     assert_return(!isNullBlock(blockdata), false);
 
-    _current.bindings[hwid].push_back({ row, block, ":bypass", { 0 } });
+    if (_current.bindings[hwid].params.empty())
+        _current.bindings[hwid].value = blockdata.enabled ? 1.f : 0.f;
+
+    _current.bindings[hwid].params.push_back({ row, block, ":bypass", { 0 } });
     _current.dirty = true;
     return true;
 }
@@ -1386,7 +1392,11 @@ bool HostConnector::addBlockParameterBinding(const uint8_t hwid,
     if ((paramdata.meta.flags & Lv2PortIsOutput) != 0)
         return false;
 
-    _current.bindings[hwid].push_back({ row, block, paramdata.symbol, { paramIndex } });
+    if (_current.bindings[hwid].params.empty())
+        _current.bindings[hwid].value = (paramdata.value - paramdata.meta.min)
+                                      / (paramdata.meta.max - paramdata.meta.min);
+
+    _current.bindings[hwid].params.push_back({ row, block, paramdata.symbol, { paramIndex } });
     _current.dirty = true;
     return true;
 }
@@ -1401,8 +1411,8 @@ bool HostConnector::removeBlockBinding(const uint8_t hwid, const uint8_t row, co
     const Block& blockdata(_current.chains[row].blocks[block]);
     assert_return(!isNullBlock(blockdata), false);
 
-    std::list<Binding>& bindings(_current.bindings[hwid]);
-    for (BindingIteratorConst it = bindings.cbegin(), end = bindings.cend(); it != end; ++it)
+    std::list<ParameterBinding>& bindings(_current.bindings[hwid].params);
+    for (ParameterBindingIteratorConst it = bindings.cbegin(), end = bindings.cend(); it != end; ++it)
     {
         if (it->block != block)
             continue;
@@ -1437,8 +1447,8 @@ bool HostConnector::removeBlockParameterBinding(const uint8_t hwid,
     if ((paramdata.meta.flags & Lv2PortIsOutput) != 0)
         return false;
 
-    std::list<Binding>& bindings(_current.bindings[hwid]);
-    for (BindingIteratorConst it = bindings.cbegin(), end = bindings.cend(); it != end; ++it)
+    std::list<ParameterBinding>& bindings(_current.bindings[hwid].params);
+    for (ParameterBindingIteratorConst it = bindings.cbegin(), end = bindings.cend(); it != end; ++it)
     {
         if (it->block != block)
             continue;
@@ -2355,10 +2365,12 @@ void HostConnector::hostRemoveAllBlockBindings(const uint8_t row, const uint8_t 
 
     for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
     {
-        std::list<Binding>& bindings(_current.bindings[hwid]);
+        _current.bindings[hwid].value = 0.f;
+
+        std::list<ParameterBinding>& bindings(_current.bindings[hwid].params);
 
     restart:
-        for (BindingIteratorConst it = bindings.cbegin(), end = bindings.cend(); it != end; ++it)
+        for (ParameterBindingIteratorConst it = bindings.cbegin(), end = bindings.cend(); it != end; ++it)
         {
             if (it->row != row)
                 continue;
@@ -2635,7 +2647,7 @@ uint8_t HostConnector::hostLoadPreset(Preset& presetdata, nlohmann_json& json)
     }
 
     for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
-        presetdata.bindings[hwid].clear();
+        presetdata.bindings[hwid].params.clear();
 
     if (! jpreset.contains("bindings"))
     {
@@ -2659,30 +2671,40 @@ uint8_t HostConnector::hostLoadPreset(Preset& presetdata, nlohmann_json& json)
         }
 
         auto& jbindings = jallbindings[jbindingsid];
-        if (! jbindings.is_array())
+        if (! (jbindings.contains("params") && jbindings.contains("value")))
         {
-            mod_log_info("hostLoadPreset(): preset bindings are not arrays");
+            mod_log_info("hostLoadPreset(): bindings is missing params and/or value");
             continue;
         }
 
-        for (auto& jbinding : jbindings)
+        auto& jbindingparams = jbindings["params"];
+        if (! jbindingparams.is_array())
         {
-            if (! (jbinding.contains("block") && jbinding.contains("symbol")))
+            mod_log_info("hostLoadPreset(): preset binding params are not arrays");
+            continue;
+        }
+
+        Bindings& bindings(presetdata.bindings[hwid]);
+        bindings.value = std::max(0.0, std::min(1.0, jbindings["value"].get<double>()));
+
+        for (auto& jbindingparam : jbindingparams)
+        {
+            if (! (jbindingparam.contains("block") && jbindingparam.contains("symbol")))
             {
                 mod_log_info("hostLoadPreset(): binding is missing block and/or symbol");
                 continue;
             }
 
-            const int block = jbinding["block"].get<int>();
+            const int block = jbindingparam["block"].get<int>();
             if (block < 1 || block > NUM_BLOCKS_PER_PRESET)
             {
                 mod_log_info("hostLoadPreset(): binding has out of bounds block %d", block);
                 continue;
             }
             int row = 1;
-            if (jbinding.contains("row"))
+            if (jbindingparam.contains("row"))
             {
-                row = jbinding["row"].get<int>();
+                row = jbindingparam["row"].get<int>();
                 if (row < 1 || row > NUM_BLOCK_CHAIN_ROWS)
                 {
                    #if NUM_BLOCK_CHAIN_ROWS != 1
@@ -2693,11 +2715,11 @@ uint8_t HostConnector::hostLoadPreset(Preset& presetdata, nlohmann_json& json)
             }
             const Block& blockdata = presetdata.chains[row - 1].blocks[block - 1];
 
-            const std::string symbol = jbinding["symbol"].get<std::string>();
+            const std::string symbol = jbindingparam["symbol"].get<std::string>();
 
             if (symbol == ":bypass")
             {
-                presetdata.bindings[hwid].push_back({
+                bindings.params.push_back({
                     .row = static_cast<uint8_t>(row - 1),
                     .block = static_cast<uint8_t>(block - 1),
                     .parameterSymbol = ":bypass",
@@ -2719,7 +2741,7 @@ uint8_t HostConnector::hostLoadPreset(Preset& presetdata, nlohmann_json& json)
 
                     if (paramdata.symbol == symbol)
                     {
-                        presetdata.bindings[hwid].push_back({
+                        bindings.params.push_back({
                             .row = static_cast<uint8_t>(row - 1),
                             .block = static_cast<uint8_t>(block - 1),
                             .parameterSymbol = symbol,
@@ -2761,7 +2783,7 @@ void HostConnector::hostSavePreset(const Preset& presetdata, nlohmann_json& json
        #endif
         auto& jbindings = jallbindings[jbindingsid] = nlohmann::json::array();
 
-        for (const Binding& bindingdata : presetdata.bindings[hwid])
+        for (const ParameterBinding& bindingdata : presetdata.bindings[hwid].params)
         {
             jbindings.push_back({
                 #if NUM_BLOCK_CHAIN_ROWS != 1
@@ -3223,7 +3245,10 @@ void HostConnector::resetPreset(Preset& preset)
     }
 
     for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
-        preset.bindings[hwid].clear();
+    {
+        preset.bindings[hwid].value = 0.f;
+        preset.bindings[hwid].params.clear();
+    }
 }
 
 // --------------------------------------------------------------------------------------------------------------------

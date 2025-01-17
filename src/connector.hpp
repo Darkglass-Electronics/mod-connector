@@ -122,7 +122,7 @@ struct HostConnector : Host::FeedbackCallback {
         std::array<SceneValues, NUM_SCENES_PER_PRESET + 1> sceneValues;
     };
 
-    struct Binding {
+    struct ParameterBinding {
         uint8_t row;
         uint8_t block;
         std::string parameterSymbol;
@@ -130,6 +130,11 @@ struct HostConnector : Host::FeedbackCallback {
             // convenience meta-data, not stored in json state
             uint8_t parameterIndex;
         } meta;
+    };
+
+    struct Bindings {
+        std::list<ParameterBinding> params;
+        float value; // normalized 0-1
     };
 
     struct ChainRow {
@@ -141,7 +146,7 @@ struct HostConnector : Host::FeedbackCallback {
     struct Preset {
         std::string name;
         std::string filename;
-        std::array<std::list<Binding>, NUM_BINDING_ACTUATORS> bindings; // TODO private ?
+        std::array<Bindings, NUM_BINDING_ACTUATORS> bindings;
     private:
         friend struct HostConnector;
         friend class WebSocketConnector;
@@ -481,8 +486,10 @@ private:
     static void resetPreset(Preset& preset);
 };
 
+using HostBindings = HostConnector::Bindings;
 using HostBlock = HostConnector::Block;
 using HostParameter = HostConnector::Parameter;
+using HostParameterBinding = HostConnector::ParameterBinding;
 using HostCallbackData = HostConnector::Callback::Data;
 
 // --------------------------------------------------------------------------------------------------------------------
