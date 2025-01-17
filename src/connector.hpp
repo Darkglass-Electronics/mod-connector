@@ -82,6 +82,7 @@ struct HostConnector : Host::FeedbackCallback {
         struct {
             // convenience meta-data, not stored in json state
             uint32_t flags;
+            uint8_t hwbinding;
             float def, min, max;
             std::string name;
             std::string shortname;
@@ -104,17 +105,18 @@ struct HostConnector : Host::FeedbackCallback {
     };
 
     struct Block {
-        bool enabled = false;
+        bool enabled;
         std::string quickPotSymbol;
         std::string uri;
         struct {
             // convenience meta-data, not stored in json state
+            uint8_t enableHwBinding;
             uint8_t quickPotIndex;
-            bool hasScenes = false;
-            uint8_t numInputs = 0;
-            uint8_t numOutputs = 0;
-            uint8_t numSideInputs = 0;
-            uint8_t numSideOutputs = 0;
+            bool hasScenes;
+            uint8_t numInputs;
+            uint8_t numOutputs;
+            uint8_t numSideInputs;
+            uint8_t numSideOutputs;
             std::string name;
             std::string abbreviation;
         } meta;

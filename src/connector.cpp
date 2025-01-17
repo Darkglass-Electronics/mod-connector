@@ -33,6 +33,7 @@ using ParameterBindingIteratorConst = std::list<HostParameterBinding>::const_ite
 static void resetParam(HostConnector::Parameter& paramdata)
 {
     paramdata = {};
+    paramdata.meta.hwbinding = UINT8_MAX;
     paramdata.meta.max = 1.f;
 }
 
@@ -84,6 +85,7 @@ static void initBlock(HostConnector::Block& blockdata,
     blockdata.uri = plugin->uri;
     blockdata.quickPotSymbol.clear();
 
+    blockdata.meta.enableHwBinding = UINT8_MAX;
     blockdata.meta.quickPotIndex = 0;
     blockdata.meta.hasScenes = false;
     blockdata.meta.numInputs = numInputs;
@@ -121,6 +123,7 @@ static void initBlock(HostConnector::Block& blockdata,
             .value = port.def,
             .meta = {
                 .flags = port.flags,
+                .hwbinding = UINT8_MAX,
                 .def = port.def,
                 .min = port.min,
                 .max = port.max,
@@ -158,6 +161,14 @@ static bool isNullBlock(const HostConnector::Block& blockdata)
 }
 
 // --------------------------------------------------------------------------------------------------------------------
+
+template <class Meta>
+static inline constexpr float normalized(const Meta& meta, float value)
+{
+    return value <= meta.min ? 0.f
+        : value >= meta.max ? 1.f
+        : (value - meta.min) / (meta.max - meta.min);
+}
 
 static bool shouldBlockBeStereo(const HostConnector::ChainRow& chaindata, const uint8_t block)
 {
@@ -263,8 +274,21 @@ void HostConnector::printStateForDebug(const bool withBlocks, const bool withPar
             {
                 const Parameter& paramdata(blockdata.parameters[p]);
 
-                fprintf(stderr, "\t\tParameter %u: '%s' | '%s'\n", p, paramdata.symbol.c_str(), paramdata.meta.name.c_str());
+                fprintf(stderr, "\t\tParameter %u: '%s' | '%s'\n",
+                        p, paramdata.symbol.c_str(), paramdata.meta.name.c_str());
                 fprintf(stderr, "\t\t\tFlags: %x\n", paramdata.meta.flags);
+                if (paramdata.meta.hwbinding != UINT8_MAX)
+                {
+                   #ifdef BINDING_ACTUATOR_IDS
+                    fprintf(stderr, "\t\t\tHwBinding: %s\n", kBindingActuatorIDs[paramdata.meta.hwbinding]);
+                   #else
+                    fprintf(stderr, "\t\t\tHwBinding: %d\n", paramdata.meta.hwbinding);
+                   #endif
+                }
+                else
+                {
+                    fprintf(stderr, "\t\t\tHwBinding: (none)\n");
+                }
                 fprintf(stderr, "\t\t\tDefault: %f\n", paramdata.meta.def);
                 fprintf(stderr, "\t\t\tMinimum: %f\n", paramdata.meta.min);
                 fprintf(stderr, "\t\t\tMaximum: %f\n", paramdata.meta.max);
@@ -725,6 +749,14 @@ bool HostConnector::enableBlock(const uint8_t row, const uint8_t block, const bo
             blockdata.sceneValues[0].enabled.used = true;
             blockdata.sceneValues[0].enabled.value = blockdata.enabled;
         }
+    }
+
+    if (blockdata.meta.enableHwBinding != UINT8_MAX)
+    {
+        Bindings& bindings(_current.bindings[blockdata.meta.enableHwBinding]);
+        assert(!bindings.params.empty());
+
+        bindings.value = enable ? 1.f : 0.f;
     }
 
     blockdata.enabled = enable;
@@ -1359,8 +1391,11 @@ bool HostConnector::addBlockBinding(const uint8_t hwid, const uint8_t row, const
     assert(row < NUM_BLOCK_CHAIN_ROWS);
     assert(block < NUM_BLOCKS_PER_PRESET);
 
-    const Block& blockdata(_current.chains[row].blocks[block]);
+    Block& blockdata(_current.chains[row].blocks[block]);
     assert_return(!isNullBlock(blockdata), false);
+    assert_return(blockdata.meta.enableHwBinding == UINT8_MAX, false);
+
+    blockdata.meta.enableHwBinding = hwid;
 
     if (_current.bindings[hwid].params.empty())
         _current.bindings[hwid].value = blockdata.enabled ? 1.f : 0.f;
@@ -1383,23 +1418,25 @@ bool HostConnector::addBlockParameterBinding(const uint8_t hwid,
     assert(block < NUM_BLOCKS_PER_PRESET);
     assert(paramIndex < MAX_PARAMS_PER_BLOCK);
 
-    const Block& blockdata(_current.chains[row].blocks[block]);
+    Block& blockdata(_current.chains[row].blocks[block]);
     assert_return(!isNullBlock(blockdata), false);
 
-    const Parameter& paramdata(blockdata.parameters[paramIndex]);
-    if (isNullURI(paramdata.symbol))
-        return false;
-    if ((paramdata.meta.flags & Lv2PortIsOutput) != 0)
-        return false;
+    Parameter& paramdata(blockdata.parameters[paramIndex]);
+    assert_return(!isNullURI(paramdata.symbol), false);
+    assert_return((paramdata.meta.flags & Lv2PortIsOutput) == 0, false);
+    assert_return(paramdata.meta.hwbinding == UINT8_MAX, false);
+
+    paramdata.meta.hwbinding = hwid;
 
     if (_current.bindings[hwid].params.empty())
-        _current.bindings[hwid].value = (paramdata.value - paramdata.meta.min)
-                                      / (paramdata.meta.max - paramdata.meta.min);
+        _current.bindings[hwid].value = normalized(paramdata.meta, paramdata.value);
 
     _current.bindings[hwid].params.push_back({ row, block, paramdata.symbol, { paramIndex } });
     _current.dirty = true;
     return true;
 }
+
+// --------------------------------------------------------------------------------------------------------------------
 
 bool HostConnector::removeBlockBinding(const uint8_t hwid, const uint8_t row, const uint8_t block)
 {
@@ -1408,8 +1445,11 @@ bool HostConnector::removeBlockBinding(const uint8_t hwid, const uint8_t row, co
     assert(row < NUM_BLOCK_CHAIN_ROWS);
     assert(block < NUM_BLOCKS_PER_PRESET);
 
-    const Block& blockdata(_current.chains[row].blocks[block]);
+    Block& blockdata(_current.chains[row].blocks[block]);
     assert_return(!isNullBlock(blockdata), false);
+    assert_return(blockdata.meta.enableHwBinding != UINT8_MAX, false);
+
+    blockdata.meta.enableHwBinding = UINT8_MAX;
 
     std::list<ParameterBinding>& bindings(_current.bindings[hwid].params);
     for (ParameterBindingIteratorConst it = bindings.cbegin(), end = bindings.cend(); it != end; ++it)
@@ -1438,14 +1478,15 @@ bool HostConnector::removeBlockParameterBinding(const uint8_t hwid,
     assert(block < NUM_BLOCKS_PER_PRESET);
     assert(paramIndex < MAX_PARAMS_PER_BLOCK);
 
-    const Block& blockdata(_current.chains[row].blocks[block]);
+    Block& blockdata(_current.chains[row].blocks[block]);
     assert_return(!isNullBlock(blockdata), false);
 
-    const Parameter& paramdata(blockdata.parameters[paramIndex]);
-    if (isNullURI(paramdata.symbol))
-        return false;
-    if ((paramdata.meta.flags & Lv2PortIsOutput) != 0)
-        return false;
+    Parameter& paramdata(blockdata.parameters[paramIndex]);
+    assert_return(!isNullURI(paramdata.symbol), false);
+    assert_return((paramdata.meta.flags & Lv2PortIsOutput) == 0, false);
+    assert_return(paramdata.meta.hwbinding != UINT8_MAX, false);
+
+    paramdata.meta.hwbinding = UINT8_MAX;
 
     std::list<ParameterBinding>& bindings(_current.bindings[hwid].params);
     for (ParameterBindingIteratorConst it = bindings.cbegin(), end = bindings.cend(); it != end; ++it)
@@ -1476,6 +1517,8 @@ bool HostConnector::reorderBlockBinding(const uint8_t hwid, const uint8_t dest)
         mod_log_warn("reorderBlockBinding(%u, %u): hwid == dest, rejected", hwid, dest);
         return false;
     }
+
+    // TODO change paramdata.meta.hwbinding and blockdata.meta.enableHwBinding
 
     // moving hwid backwards to the left
     // a b c d e! f
@@ -1575,6 +1618,14 @@ void HostConnector::setBlockParameter(const uint8_t row,
             blockdata.sceneValues[0].params[paramIndex].used = true;
             blockdata.sceneValues[0].params[paramIndex].value = paramdata.value;
         }
+    }
+
+    if (paramdata.meta.hwbinding != UINT8_MAX)
+    {
+        Bindings& bindings(_current.bindings[paramdata.meta.hwbinding]);
+        assert(!bindings.params.empty());
+
+        bindings.value = normalized(paramdata.meta, value);
     }
 
     paramdata.value = value;
@@ -2363,6 +2414,18 @@ void HostConnector::hostRemoveAllBlockBindings(const uint8_t row, const uint8_t 
     assert(row < NUM_BLOCK_CHAIN_ROWS);
     assert(block < NUM_BLOCKS_PER_PRESET);
 
+    Block& blockdata(_current.chains[row].blocks[block]);
+    assert(!isNullBlock(blockdata));
+
+    for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+    {
+        Parameter& paramdata(blockdata.parameters[p]);
+        if (isNullURI(paramdata.symbol))
+            break;
+
+        paramdata.meta.hwbinding = UINT8_MAX;
+    }
+
     for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
     {
         _current.bindings[hwid].value = 0.f;
@@ -2680,7 +2743,7 @@ uint8_t HostConnector::hostLoadPreset(Preset& presetdata, nlohmann_json& json)
         auto& jbindingparams = jbindings["params"];
         if (! jbindingparams.is_array())
         {
-            mod_log_info("hostLoadPreset(): preset binding params are not arrays");
+            mod_log_info("hostLoadPreset(): preset binding params is not an array");
             continue;
         }
 
@@ -2713,12 +2776,15 @@ uint8_t HostConnector::hostLoadPreset(Preset& presetdata, nlohmann_json& json)
                     continue;
                 }
             }
-            const Block& blockdata = presetdata.chains[row - 1].blocks[block - 1];
+
+            Block& blockdata = presetdata.chains[row - 1].blocks[block - 1];
 
             const std::string symbol = jbindingparam["symbol"].get<std::string>();
 
             if (symbol == ":bypass")
             {
+                blockdata.meta.enableHwBinding = hwid;
+
                 bindings.params.push_back({
                     .row = static_cast<uint8_t>(row - 1),
                     .block = static_cast<uint8_t>(block - 1),
@@ -2732,7 +2798,7 @@ uint8_t HostConnector::hostLoadPreset(Preset& presetdata, nlohmann_json& json)
             {
                 for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
                 {
-                    const Parameter& paramdata = blockdata.parameters[p];
+                    Parameter& paramdata = blockdata.parameters[p];
 
                     if (isNullURI(paramdata.symbol))
                         break;
@@ -2741,6 +2807,8 @@ uint8_t HostConnector::hostLoadPreset(Preset& presetdata, nlohmann_json& json)
 
                     if (paramdata.symbol == symbol)
                     {
+                        paramdata.meta.hwbinding = hwid;
+
                         bindings.params.push_back({
                             .row = static_cast<uint8_t>(row - 1),
                             .block = static_cast<uint8_t>(block - 1),
@@ -2776,19 +2844,26 @@ void HostConnector::hostSavePreset(const Preset& presetdata, nlohmann_json& json
 
     for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
     {
+        const Bindings& bindings(presetdata.bindings[hwid]);
+
        #ifdef BINDING_ACTUATOR_IDS
         const std::string jbindingsid = kBindingActuatorIDs[hwid];
        #else
         const std::string jbindingsid = std::to_string(hwid + 1);
        #endif
-        auto& jbindings = jallbindings[jbindingsid] = nlohmann::json::array();
+        auto& jbindings = jallbindings[jbindingsid] = nlohmann::json::object({
+            { "params", nlohmann::json::array() },
+            { "value", bindings.value },
+        });
+
+        auto& jbindingparams = jbindings["params"];
 
         for (const ParameterBinding& bindingdata : presetdata.bindings[hwid].params)
         {
-            jbindings.push_back({
-                #if NUM_BLOCK_CHAIN_ROWS != 1
+            jbindingparams.push_back({
+               #if NUM_BLOCK_CHAIN_ROWS != 1
                 { "row", bindingdata.row + 1 },
-                #endif
+               #endif
                 { "block", bindingdata.block + 1 },
                 { "symbol", bindingdata.parameterSymbol },
             });
