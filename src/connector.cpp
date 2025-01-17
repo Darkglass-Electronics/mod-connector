@@ -11,7 +11,6 @@
 #include <cstring>
 #include <fstream>
 #include <map>
-#include <optional>
 
 #define KXSTUDIO__Reset_none 0
 #define KXSTUDIO__Reset_full 1
@@ -77,7 +76,7 @@ static void initBlock(HostConnector::Block& blockdata,
                       const uint8_t numOutputs,
                       const uint8_t numSideInputs,
                       const uint8_t numSideOutputs,
-                      std::optional<std::map<std::string, uint8_t>> symbolToIndexMapOpt = {})
+                      std::map<std::string, uint8_t>* const symbolToIndexMapOpt = nullptr)
 {
     assert(plugin != nullptr);
 
@@ -115,8 +114,8 @@ static void initBlock(HostConnector::Block& blockdata,
             break;
         }
 
-        if (symbolToIndexMapOpt.has_value())
-            symbolToIndexMapOpt.value()[port.symbol] = numParams;
+        if (symbolToIndexMapOpt != nullptr)
+            (*symbolToIndexMapOpt)[port.symbol] = numParams;
 
         blockdata.parameters[numParams++] = {
             .symbol = port.symbol,
@@ -2578,7 +2577,7 @@ uint8_t HostConnector::hostLoadPreset(Preset& presetdata, nlohmann_json& json)
             }
 
             std::map<std::string, uint8_t> symbolToIndexMap;
-            initBlock(blockdata, plugin, numInputs, numOutputs, numSideInputs, numSideOutputs, symbolToIndexMap);
+            initBlock(blockdata, plugin, numInputs, numOutputs, numSideInputs, numSideOutputs, &symbolToIndexMap);
 
             if (jblock.contains("enabled"))
                 blockdata.enabled = jblock["enabled"].get<bool>();
