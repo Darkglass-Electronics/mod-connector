@@ -12,6 +12,10 @@
 #include <array>
 #include <list>
 
+enum ExtraLv2Flags {
+    Lv2ParameterInScene = 1 << 8,
+};
+
 // --------------------------------------------------------------------------------------------------------------------
 
 struct HostConnector : Host::FeedbackCallback {
@@ -91,6 +95,14 @@ struct HostConnector : Host::FeedbackCallback {
         float value;
     };
 
+    struct SceneValues {
+        struct {
+            bool used;
+            bool value;
+        } enabled;
+        std::vector<SceneParameterValue> params;
+    };
+
     struct Block {
         bool enabled = false;
         std::string quickPotSymbol;
@@ -107,7 +119,7 @@ struct HostConnector : Host::FeedbackCallback {
             std::string abbreviation;
         } meta;
         std::vector<Parameter> parameters;
-        std::array<std::vector<SceneParameterValue>, NUM_SCENES_PER_PRESET + 1> sceneValues;
+        std::array<SceneValues, NUM_SCENES_PER_PRESET + 1> sceneValues;
     };
 
     struct Binding {
@@ -274,7 +286,7 @@ public:
 
     // enable or disable/bypass a block
     // returning false means the block was unchanged
-    bool enableBlock(uint8_t row, uint8_t block, bool enable);
+    bool enableBlock(uint8_t row, uint8_t block, bool enable, bool applyToAllScenes = false);
 
     // reorder a block into aconst  new position
     // returning false means the current chain was unchanged
@@ -287,9 +299,9 @@ public:
 
     // convenience calls for single-chain builds
    // #if NUM_BLOCK_CHAIN_ROWS == 1
-    inline bool enableBlock(const uint8_t block, const bool enable)
+    inline bool enableBlock(const uint8_t block, const bool enable, const bool applyToAllScenes = false)
     {
-        return enableBlock(0, block, enable);
+        return enableBlock(0, block, enable, applyToAllScenes);
     }
 
     inline bool reorderBlock(const uint8_t orig, const uint8_t dest)
@@ -360,16 +372,19 @@ public:
 
     // set a block parameter value
     // NOTE value must already be sanitized!
-    void setBlockParameter(uint8_t row, uint8_t block, uint8_t paramIndex, float value);
+    void setBlockParameter(uint8_t row, uint8_t block, uint8_t paramIndex, float value, bool applyToAllScenes = false);
 
     // enable monitoring for block output parameter
     void monitorBlockOutputParameter(uint8_t row, uint8_t block, uint8_t paramIndex);
 
     // convenience calls for single-chain builds
    #if NUM_BLOCK_CHAIN_ROWS == 1
-    inline void setBlockParameter(const uint8_t block, const uint8_t paramIndex, const float value)
+    inline void setBlockParameter(const uint8_t block,
+                                  const uint8_t paramIndex,
+                                  const float value,
+                                  const bool applyToAllScenes = false)
     {
-        setBlockParameter(0, block, paramIndex, value);
+        setBlockParameter(0, block, paramIndex, value, applyToAllScenes);
     }
 
     inline void monitorBlockOutputParameter(const uint8_t block, const uint8_t paramIndex)

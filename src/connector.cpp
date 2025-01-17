@@ -54,8 +54,12 @@ static void resetBlock(HostConnector::Block& blockdata)
         resetParam(blockdata.parameters[p]);
 
     for (uint8_t s = 0; s <= NUM_SCENES_PER_PRESET; ++s)
+    {
+        blockdata.sceneValues[s].enabled.used = false;
+
         for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
-            blockdata.sceneValues[s][p].used = false;
+            blockdata.sceneValues[s].params[p].used = false;
+    }
 }
 
 static void allocBlock(HostConnector::Block& blockdata)
@@ -63,7 +67,7 @@ static void allocBlock(HostConnector::Block& blockdata)
     blockdata.parameters.resize(MAX_PARAMS_PER_BLOCK);
 
     for (uint8_t s = 0; s <= NUM_SCENES_PER_PRESET; ++s)
-        blockdata.sceneValues[s].resize(MAX_PARAMS_PER_BLOCK);
+        blockdata.sceneValues[s].params.resize(MAX_PARAMS_PER_BLOCK);
 }
 
 static void initBlock(HostConnector::Block& blockdata,
@@ -139,8 +143,10 @@ static void initBlock(HostConnector::Block& blockdata,
 
     for (uint8_t s = 0; s <= NUM_SCENES_PER_PRESET; ++s)
     {
+        blockdata.sceneValues[s].enabled.used = false;
+
         for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
-            blockdata.sceneValues[s][p].used = false;
+            blockdata.sceneValues[s].params[p].used = false;
     }
 }
 
@@ -587,9 +593,12 @@ bool HostConnector::saveCurrentPresetToFile(const char* filename)
     {
         for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
         {
-            Block& blockdata = _current.chains[row].blocks[bl];
+            Block& blockdata = _presets[_current.preset].chains[row].blocks[bl];
             if (isNullBlock(blockdata))
                 continue;
+
+            if (blockdata.sceneValues[0].enabled.used)
+                blockdata.enabled = blockdata.sceneValues[0].enabled.value;
 
             for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
             {
@@ -599,8 +608,8 @@ bool HostConnector::saveCurrentPresetToFile(const char* filename)
                 if ((paramdata.meta.flags & Lv2PortIsOutput) != 0)
                     continue;
 
-                if (blockdata.sceneValues[0][p].used)
-                    paramdata.value = blockdata.sceneValues[0][p].value;
+                if (blockdata.sceneValues[0].params[p].used)
+                    paramdata.value = blockdata.sceneValues[0].params[p].value;
             }
         }
     }
@@ -678,9 +687,9 @@ void HostConnector::setCurrentPresetName(const char* const name)
 
 // --------------------------------------------------------------------------------------------------------------------
 
-bool HostConnector::enableBlock(const uint8_t row, const uint8_t block, const bool enable)
+bool HostConnector::enableBlock(const uint8_t row, const uint8_t block, const bool enable, const bool applyToAllScenes)
 {
-    mod_log_debug("enableBlock(%u, %u, %s)", row, block, bool2str(enable));
+    mod_log_debug("enableBlock(%u, %u, %s, %s)", row, block, bool2str(enable), bool2str(applyToAllScenes));
     assert(row < NUM_BLOCK_CHAIN_ROWS);
     assert(block < NUM_BLOCKS_PER_PRESET);
 
@@ -690,8 +699,34 @@ bool HostConnector::enableBlock(const uint8_t row, const uint8_t block, const bo
     const HostBlockPair hbp = _mapper.get(_current.preset, row, block);
     assert_return(hbp.id != kMaxHostInstances, false);
 
-    blockdata.enabled = enable;
     _current.dirty = true;
+
+    if (applyToAllScenes)
+    {
+        blockdata.meta.hasScenes = true;
+
+        for (uint8_t scene = 0; scene <= NUM_SCENES_PER_PRESET; ++scene)
+        {
+            blockdata.sceneValues[scene].enabled.used = true;
+            blockdata.sceneValues[scene].enabled.value = enable;
+        }
+    }
+    else if (_current.scene != 0 && ! blockdata.sceneValues[_current.scene].enabled.used)
+    {
+        blockdata.meta.hasScenes = true;
+        blockdata.sceneValues[_current.scene].enabled.used = true;
+
+        // if this is the first time for this enabled param, set original value for default scene
+        if (! blockdata.sceneValues[0].enabled.used)
+        {
+            blockdata.sceneValues[0].enabled.used = true;
+            blockdata.sceneValues[0].enabled.value = blockdata.enabled;
+        }
+    }
+
+    blockdata.enabled = enable;
+    blockdata.sceneValues[_current.scene].enabled.value = enable;
+
     _host.bypass(hbp.id, !enable);
 
     if (hbp.pair != kMaxHostInstances)
@@ -854,8 +889,12 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
             assert_return(hbp.id != kMaxHostInstances, false);
 
             for (uint8_t s = 0; s <= NUM_SCENES_PER_PRESET; ++s)
+            {
+                blockdata.sceneValues[s].enabled.used = false;
+
                 for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
-                    blockdata.sceneValues[s][p].used = false;
+                    blockdata.sceneValues[s].params[p].used = false;
+            }
 
             const Host::NonBlockingScopeWithAudioFades hnbs(_host);
 
@@ -1261,6 +1300,18 @@ bool HostConnector::switchScene(const uint8_t scene)
 
             params.clear();
 
+            const SceneValues& sceneValues(blockdata.sceneValues[_current.scene]);
+
+            // bypass/disable first if relevant
+            if (sceneValues.enabled.used && !sceneValues.enabled.value)
+            {
+                blockdata.enabled = false;
+                _host.bypass(hbp.id, false);
+
+                if (hbp.pair != kMaxHostInstances)
+                    _host.bypass(hbp.id, false);
+            }
+
             for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
             {
                 Parameter& paramdata(blockdata.parameters[p]);
@@ -1268,10 +1319,10 @@ bool HostConnector::switchScene(const uint8_t scene)
                     break;
                 if ((paramdata.meta.flags & Lv2PortIsOutput) != 0)
                     continue;
-                if (! blockdata.sceneValues[_current.scene][p].used)
+                if (! sceneValues.params[p].used)
                     continue;
 
-                paramdata.value = blockdata.sceneValues[_current.scene][p].value;
+                paramdata.value = sceneValues.params[p].value;
 
                 params.push_back({ paramdata.symbol.c_str(), paramdata.value });
             }
@@ -1280,6 +1331,16 @@ bool HostConnector::switchScene(const uint8_t scene)
 
             if (hbp.pair != kMaxHostInstances)
                 _host.params_flush(hbp.pair, KXSTUDIO__Reset_none, params.size(), params.data());
+
+            // unbypass/enable last if relevant
+            if (sceneValues.enabled.used && sceneValues.enabled.value)
+            {
+                blockdata.enabled = true;
+                _host.bypass(hbp.id, true);
+
+                if (hbp.pair != kMaxHostInstances)
+                    _host.bypass(hbp.id, true);
+            }
         }
     }
 
@@ -1460,9 +1521,10 @@ void HostConnector::requestHostUpdates()
 void HostConnector::setBlockParameter(const uint8_t row,
                                       const uint8_t block,
                                       const uint8_t paramIndex,
-                                      const float value)
+                                      const float value,
+                                      const bool applyToAllScenes)
 {
-    mod_log_debug("setBlockParameter(%u, %u, %u, %f)", row, block, paramIndex, value);
+    mod_log_debug("setBlockParameter(%u, %u, %u, %f, %s)", row, block, paramIndex, value, bool2str(applyToAllScenes));
     assert(row < NUM_BLOCK_CHAIN_ROWS);
     assert(block < NUM_BLOCKS_PER_PRESET);
     assert(paramIndex < MAX_PARAMS_PER_BLOCK);
@@ -1479,21 +1541,34 @@ void HostConnector::setBlockParameter(const uint8_t row,
 
     _current.dirty = true;
 
-    if (_current.scene != 0 && ! blockdata.sceneValues[_current.scene][paramIndex].used)
+    if (applyToAllScenes)
     {
         blockdata.meta.hasScenes = true;
-        blockdata.sceneValues[_current.scene][paramIndex].used = true;
+        paramdata.meta.flags |= Lv2ParameterInScene;
+
+        for (uint8_t scene = 0; scene <= NUM_SCENES_PER_PRESET; ++scene)
+        {
+            blockdata.sceneValues[scene].params[paramIndex].used = true;
+            blockdata.sceneValues[scene].params[paramIndex].value = value;
+        }
+    }
+    else if (_current.scene != 0 && ! blockdata.sceneValues[_current.scene].params[paramIndex].used)
+    {
+        blockdata.meta.hasScenes = true;
+        paramdata.meta.flags |= Lv2ParameterInScene;
+
+        blockdata.sceneValues[_current.scene].params[paramIndex].used = true;
 
         // if this is the first time for this scene parameter, set original value for default scene
-        if (! blockdata.sceneValues[0][paramIndex].used)
+        if (! blockdata.sceneValues[0].params[paramIndex].used)
         {
-            blockdata.sceneValues[0][paramIndex].used = true;
-            blockdata.sceneValues[0][paramIndex].value = paramdata.value;
+            blockdata.sceneValues[0].params[paramIndex].used = true;
+            blockdata.sceneValues[0].params[paramIndex].value = paramdata.value;
         }
     }
 
     paramdata.value = value;
-    blockdata.sceneValues[_current.scene][paramIndex].value = value;
+    blockdata.sceneValues[_current.scene].params[paramIndex].value = value;
 
     _host.param_set(hbp.id, paramdata.symbol.c_str(), value);
 
@@ -2516,6 +2591,18 @@ uint8_t HostConnector::hostLoadPreset(Preset& presetdata, nlohmann_json& json)
 
                     const std::string symbol = jscene["symbol"].get<std::string>();
 
+                    if (symbol == ":bypass")
+                    {
+                        blockdata.sceneValues[sid].enabled.used = true;
+                        blockdata.sceneValues[sid].enabled.value = jscene["value"].get<bool>();
+
+                        // extra data for when scenes are in use
+                        blockdata.meta.hasScenes = true;
+                        blockdata.sceneValues[0].enabled.used = true;
+                        blockdata.sceneValues[0].enabled.value = blockdata.enabled;
+                        continue;
+                    }
+
                     if (symbolToIndexMap.find(symbol) == symbolToIndexMap.end())
                     {
                         mod_log_info("hostLoadPreset(): scene param with '%s' symbol does not exist", symbol.c_str());
@@ -2523,14 +2610,14 @@ uint8_t HostConnector::hostLoadPreset(Preset& presetdata, nlohmann_json& json)
                     }
 
                     const uint8_t parameterIndex = symbolToIndexMap[symbol];
-                    const Parameter& paramdata = blockdata.parameters[parameterIndex];
+                    Parameter& paramdata = blockdata.parameters[parameterIndex];
 
                     if (isNullURI(paramdata.symbol))
                         continue;
                     if ((paramdata.meta.flags & Lv2PortIsOutput) != 0)
                         continue;
 
-                    SceneParameterValue& sceneparamdata = blockdata.sceneValues[sid][parameterIndex];
+                    SceneParameterValue& sceneparamdata = blockdata.sceneValues[sid].params[parameterIndex];
 
                     sceneparamdata.used = true;
                     sceneparamdata.value = std::max(paramdata.meta.min,
@@ -2539,8 +2626,9 @@ uint8_t HostConnector::hostLoadPreset(Preset& presetdata, nlohmann_json& json)
 
                     // extra data for when scenes are in use
                     blockdata.meta.hasScenes = true;
-                    blockdata.sceneValues[0][parameterIndex].used = true;
-                    blockdata.sceneValues[0][parameterIndex].value = paramdata.value;
+                    paramdata.meta.flags |= Lv2ParameterInScene;
+                    blockdata.sceneValues[0].params[parameterIndex].used = true;
+                    blockdata.sceneValues[0].params[parameterIndex].value = paramdata.value;
                 }
             }
         }
@@ -2736,9 +2824,17 @@ void HostConnector::hostSavePreset(const Preset& presetdata, nlohmann_json& json
                     const std::string jsceneid = std::to_string(sid);
                     auto& jscenes = jallscenes[jsceneid] = nlohmann::json::array();
 
+                    if (blockdata.sceneValues[sid].enabled.used)
+                    {
+                        jscenes.push_back({
+                            { "symbol", ":bypass" },
+                            { "value", blockdata.sceneValues[sid].enabled.value },
+                        });
+                    }
+
                     for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
                     {
-                        const SceneParameterValue& sceneparamdata = blockdata.sceneValues[sid][p];
+                        const SceneParameterValue& sceneparamdata = blockdata.sceneValues[sid].params[p];
 
                         if (! sceneparamdata.used)
                             continue;
