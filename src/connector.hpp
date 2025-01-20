@@ -91,17 +91,18 @@ struct HostConnector : Host::FeedbackCallback {
         } meta;
     };
 
-    struct SceneParameterValue {
-        bool used;
-        float value;
+    enum SceneMode {
+        // only update value, do not activate any scenes
+        SceneModeNone,
+        // enable scenes if not active yet
+        SceneModeActivate,
+        // sync all parameter values in a scene, same as clearing it
+        SceneModeClear,
     };
 
     struct SceneValues {
-        struct {
-            bool used;
-            bool value;
-        } enabled;
-        std::vector<SceneParameterValue> params;
+        bool enabled;
+        std::vector<float> params;
     };
 
     struct Block {
@@ -110,9 +111,12 @@ struct HostConnector : Host::FeedbackCallback {
         std::string uri;
         struct {
             // convenience meta-data, not stored in json state
-            uint8_t enableHwBinding;
+            struct {
+                bool hasScenes;
+                uint8_t hwbinding;
+            } enable;
             uint8_t quickPotIndex;
-            bool hasScenes;
+            uint8_t numParamsInScenes;
             uint8_t numInputs;
             uint8_t numOutputs;
             uint8_t numSideInputs;
@@ -121,7 +125,7 @@ struct HostConnector : Host::FeedbackCallback {
             std::string abbreviation;
         } meta;
         std::vector<Parameter> parameters;
-        std::array<SceneValues, NUM_SCENES_PER_PRESET + 1> sceneValues;
+        std::array<SceneValues, NUM_SCENES_PER_PRESET> sceneValues;
     };
 
     struct ParameterBinding {
@@ -146,6 +150,7 @@ struct HostConnector : Host::FeedbackCallback {
     };
 
     struct Preset {
+        uint8_t scene;
         std::string name;
         std::string filename;
         std::array<Bindings, NUM_BINDING_ACTUATORS> bindings;
@@ -157,7 +162,6 @@ struct HostConnector : Host::FeedbackCallback {
 
     struct Current : Preset {
         uint8_t preset = 0;
-        uint8_t scene = 0;
         uint8_t numLoadedPlugins = 0;
         bool dirty = false;
 
@@ -293,7 +297,7 @@ public:
 
     // enable or disable/bypass a block
     // returning false means the block was unchanged
-    bool enableBlock(uint8_t row, uint8_t block, bool enable, bool applyToAllScenes = false);
+    bool enableBlock(uint8_t row, uint8_t block, bool enable, SceneMode sceneMode);
 
     // reorder a block into aconst  new position
     // returning false means the current chain was unchanged
@@ -306,9 +310,9 @@ public:
 
     // convenience calls for single-chain builds
    // #if NUM_BLOCK_CHAIN_ROWS == 1
-    inline bool enableBlock(const uint8_t block, const bool enable, const bool applyToAllScenes = false)
+    inline bool enableBlock(const uint8_t block, const bool enable, const SceneMode sceneMode)
     {
-        return enableBlock(0, block, enable, applyToAllScenes);
+        return enableBlock(0, block, enable, sceneMode);
     }
 
     inline bool reorderBlock(const uint8_t orig, const uint8_t dest)
@@ -379,7 +383,7 @@ public:
 
     // set a block parameter value
     // NOTE value must already be sanitized!
-    void setBlockParameter(uint8_t row, uint8_t block, uint8_t paramIndex, float value, bool applyToAllScenes = false);
+    void setBlockParameter(uint8_t row, uint8_t block, uint8_t paramIndex, float value, SceneMode sceneMode);
 
     // enable monitoring for block output parameter
     void monitorBlockOutputParameter(uint8_t row, uint8_t block, uint8_t paramIndex);
@@ -389,9 +393,9 @@ public:
     inline void setBlockParameter(const uint8_t block,
                                   const uint8_t paramIndex,
                                   const float value,
-                                  const bool applyToAllScenes = false)
+                                  const SceneMode sceneMode)
     {
-        setBlockParameter(0, block, paramIndex, value, applyToAllScenes);
+        setBlockParameter(0, block, paramIndex, value, sceneMode);
     }
 
     inline void monitorBlockOutputParameter(const uint8_t block, const uint8_t paramIndex)
@@ -492,6 +496,7 @@ using HostBindings = HostConnector::Bindings;
 using HostBlock = HostConnector::Block;
 using HostParameter = HostConnector::Parameter;
 using HostParameterBinding = HostConnector::ParameterBinding;
+using HostSceneMode = HostConnector::SceneMode;
 using HostCallbackData = HostConnector::Callback::Data;
 
 // --------------------------------------------------------------------------------------------------------------------

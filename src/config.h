@@ -17,7 +17,7 @@
 #endif
 
 #ifndef NUM_SCENES_PER_PRESET
-#define NUM_SCENES_PER_PRESET 2
+#define NUM_SCENES_PER_PRESET 3
 #endif
 
 #ifndef NUM_BLOCKS_PER_PRESET
