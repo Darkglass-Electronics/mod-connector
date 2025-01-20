@@ -503,7 +503,6 @@ void HostConnector::loadBankFromPresetFiles(const std::array<std::string, NUM_PR
     // always start with the first preset and scene
     static_cast<Preset&>(_current) = _presets[0];
     _current.preset = 0;
-    _current.scene = 0;
     _current.numLoadedPlugins = numLoadedPluginsInFirstPreset;
     _current.dirty = false;
 
@@ -2963,8 +2962,6 @@ void HostConnector::hostSwitchPreset(const Current& old)
     std::vector<flushed_param> params;
     params.reserve(MAX_PARAMS_PER_BLOCK);
 
-    // always start with the first scene
-    _current.scene = 0;
     _current.dirty = false;
     _current.numLoadedPlugins = 0;
 
