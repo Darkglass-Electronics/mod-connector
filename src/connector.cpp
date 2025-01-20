@@ -1262,7 +1262,16 @@ bool HostConnector::swapBlockRow(const uint8_t row,
         // step 3: swap data
         std::swap(_current.chains[row].blocks[block], _current.chains[emptyRow].blocks[emptyBlock]);
 
-        // TODO swap bindings
+        for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
+        {
+            for (ParameterBinding& bindingdata : _current.bindings[hwid].params)
+            {
+                if (bindingdata.row == row)
+                    bindingdata.row = emptyRow;
+                else if (bindingdata.row == emptyRow)
+                    bindingdata.row = row;
+            }
+        }
 
         _mapper.swap(_current.preset, row, block, emptyRow, emptyBlock);
 
@@ -1529,7 +1538,39 @@ bool HostConnector::reorderBlockBinding(const uint8_t hwid, const uint8_t dest)
         return false;
     }
 
-    // TODO change paramdata.meta.hwbinding and blockdata.meta.enableHwBinding
+    const auto swapBindingHwId = [=](const uint8_t hwidA, const uint8_t hwidB)
+    {
+        std::swap(_current.bindings[hwidA], _current.bindings[hwidB]);
+
+        for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
+        {
+            ChainRow& chaindata(_current.chains[row]);
+
+            for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
+            {
+                Block& blockdata(chaindata.blocks[bl]);
+                if (isNullBlock(blockdata))
+                    continue;
+
+                if (blockdata.meta.enable.hwbinding == hwidA)
+                    blockdata.meta.enable.hwbinding = hwidB;
+                else if (blockdata.meta.enable.hwbinding == hwidB)
+                    blockdata.meta.enable.hwbinding = hwidA;
+
+                for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                {
+                    Parameter& paramdata(blockdata.parameters[p]);
+                    if (isNullURI(paramdata.symbol))
+                        break;
+
+                    if (paramdata.meta.hwbinding == hwidA)
+                        paramdata.meta.hwbinding = hwidB;
+                    else if (paramdata.meta.hwbinding == hwidB)
+                        paramdata.meta.hwbinding = hwidA;
+                }
+            }
+        }
+    };
 
     // moving hwid backwards to the left
     // a b c d e! f
@@ -1539,7 +1580,7 @@ bool HostConnector::reorderBlockBinding(const uint8_t hwid, const uint8_t dest)
     if (hwid > dest)
     {
         for (int i = hwid; i > dest; --i)
-            std::swap(_current.bindings[i], _current.bindings[i - 1]);
+            swapBindingHwId(i, i - 1);
     }
 
     // moving hwid forward to the right
@@ -1550,7 +1591,7 @@ bool HostConnector::reorderBlockBinding(const uint8_t hwid, const uint8_t dest)
     else
     {
         for (int i = hwid; i < dest; ++i)
-            std::swap(_current.bindings[i], _current.bindings[i + 1]);
+            swapBindingHwId(i, i + 1);
     }
 
     _current.dirty = true;
@@ -2433,6 +2474,8 @@ void HostConnector::hostRemoveAllBlockBindings(const uint8_t row, const uint8_t 
 
     Block& blockdata(_current.chains[row].blocks[block]);
     assert(!isNullBlock(blockdata));
+
+    blockdata.meta.enable.hwbinding = UINT8_MAX;
 
     for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
     {
