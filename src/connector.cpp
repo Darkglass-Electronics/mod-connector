@@ -206,7 +206,7 @@ static bool safeJsonSave(const nlohmann::json& json, const std::string& filename
         std::fflush(fd);
        #ifndef _WIN32
         fsync(fileno(fd));
-        syncfs(fileno(fd));
+        // syncfs(fileno(fd));
        #endif
         std::fclose(fd);
         std::rename((filename + ".tmp").c_str(), filename.c_str());
