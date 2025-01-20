@@ -12,6 +12,10 @@
 #include <fstream>
 #include <map>
 
+#ifndef _WIN32
+#include <unistd.h>
+#endif
+
 #define KXSTUDIO__Reset_none 0
 #define KXSTUDIO__Reset_full 1
 #define KXSTUDIO__Reset_soft 2
@@ -185,6 +189,28 @@ static bool shouldBlockBeStereo(const HostConnector::ChainRow& chaindata, const 
             continue;
         if (chaindata.blocks[bl].meta.numOutputs == 2)
             return true;
+    }
+
+    return false;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+static bool safeJsonSave(const nlohmann::json& json, const std::string& filename)
+{
+    if (FILE* const fd = std::fopen((filename + ".tmp").c_str(), "w"))
+    {
+        const std::string jsonstr = json.dump(2, ' ', false, nlohmann::detail::error_handler_t::replace);
+
+        std::fwrite(jsonstr.c_str(), 1, jsonstr.length(), fd);
+        std::fflush(fd);
+       #ifndef _WIN32
+        fsync(fileno(fd));
+        syncfs(fileno(fd));
+       #endif
+        std::fclose(fd);
+        std::rename((filename + ".tmp").c_str(), filename.c_str());
+        return true;
     }
 
     return false;
@@ -535,9 +561,12 @@ bool HostConnector::saveBankToPresetFiles(const std::array<std::string, NUM_PRES
             hostSavePreset(_presets[pr], j["preset"]);
         } while (false);
 
-        std::ofstream o(filenames[pr]);
-        o << std::setw(2) << j << std::endl;
+        safeJsonSave(j, filenames[pr]);
     }
+
+   #ifndef _WIN32
+    sync();
+   #endif
 
     return true;
 }
@@ -615,10 +644,10 @@ bool HostConnector::saveCurrentPresetToFile(const char* filename)
 
     hostSavePreset(_current, j["preset"]);
 
-    {
-        std::ofstream o(filename);
-        o << std::setw(2) << j << std::endl;
-    }
+    safeJsonSave(j, filename);
+   #ifndef _WIN32
+    sync();
+   #endif
 
     _current.dirty = false;
     _current.filename = filename;
