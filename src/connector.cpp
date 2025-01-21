@@ -1175,8 +1175,34 @@ bool HostConnector::saveBlockStateAsDefault(const uint8_t row, const uint8_t blo
     const HostBlockPair hbp = _mapper.get(_current.preset, row, block);
     assert(hbp.id != kMaxHostInstances);
 
-    const Block& blockdata(_current.chains[row].blocks[block]);
+    Block& blockdata(_current.chains[row].blocks[block]);
     assert(!isNullBlock(blockdata));
+
+    // save live default values
+    for (uint8_t rowB = 0; rowB < NUM_BLOCK_CHAIN_ROWS; ++rowB)
+    {
+        for (uint8_t blB = 0; blB < NUM_BLOCKS_PER_PRESET; ++blB)
+        {
+            Block& blockdataB(_current.chains[rowB].blocks[blB]);
+            if (isNullBlock(blockdataB))
+                continue;
+            if (blockdataB.uri != blockdata.uri)
+                continue;
+
+            for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+            {
+                Parameter& paramdata(blockdata.parameters[p]);
+                if (isNullURI(paramdata.symbol))
+                    break;
+                if ((paramdata.meta.flags & Lv2PortIsOutput) != 0)
+                    continue;
+
+                blockdataB.parameters[p].meta.def = paramdata.value;
+            }
+        }
+    }
+
+    // save default preset for next load
     assert_return(!blockdata.meta.abbreviation.empty(), false);
 
     const std::string defdir = getDefaultPluginBundleForBlock(blockdata);
