@@ -1683,6 +1683,26 @@ void HostConnector::setBlockParameter(const uint8_t row,
 
 // --------------------------------------------------------------------------------------------------------------------
 
+void HostConnector::setBlockQuickPot(const uint8_t row, const uint8_t block, const uint8_t paramIndex)
+{
+    mod_log_debug("setBlockQuickPot(%u, %u, %u)", row, block, paramIndex);
+    assert(row < NUM_BLOCK_CHAIN_ROWS);
+    assert(block < NUM_BLOCKS_PER_PRESET);
+    assert(paramIndex < MAX_PARAMS_PER_BLOCK);
+
+    Block& blockdata(_current.chains[row].blocks[block]);
+    assert_return(!isNullBlock(blockdata),);
+
+    const Parameter& paramdata(blockdata.parameters[paramIndex]);
+    assert_return(!isNullURI(paramdata.symbol),);
+    assert_return((paramdata.meta.flags & Lv2PortIsOutput) != 0,);
+
+    blockdata.quickPotSymbol = paramdata.symbol;
+    blockdata.meta.quickPotIndex = paramIndex;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 void HostConnector::monitorBlockOutputParameter(const uint8_t row, const uint8_t block, const uint8_t paramIndex)
 {
     mod_log_debug("monitorBlockOutputParameter(%u, %u, %u)", row, block, paramIndex);
