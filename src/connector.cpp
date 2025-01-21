@@ -10,7 +10,6 @@
 #include <cstddef>
 #include <cstring>
 #include <fstream>
-#include <map>
 
 #ifdef _WIN32
 #include <shlobj.h>
@@ -33,6 +32,37 @@ static constexpr const char* kBindingActuatorIDs[NUM_BINDING_ACTUATORS] = { BIND
 
 using ParameterBindingIterator = std::list<HostParameterBinding>::iterator;
 using ParameterBindingIteratorConst = std::list<HostParameterBinding>::const_iterator;
+
+// --------------------------------------------------------------------------------------------------------------------
+
+#ifndef _WIN32
+static const char* getHomeDir()
+{
+    static std::string home;
+    if (home.empty())
+    {
+        /**/ if (const char* const envhome = getenv("HOME"))
+            home = envhome;
+        else if (struct passwd* const pwd = getpwuid(getuid()))
+            home = pwd->pw_dir;
+    }
+    return home.c_str();
+}
+#endif
+
+static std::string getDefaultPluginBundleForBlock(const HostBlock& blockdata)
+{
+   #if defined(_WIN32)
+    WCHAR wpath[MAX_PATH] = {};
+    if (SHGetFolderPathW(nullptr, CSIDL_APPDATA, nullptr, SHGFP_TYPE_CURRENT, wpath) == S_OK)
+        return format("%ls\\LV2\\default-%s.lv2", wpath, blockdata.meta.abbreviation.c_str());
+    return {};
+   #elif defined(__APPLE__)
+    return format("%s/Library/Audio/Plug-Ins/LV2/default-%s.lv2", getHomeDir(), blockdata.meta.abbreviation.c_str());
+   #else
+    return format("%s/.lv2/default-%s.lv2", getHomeDir(), blockdata.meta.abbreviation.c_str());
+   #endif
+}
 
 // --------------------------------------------------------------------------------------------------------------------
 
@@ -69,81 +99,6 @@ static void allocBlock(HostConnector::Block& blockdata)
 
     for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
         blockdata.sceneValues[s].params.resize(MAX_PARAMS_PER_BLOCK);
-}
-
-static void initBlock(HostConnector::Block& blockdata,
-                      const Lv2Plugin* const plugin,
-                      const uint8_t numInputs,
-                      const uint8_t numOutputs,
-                      const uint8_t numSideInputs,
-                      const uint8_t numSideOutputs,
-                      std::map<std::string, uint8_t>* const symbolToIndexMapOpt = nullptr)
-{
-    assert(plugin != nullptr);
-
-    blockdata.enabled = true;
-    blockdata.uri = plugin->uri;
-    blockdata.quickPotSymbol.clear();
-
-    blockdata.meta.enable.hasScenes = false;
-    blockdata.meta.enable.hwbinding = UINT8_MAX;
-    blockdata.meta.quickPotIndex = 0;
-    blockdata.meta.numParamsInScenes = 0;
-    blockdata.meta.numInputs = numInputs;
-    blockdata.meta.numOutputs = numOutputs;
-    blockdata.meta.numSideInputs = numSideInputs;
-    blockdata.meta.numSideOutputs = numSideOutputs;
-    blockdata.meta.name = plugin->name;
-    blockdata.meta.abbreviation = plugin->abbreviation;
-
-    uint8_t numParams = 0;
-    for (const Lv2Port& port : plugin->ports)
-    {
-        if ((port.flags & (Lv2PortIsControl|Lv2ParameterHidden)) != Lv2PortIsControl)
-            continue;
-
-        switch (port.designation)
-        {
-        case kLv2DesignationNone:
-            break;
-        case kLv2DesignationEnabled:
-        case kLv2DesignationReset:
-            // skip parameter
-            continue;
-        case kLv2DesignationQuickPot:
-            blockdata.quickPotSymbol = port.symbol;
-            blockdata.meta.quickPotIndex = numParams;
-            break;
-        }
-
-        if (symbolToIndexMapOpt != nullptr)
-            (*symbolToIndexMapOpt)[port.symbol] = numParams;
-
-        blockdata.parameters[numParams++] = {
-            .symbol = port.symbol,
-            .value = port.def,
-            .meta = {
-                .flags = port.flags,
-                .hwbinding = UINT8_MAX,
-                .def = port.def,
-                .min = port.min,
-                .max = port.max,
-                .name = port.name,
-                .shortname = port.shortname,
-                .unit = port.unit,
-                .scalePoints = port.scalePoints,
-            },
-        };
-
-        if (numParams == MAX_PARAMS_PER_BLOCK)
-            break;
-    }
-
-    if (blockdata.quickPotSymbol.empty() && numParams != 0)
-        blockdata.quickPotSymbol = blockdata.parameters[0].symbol;
-
-    for (uint8_t p = numParams; p < MAX_PARAMS_PER_BLOCK; ++p)
-        resetParam(blockdata.parameters[p]);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -198,35 +153,6 @@ static bool shouldBlockBeStereo(const HostConnector::ChainRow& chaindata, const 
 }
 
 // --------------------------------------------------------------------------------------------------------------------
-
-#ifndef _WIN32
-static const char* getHomeDir()
-{
-    static std::string home;
-    if (home.empty())
-    {
-        /**/ if (const char* const envhome = getenv("HOME"))
-            home = envhome;
-        else if (struct passwd* const pwd = getpwuid(getuid()))
-            home = pwd->pw_dir;
-    }
-    return home.c_str();
-}
-#endif
-
-static std::string getDefaultPluginBundleForBlock(const HostBlock& blockdata)
-{
-   #if defined(_WIN32)
-    WCHAR wpath[MAX_PATH] = {};
-    if (SHGetFolderPathW(nullptr, CSIDL_APPDATA, nullptr, SHGFP_TYPE_CURRENT, wpath) == S_OK)
-        return format("%ls\\LV2\\default-%s.lv2", wpath, blockdata.meta.abbreviation.c_str());
-    return {};
-   #elif defined(__APPLE__)
-    return format("%s/Library/Audio/Plug-Ins/LV2/default-%s.lv2", getHomeDir(), blockdata.meta.abbreviation.c_str());
-   #else
-    return format("%s/.lv2/default-%s.lv2", getHomeDir(), blockdata.meta.abbreviation.c_str());
-   #endif
-}
 
 static bool safeJsonSave(const nlohmann::json& json, const std::string& filename)
 {
@@ -1253,15 +1179,15 @@ bool HostConnector::saveBlockStateAsDefault(const uint8_t row, const uint8_t blo
     assert(!isNullBlock(blockdata));
     assert_return(!blockdata.meta.abbreviation.empty(), false);
 
-    const std::string dir = getDefaultPluginBundleForBlock(blockdata);
+    const std::string defdir = getDefaultPluginBundleForBlock(blockdata);
 
-    if (! _host.preset_save(hbp.id, "Default", dir.c_str(), "default.ttl"))
+    if (! _host.preset_save(hbp.id, "Default", defdir.c_str(), "default.ttl"))
         return false;
 
     // save any extra details in separate file
     nlohmann::json j;
     j["quickpot"] = blockdata.quickPotSymbol;
-    safeJsonSave(j, dir + "/defaults.json");
+    safeJsonSave(j, defdir + "/defaults.json");
 
     return true;
 }
@@ -2711,7 +2637,7 @@ uint8_t HostConnector::hostLoadPreset(Preset& presetdata, nlohmann_json& json)
                 continue;
             }
 
-            std::map<std::string, uint8_t> symbolToIndexMap;
+            std::unordered_map<std::string, uint8_t> symbolToIndexMap;
             initBlock(blockdata, plugin, numInputs, numOutputs, numSideInputs, numSideOutputs, &symbolToIndexMap);
 
             if (jblock.contains("enabled"))
@@ -3417,6 +3343,143 @@ void HostConnector::hostReady()
 
     if constexprstr (std::strcmp(JACK_PLAYBACK_MONITOR_PORT_1, JACK_PLAYBACK_MONITOR_PORT_2) != 0)
         _host.monitor_audio_levels(JACK_PLAYBACK_MONITOR_PORT_2, true);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::initBlock(HostConnector::Block& blockdata,
+                              const Lv2Plugin* const plugin,
+                              const uint8_t numInputs,
+                              const uint8_t numOutputs,
+                              const uint8_t numSideInputs,
+                              const uint8_t numSideOutputs,
+                              std::unordered_map<std::string, uint8_t>* symbolToIndexMapOpt)
+{
+    assert(plugin != nullptr);
+
+    blockdata.enabled = true;
+    blockdata.uri = plugin->uri;
+    blockdata.quickPotSymbol.clear();
+
+    blockdata.meta.enable.hasScenes = false;
+    blockdata.meta.enable.hwbinding = UINT8_MAX;
+    blockdata.meta.quickPotIndex = 0;
+    blockdata.meta.numParamsInScenes = 0;
+    blockdata.meta.numInputs = numInputs;
+    blockdata.meta.numOutputs = numOutputs;
+    blockdata.meta.numSideInputs = numSideInputs;
+    blockdata.meta.numSideOutputs = numSideOutputs;
+    blockdata.meta.name = plugin->name;
+    blockdata.meta.abbreviation = plugin->abbreviation;
+
+    std::unordered_map<std::string, uint8_t> symbolToIndexMapLocal;
+    std::unordered_map<std::string, uint8_t>& symbolToIndexMap = symbolToIndexMapOpt != nullptr
+                                                               ? *symbolToIndexMapOpt
+                                                               : symbolToIndexMapLocal;
+
+    uint8_t numParams = 0;
+    for (const Lv2Port& port : plugin->ports)
+    {
+        if ((port.flags & (Lv2PortIsControl|Lv2ParameterHidden)) != Lv2PortIsControl)
+            continue;
+
+        switch (port.designation)
+        {
+        case kLv2DesignationNone:
+            break;
+        case kLv2DesignationEnabled:
+        case kLv2DesignationReset:
+            // skip parameter
+            continue;
+        case kLv2DesignationQuickPot:
+            blockdata.quickPotSymbol = port.symbol;
+            blockdata.meta.quickPotIndex = numParams;
+            break;
+        }
+
+        symbolToIndexMap[port.symbol] = numParams;
+
+        blockdata.parameters[numParams++] = {
+            .symbol = port.symbol,
+            .value = port.def,
+            .meta = {
+                .flags = port.flags,
+                .hwbinding = UINT8_MAX,
+                .def = port.def,
+                .min = port.min,
+                .max = port.max,
+                .name = port.name,
+                .shortname = port.shortname,
+                .unit = port.unit,
+                .scalePoints = port.scalePoints,
+            },
+        };
+
+        if (numParams == MAX_PARAMS_PER_BLOCK)
+            break;
+    }
+
+    if (blockdata.quickPotSymbol.empty() && numParams != 0)
+        blockdata.quickPotSymbol = blockdata.parameters[0].symbol;
+
+    for (uint8_t p = numParams; p < MAX_PARAMS_PER_BLOCK; ++p)
+        resetParam(blockdata.parameters[p]);
+
+    // override defaults from user
+    const std::string defdir = getDefaultPluginBundleForBlock(blockdata);
+
+    if (! std::filesystem::exists(defdir))
+        return;
+
+    const std::unordered_map<std::string, float> statemap
+        = lv2world.load_plugin_state((defdir + "/default.ttl").c_str());
+
+    for (const auto& state : statemap)
+    {
+        const std::string symbol = state.first;
+        const float value = state.second;
+
+        if (symbolToIndexMap.find(symbol) == symbolToIndexMap.end())
+        {
+            mod_log_warn("initBlock(): state param with '%s' symbol does not exist in plugin", symbol.c_str());
+            continue;
+        }
+
+        const uint8_t parameterIndex = symbolToIndexMap[symbol];
+        Parameter& paramdata = blockdata.parameters[parameterIndex];
+
+        if (isNullURI(paramdata.symbol))
+            continue;
+        if ((paramdata.meta.flags & Lv2PortIsOutput) != 0)
+            continue;
+
+        paramdata.meta.def = paramdata.value = value;
+    }
+
+    std::ifstream f(defdir + "/defaults.json");
+    nlohmann::json j;
+    std::string jquickpot;
+
+    try {
+        j = nlohmann::json::parse(f);
+        jquickpot = j["quickpot"].get<std::string>();
+    } catch (const std::exception& e) {
+        mod_log_warn("failed to parse block defaults: %s", e.what());
+        return;
+    } catch (...) {
+        mod_log_warn("failed to parse block defaults: unknown exception");
+        return;
+    }
+
+    for (uint8_t p = 0; p < numParams; ++p)
+    {
+        if (blockdata.parameters[p].symbol == jquickpot)
+        {
+            blockdata.quickPotSymbol = jquickpot;
+            blockdata.meta.quickPotIndex = p;
+            break;
+        }
+    }
 }
 
 // --------------------------------------------------------------------------------------------------------------------

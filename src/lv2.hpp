@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -133,6 +134,10 @@ struct Lv2World {
     * can return null in case of error or the plugin requires unsupported features
     */
     [[nodiscard]] const Lv2Plugin* get_plugin_by_uri(const char* uri) const;
+
+   /* load a plugin state from disk and return a symbol -> value map
+    */
+    [[nodiscard]] std::unordered_map<std::string, float> load_plugin_state(const char* path) const;
 
     Lv2World();
     ~Lv2World();

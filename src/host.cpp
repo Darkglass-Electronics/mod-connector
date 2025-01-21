@@ -444,7 +444,11 @@ struct Host::Impl
                 if (resp != nullptr)
                 {
                     resp->code = SUCCESS;
-                    resp->data.s = buffer;
+
+                    if (stackbuffer != buffer)
+                        resp->data.s = buffer;
+                    else
+                        resp->data.s = strdup(buffer);
                 }
                 else
                 {

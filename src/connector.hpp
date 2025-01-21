@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <array>
 #include <list>
+#include <unordered_map>
 
 enum ExtraLv2Flags {
     Lv2ParameterInScene = 1 << 8,
@@ -491,6 +492,14 @@ private:
 
     // internal feedback handling, for updating parameter values
     void hostFeedbackCallback(const HostFeedbackData& data) override;
+
+    void initBlock(Block& blockdata,
+                   const Lv2Plugin* plugin,
+                   uint8_t numInputs,
+                   uint8_t numOutputs,
+                   uint8_t numSideInputs,
+                   uint8_t numSideOutputs,
+                   std::unordered_map<std::string, uint8_t>* const symbolToIndexMapOpt = nullptr);
 
     static void allocPreset(Preset& preset);
     static void resetPreset(Preset& preset);

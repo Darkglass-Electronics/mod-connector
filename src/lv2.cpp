@@ -4,12 +4,10 @@
 #define MOD_LOG_GROUP "lv2"
 
 #include "lv2.hpp"
+#include "utils.hpp"
 
-#include <cassert>
 #include <cstring>
-#include <cstdint>
 #include <map>
-#include <unordered_map>
 
 #include <lilv/lilv.h>
 
@@ -655,6 +653,19 @@ struct Lv2World::Impl
         return pluginscache[uri];
     }
 
+    std::unordered_map<std::string, float> loadPluginState(const char* const path)
+    {
+        LV2_URID_Map uridMap = { this, _mapfn };
+        LilvState* const state = lilv_state_new_from_file(world, &uridMap, nullptr, path);
+        assert_return(state != nullptr, {});
+
+        std::unordered_map<std::string, float> values;
+        lilv_state_emit_port_values(state, _portfn, &values);
+        lilv_state_free(state);
+
+        return values;
+    }
+
 private:
     std::string& last_error;
 
@@ -664,12 +675,102 @@ private:
     Lv2NamespaceDefinitions ns;
     std::vector<std::string> pluginuris;
     std::unordered_map<std::string, const Lv2Plugin*> pluginscache;
+
+    static LV2_URID _mapfn(LV2_URID_Map_Handle handle, const char* uri);
+    static void _portfn(const char* symbol, void* userData, const void* value, uint32_t size, uint32_t type);
 };
 
 // --------------------------------------------------------------------------------------------------------------------
 
 Lv2World::Lv2World() : impl(new Impl(last_error)) {}
 Lv2World::~Lv2World() { delete impl; }
+
+// --------------------------------------------------------------------------------------------------------------------
+
+enum {
+    k_urid_null,
+    k_urid_atom_bool,
+    k_urid_atom_int,
+    k_urid_atom_long,
+    k_urid_atom_float,
+    k_urid_atom_double,
+};
+
+LV2_URID Lv2World::Impl::_mapfn(LV2_URID_Map_Handle, const char* const uri)
+{
+    assert_return(uri != nullptr && uri[0] != '\0', k_urid_null);
+
+    static std::vector<std::string> mapping = {
+        LV2_ATOM__Bool,
+        LV2_ATOM__Int,
+        LV2_ATOM__Long,
+        LV2_ATOM__Float,
+        LV2_ATOM__Double,
+    };
+
+    LV2_URID urid = 1;
+    for (const std::string& uri2 : mapping)
+    {
+        if (uri2 == uri)
+            return urid;
+        ++urid;
+    }
+
+    mapping.push_back(uri);
+    return urid;
+}
+
+void Lv2World::Impl::_portfn(const char* const symbol,
+                             void* const userData,
+                             const void* const value,
+                             const uint32_t size,
+                             const uint32_t type)
+{
+    std::unordered_map<std::string, float>& values = *static_cast<std::unordered_map<std::string, float>*>(userData);
+
+    switch (type)
+    {
+    case k_urid_atom_bool:
+    case k_urid_atom_int:
+        if (size == sizeof(int32_t))
+        {
+            const int32_t svalue = *(const int32_t*)value;
+            values[symbol] = static_cast<float>(svalue);
+            return;
+        }
+        break;
+
+    case k_urid_atom_long:
+        if (size == sizeof(int64_t))
+        {
+            const int64_t svalue = *(const int64_t*)value;
+            values[symbol] = static_cast<float>(svalue);
+            return;
+        }
+        break;
+
+    case k_urid_atom_float:
+        if (size == sizeof(float))
+        {
+            const float svalue = *(const float*)value;
+            values[symbol] = svalue;
+            return;
+        }
+        break;
+
+    case k_urid_atom_double:
+        if (size == sizeof(double))
+        {
+            const double svalue = *(const double*)value;
+            values[symbol] = static_cast<float>(svalue);
+            return;
+        }
+        break;
+    }
+
+    mod_log_warn("Lv2World::_portfn(%s, %p, %p, %u, %u): called with unknown type\n",
+                 symbol, userData, value, size, size);
+}
 
 // --------------------------------------------------------------------------------------------------------------------
 
@@ -686,6 +787,11 @@ const Lv2Plugin* Lv2World::get_plugin_by_index(const uint32_t index) const
 const Lv2Plugin* Lv2World::get_plugin_by_uri(const char* const uri) const
 {
     return impl->getPluginByURI(uri);
+}
+
+std::unordered_map<std::string, float> Lv2World::load_plugin_state(const char* const path) const
+{
+    return impl->loadPluginState(path);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
