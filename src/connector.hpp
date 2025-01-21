@@ -308,6 +308,10 @@ public:
     // returning false means the block was unchanged
     bool replaceBlock(uint8_t row, uint8_t block, const char* uri);
 
+    // save a current block state as the default state for next time the same block is loaded
+    // this is done by saving an lv2 preset of the plugin inside the block
+    bool saveBlockStateAsDefault(uint8_t row, uint8_t block);
+
     // convenience calls for single-chain builds
    // #if NUM_BLOCK_CHAIN_ROWS == 1
     inline bool enableBlock(const uint8_t block, const bool enable, const SceneMode sceneMode)

@@ -12,7 +12,10 @@
 #include <fstream>
 #include <map>
 
-#ifndef _WIN32
+#ifdef _WIN32
+#include <shlobj.h>
+#else
+#include <pwd.h>
 #include <unistd.h>
 #endif
 
@@ -195,6 +198,35 @@ static bool shouldBlockBeStereo(const HostConnector::ChainRow& chaindata, const 
 }
 
 // --------------------------------------------------------------------------------------------------------------------
+
+#ifndef _WIN32
+static const char* getHomeDir()
+{
+    static std::string home;
+    if (home.empty())
+    {
+        /**/ if (const char* const envhome = getenv("HOME"))
+            home = envhome;
+        else if (struct passwd* const pwd = getpwuid(getuid()))
+            home = pwd->pw_dir;
+    }
+    return home.c_str();
+}
+#endif
+
+static std::string getDefaultPluginBundleForBlock(const HostBlock& blockdata)
+{
+   #if defined(_WIN32)
+    WCHAR wpath[MAX_PATH] = {};
+    if (SHGetFolderPathW(nullptr, CSIDL_APPDATA, nullptr, SHGFP_TYPE_CURRENT, wpath) == S_OK)
+        return format("%ls\\LV2\\default-%s.lv2", wpath, blockdata.meta.abbreviation.c_str());
+    return {};
+   #elif defined(__APPLE__)
+    return format("%s/Library/Audio/Plug-Ins/LV2/default-%s.lv2", getHomeDir(), blockdata.meta.abbreviation.c_str());
+   #else
+    return format("%s/.lv2/default-%s.lv2", getHomeDir(), blockdata.meta.abbreviation.c_str());
+   #endif
+}
 
 static bool safeJsonSave(const nlohmann::json& json, const std::string& filename)
 {
@@ -1203,6 +1235,34 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
     }
 
     _current.dirty = true;
+    return true;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+bool HostConnector::saveBlockStateAsDefault(const uint8_t row, const uint8_t block)
+{
+    mod_log_debug("saveBlockStateAsDefault(%u, %u)", row, block);
+    assert(row < NUM_BLOCK_CHAIN_ROWS);
+    assert(block < NUM_BLOCKS_PER_PRESET);
+
+    const HostBlockPair hbp = _mapper.get(_current.preset, row, block);
+    assert(hbp.id != kMaxHostInstances);
+
+    const Block& blockdata(_current.chains[row].blocks[block]);
+    assert(!isNullBlock(blockdata));
+    assert_return(!blockdata.meta.abbreviation.empty(), false);
+
+    const std::string dir = getDefaultPluginBundleForBlock(blockdata);
+
+    if (! _host.preset_save(hbp.id, "Default", dir.c_str(), "default.ttl"))
+        return false;
+
+    // save any extra details in separate file
+    nlohmann::json j;
+    j["quickpot"] = blockdata.quickPotSymbol;
+    safeJsonSave(j, dir + "/defaults.json");
+
     return true;
 }
 
