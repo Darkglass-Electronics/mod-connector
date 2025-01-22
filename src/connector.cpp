@@ -2824,7 +2824,7 @@ uint8_t HostConnector::hostLoadPreset(Preset& presetdata, nlohmann_json& json)
                         ++blockdata.meta.numParamsInScenes;
                     }
 
-                    blockdata.sceneValues[0].params[parameterIndex] =
+                    blockdata.sceneValues[sid].params[parameterIndex] =
                         std::max(paramdata.meta.min,
                                  std::min<float>(paramdata.meta.max,
                                                  jscene["value"].get<double>()));
