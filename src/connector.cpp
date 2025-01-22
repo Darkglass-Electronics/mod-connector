@@ -1721,7 +1721,7 @@ void HostConnector::setBlockQuickPot(const uint8_t row, const uint8_t block, con
 
     const Parameter& paramdata(blockdata.parameters[paramIndex]);
     assert_return(!isNullURI(paramdata.symbol),);
-    assert_return((paramdata.meta.flags & Lv2PortIsOutput) != 0,);
+    assert_return((paramdata.meta.flags & Lv2PortIsOutput) == 0,);
 
     blockdata.quickPotSymbol = paramdata.symbol;
     blockdata.meta.quickPotIndex = paramIndex;
