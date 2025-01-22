@@ -2577,20 +2577,41 @@ uint8_t HostConnector::hostLoadPreset(Preset& presetdata, nlohmann_json& json)
 {
     nlohmann::json& jpreset = static_cast<nlohmann::json&>(json);
 
-    std::string name;
-
-    if (jpreset.contains("name"))
     {
-        try {
-            name = jpreset["name"].get<std::string>();
-        } catch (...) {}
+        std::string name;
+
+        if (jpreset.contains("name"))
+        {
+            try {
+                name = jpreset["name"].get<std::string>();
+            } catch (...) {}
+        }
+
+        presetdata.name = name;
+    }
+
+    {
+        uint32_t color = 0;
+        std::string style;
+
+        if (jpreset.contains("background"))
+        {
+            const auto& jbackground = jpreset["background"];
+
+            try {
+                color = jbackground["color"].get<uint32_t>();
+                style = jbackground["style"].get<std::string>();
+            } catch (...) {}
+        }
+
+        presetdata.background.color = color;
+        presetdata.background.style = style;
     }
 
     if (!jpreset.contains("blocks"))
     {
         mod_log_info("hostLoadPreset(): preset does not include blocks, loading empty");
         resetPreset(presetdata);
-        presetdata.name = name;
         return 0;
     }
 
@@ -2609,7 +2630,6 @@ uint8_t HostConnector::hostLoadPreset(Preset& presetdata, nlohmann_json& json)
     }
 
     uint8_t numLoadedPlugins = 0;
-    presetdata.name = name;
 
     auto& jblocks = jpreset["blocks"];
     for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
@@ -2944,6 +2964,13 @@ void HostConnector::hostSavePreset(const Preset& presetdata, nlohmann_json& json
         { "name", presetdata.name },
         { "scene", presetdata.scene },
     });
+
+    if (! presetdata.background.style.empty())
+    {
+        auto& jbackground = jpreset["background"] = nlohmann::json::object({});
+        jbackground["color"] = presetdata.background.color;
+        jbackground["style"] = presetdata.background.style;
+    }
 
     auto& jallbindings = jpreset["bindings"];
 
@@ -3545,6 +3572,8 @@ void HostConnector::resetPreset(Preset& preset)
 {
     preset.scene = 0;
     preset.name.clear();
+    preset.background.color = 0;
+    preset.background.style.clear();
     preset.chains[0].capture[0] = JACK_CAPTURE_PORT_1;
     preset.chains[0].capture[1] = JACK_CAPTURE_PORT_2;
     preset.chains[0].playback[0] = JACK_PLAYBACK_PORT_1;

@@ -155,6 +155,10 @@ struct HostConnector : Host::FeedbackCallback {
         std::string name;
         std::string filename;
         std::array<Bindings, NUM_BINDING_ACTUATORS> bindings;
+        struct {
+            uint32_t color;
+            std::string style;
+        } background;
     private:
         friend struct HostConnector;
         friend class WebSocketConnector;
