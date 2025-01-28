@@ -24,6 +24,7 @@ struct HostConnector : Host::FeedbackCallback {
         struct Data {
             enum {
                 kAudioMonitor,
+                kCpuLoad,
                 kLog,
                 kParameterSet,
                 kPatchSet,
@@ -36,6 +37,12 @@ struct HostConnector : Host::FeedbackCallback {
                     int index;
                     float value;
                 } audioMonitor;
+                // kCpuLoad
+                struct {
+                    float avg;
+                    float max;
+                    uint32_t xruns;
+                } cpuLoad;
                 // kLog
                 struct {
                     char type;
@@ -220,12 +227,6 @@ public:
     // try to reconnect host if it previously failed
     bool reconnect();
 
-    // return average dsp load
-    float dspLoadAverage();
-
-    // return maximum dsp load
-    float dspLoadMaximum();
-
     // poll for host updates (e.g. MIDI-mapped parameter changes, tempo changes)
     // NOTE make sure to call `requestHostUpdates()` after handling all updates
     void pollHostUpdates(Callback* callback);
@@ -241,6 +242,17 @@ public:
 
     // print current state for debugging
     void printStateForDebug(bool withBlocks, bool withParams, bool withBindings) const;
+
+    // ----------------------------------------------------------------------------------------------------------------
+    // cpu load handling
+
+    void enableCpuLoadUpdates(bool enable);
+
+    // return average cpu load
+    float getAverageCpuLoad();
+
+    // return maximum cpu load
+    float getMaximumCpuLoad();
 
     // ----------------------------------------------------------------------------------------------------------------
     // current state handling

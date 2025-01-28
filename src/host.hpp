@@ -44,6 +44,7 @@ union HostPatchData {
 struct Host {
     enum Feature {
         kFeatureAggregatedMidi,
+        kFeatureCpuLoad,
         kFeatureFreeWheeling,
         kFeatureProcessing,
     };
@@ -67,6 +68,7 @@ struct Host {
             enum {
                 kFeedbackNullType = 0,
                 kFeedbackAudioMonitor,
+                kFeedbackCpuLoad,
                 kFeedbackParameterSet,
                 kFeedbackPatchSet,
                 kFeedbackOutputMonitor,
@@ -86,6 +88,11 @@ struct Host {
                     int index;
                     float value;
                 } audioMonitor;
+                struct {
+                    float avg;
+                    float max;
+                    uint32_t xruns;
+                } cpuLoad;
                 struct {
                     int effect_id;
                     const char* key;

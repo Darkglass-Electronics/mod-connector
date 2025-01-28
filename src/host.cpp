@@ -681,9 +681,35 @@ struct Host::Impl
             *sep++ = '\0';
             d.audioMonitor.index = std::atoi(msgbuffer);
 
-            // 2nd arg: value
+            // 2nd arg: float value
             msgbuffer = sep;
             d.audioMonitor.value = std::atof(msgbuffer);
+
+            callback->hostFeedbackCallback(d);
+        }
+        else if (std::strncmp(buffer, "cpu_load ", 9) == 0)
+        {
+            assert(read > 11);
+            HostFeedbackData d = { HostFeedbackData::kFeedbackCpuLoad, {} };
+
+            char* msgbuffer;
+            char* sep = buffer + 9;
+
+            // 1st arg: float avg
+            msgbuffer = sep;
+            sep = std::strchr(sep, ' ');
+            *sep++ = '\0';
+            d.cpuLoad.avg = std::atof(msgbuffer);
+
+            // 2nd arg: float max
+            msgbuffer = sep;
+            sep = std::strchr(sep, ' ');
+            *sep++ = '\0';
+            d.cpuLoad.max = std::atof(msgbuffer);
+
+            // 3rd arg: int xruns
+            msgbuffer = sep;
+            d.cpuLoad.xruns = std::atoi(msgbuffer);
 
             callback->hostFeedbackCallback(d);
         }
@@ -707,7 +733,7 @@ struct Host::Impl
             *sep++ = '\0';
             d.paramSet.symbol = msgbuffer;
 
-            // 3rd arg: value
+            // 3rd arg: float value
             msgbuffer = sep;
             d.paramSet.value = std::atof(msgbuffer);
 
@@ -1596,6 +1622,9 @@ bool Host::feature_enable(const Feature feature, const int value)
     {
     case kFeatureAggregatedMidi:
         return impl->writeMessageAndWait(format("feature_enable aggregated-midi %d", value != 0 ? 1 : 0));
+
+    case kFeatureCpuLoad:
+        return impl->writeMessageAndWait(format("feature_enable cpu-load %d", value != 0 ? 1 : 0));
 
     case kFeatureFreeWheeling:
         return impl->writeMessageAndWait(format("feature_enable freewheeling %d", value != 0 ? 1 : 0));

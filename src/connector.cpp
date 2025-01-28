@@ -1612,18 +1612,6 @@ bool HostConnector::reorderBlockBinding(const uint8_t hwid, const uint8_t dest)
 
 // --------------------------------------------------------------------------------------------------------------------
 
-float HostConnector::dspLoadAverage()
-{
-    return _host.cpu_load();
-}
-
-float HostConnector::dspLoadMaximum()
-{
-    return _host.max_cpu_load();
-}
-
-// --------------------------------------------------------------------------------------------------------------------
-
 void HostConnector::pollHostUpdates(Callback* const callback)
 {
     _callback = callback;
@@ -1636,6 +1624,23 @@ void HostConnector::pollHostUpdates(Callback* const callback)
 void HostConnector::requestHostUpdates()
 {
     _host.output_data_ready();
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::enableCpuLoadUpdates(const bool enable)
+{
+    _host.feature_enable(Host::kFeatureCpuLoad, enable ? 1 : 0);
+}
+
+float HostConnector::getAverageCpuLoad()
+{
+    return _host.cpu_load();
+}
+
+float HostConnector::getMaximumCpuLoad()
+{
+    return _host.max_cpu_load();
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -3307,6 +3312,13 @@ void HostConnector::hostFeedbackCallback(const HostFeedbackData& data)
         cdata.type = HostCallbackData::kAudioMonitor;
         cdata.audioMonitor.index = data.audioMonitor.index;
         cdata.audioMonitor.value = data.audioMonitor.value;
+        break;
+
+    case HostFeedbackData::kFeedbackCpuLoad:
+        cdata.type = HostCallbackData::kCpuLoad;
+        cdata.cpuLoad.avg = data.cpuLoad.avg;
+        cdata.cpuLoad.max = data.cpuLoad.max;
+        cdata.cpuLoad.xruns = data.cpuLoad.xruns;
         break;
 
     case HostFeedbackData::kFeedbackLog:
