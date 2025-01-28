@@ -1612,9 +1612,14 @@ bool HostConnector::reorderBlockBinding(const uint8_t hwid, const uint8_t dest)
 
 // --------------------------------------------------------------------------------------------------------------------
 
-float HostConnector::dspLoad()
+float HostConnector::dspLoadAverage()
 {
     return _host.cpu_load();
+}
+
+float HostConnector::dspLoadMaximum()
+{
+    return _host.max_cpu_load();
 }
 
 // --------------------------------------------------------------------------------------------------------------------

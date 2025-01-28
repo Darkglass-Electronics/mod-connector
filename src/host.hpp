@@ -328,9 +328,14 @@ struct Host {
     bool hmi_unmap(int16_t instance_number, const char* param_symbol);
 
     /**
-     * return current jack cpu load
+     * return current average jack cpu load
      */
     float cpu_load();
+
+    /**
+     * return current maximum jack cpu load
+     */
+    float max_cpu_load();
 
     /**
      * load a history command file

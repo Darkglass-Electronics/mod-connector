@@ -221,7 +221,10 @@ public:
     bool reconnect();
 
     // return average dsp load
-    float dspLoad();
+    float dspLoadAverage();
+
+    // return maximum dsp load
+    float dspLoadMaximum();
 
     // poll for host updates (e.g. MIDI-mapped parameter changes, tempo changes)
     // NOTE make sure to call `requestHostUpdates()` after handling all updates

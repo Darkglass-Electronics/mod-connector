@@ -1543,6 +1543,12 @@ float Host::cpu_load()
     return impl->writeMessageAndWait("cpu_load", kHostResponseFloat, &resp) ? resp.data.f : 0.f;
 }
 
+float Host::max_cpu_load()
+{
+    HostResponse resp = {};
+    return impl->writeMessageAndWait("max_cpu_load", kHostResponseFloat, &resp) ? resp.data.f : 0.f;
+}
+
 bool Host::load(const char* const file_name)
 {
     return impl->writeMessageAndWait(format("load %s", escape(file_name).c_str()));
