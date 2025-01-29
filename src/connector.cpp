@@ -18,9 +18,12 @@
 #include <unistd.h>
 #endif
 
-#define KXSTUDIO__Reset_none 0
-#define KXSTUDIO__Reset_full 1
-#define KXSTUDIO__Reset_soft 2
+// Possible values for LV2_KXSTUDIO_PROPERTIES__Reset
+typedef enum {
+    LV2_KXSTUDIO_PROPERTIES_RESET_NONE = 0, // No reset
+    LV2_KXSTUDIO_PROPERTIES_RESET_FULL = 1, // Full reset
+    LV2_KXSTUDIO_PROPERTIES_RESET_SOFT = 2  // Soft reset, e.g. reset filter state but do not clear audio buffers
+} LV2_KXStudio_Properties_Reset;
 
 #define JSON_PRESET_VERSION_CURRENT 0
 #define JSON_PRESET_VERSION_MIN_SUPPORTED 0
@@ -927,10 +930,10 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
                     _host.bypass(hbp.pair, false);
             }
 
-            _host.params_flush(hbp.id, KXSTUDIO__Reset_full, params.size(), params.data());
+            _host.params_flush(hbp.id, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params.size(), params.data());
 
             if (hbp.pair != kMaxHostInstances)
-                _host.params_flush(hbp.pair, KXSTUDIO__Reset_full, params.size(), params.data());
+                _host.params_flush(hbp.pair, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params.size(), params.data());
         }
 
         return true;
@@ -1394,10 +1397,10 @@ bool HostConnector::switchScene(const uint8_t scene)
                 params.push_back({ paramdata.symbol.c_str(), paramdata.value });
             }
 
-            _host.params_flush(hbp.id, KXSTUDIO__Reset_none, params.size(), params.data());
+            _host.params_flush(hbp.id, LV2_KXSTUDIO_PROPERTIES_RESET_NONE, params.size(), params.data());
 
             if (hbp.pair != kMaxHostInstances)
-                _host.params_flush(hbp.pair, KXSTUDIO__Reset_none, params.size(), params.data());
+                _host.params_flush(hbp.pair, LV2_KXSTUDIO_PROPERTIES_RESET_NONE, params.size(), params.data());
 
             // unbypass/enable last if relevant
             if (blockdata.meta.enable.hasScenes && blockdata.sceneValues[_current.scene].enabled)
@@ -3235,10 +3238,10 @@ void HostConnector::hostSwitchPreset(const Current& old)
                         params.push_back({ defparameterdata.symbol.c_str(), defparameterdata.value });
                     }
 
-                    _host.params_flush(hbp.id, KXSTUDIO__Reset_full, params.size(), params.data());
+                    _host.params_flush(hbp.id, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params.size(), params.data());
 
                     if (hbp.pair != kMaxHostInstances)
-                        _host.params_flush(hbp.pair, KXSTUDIO__Reset_full, params.size(), params.data());
+                        _host.params_flush(hbp.pair, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params.size(), params.data());
 
                     continue;
                 }
@@ -3288,10 +3291,10 @@ void HostConnector::hostSwitchPreset(const Current& old)
                     params.push_back({ defparameterdata.symbol.c_str(), defparameterdata.value });
                 }
 
-                _host.params_flush(hbp.id, KXSTUDIO__Reset_full, params.size(), params.data());
+                _host.params_flush(hbp.id, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params.size(), params.data());
 
                 if (hbp.pair != kMaxHostInstances)
-                    _host.params_flush(hbp.pair, KXSTUDIO__Reset_full, params.size(), params.data());
+                    _host.params_flush(hbp.pair, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params.size(), params.data());
             }
         }
     }
