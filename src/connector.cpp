@@ -534,6 +534,50 @@ bool HostConnector::saveBankToPresetFiles(const std::array<std::string, NUM_PRES
 
 // --------------------------------------------------------------------------------------------------------------------
 
+std::string HostConnector::getPresetNameFromFile(const char* const filename)
+{
+    mod_log_debug("loadCurrentPresetFromFile(\"%s\")", filename);
+
+    std::ifstream f(filename);
+    nlohmann::json j;
+
+    try {
+        j = nlohmann::json::parse(f);
+    } catch (...) {
+        return {};
+    }
+
+    if (! (j.contains("preset") && j.contains("type") && j.contains("version")))
+        return {};
+
+    try {
+        if (j["type"].get<std::string>() != "preset")
+        {
+            mod_log_warn("loadPresetFromFile(\"%s\"): failed, file is not preset type", filename);
+            return {};
+        }
+
+        const int version = j["version"].get<int>();
+        if (version < JSON_PRESET_VERSION_MIN_SUPPORTED || version > JSON_PRESET_VERSION_MAX_SUPPORTED)
+        {
+            mod_log_warn("loadPresetFromFile(\"%s\"): failed, version mismatch", filename);
+            return {};
+        }
+
+        j = j["preset"].get<nlohmann::json>();
+    } catch (...) {
+        return {};
+    }
+
+    try {
+        return j["name"].get<std::string>();
+    } catch (...) {}
+
+    return {};
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 bool HostConnector::loadCurrentPresetFromFile(const char* const filename, const bool replaceDefault)
 {
     mod_log_debug("loadCurrentPresetFromFile(\"%s\")", filename);

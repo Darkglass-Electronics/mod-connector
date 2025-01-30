@@ -290,6 +290,9 @@ public:
     // ----------------------------------------------------------------------------------------------------------------
     // preset handling
 
+    // get the name of an arbitrary preset file
+    static std::string getPresetNameFromFile(const char* filename);
+
     // load preset from a file, automatically replacing the current preset and optionally the default too
     // returning false means the current chain was unchanged, likely because the file contains invalid state
     bool loadCurrentPresetFromFile(const char* filename, bool replaceDefault);
