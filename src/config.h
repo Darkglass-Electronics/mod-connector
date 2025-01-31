@@ -56,6 +56,8 @@
 #define JACK_PLAYBACK_MONITOR_PORT_2 "mod-monitor:out_2"
 #endif
 
+#define UUID_SIZE 28
+
 // --------------------------------------------------------------------------------------------------------------------
 // check valid configuration
 

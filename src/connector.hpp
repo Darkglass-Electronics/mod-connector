@@ -166,6 +166,7 @@ struct HostConnector : Host::FeedbackCallback {
             uint32_t color;
             std::string style;
         } background;
+        std::array<unsigned char, UUID_SIZE> uuid;
     private:
         friend struct HostConnector;
         friend class WebSocketConnector;
@@ -306,7 +307,11 @@ public:
 
     // clear current preset
     // sets dirty flag if any blocks were removed
+    // uuid is also regenerated
     void clearCurrentPreset();
+
+    // regenerate current preset uuid
+    void regenUUID();
 
     // set the name of the current preset
     void setCurrentPresetName(const char* name);

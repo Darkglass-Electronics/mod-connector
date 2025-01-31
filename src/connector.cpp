@@ -69,6 +69,92 @@ static std::string getDefaultPluginBundleForBlock(const HostBlock& blockdata)
 
 // --------------------------------------------------------------------------------------------------------------------
 
+static std::array<unsigned char, UUID_SIZE> generateUUID()
+{
+    std::array<unsigned char, UUID_SIZE> uuid;
+
+    for (int i = 0; i < UUID_SIZE / 2; ++i)
+        *reinterpret_cast<uint16_t*>(uuid.data() + i * 2) = rand();
+
+    // make it standards compliant
+    uuid[6] = 0x40 | (uuid[6] & 0x0f);
+    uuid[8] = 0x80 | (uuid[8] & 0x3f);
+
+    return uuid;
+}
+
+static std::array<unsigned char, UUID_SIZE> str2uuid(const std::string& uuidstr)
+{
+    assert_return(uuidstr.length() == UUID_SIZE * 2 + 3, generateUUID());
+
+    std::array<unsigned char, UUID_SIZE> uuid;
+    unsigned char* const uuidptr = uuid.data();
+
+    if (std::sscanf(uuidstr.c_str(),
+                    "%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx-",
+                    uuidptr,
+                    uuidptr + 1,
+                    uuidptr + 2,
+                    uuidptr + 3,
+                    uuidptr + 4,
+                    uuidptr + 5,
+                    uuidptr + 6,
+                    uuidptr + 7) != 8)
+    {
+        mod_log_warn("failed to read uuid1: %s", uuidstr.c_str());
+        return generateUUID();
+    }
+
+    if (std::sscanf(uuidstr.c_str() + (8 * 2 + 1),
+                    "%02hhx%02hhx%02hhx%02hhx-%02hhx%02hhx%02hhx%02hhx-",
+                    uuidptr + 8,
+                    uuidptr + 9,
+                    uuidptr + 10,
+                    uuidptr + 11,
+                    uuidptr + 12,
+                    uuidptr + 13,
+                    uuidptr + 14,
+                    uuidptr + 15) != 8)
+    {
+        mod_log_warn("failed to read uuid2: %s", uuidstr.c_str() + (8 * 2 + 1));
+        return generateUUID();
+    }
+
+    if (std::sscanf(uuidstr.c_str() + (16 * 2 + 3),
+                    "%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx",
+                    uuidptr + 16,
+                    uuidptr + 17,
+                    uuidptr + 18,
+                    uuidptr + 19,
+                    uuidptr + 20,
+                    uuidptr + 21,
+                    uuidptr + 22,
+                    uuidptr + 23,
+                    uuidptr + 24,
+                    uuidptr + 25,
+                    uuidptr + 26,
+                    uuidptr + 27) != 12)
+    {
+        mod_log_warn("failed to read uuid3: %s", uuidstr.c_str() + (16 * 2 + 3));
+        return generateUUID();
+    }
+
+    return uuid;
+}
+
+static std::string uuid2str(const std::array<unsigned char, UUID_SIZE>& uuid)
+{
+    return format("%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx-",
+                  uuid[0], uuid[1], uuid[2], uuid[3], uuid[4], uuid[5], uuid[6], uuid[7])
+        + format("%02hhx%02hhx%02hhx%02hhx-", uuid[8], uuid[9], uuid[10], uuid[11])
+        + format("%02hhx%02hhx%02hhx%02hhx-", uuid[12], uuid[13], uuid[14], uuid[15])
+        + format("%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx",
+                 uuid[16], uuid[17], uuid[18], uuid[19], uuid[20], uuid[21],
+                 uuid[22], uuid[23], uuid[24], uuid[25], uuid[26], uuid[27]);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 static void resetParam(HostConnector::Parameter& paramdata)
 {
     paramdata = {};
@@ -127,6 +213,7 @@ static constexpr const char* SceneMode2Str(const HostSceneMode sceneMode)
 
     return "";
 }
+
 // --------------------------------------------------------------------------------------------------------------------
 
 template <class Meta>
@@ -677,6 +764,8 @@ void HostConnector::clearCurrentPreset()
 {
     mod_log_debug("clearCurrentPreset()");
 
+    _current.uuid = generateUUID();
+
     if (_current.numLoadedPlugins == 0)
         return;
 
@@ -706,6 +795,15 @@ void HostConnector::clearCurrentPreset()
     // direct connections
     hostConnectChainEndpoints(0);
 
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::regenUUID()
+{
+    mod_log_debug("regenUUID()");
+
+    _current.uuid = generateUUID();
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -2634,6 +2732,13 @@ uint8_t HostConnector::hostLoadPreset(Preset& presetdata, nlohmann_json& json)
 {
     nlohmann::json& jpreset = static_cast<nlohmann::json&>(json);
 
+    if (!jpreset.contains("blocks"))
+    {
+        mod_log_info("hostLoadPreset(): preset does not include blocks, loading empty");
+        resetPreset(presetdata);
+        return 0;
+    }
+
     {
         std::string name;
 
@@ -2665,11 +2770,20 @@ uint8_t HostConnector::hostLoadPreset(Preset& presetdata, nlohmann_json& json)
         presetdata.background.style = style;
     }
 
-    if (!jpreset.contains("blocks"))
     {
-        mod_log_info("hostLoadPreset(): preset does not include blocks, loading empty");
-        resetPreset(presetdata);
-        return 0;
+        std::string uuid;
+
+        if (jpreset.contains("uuid"))
+        {
+            try {
+                uuid = jpreset["uuid"].get<std::string>();
+            } catch (...) {}
+        }
+
+        if (!uuid.empty())
+            presetdata.uuid = str2uuid(uuid);
+        else
+            presetdata.uuid = generateUUID();
     }
 
     if (jpreset.contains("scene"))
@@ -3020,6 +3134,7 @@ void HostConnector::hostSavePreset(const Preset& presetdata, nlohmann_json& json
         { "blocks", nlohmann::json::object({}) },
         { "name", presetdata.name },
         { "scene", presetdata.scene },
+        { "uuid", uuid2str(presetdata.uuid) },
     });
 
     if (! presetdata.background.style.empty())
@@ -3634,6 +3749,7 @@ void HostConnector::allocPreset(Preset& preset)
 
 void HostConnector::resetPreset(Preset& preset)
 {
+    preset.uuid = generateUUID();
     preset.scene = 0;
     preset.name.clear();
     preset.background.color = 0;
