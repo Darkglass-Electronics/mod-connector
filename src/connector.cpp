@@ -493,11 +493,13 @@ bool HostConnector::canAddSidechainOutput(const uint8_t row, const uint8_t block
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::loadBankFromPresetFiles(const std::array<std::string, NUM_PRESETS_PER_BANK>& filenames)
+void HostConnector::loadBankFromPresetFiles(const std::array<std::string, NUM_PRESETS_PER_BANK>& filenames,
+                                            const uint8_t initialPresetToLoad)
 {
-    mod_log_debug("loadBankFromPresetFiles(...)");
+    assert(initialPresetToLoad < NUM_PRESETS_PER_BANK);
+    mod_log_debug("loadBankFromPresetFiles(..., %u)", initialPresetToLoad);
 
-    uint8_t numLoadedPluginsInFirstPreset = 0;
+    uint8_t numLoadedPluginsInLoadedPreset = 0;
 
     for (uint8_t pr = 0; pr < NUM_PRESETS_PER_BANK; ++pr)
     {
@@ -570,14 +572,14 @@ void HostConnector::loadBankFromPresetFiles(const std::array<std::string, NUM_PR
 
         const uint8_t numLoadedPlugins = hostLoadPreset(presetdata, j);
 
-        if (pr == 0)
-            numLoadedPluginsInFirstPreset = numLoadedPlugins;
+        if (pr == initialPresetToLoad)
+            numLoadedPluginsInLoadedPreset = numLoadedPlugins;
     }
 
     // always start with the first preset and scene
-    static_cast<Preset&>(_current) = _presets[0];
-    _current.preset = 0;
-    _current.numLoadedPlugins = numLoadedPluginsInFirstPreset;
+    static_cast<Preset&>(_current) = _presets[initialPresetToLoad];
+    _current.preset = initialPresetToLoad;
+    _current.numLoadedPlugins = numLoadedPluginsInLoadedPreset;
     _current.dirty = false;
 
     const Host::NonBlockingScope hnbs(_host);
