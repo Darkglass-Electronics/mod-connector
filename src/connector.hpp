@@ -286,9 +286,6 @@ public:
     void loadBankFromPresetFiles(const std::array<std::string, NUM_PRESETS_PER_BANK>& filenames,
                                  uint8_t initialPresetToLoad);
 
-    // save all presets (from the non-current data)
-    bool saveBankToPresetFiles(const std::array<std::string, NUM_PRESETS_PER_BANK>& filenames);
-
     // ----------------------------------------------------------------------------------------------------------------
     // preset handling
 

@@ -588,41 +588,6 @@ void HostConnector::loadBankFromPresetFiles(const std::array<std::string, NUM_PR
 
 // --------------------------------------------------------------------------------------------------------------------
 
-bool HostConnector::saveBankToPresetFiles(const std::array<std::string, NUM_PRESETS_PER_BANK>& filenames)
-{
-    mod_log_debug("saveBankToPresetFiles(...)");
-
-    for (uint8_t pr = 0; pr < NUM_PRESETS_PER_BANK; ++pr) {
-        assert_return(!filenames[pr].empty(), false);
-    }
-
-    for (uint8_t pr = 0; pr < NUM_PRESETS_PER_BANK; ++pr)
-    {
-        nlohmann::json j;
-        do {
-            try {
-                j["version"] = JSON_PRESET_VERSION_CURRENT;
-                j["type"] = "preset";
-                j["preset"] = nlohmann::json::object({});
-            } catch (...) {
-                break;
-            }
-
-            hostSavePreset(_presets[pr], j["preset"]);
-        } while (false);
-
-        safeJsonSave(j, filenames[pr]);
-    }
-
-   #ifndef _WIN32
-    sync();
-   #endif
-
-    return true;
-}
-
-// --------------------------------------------------------------------------------------------------------------------
-
 std::string HostConnector::getPresetNameFromFile(const char* const filename)
 {
     mod_log_debug("loadCurrentPresetFromFile(\"%s\")", filename);
