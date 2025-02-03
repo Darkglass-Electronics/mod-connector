@@ -226,7 +226,7 @@ static inline constexpr float normalized(const Meta& meta, float value)
 
 static bool shouldBlockBeStereo(const HostConnector::ChainRow& chaindata, const uint8_t block)
 {
-    assert(block < NUM_BLOCKS_PER_PRESET);
+    assert(block <= NUM_BLOCKS_PER_PRESET);
 
     if (chaindata.capture[0] != chaindata.capture[1])
         return true;
@@ -1088,7 +1088,17 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
         }
 
         // activate dual mono if previous plugin is stereo or also dualmono
-        bool dualmono = numInputs == 1 && shouldBlockBeStereo(chaindata, block);
+        bool dualmono = false;
+        if (numInputs == 1) {
+            dualmono = shouldBlockBeStereo(chaindata, block);
+            if ((numSideInputs != 0) && 
+                !dualmono && 
+                (row + 1 < NUM_BLOCK_CHAIN_ROWS)) {
+                // if dual mono wasn't enforced by current row, it might be enforced by next row
+                ChainRow& chain2data(_current.chains[row + 1]);
+                dualmono = shouldBlockBeStereo(chain2data, NUM_BLOCKS_PER_PRESET);
+            }
+        }
 
         HostBlockPair hbp = { _mapper.add(_current.preset, row, block), kMaxHostInstances };
 
@@ -1222,7 +1232,7 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
                         _host.disconnect_all(chain2data.capture[1].c_str());
                 }
 
-                hostEnsureStereoChain(row + 1, NUM_BLOCK_CHAIN_ROWS - 1);
+                hostEnsureStereoChain(row + 1, NUM_BLOCK_CHAIN_ROWS - 1); // TODO: is latter param wrong?
             }
 
             hostEnsureStereoChain(row, before);
@@ -2437,7 +2447,19 @@ void HostConnector::hostEnsureStereoChain(const uint8_t row, const uint8_t block
             continue;
 
         const bool oldDualmono = _mapper.get(_current.preset, row, bl).pair != kMaxHostInstances;
-        const bool newDualmono = previousPluginStereoOut && blockdata.meta.numInputs == 1;
+        // const bool newDualmono = previousPluginStereoOut && blockdata.meta.numInputs == 1;
+        // activate dual mono if previous plugin is stereo or also dualmono
+        bool newDualmono = false;
+        if (blockdata.meta.numInputs == 1) {
+            newDualmono = previousPluginStereoOut;
+            if ((blockdata.meta.numSideInputs != 0) && 
+                !newDualmono && 
+                (row + 1 < NUM_BLOCK_CHAIN_ROWS)) {
+                // if dual mono wasn't enforced by current row, it might be enforced by next row
+                ChainRow& chain2data(_current.chains[row + 1]);
+                newDualmono = shouldBlockBeStereo(chain2data, NUM_BLOCKS_PER_PRESET);
+            }
+        }
 
         previousPluginStereoOut = blockdata.meta.numOutputs == 2 || newDualmono;
 
