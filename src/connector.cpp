@@ -2450,11 +2450,13 @@ void HostConnector::hostEnsureStereoChain(const uint8_t row, const uint8_t block
         // const bool newDualmono = previousPluginStereoOut && blockdata.meta.numInputs == 1;
         // activate dual mono if previous plugin is stereo or also dualmono
         bool newDualmono = false;
-        if (blockdata.meta.numInputs == 1) {
+        if (blockdata.meta.numInputs == 1) 
+        {
             newDualmono = previousPluginStereoOut;
             if ((blockdata.meta.numSideInputs != 0) && 
                 !newDualmono && 
-                (row + 1 < NUM_BLOCK_CHAIN_ROWS)) {
+                (row + 1 < NUM_BLOCK_CHAIN_ROWS))
+            {
                 // if dual mono wasn't enforced by current row, it might be enforced by next row
                 ChainRow& chain2data(_current.chains[row + 1]);
                 newDualmono = shouldBlockBeStereo(chain2data, NUM_BLOCKS_PER_PRESET);
@@ -2486,14 +2488,20 @@ void HostConnector::hostEnsureStereoChain(const uint8_t row, const uint8_t block
 
                 // disconnect ports, we might have mono to stereo connections
                 hostDisconnectAllBlockOutputs(row, bl);
+
+                const HostBlockPair hbp = _mapper.get(_current.preset, row, bl);
+
+                hostSetupSideIO(row, bl, hbp, nullptr);
             }
+
         }
         else
         {
             _host.remove(_mapper.remove_pair(_current.preset, row, bl));
         }
 
-        if (blockdata.meta.numSideOutputs != 0)
+        if ((blockdata.meta.numSideOutputs != 0) ||
+            (blockdata.meta.numSideInputs != 0 && newDualmono && !oldDualmono))
         {
             assert_continue(row + 1 < NUM_BLOCK_CHAIN_ROWS);
             hostEnsureStereoChain(row + 1, 0);
@@ -2587,8 +2595,8 @@ void HostConnector::hostSetupSideIO(const uint8_t row,
         assert_return(!_current.chains[row + 1].capture[1].empty(),);
 
         // TESTING only 1 valid playback side for now
-        assert(_current.chains[row + 1].playback[0].empty());
-        assert(_current.chains[row + 1].playback[1].empty());
+        // assert(_current.chains[row + 1].playback[0].empty());
+        // assert(_current.chains[row + 1].playback[1].empty());
 
         constexpr uint32_t flagsToCheck = Lv2PortIsAudio|Lv2PortIsSidechain|Lv2PortIsOutput;
         constexpr uint32_t flagsWanted = Lv2PortIsAudio|Lv2PortIsSidechain;
