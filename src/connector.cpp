@@ -1232,7 +1232,7 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
                         _host.disconnect_all(chain2data.capture[1].c_str());
                 }
 
-                hostEnsureStereoChain(row + 1, NUM_BLOCK_CHAIN_ROWS - 1); // TODO: is latter param wrong?
+                hostEnsureStereoChain(row + 1, 0);
             }
 
             hostEnsureStereoChain(row, before);
@@ -2407,7 +2407,7 @@ void HostConnector::hostDisconnectBlockAction(const Block& blockdata, const Host
 
     for (const Lv2Port& port : plugin->ports)
     {
-        if ((port.flags & (Lv2PortIsAudio|Lv2PortIsOutput|Lv2PortIsSidechain)) != ioflags)
+        if ((port.flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != ioflags)
             continue;
 
         origin = format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbp.id, port.symbol.c_str());
@@ -2439,6 +2439,8 @@ void HostConnector::hostEnsureStereoChain(const uint8_t row, const uint8_t block
 
     // ----------------------------------------------------------------------------------------------------------------
     // part 1: deal with dual-mono and disconnect blocks where needed
+
+    bool sideChainToBeUpdated = false;
 
     for (uint8_t bl = blockStart; bl < NUM_BLOCKS_PER_PRESET; ++bl)
     {
@@ -2485,13 +2487,6 @@ void HostConnector::hostEnsureStereoChain(const uint8_t row, const uint8_t block
                         break;
                     _host.param_set(pair, parameterdata.symbol.c_str(), parameterdata.value);
                 }
-
-                // disconnect ports, we might have mono to stereo connections
-                hostDisconnectAllBlockOutputs(row, bl);
-
-                const HostBlockPair hbp = _mapper.get(_current.preset, row, bl);
-
-                hostSetupSideIO(row, bl, hbp, nullptr);
             }
 
         }
@@ -2500,15 +2495,29 @@ void HostConnector::hostEnsureStereoChain(const uint8_t row, const uint8_t block
             _host.remove(_mapper.remove_pair(_current.preset, row, bl));
         }
 
+        hostDisconnectAllBlockOutputs(row, bl);
+
+        // redo sideIO due to add/remove
+        const HostBlockPair hbp = _mapper.get(_current.preset, row, bl);
+        hostSetupSideIO(row, bl, hbp, nullptr);
+
         if ((blockdata.meta.numSideOutputs != 0) ||
             (blockdata.meta.numSideInputs != 0 && newDualmono && !oldDualmono))
         {
             assert_continue(row + 1 < NUM_BLOCK_CHAIN_ROWS);
-            hostEnsureStereoChain(row + 1, 0);
+            sideChainToBeUpdated = true;
         }
     }
 
+    // after all required dual mono blocks have been created above, update "sidechain" mono/stereo setup
+    if (sideChainToBeUpdated) {
+        hostEnsureStereoChain(row + 1, 0);
+    }
+
     // ensure stereo / dual mono for possible other rows serving as playback targets
+    // WARNING: this essentially calls hostEnsureStereoChain for row - 1 so beware
+    // of infinite recursion with the above hostEnsureStereoChain(row + 1, 0) call
+    // if multiple blocks with numSideInputs > 0 and numSideOutputs > 0 are allowed
     if (row > 0 && !chain.playback[0].empty()) {
         uint16_t blockId = static_cast<uint16_t>(stoul(chain.playback[0].substr(strlen(MOD_HOST_EFFECT_PREFIX), chain.playback[0].find_first_of(':'))));
         HostInstanceMapper::BlockAndRow blockRow = _mapper.get_block_with_id(_current.preset, blockId);
@@ -2601,10 +2610,6 @@ void HostConnector::hostSetupSideIO(const uint8_t row,
         assert_return(!_current.chains[row + 1].capture[0].empty(),);
         assert_return(!_current.chains[row + 1].capture[1].empty(),);
 
-        // TESTING only 1 valid playback side for now
-        // assert(_current.chains[row + 1].playback[0].empty());
-        // assert(_current.chains[row + 1].playback[1].empty());
-
         constexpr uint32_t flagsToCheck = Lv2PortIsAudio|Lv2PortIsSidechain|Lv2PortIsOutput;
         constexpr uint32_t flagsWanted = Lv2PortIsAudio|Lv2PortIsSidechain;
 
@@ -2629,10 +2634,6 @@ void HostConnector::hostSetupSideIO(const uint8_t row,
 
     if (blockdata.meta.numSideOutputs != 0)
     {
-        // TESTING only 1 valid side capture for now
-        assert(_current.chains[row + 1].capture[0].empty());
-        assert(_current.chains[row + 1].capture[1].empty());
-
         constexpr uint32_t flags = Lv2PortIsAudio|Lv2PortIsSidechain|Lv2PortIsOutput;
 
         for (const Lv2Port& port : plugin->ports)
