@@ -2508,6 +2508,13 @@ void HostConnector::hostEnsureStereoChain(const uint8_t row, const uint8_t block
         }
     }
 
+    // ensure stereo / dual mono for possible other rows serving as playback targets
+    if (row > 0 && !chain.playback[0].empty()) {
+        uint16_t blockId = static_cast<uint16_t>(stoul(chain.playback[0].substr(strlen(MOD_HOST_EFFECT_PREFIX), chain.playback[0].find_first_of(':'))));
+        HostInstanceMapper::BlockAndRow blockRow = _mapper.get_block_with_id(_current.preset, blockId);
+        hostEnsureStereoChain(blockRow.row, blockRow.block);
+    }
+
     // ----------------------------------------------------------------------------------------------------------------
     // part 2: handle connections
 
