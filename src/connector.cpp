@@ -3155,15 +3155,15 @@ uint8_t HostConnector::hostLoadPreset(Preset& presetdata, nlohmann_json& json)
                         continue;
                     }
 
-                    const std::string uri = jprop["uri"].get<std::string>();
+                    const std::string propuri = jprop["uri"].get<std::string>();
 
-                    if (propToIndexMap.find(uri) == propToIndexMap.end())
+                    if (propToIndexMap.find(propuri) == propToIndexMap.end())
                     {
                         mod_log_info("hostLoadPreset(): property with '%s' uri does not exist in plugin", uri.c_str());
                         continue;
                     }
 
-                    const uint8_t propIndex = propToIndexMap[uri];
+                    const uint8_t propIndex = propToIndexMap[propuri];
                     Property& propdata = blockdata.properties[propIndex];
 
                     if (isNullURI(propdata.uri))
