@@ -67,8 +67,8 @@ enum Lv2Flags {
     Lv2PortIsSidechain     = 1 << 3,
     // property flags
     Lv2PropertyIsPath      = 1 << 0,
-    Lv2PropertyIsParameter = 1 << 1,
-    Lv2PropertyIsReadOnly  = 1 << 2,
+    Lv2PropertyIsParameter = 1 << 1, // NOTE unsupported
+    Lv2PropertyIsReadOnly  = 1 << 2, // NOTE unsupported
     // common flags
     Lv2ParameterToggled    = 1 << 4,
     Lv2ParameterInteger    = 1 << 5,
@@ -76,10 +76,13 @@ enum Lv2Flags {
     Lv2ParameterHidden     = 1 << 7,
 };
 
-struct Lv2ScalePoint {
+struct Lv2PortScalePoint {
     std::string label;
     float value = 0.f;
 };
+
+// TODO deprecated, remove this
+using Lv2ScalePoint = Lv2PortScalePoint;
 
 struct Lv2Port {
     std::string symbol;
@@ -91,7 +94,12 @@ struct Lv2Port {
     float min = 0.f;
     float max = 1.f;
     std::string unit;
-    std::vector<Lv2ScalePoint> scalePoints;
+    std::vector<Lv2PortScalePoint> scalePoints;
+};
+
+struct Lv2PropertyScalePoint {
+    std::string label;
+    std::string value;
 };
 
 struct Lv2Property {
@@ -99,10 +107,7 @@ struct Lv2Property {
     std::string name;
     std::string shortname;
     uint32_t flags = 0;
-    float def = 0.f;
-    float min = 0.f;
-    float max = 1.f;
-    std::string unit;
+    std::vector<Lv2PropertyScalePoint> scalePoints;
 };
 
 struct Lv2Plugin {

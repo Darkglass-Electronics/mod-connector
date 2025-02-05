@@ -16,6 +16,7 @@ struct flushed_param {
     float value;
 };
 
+// rename to HostPropertyData
 union HostPatchData {
     int32_t b;
     int32_t i;
@@ -386,6 +387,7 @@ struct Host {
    /**
      * enable or disable a feature
      * NOTE kFeatureAggregatedMidi requires the use of jack2 and mod-midi-merger to be installed system-wide
+     * NOTE kFeatureCpuLoad requires the use of jack2 >= 1.9.23
      */
     bool feature_enable(Feature feature, int value);
 

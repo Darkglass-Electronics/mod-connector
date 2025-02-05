@@ -509,7 +509,7 @@ struct Lv2World::Impl
                             if (const unsigned int scalepointcount = lilv_scale_points_size(scalepoints))
                             {
                                 // get all scalepoints and sort them by value
-                                std::map<double, Lv2ScalePoint> sortedpoints;
+                                std::map<double, Lv2PortScalePoint> sortedpoints;
 
                                 LILV_FOREACH(scale_points, itscl, scalepoints)
                                 {

@@ -36,6 +36,9 @@ static constexpr const char* kBindingActuatorIDs[NUM_BINDING_ACTUATORS] = { BIND
 using ParameterBindingIterator = std::list<HostParameterBinding>::iterator;
 using ParameterBindingIteratorConst = std::list<HostParameterBinding>::const_iterator;
 
+using PropertyBindingIterator = std::list<HostPropertyBinding>::iterator;
+using PropertyBindingIteratorConst = std::list<HostPropertyBinding>::const_iterator;
+
 // --------------------------------------------------------------------------------------------------------------------
 
 #ifndef _WIN32
@@ -155,11 +158,17 @@ static std::string uuid2str(const std::array<unsigned char, UUID_SIZE>& uuid)
 
 // --------------------------------------------------------------------------------------------------------------------
 
-static void resetParam(HostConnector::Parameter& paramdata)
+static void resetParameter(HostConnector::Parameter& paramdata)
 {
     paramdata = {};
     paramdata.meta.hwbinding = UINT8_MAX;
     paramdata.meta.max = 1.f;
+}
+
+static void resetProperty(HostConnector::Property& propdata)
+{
+    propdata = {};
+    propdata.meta.hwbinding = UINT8_MAX;
 }
 
 static void resetBlock(HostConnector::Block& blockdata)
@@ -171,6 +180,7 @@ static void resetBlock(HostConnector::Block& blockdata)
     blockdata.meta.enable.hwbinding = UINT8_MAX;
     blockdata.meta.quickPotIndex = 0;
     blockdata.meta.numParamsInScenes = 0;
+    blockdata.meta.numPropertiesInScenes = 0;
     blockdata.meta.numInputs = 0;
     blockdata.meta.numOutputs = 0;
     blockdata.meta.numSideInputs = 0;
@@ -179,15 +189,22 @@ static void resetBlock(HostConnector::Block& blockdata)
     blockdata.meta.abbreviation.clear();
 
     for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
-        resetParam(blockdata.parameters[p]);
+        resetParameter(blockdata.parameters[p]);
+
+    for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+        resetProperty(blockdata.properties[p]);
 }
 
 static void allocBlock(HostConnector::Block& blockdata)
 {
     blockdata.parameters.resize(MAX_PARAMS_PER_BLOCK);
+    blockdata.properties.resize(MAX_PARAMS_PER_BLOCK);
 
     for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
+    {
         blockdata.sceneValues[s].params.resize(MAX_PARAMS_PER_BLOCK);
+        blockdata.sceneValues[s].properties.resize(MAX_PARAMS_PER_BLOCK);
+    }
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -340,6 +357,7 @@ void HostConnector::printStateForDebug(const bool withBlocks, const bool withPar
             {
                 fprintf(stderr, "\t\tQuick Pot: '%s' | %u\n", blockdata.quickPotSymbol.c_str(), blockdata.meta.quickPotIndex);
                 fprintf(stderr, "\t\tnumParamsInScenes: %u\n", blockdata.meta.numParamsInScenes);
+                fprintf(stderr, "\t\tnumPropertiesInScenes: %u\n", blockdata.meta.numPropertiesInScenes);
                 fprintf(stderr, "\t\tnumInputs: %u\n", blockdata.meta.numInputs);
                 fprintf(stderr, "\t\tnumOutputs: %u\n", blockdata.meta.numOutputs);
                 fprintf(stderr, "\t\tnumSideInputs: %u\n", blockdata.meta.numSideInputs);
@@ -382,7 +400,7 @@ void HostConnector::printStateForDebug(const bool withBlocks, const bool withPar
        #endif
         fprintf(stderr, "\n\tBindings for '%s', value: %f:\n", hwname.c_str(), _current.bindings[hwid].value);
 
-        if (_current.bindings[hwid].params.empty())
+        if (_current.bindings[hwid].params.empty() && _current.bindings[hwid].properties.empty())
         {
             fprintf(stderr, "\t\t(empty)\n");
             continue;
@@ -394,6 +412,14 @@ void HostConnector::printStateForDebug(const bool withBlocks, const bool withPar
                     bindingdata.block,
                     bindingdata.parameterSymbol.c_str(),
                     bindingdata.meta.parameterIndex);
+        }
+
+        for (const PropertyBinding& bindingdata : _current.bindings[hwid].properties)
+        {
+            fprintf(stderr, "\t\t- Block %u, Property '%s' | %u\n",
+                    bindingdata.block,
+                    bindingdata.propertyURI.c_str(),
+                    bindingdata.meta.propertyIndex);
         }
     }
 }
@@ -758,6 +784,7 @@ void HostConnector::clearCurrentPreset()
     {
         _current.bindings[hwid].value = 0.f;
         _current.bindings[hwid].params.clear();
+        _current.bindings[hwid].properties.clear();
     }
 
     _current.scene = 0;
@@ -1014,6 +1041,7 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
             blockdata.meta.enable.hasScenes = false;
             blockdata.meta.enable.hwbinding = UINT8_MAX;
             blockdata.meta.numParamsInScenes = 0;
+            blockdata.meta.numPropertiesInScenes = 0;
 
             for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
             {
@@ -1030,6 +1058,17 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
                     paramdata.value = paramdata.meta.def;
                     params.push_back({ paramdata.symbol.c_str(), paramdata.meta.def });
                 }
+            }
+
+            for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+            {
+                Property& propdata(blockdata.properties[p]);
+                if (isNullURI(propdata.uri))
+                    break;
+                if ((propdata.meta.flags & Lv2PropertyIsReadOnly) != 0)
+                    continue;
+
+                propdata.meta.flags &= ~Lv2ParameterInScene;
             }
 
             const Host::NonBlockingScopeWithAudioFades hnbs(_host);
@@ -1477,7 +1516,7 @@ bool HostConnector::switchScene(const uint8_t scene)
             Block& blockdata(_current.chains[row].blocks[bl]);
             if (isNullBlock(blockdata))
                 continue;
-            if (blockdata.meta.numParamsInScenes == 0)
+            if (blockdata.meta.numParamsInScenes == 0 && blockdata.meta.numPropertiesInScenes == 0)
                 continue;
 
             const HostBlockPair hbp = _mapper.get(_current.preset, row, bl);
@@ -1509,6 +1548,22 @@ bool HostConnector::switchScene(const uint8_t scene)
                 paramdata.value = sceneValues.params[p];
 
                 params.push_back({ paramdata.symbol.c_str(), paramdata.value });
+            }
+
+            for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+            {
+                Property& propdata(blockdata.properties[p]);
+                if (isNullURI(propdata.uri))
+                    break;
+                if ((propdata.meta.flags & (Lv2PropertyIsReadOnly|Lv2ParameterInScene)) != Lv2ParameterInScene)
+                    continue;
+
+                propdata.value = sceneValues.properties[p];
+
+                _host.patch_set(hbp.id, propdata.uri.c_str(), propdata.value.c_str());
+
+                if (hbp.pair != kMaxHostInstances)
+                    _host.patch_set(hbp.pair, propdata.uri.c_str(), propdata.value.c_str());
             }
 
             _host.params_flush(hbp.id, LV2_KXSTUDIO_PROPERTIES_RESET_NONE, params.size(), params.data());
@@ -1578,9 +1633,56 @@ bool HostConnector::addBlockParameterBinding(const uint8_t hwid,
     paramdata.meta.hwbinding = hwid;
 
     if (_current.bindings[hwid].params.empty())
-        _current.bindings[hwid].value = normalized(paramdata.meta, paramdata.value);
+        _current.bindings[hwid].value = paramdata.value;
 
     _current.bindings[hwid].params.push_back({ row, block, paramdata.symbol, { paramIndex } });
+    _current.dirty = true;
+    return true;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+bool HostConnector::addBlockPropertyBinding(const uint8_t hwid,
+                                            const uint8_t row,
+                                            const uint8_t block,
+                                            const uint8_t propIndex)
+{
+    mod_log_debug("addBlockPropertyBinding(%u, %u, %u, %u)", hwid, row, block, propIndex);
+    assert(hwid < NUM_BINDING_ACTUATORS);
+    assert(row < NUM_BLOCK_CHAIN_ROWS);
+    assert(block < NUM_BLOCKS_PER_PRESET);
+    assert(propIndex < MAX_PARAMS_PER_BLOCK);
+
+    Block& blockdata(_current.chains[row].blocks[block]);
+    assert_return(!isNullBlock(blockdata), false);
+
+    Property& propdata(blockdata.properties[propIndex]);
+    assert_return(!isNullURI(propdata.uri), false);
+    assert_return((propdata.meta.flags & Lv2PropertyIsReadOnly) == 0, false);
+    assert_return(propdata.meta.hwbinding == UINT8_MAX, false);
+
+    propdata.meta.hwbinding = hwid;
+
+    if (_current.bindings[hwid].properties.empty())
+    {
+        assert(! propdata.meta.scalePoints.empty());
+
+        bool found = false;
+        for (uint32_t i = 0, numScalePoints = propdata.meta.scalePoints.size(); i < numScalePoints; ++i)
+        {
+            if (propdata.meta.scalePoints[i].value == propdata.value)
+            {
+                _current.bindings[hwid].value = i;
+                break;
+            }
+        }
+
+        assert(found);
+        if (! found)
+            _current.bindings[hwid].value = 0.0;
+    }
+
+    _current.bindings[hwid].properties.push_back({ row, block, propdata.uri, { propIndex } });
     _current.dirty = true;
     return true;
 }
@@ -1616,6 +1718,8 @@ bool HostConnector::removeBlockBinding(const uint8_t hwid, const uint8_t row, co
     return false;
 }
 
+// --------------------------------------------------------------------------------------------------------------------
+
 bool HostConnector::removeBlockParameterBinding(const uint8_t hwid,
                                                 const uint8_t row,
                                                 const uint8_t block,
@@ -1643,6 +1747,45 @@ bool HostConnector::removeBlockParameterBinding(const uint8_t hwid,
         if (it->block != block)
             continue;
         if (it->meta.parameterIndex != paramIndex)
+            continue;
+
+        bindings.erase(it);
+        _current.dirty = true;
+        return true;
+    }
+
+    return false;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+bool HostConnector::removeBlockPropertyBinding(const uint8_t hwid,
+                                               const uint8_t row,
+                                               const uint8_t block,
+                                               const uint8_t propIndex)
+{
+    mod_log_debug("removeBlockPropertyBinding(%u, %u, %u, %u)", hwid, row, block, propIndex);
+    assert(hwid < NUM_BINDING_ACTUATORS);
+    assert(row < NUM_BLOCK_CHAIN_ROWS);
+    assert(block < NUM_BLOCKS_PER_PRESET);
+    assert(propIndex < MAX_PARAMS_PER_BLOCK);
+
+    Block& blockdata(_current.chains[row].blocks[block]);
+    assert_return(!isNullBlock(blockdata), false);
+
+    Property& propdata(blockdata.properties[propIndex]);
+    assert_return(!isNullURI(propdata.uri), false);
+    assert_return((propdata.meta.flags & Lv2PropertyIsReadOnly) == 0, false);
+    assert_return(propdata.meta.hwbinding != UINT8_MAX, false);
+
+    propdata.meta.hwbinding = UINT8_MAX;
+
+    std::list<PropertyBinding>& bindings(_current.bindings[hwid].properties);
+    for (PropertyBindingIteratorConst it = bindings.cbegin(), end = bindings.cend(); it != end; ++it)
+    {
+        if (it->block != block)
+            continue;
+        if (it->meta.propertyIndex != propIndex)
             continue;
 
         bindings.erase(it);
@@ -1696,6 +1839,18 @@ bool HostConnector::reorderBlockBinding(const uint8_t hwid, const uint8_t dest)
                         paramdata.meta.hwbinding = hwidB;
                     else if (paramdata.meta.hwbinding == hwidB)
                         paramdata.meta.hwbinding = hwidA;
+                }
+
+                for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                {
+                    Property& propdata(blockdata.properties[p]);
+                    if (isNullURI(propdata.uri))
+                        break;
+
+                    if (propdata.meta.hwbinding == hwidA)
+                        propdata.meta.hwbinding = hwidB;
+                    else if (propdata.meta.hwbinding == hwidB)
+                        propdata.meta.hwbinding = hwidA;
                 }
             }
         }
@@ -1823,7 +1978,10 @@ void HostConnector::setBlockParameter(const uint8_t row,
         Bindings& bindings(_current.bindings[paramdata.meta.hwbinding]);
         assert(!bindings.params.empty());
 
-        bindings.value = normalized(paramdata.meta, value);
+        if (bindings.params.size() == 1)
+            bindings.value = value;
+        else
+            bindings.value = normalized(paramdata.meta, value);
     }
 
     paramdata.value = value;
@@ -1921,10 +2079,10 @@ void HostConnector::connectToolAudioOutput(const uint8_t toolIndex,
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::connectTool2Tool(uint8_t toolAIndex, 
-                      const char* toolAOutSymbol, 
-                      uint8_t toolBIndex, 
-                      const char* toolBInSymbol)
+void HostConnector::connectTool2Tool(const uint8_t toolAIndex,
+                                     const char* const toolAOutSymbol,
+                                     const uint8_t toolBIndex, 
+                                     const char* const toolBInSymbol)
 {
     mod_log_debug("connectTool2Tool(%u, \"%s\", %u, \"%s\")", toolAIndex, toolAOutSymbol, toolBIndex, toolBInSymbol);
     assert(toolAIndex < MAX_MOD_HOST_TOOL_INSTANCES);
@@ -1962,27 +2120,76 @@ void HostConnector::monitorToolOutputParameter(const uint8_t toolIndex, const ch
 
 void HostConnector::setBlockProperty(const uint8_t row,
                                      const uint8_t block,
-                                     const char* const uri,
-                                     const char* const value)
+                                     const uint8_t propIndex,
+                                     const char* const value,
+                                     const SceneMode sceneMode)
 {
-    mod_log_debug("setBlockProperty(%u, %u, \"%s\", \"%s\")", row, block, uri, value);
+    mod_log_debug("setBlockProperty(%u, %u, %u, \"%s\", %d:%s)",
+                  row, block, propIndex, value, sceneMode, SceneMode2Str(sceneMode));
     assert(row < NUM_BLOCK_CHAIN_ROWS);
     assert(block < NUM_BLOCKS_PER_PRESET);
-    assert(uri != nullptr && *uri != '\0');
+    assert(propIndex < MAX_PARAMS_PER_BLOCK);
     assert(value != nullptr);
 
-    const Block& blockdata(_current.chains[row].blocks[block]);
+    Block& blockdata(_current.chains[row].blocks[block]);
     assert_return(!isNullBlock(blockdata),);
 
     const HostBlockPair hbp = _mapper.get(_current.preset, row, block);
     assert_return(hbp.id != kMaxHostInstances,);
 
+    Property& propdata(blockdata.properties[propIndex]);
+    assert_return(!isNullURI(propdata.uri),);
+    assert_return((propdata.meta.flags & Lv2PropertyIsReadOnly) == 0,);
+
     _current.dirty = true;
 
-    _host.patch_set(hbp.id, uri, value);
+    switch (sceneMode)
+    {
+    case SceneModeNone:
+        blockdata.sceneValues[_current.scene].properties[propIndex] = value;
+        break;
+
+    case SceneModeActivate:
+        if ((propdata.meta.flags & Lv2ParameterInScene) == 0)
+        {
+            ++blockdata.meta.numPropertiesInScenes;
+            propdata.meta.flags |= Lv2ParameterInScene;
+
+            // set original value for all other scenes
+            for (uint8_t scene = 0; scene < NUM_SCENES_PER_PRESET; ++scene)
+            {
+                if (_current.scene == scene)
+                    continue;
+                blockdata.sceneValues[scene].properties[propIndex] = propdata.value;
+            }
+        }
+        blockdata.sceneValues[_current.scene].properties[propIndex] = value;
+        break;
+
+    case SceneModeClear:
+        if ((propdata.meta.flags & Lv2ParameterInScene) != 0)
+        {
+            --blockdata.meta.numPropertiesInScenes;
+            propdata.meta.flags &= ~Lv2ParameterInScene;
+        }
+        break;
+    }
+
+    if (propdata.meta.hwbinding != UINT8_MAX)
+    {
+        Bindings& bindings(_current.bindings[propdata.meta.hwbinding]);
+        assert(!bindings.properties.empty());
+
+        // TODO
+        // bindings.value = normalized(propdata.meta, value);
+    }
+
+    propdata.value = value;
+
+    _host.patch_set(hbp.id, propdata.uri.c_str(), value);
 
     if (hbp.pair != kMaxHostInstances)
-        _host.patch_set(hbp.pair, uri, value);
+        _host.patch_set(hbp.pair, propdata.uri.c_str(), value);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -2194,11 +2401,18 @@ void HostConnector::hostClearAndLoadCurrentBank()
                         if (!blockdata.enabled)
                             _host.bypass(instance, true);
 
-                        for (const Parameter& parameterdata : blockdata.parameters)
+                        for (const Parameter& paramdata : blockdata.parameters)
                         {
-                            if (isNullURI(parameterdata.symbol))
+                            if (isNullURI(paramdata.symbol))
                                 break;
-                            _host.param_set(instance, parameterdata.symbol.c_str(), parameterdata.value);
+                            _host.param_set(instance, paramdata.symbol.c_str(), paramdata.value);
+                        }
+
+                        for (const Property& propdata : blockdata.properties)
+                        {
+                            if (isNullURI(propdata.uri))
+                                break;
+                            _host.patch_set(instance, propdata.uri.c_str(), propdata.value.c_str());
                         }
 
                         return true;
@@ -2460,11 +2674,18 @@ void HostConnector::hostEnsureStereoChain(const uint8_t row, const uint8_t block
                 if (!blockdata.enabled)
                     _host.bypass(pair, true);
 
-                for (const Parameter& parameterdata : blockdata.parameters)
+                for (const Parameter& paramdata : blockdata.parameters)
                 {
-                    if (isNullURI(parameterdata.symbol))
+                    if (isNullURI(paramdata.symbol))
                         break;
-                    _host.param_set(pair, parameterdata.symbol.c_str(), parameterdata.value);
+                    _host.param_set(pair, paramdata.symbol.c_str(), paramdata.value);
+                }
+
+                for (const Property& propdata : blockdata.properties)
+                {
+                    if (isNullURI(propdata.uri))
+                        break;
+                    _host.patch_set(pair, propdata.uri.c_str(), propdata.value.c_str());
                 }
 
                 // disconnect ports, we might have mono to stereo connections
@@ -2643,6 +2864,15 @@ void HostConnector::hostRemoveAllBlockBindings(const uint8_t row, const uint8_t 
             break;
 
         paramdata.meta.hwbinding = UINT8_MAX;
+    }
+
+    for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+    {
+        Property& propdata(blockdata.properties[p]);
+        if (isNullURI(propdata.uri))
+            break;
+
+        propdata.meta.hwbinding = UINT8_MAX;
     }
 
     for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
@@ -2846,8 +3076,9 @@ uint8_t HostConnector::hostLoadPreset(Preset& presetdata, nlohmann_json& json)
                 continue;
             }
 
-            std::unordered_map<std::string, uint8_t> symbolToIndexMap;
-            initBlock(blockdata, plugin, numInputs, numOutputs, numSideInputs, numSideOutputs, &symbolToIndexMap);
+            std::unordered_map<std::string, uint8_t> paramToIndexMap, propToIndexMap;
+            initBlock(blockdata, plugin, numInputs, numOutputs, numSideInputs, numSideOutputs,
+                      &paramToIndexMap, &propToIndexMap);
 
             if (jblock.contains("enabled"))
                 blockdata.enabled = jblock["enabled"].get<bool>();
@@ -2859,7 +3090,7 @@ uint8_t HostConnector::hostLoadPreset(Preset& presetdata, nlohmann_json& json)
 
                 if (!quickpot.empty())
                 {
-                    if (const auto it = symbolToIndexMap.find(quickpot); it != symbolToIndexMap.end())
+                    if (const auto it = paramToIndexMap.find(quickpot); it != paramToIndexMap.end())
                     {
                         blockdata.quickPotSymbol = quickpot;
                         blockdata.meta.quickPotIndex = it->second;
@@ -2868,43 +3099,80 @@ uint8_t HostConnector::hostLoadPreset(Preset& presetdata, nlohmann_json& json)
 
             } catch (...) {}
 
-            if (! jblock.contains("parameters"))
-                continue;
-
-            auto& jparams = jblock["parameters"];
-            for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+            if (jblock.contains("parameters"))
             {
-                const std::string jparamid = std::to_string(p + 1);
-
-                if (! jparams.contains(jparamid))
-                    continue;
-
-                auto& jparam = jparams[jparamid];
-                if (! (jparam.contains("symbol") && jparam.contains("value")))
+                auto& jparams = jblock["parameters"];
+                for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
                 {
-                    mod_log_info("hostLoadPreset(): param %u is missing symbol and/or value", p);
-                    continue;
+                    const std::string jparamid = std::to_string(p + 1);
+
+                    if (! jparams.contains(jparamid))
+                        continue;
+
+                    auto& jparam = jparams[jparamid];
+                    if (! (jparam.contains("symbol") && jparam.contains("value")))
+                    {
+                        mod_log_info("hostLoadPreset(): parameter %u is missing symbol and/or value", p);
+                        continue;
+                    }
+
+                    const std::string symbol = jparam["symbol"].get<std::string>();
+
+                    if (paramToIndexMap.find(symbol) == paramToIndexMap.end())
+                    {
+                        mod_log_info("hostLoadPreset(): parameter with '%s' symbol does not exist in plugin", symbol.c_str());
+                        continue;
+                    }
+
+                    const uint8_t paramIndex = paramToIndexMap[symbol];
+                    Parameter& paramdata = blockdata.parameters[paramIndex];
+
+                    if (isNullURI(paramdata.symbol))
+                        continue;
+                    if ((paramdata.meta.flags & Lv2PortIsOutput) != 0)
+                        continue;
+
+                    paramdata.value = std::max(paramdata.meta.min,
+                                                std::min<float>(paramdata.meta.max,
+                                                                jparam["value"].get<double>()));
                 }
+            }
 
-                const std::string symbol = jparam["symbol"].get<std::string>();
-
-                if (symbolToIndexMap.find(symbol) == symbolToIndexMap.end())
+            if (jblock.contains("properties"))
+            {
+                auto& jprops = jblock["properties"];
+                for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
                 {
-                    mod_log_info("hostLoadPreset(): param with '%s' symbol does not exist in plugin", symbol.c_str());
-                    continue;
+                    const std::string jpropid = std::to_string(p + 1);
+
+                    if (! jprops.contains(jpropid))
+                        continue;
+
+                    auto& jprop = jprops[jpropid];
+                    if (! (jprop.contains("uri") && jprop.contains("value")))
+                    {
+                        mod_log_info("hostLoadPreset(): property %u is missing uri and/or value", p);
+                        continue;
+                    }
+
+                    const std::string uri = jprop["uri"].get<std::string>();
+
+                    if (propToIndexMap.find(uri) == propToIndexMap.end())
+                    {
+                        mod_log_info("hostLoadPreset(): property with '%s' uri does not exist in plugin", uri.c_str());
+                        continue;
+                    }
+
+                    const uint8_t propIndex = propToIndexMap[uri];
+                    Property& propdata = blockdata.properties[propIndex];
+
+                    if (isNullURI(propdata.uri))
+                        continue;
+                    if ((propdata.meta.flags & Lv2PropertyIsReadOnly) != 0)
+                        continue;
+
+                    propdata.value = jprop["value"].get<std::string>();
                 }
-
-                const uint8_t parameterIndex = symbolToIndexMap[symbol];
-                Parameter& paramdata = blockdata.parameters[parameterIndex];
-
-                if (isNullURI(paramdata.symbol))
-                    continue;
-                if ((paramdata.meta.flags & Lv2PortIsOutput) != 0)
-                    continue;
-
-                paramdata.value = std::max(paramdata.meta.min,
-                                            std::min<float>(paramdata.meta.max,
-                                                            jparam["value"].get<double>()));
             }
 
             if (! jblock.contains("scenes"))
@@ -2947,14 +3215,14 @@ uint8_t HostConnector::hostLoadPreset(Preset& presetdata, nlohmann_json& json)
                         continue;
                     }
 
-                    if (symbolToIndexMap.find(symbol) == symbolToIndexMap.end())
+                    if (paramToIndexMap.find(symbol) == paramToIndexMap.end())
                     {
                         mod_log_info("hostLoadPreset(): scene param with '%s' symbol does not exist", symbol.c_str());
                         continue;
                     }
 
-                    const uint8_t parameterIndex = symbolToIndexMap[symbol];
-                    Parameter& paramdata = blockdata.parameters[parameterIndex];
+                    const uint8_t paramIndex = paramToIndexMap[symbol];
+                    Parameter& paramdata = blockdata.parameters[paramIndex];
 
                     if (isNullURI(paramdata.symbol))
                         continue;
@@ -2967,7 +3235,7 @@ uint8_t HostConnector::hostLoadPreset(Preset& presetdata, nlohmann_json& json)
                         ++blockdata.meta.numParamsInScenes;
                     }
 
-                    blockdata.sceneValues[sid].params[parameterIndex] =
+                    blockdata.sceneValues[sid].params[paramIndex] =
                         std::max(paramdata.meta.min,
                                  std::min<float>(paramdata.meta.max,
                                                  jscene["value"].get<double>()));
@@ -2977,7 +3245,10 @@ uint8_t HostConnector::hostLoadPreset(Preset& presetdata, nlohmann_json& json)
     }
 
     for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
+    {
         presetdata.bindings[hwid].params.clear();
+        presetdata.bindings[hwid].properties.clear();
+    }
 
     if (! jpreset.contains("bindings"))
     {
@@ -3015,7 +3286,6 @@ uint8_t HostConnector::hostLoadPreset(Preset& presetdata, nlohmann_json& json)
         }
 
         Bindings& bindings(presetdata.bindings[hwid]);
-        bindings.value = std::max(0.0, std::min(1.0, jbindings["value"].get<double>()));
 
         for (auto& jbindingparam : jbindingparams)
         {
@@ -3088,6 +3358,19 @@ uint8_t HostConnector::hostLoadPreset(Preset& presetdata, nlohmann_json& json)
                     }
                 }
             }
+        }
+
+        const double jvalue = jbindings["value"].get<double>();
+        if (bindings.params.size() == 1)
+        {
+            const ParameterBinding& binding = bindings.params.front();
+            const Block& blockdata = presetdata.chains[binding.row].blocks[binding.block];
+            const Parameter& paramdata = blockdata.parameters[binding.meta.parameterIndex];
+            bindings.value = std::max(paramdata.meta.min, std::min(paramdata.meta.max, static_cast<float>(jvalue)));
+        }
+        else
+        {
+            bindings.value = std::max(0.0, std::min(1.0, jvalue));
         }
     }
 
@@ -3358,15 +3641,31 @@ void HostConnector::hostSwitchPreset(const Current& old)
 
                     for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
                     {
-                        const Parameter& defparameterdata(defblockdata.parameters[p]);
-                        const Parameter& oldparameterdata(oldblockdata.parameters[p]);
+                        const Parameter& defparamdata(defblockdata.parameters[p]);
+                        const Parameter& oldparamdata(oldblockdata.parameters[p]);
 
-                        if (isNullURI(defparameterdata.symbol))
+                        if (isNullURI(defparamdata.symbol))
                             break;
-                        if (defparameterdata.value == oldparameterdata.value)
+                        if (defparamdata.value == oldparamdata.value)
                             continue;
 
-                        params.push_back({ defparameterdata.symbol.c_str(), defparameterdata.value });
+                        params.push_back({ defparamdata.symbol.c_str(), defparamdata.value });
+                    }
+
+                    for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                    {
+                        const Property& defpropdata(defblockdata.properties[p]);
+                        const Property& oldpropdata(oldblockdata.properties[p]);
+
+                        if (isNullURI(defpropdata.uri))
+                            break;
+                        if (defpropdata.value == oldpropdata.value)
+                            continue;
+
+                        _host.patch_set(hbp.id, defpropdata.uri.c_str(), defpropdata.value.c_str());
+
+                        if (hbp.pair != kMaxHostInstances)
+                            _host.patch_set(hbp.pair, defpropdata.uri.c_str(), defpropdata.value.c_str());
                     }
 
                     _host.params_flush(hbp.id, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params.size(), params.data());
@@ -3415,11 +3714,23 @@ void HostConnector::hostSwitchPreset(const Current& old)
 
                 for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
                 {
-                    const Parameter& defparameterdata(defblockdata.parameters[p]);
-                    if (isNullURI(defparameterdata.symbol))
+                    const Parameter& defparamdata(defblockdata.parameters[p]);
+                    if (isNullURI(defparamdata.symbol))
                         break;
 
-                    params.push_back({ defparameterdata.symbol.c_str(), defparameterdata.value });
+                    params.push_back({ defparamdata.symbol.c_str(), defparamdata.value });
+                }
+
+                for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                {
+                    const Property& defpropdata(defblockdata.properties[p]);
+                    if (isNullURI(defpropdata.uri))
+                        break;
+
+                    _host.patch_set(hbp.id, defpropdata.uri.c_str(), defpropdata.value.c_str());
+
+                    if (hbp.pair != kMaxHostInstances)
+                        _host.patch_set(hbp.pair, defpropdata.uri.c_str(), defpropdata.value.c_str());
                 }
 
                 _host.params_flush(hbp.id, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params.size(), params.data());
@@ -3577,7 +3888,8 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
                               const uint8_t numOutputs,
                               const uint8_t numSideInputs,
                               const uint8_t numSideOutputs,
-                              std::unordered_map<std::string, uint8_t>* symbolToIndexMapOpt)
+                              std::unordered_map<std::string, uint8_t>* paramToIndexMapOpt,
+                              std::unordered_map<std::string, uint8_t>* propToIndexMapOpt)
 {
     assert(plugin != nullptr);
 
@@ -3589,6 +3901,7 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
     blockdata.meta.enable.hwbinding = UINT8_MAX;
     blockdata.meta.quickPotIndex = 0;
     blockdata.meta.numParamsInScenes = 0;
+    blockdata.meta.numPropertiesInScenes = 0;
     blockdata.meta.numInputs = numInputs;
     blockdata.meta.numOutputs = numOutputs;
     blockdata.meta.numSideInputs = numSideInputs;
@@ -3596,10 +3909,15 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
     blockdata.meta.name = plugin->name;
     blockdata.meta.abbreviation = plugin->abbreviation;
 
-    std::unordered_map<std::string, uint8_t> symbolToIndexMapLocal;
-    std::unordered_map<std::string, uint8_t>& symbolToIndexMap = symbolToIndexMapOpt != nullptr
-                                                               ? *symbolToIndexMapOpt
-                                                               : symbolToIndexMapLocal;
+    std::unordered_map<std::string, uint8_t> paramToIndexMapLocal;
+    std::unordered_map<std::string, uint8_t>& paramToIndexMap = paramToIndexMapOpt != nullptr
+                                                              ? *paramToIndexMapOpt
+                                                              : paramToIndexMapLocal;
+
+    std::unordered_map<std::string, uint8_t> propToIndexMapLocal;
+    std::unordered_map<std::string, uint8_t>& propToIndexMap = propToIndexMapOpt != nullptr
+                                                             ? *propToIndexMapOpt
+                                                             : propToIndexMapLocal;
 
     uint8_t numParams = 0;
     for (const Lv2Port& port : plugin->ports)
@@ -3621,7 +3939,7 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
             break;
         }
 
-        symbolToIndexMap[port.symbol] = numParams;
+        paramToIndexMap[port.symbol] = numParams;
 
         blockdata.parameters[numParams++] = {
             .symbol = port.symbol,
@@ -3643,11 +3961,38 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
             break;
     }
 
+    uint8_t numProps = 0;
+    for (const Lv2Property& prop : plugin->properties)
+    {
+        if ((prop.flags & Lv2ParameterHidden) != 0)
+            continue;
+
+        propToIndexMap[prop.uri] = numProps;
+
+        blockdata.properties[numProps++] = {
+            .uri = prop.uri,
+            .value = {},
+            .meta = {
+                .flags = prop.flags,
+                .hwbinding = UINT8_MAX,
+                .name = prop.name,
+                .shortname = prop.shortname,
+                .scalePoints = prop.scalePoints,
+            },
+        };
+
+        if (numProps == MAX_PARAMS_PER_BLOCK)
+            break;
+    }
+
     if (blockdata.quickPotSymbol.empty() && numParams != 0)
         blockdata.quickPotSymbol = blockdata.parameters[0].symbol;
 
     for (uint8_t p = numParams; p < MAX_PARAMS_PER_BLOCK; ++p)
-        resetParam(blockdata.parameters[p]);
+        resetParameter(blockdata.parameters[p]);
+
+    for (uint8_t p = numProps; p < MAX_PARAMS_PER_BLOCK; ++p)
+        resetProperty(blockdata.properties[p]);
 
     // override defaults from user
     const std::string defdir = getDefaultPluginBundleForBlock(blockdata);
@@ -3663,14 +4008,14 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
         const std::string symbol = state.first;
         const float value = state.second;
 
-        if (symbolToIndexMap.find(symbol) == symbolToIndexMap.end())
+        if (paramToIndexMap.find(symbol) == paramToIndexMap.end())
         {
             mod_log_warn("initBlock(): state param with '%s' symbol does not exist in plugin", symbol.c_str());
             continue;
         }
 
-        const uint8_t parameterIndex = symbolToIndexMap[symbol];
-        Parameter& paramdata = blockdata.parameters[parameterIndex];
+        const uint8_t paramIndex = paramToIndexMap[symbol];
+        Parameter& paramdata = blockdata.parameters[paramIndex];
 
         if (isNullURI(paramdata.symbol))
             continue;
@@ -3747,6 +4092,7 @@ void HostConnector::resetPreset(Preset& preset)
     {
         preset.bindings[hwid].value = 0.f;
         preset.bindings[hwid].params.clear();
+        preset.bindings[hwid].properties.clear();
     }
 }
 

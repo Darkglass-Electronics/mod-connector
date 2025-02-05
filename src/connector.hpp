@@ -30,6 +30,7 @@ struct HostConnector : Host::FeedbackCallback {
                 kPatchSet,
                 kToolParameterSet,
                 kToolPatchSet,
+                // TODO rename Patch to Property
             } type;
             union {
                 // kAudioMonitor
@@ -95,7 +96,20 @@ struct HostConnector : Host::FeedbackCallback {
             std::string name;
             std::string shortname;
             std::string unit;
-            std::vector<Lv2ScalePoint> scalePoints;
+            std::vector<Lv2PortScalePoint> scalePoints;
+        } meta;
+    };
+
+    struct Property {
+        std::string uri;
+        std::string value;
+        struct {
+            // convenience meta-data, not stored in json state
+            uint32_t flags;
+            uint8_t hwbinding;
+            std::string name;
+            std::string shortname;
+            std::vector<Lv2PropertyScalePoint> scalePoints;
         } meta;
     };
 
@@ -111,6 +125,7 @@ struct HostConnector : Host::FeedbackCallback {
     struct SceneValues {
         bool enabled;
         std::vector<float> params;
+        std::vector<std::string> properties;
     };
 
     struct Block {
@@ -124,7 +139,8 @@ struct HostConnector : Host::FeedbackCallback {
                 uint8_t hwbinding;
             } enable;
             uint8_t quickPotIndex;
-            uint8_t numParamsInScenes;
+            uint8_t numParamsInScenes; // TODO rename
+            uint8_t numPropertiesInScenes;
             uint8_t numInputs;
             uint8_t numOutputs;
             uint8_t numSideInputs;
@@ -133,6 +149,7 @@ struct HostConnector : Host::FeedbackCallback {
             std::string abbreviation;
         } meta;
         std::vector<Parameter> parameters;
+        std::vector<Property> properties;
         std::array<SceneValues, NUM_SCENES_PER_PRESET> sceneValues;
     };
 
@@ -146,9 +163,20 @@ struct HostConnector : Host::FeedbackCallback {
         } meta;
     };
 
+    struct PropertyBinding {
+        uint8_t row;
+        uint8_t block;
+        std::string propertyURI;
+        struct {
+            // convenience meta-data, not stored in json state
+            uint8_t propertyIndex;
+        } meta;
+    };
+
     struct Bindings {
         std::list<ParameterBinding> params;
-        float value; // normalized 0-1
+        std::list<PropertyBinding> properties;
+        double value; // NOTE normalized 0-1 if multiple, matching value if single
     };
 
     struct ChainRow {
@@ -376,11 +404,17 @@ public:
     // add a block parameter binding
     bool addBlockParameterBinding(uint8_t hwid, uint8_t row, uint8_t block, uint8_t paramIndex);
 
+    // add a block property binding
+    bool addBlockPropertyBinding(uint8_t hwid, uint8_t row, uint8_t block, uint8_t propIndex);
+
     // remove a block binding (for enable/disable control)
     bool removeBlockBinding(uint8_t hwid, uint8_t row, uint8_t block);
 
     // remove a block parameter binding
     bool removeBlockParameterBinding(uint8_t hwid, uint8_t row, uint8_t block, uint8_t paramIndex);
+
+    // remove a block parameter binding
+    bool removeBlockPropertyBinding(uint8_t hwid, uint8_t row, uint8_t block, uint8_t propIndex);
 
     // reorder bindings
     bool reorderBlockBinding(uint8_t hwid, uint8_t dest);
@@ -467,13 +501,16 @@ public:
     // WIP details below this point
 
     // set a block property
-    void setBlockProperty(uint8_t row, uint8_t block, const char* uri, const char* value);
+    void setBlockProperty(uint8_t row, uint8_t block, uint8_t propIndex, const char* value, SceneMode sceneMode);
 
     // convenience calls for single-chain builds
    #if NUM_BLOCK_CHAIN_ROWS == 1
-    inline void setBlockProperty(const uint8_t block, const char* uri, const char* value)
+    inline void setBlockProperty(const uint8_t block,
+                                 const uint8_t propIndex,
+                                 const char* const value,
+                                 const SceneMode sceneMode)
     {
-        setBlockProperty(0, block, uri, value);
+        setBlockProperty(0, block, propIndex, value, sceneMode);
     }
    #endif
 
@@ -527,7 +564,8 @@ private:
                    uint8_t numOutputs,
                    uint8_t numSideInputs,
                    uint8_t numSideOutputs,
-                   std::unordered_map<std::string, uint8_t>* const symbolToIndexMapOpt = nullptr);
+                   std::unordered_map<std::string, uint8_t>* const paramToIndexMapOpt = nullptr,
+                   std::unordered_map<std::string, uint8_t>* const propToIndexMapOpt = nullptr);
 
     static void allocPreset(Preset& preset);
     static void resetPreset(Preset& preset);
@@ -537,6 +575,8 @@ using HostBindings = HostConnector::Bindings;
 using HostBlock = HostConnector::Block;
 using HostParameter = HostConnector::Parameter;
 using HostParameterBinding = HostConnector::ParameterBinding;
+using HostProperty = HostConnector::Property;
+using HostPropertyBinding = HostConnector::PropertyBinding;
 using HostSceneMode = HostConnector::SceneMode;
 using HostCallbackData = HostConnector::Callback::Data;
 
