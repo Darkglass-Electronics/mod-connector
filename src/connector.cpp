@@ -1234,6 +1234,11 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
 
                 hostEnsureStereoChain(row + 1, 0);
             }
+            // // reconnect next chain starting with "before" or ending with "after"
+            // // (disconnected above)
+            // else if (chaindata.blocks[before].meta.numSideOutputs != 0 || chaindata.blocks[after].meta.numSideInputs != 0) {
+            //     hostEnsureStereoChain(row + 1, 0);
+            // }
 
             hostEnsureStereoChain(row, before);
         }
@@ -2087,7 +2092,7 @@ void HostConnector::hostConnectChainEndpoints(const uint8_t row)
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::hostDisconnectAll()
+void HostConnector::hostDisconnectAll(bool disconnectSideChains)
 {
     mod_log_debug("hostDisconnectAll()");
 
@@ -2098,38 +2103,38 @@ void HostConnector::hostDisconnectAll()
             if (isNullBlock(_current.chains[row].blocks[bl]))
                 continue;
 
-            hostDisconnectAllBlockInputs(row, bl);
-            hostDisconnectAllBlockOutputs(row, bl);
+            hostDisconnectAllBlockInputs(row, bl, disconnectSideChains);
+            hostDisconnectAllBlockOutputs(row, bl, disconnectSideChains);
         }
     }
 }
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::hostDisconnectAllBlockInputs(const uint8_t row, const uint8_t block)
+void HostConnector::hostDisconnectAllBlockInputs(const uint8_t row, const uint8_t block, bool disconnectSideChains)
 {
-    hostDisconnectBlockAction(_current.chains[row].blocks[block], _mapper.get(_current.preset, row, block), false);
+    hostDisconnectBlockAction(_current.chains[row].blocks[block], _mapper.get(_current.preset, row, block), false, disconnectSideChains);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::hostDisconnectAllBlockOutputs(const uint8_t row, const uint8_t block)
+void HostConnector::hostDisconnectAllBlockOutputs(const uint8_t row, const uint8_t block, bool disconnectSideChains)
 {
-    hostDisconnectBlockAction(_current.chains[row].blocks[block], _mapper.get(_current.preset, row, block), true);
+    hostDisconnectBlockAction(_current.chains[row].blocks[block], _mapper.get(_current.preset, row, block), true, disconnectSideChains);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::hostDisconnectAllBlockInputs(const Block& blockdata, const HostBlockPair& hbp)
+void HostConnector::hostDisconnectAllBlockInputs(const Block& blockdata, const HostBlockPair& hbp, bool disconnectSideChains)
 {
-    hostDisconnectBlockAction(blockdata, hbp, true);
+    hostDisconnectBlockAction(blockdata, hbp, true, disconnectSideChains);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::hostDisconnectAllBlockOutputs(const Block& blockdata, const HostBlockPair& hbp)
+void HostConnector::hostDisconnectAllBlockOutputs(const Block& blockdata, const HostBlockPair& hbp, bool disconnectSideChains)
 {
-    hostDisconnectBlockAction(blockdata, hbp, false);
+    hostDisconnectBlockAction(blockdata, hbp, false, disconnectSideChains);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -2393,9 +2398,9 @@ void HostConnector::hostConnectChainOutputAction(const uint8_t row, const uint8_
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::hostDisconnectBlockAction(const Block& blockdata, const HostBlockPair& hbp, const bool outputs)
+void HostConnector::hostDisconnectBlockAction(const Block& blockdata, const HostBlockPair& hbp, const bool outputs, const bool disconnectSideChains)
 {
-    mod_log_debug("hostDisconnectBlockAction(..., %s)", bool2str(outputs));
+    mod_log_debug("hostDisconnectBlockAction(..., %s, %s)", bool2str(outputs), bool2str(disconnectSideChains));
     assert(!isNullBlock(blockdata));
     assert(hbp.id != kMaxHostInstances);
 
@@ -2403,11 +2408,14 @@ void HostConnector::hostDisconnectBlockAction(const Block& blockdata, const Host
     assert_return(plugin != nullptr,);
 
     const unsigned int ioflags = Lv2PortIsAudio | (outputs ? Lv2PortIsOutput : 0);
+    unsigned int flagsToCheck = Lv2PortIsAudio | Lv2PortIsOutput;
+    if (!disconnectSideChains)
+        flagsToCheck |= Lv2PortIsSidechain;
     std::string origin;
 
     for (const Lv2Port& port : plugin->ports)
     {
-        if ((port.flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != ioflags)
+        if ((port.flags & flagsToCheck) != ioflags)
             continue;
 
         origin = format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbp.id, port.symbol.c_str());
@@ -2417,14 +2425,13 @@ void HostConnector::hostDisconnectBlockAction(const Block& blockdata, const Host
         {
             origin = format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbp.pair, port.symbol.c_str());
             _host.disconnect_all(origin.c_str());
-            return;
         }
     }
 }
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::hostEnsureStereoChain(const uint8_t row, const uint8_t blockStart)
+void HostConnector::hostEnsureStereoChain(const uint8_t row, const uint8_t blockStart, bool recursive)
 {
     mod_log_debug("hostEnsureStereoChain(%u, %u)", row, blockStart);
     assert(row < NUM_BLOCK_CHAIN_ROWS);
@@ -2449,7 +2456,6 @@ void HostConnector::hostEnsureStereoChain(const uint8_t row, const uint8_t block
             continue;
 
         const bool oldDualmono = _mapper.get(_current.preset, row, bl).pair != kMaxHostInstances;
-        // const bool newDualmono = previousPluginStereoOut && blockdata.meta.numInputs == 1;
         // activate dual mono if previous plugin is stereo or also dualmono
         bool newDualmono = false;
         if (blockdata.meta.numInputs == 1) 
@@ -2495,14 +2501,17 @@ void HostConnector::hostEnsureStereoChain(const uint8_t row, const uint8_t block
             _host.remove(_mapper.remove_pair(_current.preset, row, bl));
         }
 
-        hostDisconnectAllBlockOutputs(row, bl);
+        // disconnect also sidechain outputs in case of outdated connection (will be reconnected hostEnsureStereoChain(row + 1, ...))
+        hostDisconnectAllBlockOutputs(row, bl, true);
 
-        // redo sideIO due to add/remove
+        // redo sideIO (if applicable) due to add/remove
         const HostBlockPair hbp = _mapper.get(_current.preset, row, bl);
         hostSetupSideIO(row, bl, hbp, nullptr);
 
+        // NOTE: sidechain update not needed if mono -> dual mono update of sidechain playback target block
+        // was triggered from sidechain (recursive == true)
         if ((blockdata.meta.numSideOutputs != 0) ||
-            (blockdata.meta.numSideInputs != 0 && newDualmono && !oldDualmono))
+            (blockdata.meta.numSideInputs != 0 && newDualmono && !oldDualmono && !recursive))
         {
             assert_continue(row + 1 < NUM_BLOCK_CHAIN_ROWS);
             sideChainToBeUpdated = true;
@@ -2511,17 +2520,14 @@ void HostConnector::hostEnsureStereoChain(const uint8_t row, const uint8_t block
 
     // after all required dual mono blocks have been created above, update "sidechain" mono/stereo setup
     if (sideChainToBeUpdated) {
-        hostEnsureStereoChain(row + 1, 0);
+        hostEnsureStereoChain(row + 1, 0, true);
     }
 
     // ensure stereo / dual mono for possible other rows serving as playback targets
-    // WARNING: this essentially calls hostEnsureStereoChain for row - 1 so beware
-    // of infinite recursion with the above hostEnsureStereoChain(row + 1, 0) call
-    // if multiple blocks with numSideInputs > 0 and numSideOutputs > 0 are allowed
     if (row > 0 && !chain.playback[0].empty()) {
         uint16_t blockId = static_cast<uint16_t>(stoul(chain.playback[0].substr(strlen(MOD_HOST_EFFECT_PREFIX), chain.playback[0].find_first_of(':'))));
         HostInstanceMapper::BlockAndRow blockRow = _mapper.get_block_with_id(_current.preset, blockId);
-        hostEnsureStereoChain(blockRow.row, blockRow.block);
+        hostEnsureStereoChain(blockRow.row, blockRow.block, true);
     }
 
     // ----------------------------------------------------------------------------------------------------------------

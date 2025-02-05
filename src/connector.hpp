@@ -488,14 +488,14 @@ protected:
     void hostConnectBlockToChainOutput(uint8_t row, uint8_t block);
     void hostConnectChainEndpoints(uint8_t row);
 
-    void hostDisconnectAll();
-    void hostDisconnectAllBlockInputs(uint8_t row, uint8_t block);
-    void hostDisconnectAllBlockOutputs(uint8_t row, uint8_t block);
-    void hostDisconnectAllBlockInputs(const Block& blockdata, const HostBlockPair& hbp);
-    void hostDisconnectAllBlockOutputs(const Block& blockdata, const HostBlockPair& hbp);
+    void hostDisconnectAll(bool disconnectSideChains = false);
+    void hostDisconnectAllBlockInputs(uint8_t row, uint8_t block, bool disconnectSideChains = false);
+    void hostDisconnectAllBlockOutputs(uint8_t row, uint8_t block, bool disconnectSideChains = false);
+    void hostDisconnectAllBlockInputs(const Block& blockdata, const HostBlockPair& hbp, bool disconnectSideChains = false);
+    void hostDisconnectAllBlockOutputs(const Block& blockdata, const HostBlockPair& hbp, bool disconnectSideChains = false);
     void hostDisconnectChainEndpoints(uint8_t row);
 
-    void hostEnsureStereoChain(uint8_t row, uint8_t blockStart);
+    void hostEnsureStereoChain(uint8_t row, uint8_t blockStart, bool recursive = false);
 
     void hostSetupSideIO(uint8_t row, uint8_t block, HostBlockPair hbp, const Lv2Plugin* plugin);
 
@@ -508,7 +508,7 @@ private:
     void hostConnectChainEndpointsAction(uint8_t row, bool connect);
     void hostConnectChainInputAction(uint8_t row, uint8_t block, bool connect);
     void hostConnectChainOutputAction(uint8_t row, uint8_t block, bool connect);
-    void hostDisconnectBlockAction(const Block& blockdata, const HostBlockPair& hbp, bool outputs);
+    void hostDisconnectBlockAction(const Block& blockdata, const HostBlockPair& hbp, bool outputs, bool disconnectSideChains);
 
     template<class nlohmann_json>
     uint8_t hostLoadPreset(Preset& presetdata, nlohmann_json& json);
