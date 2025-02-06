@@ -2168,6 +2168,8 @@ void HostConnector::hostClearAndLoadCurrentBank()
     {
         _current.chains[row].capture.fill({});
         _current.chains[row].playback.fill({});
+        _current.chains[row].captureId.fill(MAX_MOD_HOST_PLUGIN_INSTANCES);
+        _current.chains[row].playbackId.fill(MAX_MOD_HOST_PLUGIN_INSTANCES);
     }
 
     for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
@@ -2523,9 +2525,8 @@ void HostConnector::hostEnsureStereoChain(const uint8_t row, const uint8_t block
     }
 
     // ensure stereo / dual mono for possible other rows serving as playback targets
-    if (row > 0 && !chain.playback[0].empty()) {
-        uint16_t blockId = static_cast<uint16_t>(stoul(chain.playback[0].substr(strlen(MOD_HOST_EFFECT_PREFIX), chain.playback[0].find_first_of(':'))));
-        HostInstanceMapper::BlockAndRow blockRow = _mapper.get_block_with_id(_current.preset, blockId);
+    if (row > 0 && chain.playbackId[0] != MAX_MOD_HOST_PLUGIN_INSTANCES) {
+        HostInstanceMapper::BlockAndRow blockRow = _mapper.get_block_with_id(_current.preset, chain.playbackId[0]);
         hostEnsureStereoChain(blockRow.row, blockRow.block, true);
     }
 
@@ -2626,13 +2627,20 @@ void HostConnector::hostSetupSideIO(const uint8_t row,
             _current.chains[row + 1].playback[0] = format(MOD_HOST_EFFECT_PREFIX "%d:%s",
                                                           hbp.id,
                                                           port.symbol.c_str());
+            _current.chains[row + 1].playbackId[0] = hbp.id;
 
             if (hbp.pair != kMaxHostInstances)
+            {
                 _current.chains[row + 1].playback[1] = format(MOD_HOST_EFFECT_PREFIX "%d:%s",
                                                               hbp.pair,
                                                               port.symbol.c_str());
+                _current.chains[row + 1].playbackId[1] = hbp.pair;
+            }
             else
+            {
                 _current.chains[row + 1].playback[1] = _current.chains[row + 1].playback[0];
+                _current.chains[row + 1].playbackId[1] = _current.chains[row + 1].playbackId[0];
+            }
             break;
         }
     }
@@ -2649,13 +2657,20 @@ void HostConnector::hostSetupSideIO(const uint8_t row,
             _current.chains[row + 1].capture[0] = format(MOD_HOST_EFFECT_PREFIX "%d:%s",
                                                          hbp.id,
                                                          port.symbol.c_str());
+            _current.chains[row + 1].captureId[0] = hbp.id;
 
             if (hbp.pair != kMaxHostInstances)
+            {
                 _current.chains[row + 1].capture[1] = format(MOD_HOST_EFFECT_PREFIX "%d:%s",
                                                              hbp.pair,
                                                              port.symbol.c_str());
+                _current.chains[row + 1].captureId[1] = hbp.pair;
+            }
             else
+            {
                 _current.chains[row + 1].capture[1] = _current.chains[row + 1].capture[0];
+                _current.chains[row + 1].captureId[1] = _current.chains[row + 1].captureId[0];
+            }
 
             break;
         }
@@ -2727,10 +2742,16 @@ void HostConnector::hostRemoveInstanceForBlock(const uint8_t row, const uint8_t 
         assert(!isNullBlock(blockdata));
 
         if (blockdata.meta.numSideInputs != 0)
+        {
             _current.chains[row + 1].playback.fill({});
+            _current.chains[row + 1].playbackId.fill(MAX_MOD_HOST_PLUGIN_INSTANCES);
+        }
 
         if (blockdata.meta.numSideOutputs != 0)
+        {
             _current.chains[row + 1].capture.fill({});
+            _current.chains[row + 1].captureId.fill(MAX_MOD_HOST_PLUGIN_INSTANCES);
+        }
     }
    #endif
 }
@@ -3768,6 +3789,10 @@ void HostConnector::resetPreset(Preset& preset)
     preset.chains[0].capture[1] = JACK_CAPTURE_PORT_2;
     preset.chains[0].playback[0] = JACK_PLAYBACK_PORT_1;
     preset.chains[0].playback[1] = JACK_PLAYBACK_PORT_2;
+    preset.chains[0].captureId[0] = MAX_MOD_HOST_PLUGIN_INSTANCES;
+    preset.chains[0].captureId[1] = MAX_MOD_HOST_PLUGIN_INSTANCES;
+    preset.chains[0].playbackId[0] = MAX_MOD_HOST_PLUGIN_INSTANCES;
+    preset.chains[0].playbackId[1] = MAX_MOD_HOST_PLUGIN_INSTANCES;
 
     for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
     {
@@ -3775,6 +3800,8 @@ void HostConnector::resetPreset(Preset& preset)
         {
             preset.chains[row].capture.fill({});
             preset.chains[row].playback.fill({});
+            preset.chains[row].captureId.fill(MAX_MOD_HOST_PLUGIN_INSTANCES);
+            preset.chains[row].playbackId.fill(MAX_MOD_HOST_PLUGIN_INSTANCES);
         }
 
         for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)

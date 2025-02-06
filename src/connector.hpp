@@ -155,6 +155,8 @@ struct HostConnector : Host::FeedbackCallback {
         std::vector<Block> blocks;
         std::array<std::string, 2> capture;
         std::array<std::string, 2> playback;
+        std::array<uint16_t, 2> captureId;
+        std::array<uint16_t, 2> playbackId;
     };
 
     struct Preset {
