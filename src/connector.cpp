@@ -698,6 +698,12 @@ bool HostConnector::saveCurrentPresetToFile(const char* filename)
         return false;
     }
 
+    if (_current.dirty)
+    {
+        _current.dirty = false;
+        _current.uuid = generateUUID();
+    }
+
     // copy current data into preset data
     _presets[_current.preset] = static_cast<Preset&>(_current);
 
@@ -708,7 +714,6 @@ bool HostConnector::saveCurrentPresetToFile(const char* filename)
     sync();
    #endif
 
-    _current.dirty = false;
     _current.filename = filename;
     return true;
 }
