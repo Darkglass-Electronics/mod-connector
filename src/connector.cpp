@@ -388,6 +388,27 @@ void HostConnector::printStateForDebug(const bool withBlocks, const bool withPar
                 fprintf(stderr, "\t\t\tMaximum: %f\n", paramdata.meta.max);
                 fprintf(stderr, "\t\t\tUnit: %s\n", paramdata.meta.unit.c_str());
             }
+
+            for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK && withParams; ++p)
+            {
+                const Property& propdata(blockdata.properties[p]);
+
+                fprintf(stderr, "\t\tProperty %u: '%s' | '%s'\n",
+                        p, propdata.uri.c_str(), propdata.meta.name.c_str());
+                fprintf(stderr, "\t\t\tFlags: %x\n", propdata.meta.flags);
+                if (propdata.meta.hwbinding != UINT8_MAX)
+                {
+                   #ifdef BINDING_ACTUATOR_IDS
+                    fprintf(stderr, "\t\t\tHwBinding: %s\n", kBindingActuatorIDs[propdata.meta.hwbinding]);
+                   #else
+                    fprintf(stderr, "\t\t\tHwBinding: %d\n", propdata.meta.hwbinding);
+                   #endif
+                }
+                else
+                {
+                    fprintf(stderr, "\t\t\tHwBinding: (none)\n");
+                }
+            }
         }
     }
 
@@ -979,31 +1000,36 @@ bool HostConnector::reorderBlock(const uint8_t row, const uint8_t orig, const ui
         hostEnsureStereoChain(row, blockStart);
 
     // update bindings
+    const auto updateBinding = [=](auto& bindingdata) {
+        if (bindingdata.row != row)
+            return;
+        if (bindingdata.block < left || bindingdata.block > right)
+            return;
+
+        // block matches orig, moving it to dest
+        if (bindingdata.block == orig)
+            bindingdata.block = dest;
+
+        // block matches dest, moving it by +1 or -1 accordingly
+        else if (bindingdata.block == dest)
+            bindingdata.block += orig > dest ? 1 : -1;
+
+        // block > dest, moving +1
+        else if (bindingdata.block > dest)
+            ++bindingdata.block;
+
+        // block < dest, moving -1
+        else
+            --bindingdata.block;
+    };
+
     for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
     {
         for (ParameterBinding& bindingdata : _current.bindings[hwid].params)
-        {
-            if (bindingdata.row != row)
-                continue;
-            if (bindingdata.block < left || bindingdata.block > right)
-                continue;
+            updateBinding(bindingdata);
 
-            // block matches orig, moving it to dest
-            if (bindingdata.block == orig)
-                bindingdata.block = dest;
-
-            // block matches dest, moving it by +1 or -1 accordingly
-            else if (bindingdata.block == dest)
-                bindingdata.block += orig > dest ? 1 : -1;
-
-            // block > dest, moving +1
-            else if (bindingdata.block > dest)
-                ++bindingdata.block;
-
-            // block < dest, moving -1
-            else
-                --bindingdata.block;
-        }
+        for (PropertyBinding& bindingdata : _current.bindings[hwid].properties)
+            updateBinding(bindingdata);
     }
 
     _current.dirty = true;
@@ -1069,6 +1095,8 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
                     continue;
 
                 propdata.meta.flags &= ~Lv2ParameterInScene;
+
+                // TODO reset properties too
             }
 
             const Host::NonBlockingScopeWithAudioFades hnbs(_host);
@@ -1355,6 +1383,8 @@ bool HostConnector::saveBlockStateAsDefault(const uint8_t row, const uint8_t blo
 
                 blockdataB.parameters[p].meta.def = paramdata.value;
             }
+
+            // TODO update default properties
         }
     }
 
@@ -1439,6 +1469,14 @@ bool HostConnector::swapBlockRow(const uint8_t row,
                 else if (bindingdata.row == emptyRow)
                     bindingdata.row = row;
             }
+
+            for (PropertyBinding& bindingdata : _current.bindings[hwid].properties)
+            {
+                if (bindingdata.row == row)
+                    bindingdata.row = emptyRow;
+                else if (bindingdata.row == emptyRow)
+                    bindingdata.row = row;
+            }
         }
 
         _mapper.swap(_current.preset, row, block, emptyRow, emptyBlock);
@@ -1446,6 +1484,15 @@ bool HostConnector::swapBlockRow(const uint8_t row,
         for (Bindings& bindings : _current.bindings)
         {
             for (ParameterBinding& bindingdata : bindings.params)
+            {
+                if (bindingdata.row == row && bindingdata.block == block)
+                {
+                    bindingdata.row = emptyRow;
+                    bindingdata.block = emptyBlock;
+                }
+            }
+
+            for (PropertyBinding& bindingdata : bindings.properties)
             {
                 if (bindingdata.row == row && bindingdata.block == block)
                 {
@@ -2881,7 +2928,7 @@ void HostConnector::hostRemoveAllBlockBindings(const uint8_t row, const uint8_t 
 
         std::list<ParameterBinding>& bindings(_current.bindings[hwid].params);
 
-    restart:
+    restartParameter:
         for (ParameterBindingIteratorConst it = bindings.cbegin(), end = bindings.cend(); it != end; ++it)
         {
             if (it->row != row)
@@ -2891,7 +2938,27 @@ void HostConnector::hostRemoveAllBlockBindings(const uint8_t row, const uint8_t 
 
             bindings.erase(it);
             _current.dirty = true;
-            goto restart;
+            goto restartParameter;
+        }
+    }
+
+    for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
+    {
+        _current.bindings[hwid].value = 0.f;
+
+        std::list<PropertyBinding>& bindings(_current.bindings[hwid].properties);
+
+    restartProperty:
+        for (PropertyBindingIteratorConst it = bindings.cbegin(), end = bindings.cend(); it != end; ++it)
+        {
+            if (it->row != row)
+                continue;
+            if (it->block != block)
+                continue;
+
+            bindings.erase(it);
+            _current.dirty = true;
+            goto restartProperty;
         }
     }
 }
@@ -3193,6 +3260,7 @@ uint8_t HostConnector::hostLoadPreset(Preset& presetdata, nlohmann_json& json)
                     continue;
                 }
 
+                // TODO handle properties
                 for (auto& jscene : jscenes)
                 {
                     if (! (jscene.contains("symbol") && jscene.contains("value")))
@@ -3271,6 +3339,7 @@ uint8_t HostConnector::hostLoadPreset(Preset& presetdata, nlohmann_json& json)
             continue;
         }
 
+        // TODO handle properties
         auto& jbindings = jallbindings[jbindingsid];
         if (! (jbindings.contains("params") && jbindings.contains("value")))
         {
@@ -3410,6 +3479,7 @@ void HostConnector::hostSavePreset(const Preset& presetdata, nlohmann_json& json
        #else
         const std::string jbindingsid = std::to_string(hwid + 1);
        #endif
+        // TODO handle properties
         auto& jbindings = jallbindings[jbindingsid] = nlohmann::json::object({
             { "params", nlohmann::json::array() },
             { "value", bindings.value },
@@ -3446,6 +3516,7 @@ void HostConnector::hostSavePreset(const Preset& presetdata, nlohmann_json& json
             const std::string jblockid = format("%u:%u", row + 1, bl + 1);
            #endif
 
+            // TODO handle properties
             auto& jblock = jblocks[jblockid] = {
                 { "enabled", blockdata.enabled },
                 { "parameters", nlohmann::json::object({}) },
@@ -4024,6 +4095,8 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
 
         paramdata.meta.def = paramdata.value = value;
     }
+
+    // TODO handle properties
 
     std::ifstream f(defdir + "/defaults.json");
     nlohmann::json j;

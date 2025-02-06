@@ -564,8 +564,8 @@ private:
                    uint8_t numOutputs,
                    uint8_t numSideInputs,
                    uint8_t numSideOutputs,
-                   std::unordered_map<std::string, uint8_t>* const paramToIndexMapOpt = nullptr,
-                   std::unordered_map<std::string, uint8_t>* const propToIndexMapOpt = nullptr);
+                   std::unordered_map<std::string, uint8_t>* paramToIndexMapOpt = nullptr,
+                   std::unordered_map<std::string, uint8_t>* propToIndexMapOpt = nullptr);
 
     static void allocPreset(Preset& preset);
     static void resetPreset(Preset& preset);
