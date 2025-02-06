@@ -1239,11 +1239,6 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
 
                 hostEnsureStereoChain(row + 1, 0);
             }
-            // // reconnect next chain starting with "before" or ending with "after"
-            // // (disconnected above)
-            // else if (chaindata.blocks[before].meta.numSideOutputs != 0 || chaindata.blocks[after].meta.numSideInputs != 0) {
-            //     hostEnsureStereoChain(row + 1, 0);
-            // }
 
             hostEnsureStereoChain(row, before);
         }
@@ -2499,7 +2494,6 @@ void HostConnector::hostEnsureStereoChain(const uint8_t row, const uint8_t block
                     _host.param_set(pair, parameterdata.symbol.c_str(), parameterdata.value);
                 }
             }
-
         }
         else
         {
