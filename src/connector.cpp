@@ -732,7 +732,7 @@ bool HostConnector::loadCurrentPresetFromFile(const char* const filename, const 
 
 // --------------------------------------------------------------------------------------------------------------------
 
-bool HostConnector::saveCurrentPresetToFile(const char* filename)
+bool HostConnector::saveCurrentPresetToFile(const char* const filename)
 {
     mod_log_debug("saveCurrentPresetToFile(\"%s\")", filename);
 
@@ -762,6 +762,37 @@ bool HostConnector::saveCurrentPresetToFile(const char* filename)
    #endif
 
     _current.filename = filename;
+    return true;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+bool HostConnector::swapPresets(const uint8_t presetA, const uint8_t presetB)
+{
+    mod_log_debug("swapPresets(%u, %u)", presetA, presetB);
+    assert(presetA < NUM_PRESETS_PER_BANK);
+    assert(presetB < NUM_PRESETS_PER_BANK);
+    assert(presetA != presetB);
+
+    // swap data first
+    std::swap(_presets[presetA], _presets[presetB]);
+    _mapper.swapPresets(presetA, presetB);
+
+    // swap filenames again so the keep the originals
+    std::swap(_presets[presetA].filename, _presets[presetB].filename);
+
+    // adjust data for current preset, if matching
+    if (_current.preset == presetA)
+    {
+        _current.preset = presetB;
+        _current.filename = _presets[presetB].filename;
+    }
+    else if (_current.preset == presetB)
+    {
+        _current.preset = presetA;
+        _current.filename = _presets[presetA].filename;
+    }
+
     return true;
 }
 
@@ -1479,7 +1510,7 @@ bool HostConnector::swapBlockRow(const uint8_t row,
             }
         }
 
-        _mapper.swap(_current.preset, row, block, emptyRow, emptyBlock);
+        _mapper.swapBlocks(_current.preset, row, block, emptyRow, emptyBlock);
 
         for (Bindings& bindings : _current.bindings)
         {

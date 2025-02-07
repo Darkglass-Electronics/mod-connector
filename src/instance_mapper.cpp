@@ -194,11 +194,22 @@ void HostInstanceMapper::reorder(const uint8_t preset,
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostInstanceMapper::swap(const uint8_t preset,
-                              const uint8_t rowA,
-                              const uint8_t blockA,
-                              const uint8_t rowB,
-                              const uint8_t blockB) noexcept
+void HostInstanceMapper::swapPresets(const uint8_t presetA, const uint8_t presetB) noexcept
+{
+    assert(presetA < NUM_PRESETS_PER_BANK);
+    assert(presetB < NUM_PRESETS_PER_BANK);
+    assert(presetA != presetB);
+
+    std::swap(map.presets[presetA], map.presets[presetB]);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostInstanceMapper::swapBlocks(const uint8_t preset,
+                                    const uint8_t rowA,
+                                    const uint8_t blockA,
+                                    const uint8_t rowB,
+                                    const uint8_t blockB) noexcept
 {
     assert(preset < NUM_PRESETS_PER_BANK);
     assert(rowA < NUM_BLOCK_CHAIN_ROWS);

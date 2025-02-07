@@ -107,6 +107,7 @@ struct HostConnector : Host::FeedbackCallback {
             // convenience meta-data, not stored in json state
             uint32_t flags;
             uint8_t hwbinding;
+            std::string def;
             std::string name;
             std::string shortname;
             std::vector<Lv2PropertyScalePoint> scalePoints;
@@ -326,6 +327,9 @@ public:
 
     // save current preset to a file
     bool saveCurrentPresetToFile(const char* filename);
+
+    // swap 2 presets within the current bank
+    bool swapPresets(uint8_t presetA, uint8_t presetB);
 
     // save current preset
     // a preset must have been loaded or saved to a file before, so that `current.filename` is valid
