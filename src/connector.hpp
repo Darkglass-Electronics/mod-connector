@@ -325,6 +325,9 @@ public:
     // returning false means the current chain was unchanged, likely because the file contains invalid state
     bool loadCurrentPresetFromFile(const char* filename, bool replaceDefault);
 
+    // preload a preset from a file, preset **must not be the current one**
+    bool preloadPresetFromFile(uint8_t preset, const char* filename);
+
     // save current preset to a file
     bool saveCurrentPresetToFile(const char* filename);
 
@@ -345,6 +348,9 @@ public:
 
     // set the name of the current preset
     void setCurrentPresetName(const char* name);
+
+    // set the filename of the current preset
+    void setCurrentPresetFilename(const char* filename);
 
     // switch to another preset within the current bank
     // returning false means the current chain was unchanged
@@ -551,17 +557,25 @@ private:
     void hostConnectChainOutputAction(uint8_t row, uint8_t block, bool connect);
     void hostDisconnectBlockAction(const Block& blockdata, const HostBlockPair& hbp, bool outputs);
 
+    // loads preset data, does not trigger host commands
     template<class nlohmann_json>
-    uint8_t hostLoadPreset(Preset& presetdata, nlohmann_json& json);
+    uint8_t jsonPresetLoad(Preset& presetdata, nlohmann_json& json) const;
 
+    // saves preset data, also no host commands
     template<class nlohmann_json>
-    void hostSavePreset(const Preset& presetdata, nlohmann_json& json) const;
+    void jsonPresetSave(const Preset& presetdata, nlohmann_json& json) const;
 
+    // load preset data from the current bank, only does host commands
+    // TODO move code from hostClearAndLoadCurrentBank
+    void hostLoadPreset(uint8_t preset);
+
+    // unload "old" and load current preset, only does host commands
     void hostSwitchPreset(const Current& old);
 
     // internal feedback handling, for updating parameter values
     void hostFeedbackCallback(const HostFeedbackData& data) override;
 
+    // init block using plugin default values, optionally fill index maps
     void initBlock(Block& blockdata,
                    const Lv2Plugin* plugin,
                    uint8_t numInputs,
@@ -569,7 +583,7 @@ private:
                    uint8_t numSideInputs,
                    uint8_t numSideOutputs,
                    std::unordered_map<std::string, uint8_t>* paramToIndexMapOpt = nullptr,
-                   std::unordered_map<std::string, uint8_t>* propToIndexMapOpt = nullptr);
+                   std::unordered_map<std::string, uint8_t>* propToIndexMapOpt = nullptr) const;
 
     static void allocPreset(Preset& preset);
     static void resetPreset(Preset& preset);

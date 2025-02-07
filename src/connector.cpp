@@ -261,6 +261,62 @@ static bool shouldBlockBeStereo(const HostConnector::ChainRow& chaindata, const 
 
 // --------------------------------------------------------------------------------------------------------------------
 
+static bool loadPresetFromFile(const char* const filename, nlohmann::json& j)
+{
+    std::ifstream f(filename);
+    if (f.fail())
+        return false;
+
+    try {
+        j = nlohmann::json::parse(f);
+    } catch (...) {
+        return false;
+    }
+
+    if (! j.contains("preset"))
+    {
+        mod_log_warn("failed to load \"%s\": missing required fields 'preset'", filename);
+        return false;
+    }
+
+    if (! j.contains("type"))
+    {
+        mod_log_warn("failed to load \"%s\": missing required field 'type'", filename);
+        return false;
+    }
+
+    if (! j.contains("version"))
+    {
+        mod_log_warn("failed to load \"%s\": missing required field 'version'", filename);
+        return false;
+    }
+
+    try {
+        if (j["type"].get<std::string>() != "preset")
+        {
+            mod_log_warn("loadPresetFromFile(\"%s\"): failed, file is not preset type", filename);
+            return false;
+        }
+
+        const int version = j["version"].get<int>();
+        if (version < JSON_PRESET_VERSION_MIN_SUPPORTED || version > JSON_PRESET_VERSION_MAX_SUPPORTED)
+        {
+            mod_log_warn("loadPresetFromFile(\"%s\"): failed, version mismatch", filename);
+            return false;
+        }
+
+        j = j["preset"].get<nlohmann::json>();
+    } catch (const std::exception& e) {
+        mod_log_warn("failed to parse \"%s\": %s", filename, e.what());
+        return false;
+    } catch (...) {
+        mod_log_warn("failed to parse \"%s\": unknown exception", filename);
+        return false;
+    }
+
+    return true;
+}
+
 static bool safeJsonSave(const nlohmann::json& json, const std::string& filename)
 {
     if (FILE* const fd = std::fopen((filename + ".tmp").c_str(), "w"))
@@ -551,73 +607,16 @@ void HostConnector::loadBankFromPresetFiles(const std::array<std::string, NUM_PR
     for (uint8_t pr = 0; pr < NUM_PRESETS_PER_BANK; ++pr)
     {
         Preset& presetdata = _presets[pr];
-
-        std::ifstream f(filenames[pr]);
-        nlohmann::json j;
-
         presetdata.filename = filenames[pr];
 
-        try {
-            j = nlohmann::json::parse(f);
-        } catch (const std::exception& e) {
-            mod_log_warn("failed to parse \"%s\": %s", filenames[pr].c_str(), e.what());
-            resetPreset(presetdata);
-            continue;
-        } catch (...) {
-            mod_log_warn("failed to parse \"%s\": unknown exception", filenames[pr].c_str());
-            resetPreset(presetdata);
-            continue;
-        }
-
-        if (! j.contains("preset"))
+        nlohmann::json j;
+        if (! loadPresetFromFile(filenames[pr].c_str(), j))
         {
-            mod_log_warn("failed to load \"%s\": missing required fields 'preset'", filenames[pr].c_str());
             resetPreset(presetdata);
             continue;
         }
 
-        if (! j.contains("type"))
-        {
-            mod_log_warn("failed to load \"%s\": missing required field 'type'", filenames[pr].c_str());
-            resetPreset(presetdata);
-            continue;
-        }
-
-        if (! j.contains("version"))
-        {
-            mod_log_warn("failed to load \"%s\": missing required field 'version'", filenames[pr].c_str());
-            resetPreset(presetdata);
-            continue;
-        }
-
-        try {
-            if (j["type"].get<std::string>() != "preset")
-            {
-                mod_log_warn("failed to load \"%s\": file is not preset type", filenames[pr].c_str());
-                resetPreset(presetdata);
-                continue;
-            }
-
-            const int version = j["version"].get<int>();
-            if (version < JSON_PRESET_VERSION_MIN_SUPPORTED || version > JSON_PRESET_VERSION_MAX_SUPPORTED)
-            {
-                mod_log_warn("failed to load \"%s\": version mismatch", filenames[pr].c_str());
-                resetPreset(presetdata);
-                continue;
-            }
-
-            j = j["preset"].get<nlohmann::json>();
-        } catch (const std::exception& e) {
-            mod_log_warn("failed to parse \"%s\": %s", filenames[pr].c_str(), e.what());
-            resetPreset(presetdata);
-            continue;
-        } catch (...) {
-            mod_log_warn("failed to parse \"%s\": unknown exception", filenames[pr].c_str());
-            resetPreset(presetdata);
-            continue;
-        }
-
-        const uint8_t numLoadedPlugins = hostLoadPreset(presetdata, j);
+        const uint8_t numLoadedPlugins = jsonPresetLoad(presetdata, j);
 
         if (pr == initialPresetToLoad)
             numLoadedPluginsInLoadedPreset = numLoadedPlugins;
@@ -639,36 +638,9 @@ std::string HostConnector::getPresetNameFromFile(const char* const filename)
 {
     mod_log_debug("loadCurrentPresetFromFile(\"%s\")", filename);
 
-    std::ifstream f(filename);
     nlohmann::json j;
-
-    try {
-        j = nlohmann::json::parse(f);
-    } catch (...) {
+    if (! loadPresetFromFile(filename, j))
         return {};
-    }
-
-    if (! (j.contains("preset") && j.contains("type") && j.contains("version")))
-        return {};
-
-    try {
-        if (j["type"].get<std::string>() != "preset")
-        {
-            mod_log_warn("loadPresetFromFile(\"%s\"): failed, file is not preset type", filename);
-            return {};
-        }
-
-        const int version = j["version"].get<int>();
-        if (version < JSON_PRESET_VERSION_MIN_SUPPORTED || version > JSON_PRESET_VERSION_MAX_SUPPORTED)
-        {
-            mod_log_warn("loadPresetFromFile(\"%s\"): failed, version mismatch", filename);
-            return {};
-        }
-
-        j = j["preset"].get<nlohmann::json>();
-    } catch (...) {
-        return {};
-    }
 
     try {
         return j["name"].get<std::string>();
@@ -683,42 +655,15 @@ bool HostConnector::loadCurrentPresetFromFile(const char* const filename, const 
 {
     mod_log_debug("loadCurrentPresetFromFile(\"%s\")", filename);
 
-    std::ifstream f(filename);
     nlohmann::json j;
-
-    try {
-        j = nlohmann::json::parse(f);
-    } catch (...) {
+    if (! loadPresetFromFile(filename, j))
         return false;
-    }
-
-    if (! (j.contains("preset") && j.contains("type") && j.contains("version")))
-        return false;
-
-    try {
-        if (j["type"].get<std::string>() != "preset")
-        {
-            mod_log_warn("loadPresetFromFile(\"%s\"): failed, file is not preset type", filename);
-            return false;
-        }
-
-        const int version = j["version"].get<int>();
-        if (version < JSON_PRESET_VERSION_MIN_SUPPORTED || version > JSON_PRESET_VERSION_MAX_SUPPORTED)
-        {
-            mod_log_warn("loadPresetFromFile(\"%s\"): failed, version mismatch", filename);
-            return false;
-        }
-
-        j = j["preset"].get<nlohmann::json>();
-    } catch (...) {
-        return false;
-    }
 
     // store old active preset in memory before doing anything
     const Current old = _current;
 
     // load new preset data
-    hostLoadPreset(_current, j);
+    jsonPresetLoad(_current, j);
     _current.filename = filename;
 
     // switch old preset with new one
@@ -726,6 +671,55 @@ bool HostConnector::loadCurrentPresetFromFile(const char* const filename, const 
 
     if (replaceDefault)
         _presets[_current.preset] = _current;
+
+    return true;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+bool HostConnector::preloadPresetFromFile(const uint8_t preset, const char* const filename)
+{
+    mod_log_debug("saveCurrentPresetToFile(%u, \"%s\")", preset, filename);
+    assert(preset < NUM_PRESETS_PER_BANK);
+    assert(preset != _current.preset);
+
+    // load initial json object
+    nlohmann::json j;
+    if (! loadPresetFromFile(filename, j))
+        return false;
+
+    // load preset data
+    Preset presetdata;
+    jsonPresetLoad(presetdata, j);
+    presetdata.filename = filename;
+
+    // unload old preset
+    {
+        const Preset& oldpreset = _presets[preset];
+
+        const Host::NonBlockingScope hnbs(_host);
+
+        for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
+        {
+            for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
+            {
+                if (isNullBlock(oldpreset.chains[row].blocks[bl]))
+                    continue;
+
+                const HostBlockPair hbp = _mapper.remove(preset, row, bl);
+
+                if (hbp.id != kMaxHostInstances)
+                    _host.remove(hbp.id);
+
+                if (hbp.pair != kMaxHostInstances)
+                    _host.remove(hbp.pair);
+            }
+        }
+    }
+
+    // assign and preload new preset
+    _presets[preset] = presetdata;
+    hostLoadPreset(preset);
 
     return true;
 }
@@ -754,7 +748,7 @@ bool HostConnector::saveCurrentPresetToFile(const char* const filename)
     // copy current data into preset data
     _presets[_current.preset] = static_cast<Preset&>(_current);
 
-    hostSavePreset(_current, j["preset"]);
+    jsonPresetSave(_current, j["preset"]);
 
     safeJsonSave(j, filename);
    #ifndef _WIN32
@@ -868,6 +862,15 @@ void HostConnector::setCurrentPresetName(const char* const name)
 
     _current.name = name;
     _current.dirty = true;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::setCurrentPresetFilename(const char* const filename)
+{
+    mod_log_debug("setCurrentPresetFilename(\"%s\")", filename);
+
+    _presets[_current.preset].filename = _current.filename = filename;
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -2449,6 +2452,7 @@ void HostConnector::hostClearAndLoadCurrentBank()
     {
         for (uint8_t pr = 0; pr < NUM_PRESETS_PER_BANK; ++pr)
         {
+            // TODO move to common function
             const bool active = _current.preset == pr;
             bool firstBlock = true;
             bool previousPluginStereoOut;
@@ -3028,13 +3032,13 @@ void HostConnector::hostRemoveInstanceForBlock(const uint8_t row, const uint8_t 
 // --------------------------------------------------------------------------------------------------------------------
 
 template<class nlohmann_json>
-uint8_t HostConnector::hostLoadPreset(Preset& presetdata, nlohmann_json& json)
+uint8_t HostConnector::jsonPresetLoad(Preset& presetdata, nlohmann_json& json) const
 {
     nlohmann::json& jpreset = static_cast<nlohmann::json&>(json);
 
     if (!jpreset.contains("blocks"))
     {
-        mod_log_info("hostLoadPreset(): preset does not include blocks, loading empty");
+        mod_log_info("jsonPresetLoad(): preset does not include blocks, loading empty");
         resetPreset(presetdata);
         return 0;
     }
@@ -3148,7 +3152,7 @@ uint8_t HostConnector::hostLoadPreset(Preset& presetdata, nlohmann_json& json)
             auto& jblock = jblocks[jblockid];
             if (! jblock.contains("uri"))
             {
-                mod_log_info("hostLoadPreset(): block %u does not include uri, loading empty", bl);
+                mod_log_info("jsonPresetLoad(): block %u does not include uri, loading empty", bl);
                 resetBlock(blockdata);
                 continue;
             }
@@ -3161,7 +3165,7 @@ uint8_t HostConnector::hostLoadPreset(Preset& presetdata, nlohmann_json& json)
 
             if (plugin == nullptr)
             {
-                mod_log_info("hostLoadPreset(): plugin with uri '%s' not available, using empty block", uri.c_str());
+                mod_log_info("jsonPresetLoad(): plugin with uri '%s' not available, using empty block", uri.c_str());
                 resetBlock(blockdata);
                 continue;
             }
@@ -3169,7 +3173,7 @@ uint8_t HostConnector::hostLoadPreset(Preset& presetdata, nlohmann_json& json)
             uint8_t numInputs, numOutputs, numSideInputs, numSideOutputs;
             if (!getSupportedPluginIO(plugin, numInputs, numOutputs, numSideInputs, numSideOutputs))
             {
-                mod_log_info("hostLoadPreset(): plugin with uri '%s' has invalid IO, using empty block", uri.c_str());
+                mod_log_info("jsonPresetLoad(): plugin with uri '%s' has invalid IO, using empty block", uri.c_str());
                 resetBlock(blockdata);
                 continue;
             }
@@ -3210,7 +3214,7 @@ uint8_t HostConnector::hostLoadPreset(Preset& presetdata, nlohmann_json& json)
                     auto& jparam = jparams[jparamid];
                     if (! (jparam.contains("symbol") && jparam.contains("value")))
                     {
-                        mod_log_info("hostLoadPreset(): parameter %u is missing symbol and/or value", p);
+                        mod_log_info("jsonPresetLoad(): parameter %u is missing symbol and/or value", p);
                         continue;
                     }
 
@@ -3218,7 +3222,7 @@ uint8_t HostConnector::hostLoadPreset(Preset& presetdata, nlohmann_json& json)
 
                     if (paramToIndexMap.find(symbol) == paramToIndexMap.end())
                     {
-                        mod_log_info("hostLoadPreset(): parameter with '%s' symbol does not exist in plugin", symbol.c_str());
+                        mod_log_info("jsonPresetLoad(): parameter with '%s' symbol does not exist in plugin", symbol.c_str());
                         continue;
                     }
 
@@ -3249,7 +3253,7 @@ uint8_t HostConnector::hostLoadPreset(Preset& presetdata, nlohmann_json& json)
                     auto& jprop = jprops[jpropid];
                     if (! (jprop.contains("uri") && jprop.contains("value")))
                     {
-                        mod_log_info("hostLoadPreset(): property %u is missing uri and/or value", p);
+                        mod_log_info("jsonPresetLoad(): property %u is missing uri and/or value", p);
                         continue;
                     }
 
@@ -3257,7 +3261,7 @@ uint8_t HostConnector::hostLoadPreset(Preset& presetdata, nlohmann_json& json)
 
                     if (propToIndexMap.find(propuri) == propToIndexMap.end())
                     {
-                        mod_log_info("hostLoadPreset(): property with '%s' uri does not exist in plugin", uri.c_str());
+                        mod_log_info("jsonPresetLoad(): property with '%s' uri does not exist in plugin", uri.c_str());
                         continue;
                     }
 
@@ -3287,7 +3291,7 @@ uint8_t HostConnector::hostLoadPreset(Preset& presetdata, nlohmann_json& json)
                 auto& jscenes = jallscenes[jsceneid];
                 if (! jscenes.is_array())
                 {
-                    mod_log_info("hostLoadPreset(): preset scenes are not arrays");
+                    mod_log_info("jsonPresetLoad(): preset scenes are not arrays");
                     continue;
                 }
 
@@ -3296,7 +3300,7 @@ uint8_t HostConnector::hostLoadPreset(Preset& presetdata, nlohmann_json& json)
                 {
                     if (! (jscene.contains("symbol") && jscene.contains("value")))
                     {
-                        mod_log_info("hostLoadPreset(): scene param is missing symbol and/or value");
+                        mod_log_info("jsonPresetLoad(): scene param is missing symbol and/or value");
                         continue;
                     }
 
@@ -3316,7 +3320,7 @@ uint8_t HostConnector::hostLoadPreset(Preset& presetdata, nlohmann_json& json)
 
                     if (paramToIndexMap.find(symbol) == paramToIndexMap.end())
                     {
-                        mod_log_info("hostLoadPreset(): scene param with '%s' symbol does not exist", symbol.c_str());
+                        mod_log_info("jsonPresetLoad(): scene param with '%s' symbol does not exist", symbol.c_str());
                         continue;
                     }
 
@@ -3351,7 +3355,7 @@ uint8_t HostConnector::hostLoadPreset(Preset& presetdata, nlohmann_json& json)
 
     if (! jpreset.contains("bindings"))
     {
-        mod_log_info("hostLoadPreset(): preset does not include any bindings");
+        mod_log_info("jsonPresetLoad(): preset does not include any bindings");
         return numLoadedPlugins;
     }
 
@@ -3366,7 +3370,7 @@ uint8_t HostConnector::hostLoadPreset(Preset& presetdata, nlohmann_json& json)
 
         if (! jallbindings.contains(jbindingsid))
         {
-            mod_log_info("hostLoadPreset(): preset does not include bindings for hw '%s'", jbindingsid.c_str());
+            mod_log_info("jsonPresetLoad(): preset does not include bindings for hw '%s'", jbindingsid.c_str());
             continue;
         }
 
@@ -3374,14 +3378,14 @@ uint8_t HostConnector::hostLoadPreset(Preset& presetdata, nlohmann_json& json)
         auto& jbindings = jallbindings[jbindingsid];
         if (! (jbindings.contains("params") && jbindings.contains("value")))
         {
-            mod_log_info("hostLoadPreset(): bindings is missing params and/or value");
+            mod_log_info("jsonPresetLoad(): bindings is missing params and/or value");
             continue;
         }
 
         auto& jbindingparams = jbindings["params"];
         if (! jbindingparams.is_array())
         {
-            mod_log_info("hostLoadPreset(): preset binding params is not an array");
+            mod_log_info("jsonPresetLoad(): preset binding params is not an array");
             continue;
         }
 
@@ -3391,14 +3395,14 @@ uint8_t HostConnector::hostLoadPreset(Preset& presetdata, nlohmann_json& json)
         {
             if (! (jbindingparam.contains("block") && jbindingparam.contains("symbol")))
             {
-                mod_log_info("hostLoadPreset(): binding is missing block and/or symbol");
+                mod_log_info("jsonPresetLoad(): binding is missing block and/or symbol");
                 continue;
             }
 
             const int block = jbindingparam["block"].get<int>();
             if (block < 1 || block > NUM_BLOCKS_PER_PRESET)
             {
-                mod_log_info("hostLoadPreset(): binding has out of bounds block %d", block);
+                mod_log_info("jsonPresetLoad(): binding has out of bounds block %d", block);
                 continue;
             }
             int row = 1;
@@ -3408,7 +3412,7 @@ uint8_t HostConnector::hostLoadPreset(Preset& presetdata, nlohmann_json& json)
                 if (row < 1 || row > NUM_BLOCK_CHAIN_ROWS)
                 {
                    #if NUM_BLOCK_CHAIN_ROWS != 1
-                    mod_log_info("hostLoadPreset(): binding has out of bounds block %d", block);
+                    mod_log_info("jsonPresetLoad(): binding has out of bounds block %d", block);
                    #endif
                     continue;
                 }
@@ -3480,7 +3484,7 @@ uint8_t HostConnector::hostLoadPreset(Preset& presetdata, nlohmann_json& json)
 // --------------------------------------------------------------------------------------------------------------------
 
 template<class nlohmann_json>
-void HostConnector::hostSavePreset(const Preset& presetdata, nlohmann_json& json) const
+void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann_json& json) const
 {
     nlohmann::json& jpreset = static_cast<nlohmann::json&>(json);
 
@@ -3608,6 +3612,15 @@ void HostConnector::hostSavePreset(const Preset& presetdata, nlohmann_json& json
             }
         }
     }
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::hostLoadPreset(const uint8_t preset)
+{
+    mod_log_debug("hostSwitchPreset(%u)", preset);
+
+    // TODO move code from hostClearAndLoadCurrentBank
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -3991,7 +4004,7 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
                               const uint8_t numSideInputs,
                               const uint8_t numSideOutputs,
                               std::unordered_map<std::string, uint8_t>* paramToIndexMapOpt,
-                              std::unordered_map<std::string, uint8_t>* propToIndexMapOpt)
+                              std::unordered_map<std::string, uint8_t>* propToIndexMapOpt) const
 {
     assert(plugin != nullptr);
 
