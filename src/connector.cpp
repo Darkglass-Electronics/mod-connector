@@ -193,6 +193,9 @@ static void resetBlock(HostConnector::Block& blockdata)
 
     for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
         resetProperty(blockdata.properties[p]);
+
+    for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
+        blockdata.sceneValues[s].enabled = false;
 }
 
 static void allocBlock(HostConnector::Block& blockdata)
@@ -602,8 +605,6 @@ void HostConnector::loadBankFromPresetFiles(const std::array<std::string, NUM_PR
     assert(initialPresetToLoad < NUM_PRESETS_PER_BANK);
     mod_log_debug("loadBankFromPresetFiles(..., %u)", initialPresetToLoad);
 
-    uint8_t numLoadedPluginsInLoadedPreset = 0;
-
     for (uint8_t pr = 0; pr < NUM_PRESETS_PER_BANK; ++pr)
     {
         Preset& presetdata = _presets[pr];
@@ -616,17 +617,12 @@ void HostConnector::loadBankFromPresetFiles(const std::array<std::string, NUM_PR
             continue;
         }
 
-        const uint8_t numLoadedPlugins = jsonPresetLoad(presetdata, j);
-
-        if (pr == initialPresetToLoad)
-            numLoadedPluginsInLoadedPreset = numLoadedPlugins;
+        jsonPresetLoad(presetdata, j);
     }
 
     // create current preset data from selected initial preset
     static_cast<Preset&>(_current) = _presets[initialPresetToLoad];
     _current.preset = initialPresetToLoad;
-    _current.numLoadedPlugins = numLoadedPluginsInLoadedPreset;
-    _current.dirty = false;
 
     const Host::NonBlockingScope hnbs(_host);
     hostClearAndLoadCurrentBank();
@@ -2470,6 +2466,7 @@ void HostConnector::hostClearAndLoadCurrentBank()
     _host.remove(-1);
     _mapper.reset();
     _current.numLoadedPlugins = 0;
+    _current.dirty = false;
 
     for (uint8_t row = 1; row < NUM_BLOCK_CHAIN_ROWS; ++row)
     {
@@ -3085,6 +3082,15 @@ uint8_t HostConnector::jsonPresetLoad(Preset& presetdata, nlohmann_json& json) c
     auto& jblocks = jpreset["blocks"];
     for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
     {
+        if (row != 0)
+        {
+            presetdata.chains[row].capture.fill({});
+            presetdata.chains[row].playback.fill({});
+        }
+
+        presetdata.chains[row].captureId.fill(kMaxHostInstances);
+        presetdata.chains[row].playbackId.fill(kMaxHostInstances);
+
         for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
         {
             Block& blockdata = presetdata.chains[row].blocks[bl];
@@ -3112,7 +3118,10 @@ uint8_t HostConnector::jsonPresetLoad(Preset& presetdata, nlohmann_json& json) c
             {
                 // fallback only valid for first row
                 if (row != 0)
+                {
+                    resetBlock(blockdata);
                     continue;
+                }
 
                 // fallback: try loading single-row file
                 jblockid = std::to_string(bl + 1);
@@ -3594,7 +3603,7 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann_json& json
 
 void HostConnector::hostLoadPreset(const uint8_t preset)
 {
-    mod_log_debug("hostSwitchPreset(%u)", preset);
+    mod_log_debug("hostLoadPreset(%u)", preset);
 
     if (_current.preset == preset) {
         assert(_current.numLoadedPlugins == 0);
@@ -4197,6 +4206,9 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
     for (uint8_t p = numProps; p < MAX_PARAMS_PER_BLOCK; ++p)
         resetProperty(blockdata.properties[p]);
 
+    for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
+        blockdata.sceneValues[s].enabled = false;
+
     // override defaults from user
     const std::string defdir = getDefaultPluginBundleForBlock(blockdata);
 
@@ -4260,6 +4272,11 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
 
 void HostConnector::allocPreset(Preset& preset)
 {
+    preset.chains[0].capture[0] = JACK_CAPTURE_PORT_1;
+    preset.chains[0].capture[1] = JACK_CAPTURE_PORT_2;
+    preset.chains[0].playback[0] = JACK_PLAYBACK_PORT_1;
+    preset.chains[0].playback[1] = JACK_PLAYBACK_PORT_2;
+
     for (ChainRow& chain : preset.chains)
     {
         chain.blocks.resize(NUM_BLOCKS_PER_PRESET);
@@ -4276,14 +4293,6 @@ void HostConnector::resetPreset(Preset& preset)
     preset.name.clear();
     preset.background.color = 0;
     preset.background.style.clear();
-    preset.chains[0].capture[0] = JACK_CAPTURE_PORT_1;
-    preset.chains[0].capture[1] = JACK_CAPTURE_PORT_2;
-    preset.chains[0].playback[0] = JACK_PLAYBACK_PORT_1;
-    preset.chains[0].playback[1] = JACK_PLAYBACK_PORT_2;
-    preset.chains[0].captureId[0] = kMaxHostInstances;
-    preset.chains[0].captureId[1] = kMaxHostInstances;
-    preset.chains[0].playbackId[0] = kMaxHostInstances;
-    preset.chains[0].playbackId[1] = kMaxHostInstances;
 
     for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
     {
@@ -4291,9 +4300,10 @@ void HostConnector::resetPreset(Preset& preset)
         {
             preset.chains[row].capture.fill({});
             preset.chains[row].playback.fill({});
-            preset.chains[row].captureId.fill(kMaxHostInstances);
-            preset.chains[row].playbackId.fill(kMaxHostInstances);
         }
+
+        preset.chains[row].captureId.fill(kMaxHostInstances);
+        preset.chains[row].playbackId.fill(kMaxHostInstances);
 
         for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
             resetBlock(preset.chains[row].blocks[bl]);
