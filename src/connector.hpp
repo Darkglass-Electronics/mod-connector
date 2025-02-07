@@ -184,6 +184,8 @@ struct HostConnector : Host::FeedbackCallback {
         std::vector<Block> blocks;
         std::array<std::string, 2> capture;
         std::array<std::string, 2> playback;
+        std::array<uint16_t, 2> captureId;
+        std::array<uint16_t, 2> playbackId;
     };
 
     struct Preset {
@@ -535,14 +537,14 @@ protected:
     void hostConnectBlockToChainOutput(uint8_t row, uint8_t block);
     void hostConnectChainEndpoints(uint8_t row);
 
-    void hostDisconnectAll();
-    void hostDisconnectAllBlockInputs(uint8_t row, uint8_t block);
-    void hostDisconnectAllBlockOutputs(uint8_t row, uint8_t block);
-    void hostDisconnectAllBlockInputs(const Block& blockdata, const HostBlockPair& hbp);
-    void hostDisconnectAllBlockOutputs(const Block& blockdata, const HostBlockPair& hbp);
+    void hostDisconnectAll(bool disconnectSideChains = false);
+    void hostDisconnectAllBlockInputs(uint8_t row, uint8_t block, bool disconnectSideChains = false);
+    void hostDisconnectAllBlockOutputs(uint8_t row, uint8_t block, bool disconnectSideChains = false);
+    void hostDisconnectAllBlockInputs(const Block& blockdata, const HostBlockPair& hbp, bool disconnectSideChains = false);
+    void hostDisconnectAllBlockOutputs(const Block& blockdata, const HostBlockPair& hbp, bool disconnectSideChains = false);
     void hostDisconnectChainEndpoints(uint8_t row);
 
-    void hostEnsureStereoChain(uint8_t row, uint8_t blockStart);
+    void hostEnsureStereoChain(uint8_t row, uint8_t blockStart, bool recursive = false);
 
     void hostSetupSideIO(uint8_t row, uint8_t block, HostBlockPair hbp, const Lv2Plugin* plugin);
 
@@ -555,7 +557,7 @@ private:
     void hostConnectChainEndpointsAction(uint8_t row, bool connect);
     void hostConnectChainInputAction(uint8_t row, uint8_t block, bool connect);
     void hostConnectChainOutputAction(uint8_t row, uint8_t block, bool connect);
-    void hostDisconnectBlockAction(const Block& blockdata, const HostBlockPair& hbp, bool outputs);
+    void hostDisconnectBlockAction(const Block& blockdata, const HostBlockPair& hbp, bool outputs, bool disconnectSideChains);
 
     // loads preset data, does not trigger host commands
     template<class nlohmann_json>
