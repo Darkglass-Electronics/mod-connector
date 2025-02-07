@@ -2380,9 +2380,9 @@ void HostConnector::hostConnectChainEndpoints(const uint8_t row)
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::hostDisconnectAll(bool disconnectSideChains)
+void HostConnector::hostDisconnectAll(const bool disconnectSideChains)
 {
-    mod_log_debug("hostDisconnectAll()");
+    mod_log_debug("hostDisconnectAll(%s)", bool2str(disconnectSideChains));
 
     for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
     {
@@ -2399,28 +2399,42 @@ void HostConnector::hostDisconnectAll(bool disconnectSideChains)
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::hostDisconnectAllBlockInputs(const uint8_t row, const uint8_t block, bool disconnectSideChains)
+void HostConnector::hostDisconnectAllBlockInputs(const uint8_t row,
+                                                 const uint8_t block,
+                                                 const bool disconnectSideChains)
 {
-    hostDisconnectBlockAction(_current.chains[row].blocks[block], _mapper.get(_current.preset, row, block), false, disconnectSideChains);
+    hostDisconnectBlockAction(_current.chains[row].blocks[block],
+                              _mapper.get(_current.preset, row, block),
+                              false,
+                              disconnectSideChains);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::hostDisconnectAllBlockOutputs(const uint8_t row, const uint8_t block, bool disconnectSideChains)
+void HostConnector::hostDisconnectAllBlockOutputs(const uint8_t row,
+                                                  const uint8_t block,
+                                                  const bool disconnectSideChains)
 {
-    hostDisconnectBlockAction(_current.chains[row].blocks[block], _mapper.get(_current.preset, row, block), true, disconnectSideChains);
+    hostDisconnectBlockAction(_current.chains[row].blocks[block],
+                              _mapper.get(_current.preset, row, block),
+                              true,
+                              disconnectSideChains);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::hostDisconnectAllBlockInputs(const Block& blockdata, const HostBlockPair& hbp, bool disconnectSideChains)
+void HostConnector::hostDisconnectAllBlockInputs(const Block& blockdata,
+                                                 const HostBlockPair& hbp,
+                                                 const bool disconnectSideChains)
 {
     hostDisconnectBlockAction(blockdata, hbp, true, disconnectSideChains);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::hostDisconnectAllBlockOutputs(const Block& blockdata, const HostBlockPair& hbp, bool disconnectSideChains)
+void HostConnector::hostDisconnectAllBlockOutputs(const Block& blockdata,
+                                                  const HostBlockPair& hbp,
+                                                  const bool disconnectSideChains)
 {
     hostDisconnectBlockAction(blockdata, hbp, false, disconnectSideChains);
 }
@@ -2456,8 +2470,8 @@ void HostConnector::hostClearAndLoadCurrentBank()
     {
         _current.chains[row].capture.fill({});
         _current.chains[row].playback.fill({});
-        _current.chains[row].captureId.fill(MAX_MOD_HOST_PLUGIN_INSTANCES);
-        _current.chains[row].playbackId.fill(MAX_MOD_HOST_PLUGIN_INSTANCES);
+        _current.chains[row].captureId.fill(kMaxHostInstances);
+        _current.chains[row].playbackId.fill(kMaxHostInstances);
     }
 
     for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
@@ -2696,9 +2710,13 @@ void HostConnector::hostConnectChainOutputAction(const uint8_t row, const uint8_
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::hostDisconnectBlockAction(const Block& blockdata, const HostBlockPair& hbp, const bool outputs, const bool disconnectSideChains)
+void HostConnector::hostDisconnectBlockAction(const Block& blockdata,
+                                              const HostBlockPair& hbp,
+                                              const bool outputs,
+                                              const bool disconnectSideChains)
 {
-    mod_log_debug("hostDisconnectBlockAction(..., %s, %s)", bool2str(outputs), bool2str(disconnectSideChains));
+    mod_log_debug("hostDisconnectBlockAction(..., {%u, %u}, %s, %s)",
+                  hbp.id, hbp.pair, bool2str(outputs), bool2str(disconnectSideChains));
     assert(!isNullBlock(blockdata));
     assert(hbp.id != kMaxHostInstances);
 
@@ -2729,9 +2747,9 @@ void HostConnector::hostDisconnectBlockAction(const Block& blockdata, const Host
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::hostEnsureStereoChain(const uint8_t row, const uint8_t blockStart, bool recursive)
+void HostConnector::hostEnsureStereoChain(const uint8_t row, const uint8_t blockStart, const bool recursive)
 {
-    mod_log_debug("hostEnsureStereoChain(%u, %u)", row, blockStart);
+    mod_log_debug("hostEnsureStereoChain(%u, %u, %s)", row, blockStart, bool2str(recursive));
     assert(row < NUM_BLOCK_CHAIN_ROWS);
     assert(blockStart < NUM_BLOCKS_PER_PRESET);
 
@@ -2828,7 +2846,7 @@ void HostConnector::hostEnsureStereoChain(const uint8_t row, const uint8_t block
     }
 
     // ensure stereo / dual mono for possible other rows serving as playback targets
-    if (row > 0 && chain.playbackId[0] != MAX_MOD_HOST_PLUGIN_INSTANCES) {
+    if (row > 0 && chain.playbackId[0] != kMaxHostInstances) {
         HostInstanceMapper::BlockAndRow blockRow = _mapper.get_block_with_id(_current.preset, chain.playbackId[0]);
         hostEnsureStereoChain(blockRow.row, blockRow.block, true);
     }
@@ -3076,13 +3094,13 @@ void HostConnector::hostRemoveInstanceForBlock(const uint8_t row, const uint8_t 
         if (blockdata.meta.numSideInputs != 0)
         {
             _current.chains[row + 1].playback.fill({});
-            _current.chains[row + 1].playbackId.fill(MAX_MOD_HOST_PLUGIN_INSTANCES);
+            _current.chains[row + 1].playbackId.fill(kMaxHostInstances);
         }
 
         if (blockdata.meta.numSideOutputs != 0)
         {
             _current.chains[row + 1].capture.fill({});
-            _current.chains[row + 1].captureId.fill(MAX_MOD_HOST_PLUGIN_INSTANCES);
+            _current.chains[row + 1].captureId.fill(kMaxHostInstances);
         }
     }
    #endif
@@ -4251,10 +4269,10 @@ void HostConnector::resetPreset(Preset& preset)
     preset.chains[0].capture[1] = JACK_CAPTURE_PORT_2;
     preset.chains[0].playback[0] = JACK_PLAYBACK_PORT_1;
     preset.chains[0].playback[1] = JACK_PLAYBACK_PORT_2;
-    preset.chains[0].captureId[0] = MAX_MOD_HOST_PLUGIN_INSTANCES;
-    preset.chains[0].captureId[1] = MAX_MOD_HOST_PLUGIN_INSTANCES;
-    preset.chains[0].playbackId[0] = MAX_MOD_HOST_PLUGIN_INSTANCES;
-    preset.chains[0].playbackId[1] = MAX_MOD_HOST_PLUGIN_INSTANCES;
+    preset.chains[0].captureId[0] = kMaxHostInstances;
+    preset.chains[0].captureId[1] = kMaxHostInstances;
+    preset.chains[0].playbackId[0] = kMaxHostInstances;
+    preset.chains[0].playbackId[1] = kMaxHostInstances;
 
     for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
     {
@@ -4262,8 +4280,8 @@ void HostConnector::resetPreset(Preset& preset)
         {
             preset.chains[row].capture.fill({});
             preset.chains[row].playback.fill({});
-            preset.chains[row].captureId.fill(MAX_MOD_HOST_PLUGIN_INSTANCES);
-            preset.chains[row].playbackId.fill(MAX_MOD_HOST_PLUGIN_INSTANCES);
+            preset.chains[row].captureId.fill(kMaxHostInstances);
+            preset.chains[row].playbackId.fill(kMaxHostInstances);
         }
 
         for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
