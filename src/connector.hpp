@@ -568,7 +568,6 @@ private:
     void jsonPresetSave(const Preset& presetdata, nlohmann_json& json) const;
 
     // load preset data from the current bank, only does host commands
-    // TODO move code from hostClearAndLoadCurrentBank
     void hostLoadPreset(uint8_t preset);
 
     // unload "old" and load current preset, only does host commands

@@ -622,7 +622,7 @@ void HostConnector::loadBankFromPresetFiles(const std::array<std::string, NUM_PR
             numLoadedPluginsInLoadedPreset = numLoadedPlugins;
     }
 
-    // always start with the first preset and scene
+    // create current preset data from selected initial preset
     static_cast<Preset&>(_current) = _presets[initialPresetToLoad];
     _current.preset = initialPresetToLoad;
     _current.numLoadedPlugins = numLoadedPluginsInLoadedPreset;
@@ -636,7 +636,7 @@ void HostConnector::loadBankFromPresetFiles(const std::array<std::string, NUM_PR
 
 std::string HostConnector::getPresetNameFromFile(const char* const filename)
 {
-    mod_log_debug("loadCurrentPresetFromFile(\"%s\")", filename);
+    mod_log_debug("getPresetNameFromFile(\"%s\")", filename);
 
     nlohmann::json j;
     if (! loadPresetFromFile(filename, j))
@@ -679,7 +679,7 @@ bool HostConnector::loadCurrentPresetFromFile(const char* const filename, const 
 
 bool HostConnector::preloadPresetFromFile(const uint8_t preset, const char* const filename)
 {
-    mod_log_debug("saveCurrentPresetToFile(%u, \"%s\")", preset, filename);
+    mod_log_debug("preloadPresetFromFile(%u, \"%s\")", preset, filename);
     assert(preset < NUM_PRESETS_PER_BANK);
     assert(preset != _current.preset);
 
@@ -690,6 +690,7 @@ bool HostConnector::preloadPresetFromFile(const uint8_t preset, const char* cons
 
     // load preset data
     Preset presetdata;
+    allocPreset(presetdata);
     jsonPresetLoad(presetdata, j);
     presetdata.filename = filename;
 
@@ -719,7 +720,11 @@ bool HostConnector::preloadPresetFromFile(const uint8_t preset, const char* cons
 
     // assign and preload new preset
     _presets[preset] = presetdata;
-    hostLoadPreset(preset);
+
+    {
+        const Host::NonBlockingScope hnbs(_host);
+        hostLoadPreset(preset);
+    }
 
     return true;
 }
@@ -2474,115 +2479,8 @@ void HostConnector::hostClearAndLoadCurrentBank()
         _current.chains[row].playbackId.fill(kMaxHostInstances);
     }
 
-    for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
-    {
-        for (uint8_t pr = 0; pr < NUM_PRESETS_PER_BANK; ++pr)
-        {
-            // TODO move to common function
-            const bool active = _current.preset == pr;
-            bool firstBlock = true;
-            bool previousPluginStereoOut;
-
-            // related to active preset only
-            uint8_t last = 0;
-            uint8_t numLoadedPlugins = 0;
-
-            const ChainRow& chaindata(active ? _current.chains[row] : _presets[pr].chains[row]);
-
-            for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
-            {
-                const Block& blockdata(chaindata.blocks[bl]);
-                if (isNullBlock(blockdata))
-                    continue;
-
-                if (firstBlock)
-                {
-                    firstBlock = false;
-                    previousPluginStereoOut = chaindata.capture[0] != chaindata.capture[1];
-                }
-
-                const auto loadInstance = [=, &blockdata](const uint16_t instance)
-                {
-                    if (active ? _host.add(blockdata.uri.c_str(), instance)
-                               : _host.preload(blockdata.uri.c_str(), instance))
-                    {
-                        if (!blockdata.enabled)
-                            _host.bypass(instance, true);
-
-                        for (const Parameter& paramdata : blockdata.parameters)
-                        {
-                            if (isNullURI(paramdata.symbol))
-                                break;
-                            _host.param_set(instance, paramdata.symbol.c_str(), paramdata.value);
-                        }
-
-                        for (const Property& propdata : blockdata.properties)
-                        {
-                            if (isNullURI(propdata.uri))
-                                break;
-                            _host.patch_set(instance, propdata.uri.c_str(), propdata.value.c_str());
-                        }
-
-                        return true;
-                    }
-
-                    return false;
-                };
-
-                const bool dualmono = previousPluginStereoOut && blockdata.meta.numInputs == 1;
-                const HostBlockPair hbp = { _mapper.add(pr, row, bl), kMaxHostInstances };
-
-                bool added = loadInstance(hbp.id);
-
-                if (added)
-                {
-                    if (dualmono)
-                    {
-                        const uint16_t pair = _mapper.add_pair(pr, row, bl);
-
-                        if (! loadInstance(pair))
-                        {
-                            added = false;
-                            _host.remove(hbp.pair);
-                        }
-                    }
-                }
-
-                if (! added)
-                {
-                    if (active)
-                        resetBlock(_current.chains[row].blocks[bl]);
-
-                    _mapper.remove(pr, row, bl);
-                    continue;
-                }
-
-                previousPluginStereoOut = blockdata.meta.numOutputs == 2 || dualmono;
-
-                // dealing with connections after this point, only valid if preset is the active one
-                if (active)
-                {
-                    if (++numLoadedPlugins == 1)
-                        hostConnectBlockToChainInput(row, bl);
-                    else
-                        hostConnectBlockToBlock(row, last, bl);
-
-                    hostSetupSideIO(row, bl, hbp, nullptr);
-                    last = bl;
-                }
-            }
-
-            if (active)
-            {
-                if (numLoadedPlugins != 0)
-                    hostConnectBlockToChainOutput(row, last);
-                else if (!_current.chains[row].capture[0].empty())
-                    hostConnectChainEndpoints(row);
-
-                _current.numLoadedPlugins += numLoadedPlugins;
-            }
-        }
-    }
+    for (uint8_t pr = 0; pr < NUM_PRESETS_PER_BANK; ++pr)
+        hostLoadPreset(pr);
 
     _host.feature_enable(Host::kFeatureProcessing, Host::kProcessingOnWithFadeIn);
 }
@@ -2798,6 +2696,7 @@ void HostConnector::hostEnsureStereoChain(const uint8_t row, const uint8_t block
         {
             const uint16_t pair = _mapper.add_pair(_current.preset, row, bl);
 
+            // NOTE this does not take into account our custom defaults, we set all params
             if (_host.add(blockdata.uri.c_str(), pair))
             {
                 if (!blockdata.enabled)
@@ -3697,7 +3596,119 @@ void HostConnector::hostLoadPreset(const uint8_t preset)
 {
     mod_log_debug("hostSwitchPreset(%u)", preset);
 
-    // TODO move code from hostClearAndLoadCurrentBank
+    if (_current.preset == preset) {
+        assert(_current.numLoadedPlugins == 0);
+    }
+
+    const bool active = _current.preset == preset;
+
+    for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
+    {
+        const ChainRow& chaindata(active ? _current.chains[row] : _presets[preset].chains[row]);
+
+        bool firstBlock = true;
+        bool previousPluginStereoOut;
+
+        // related to active preset only
+        uint8_t last = 0;
+        uint8_t numLoadedPlugins = 0;
+
+        for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
+        {
+            const Block& blockdata(chaindata.blocks[bl]);
+            if (isNullBlock(blockdata))
+                continue;
+
+            if (firstBlock)
+            {
+                firstBlock = false;
+                previousPluginStereoOut = chaindata.capture[0] != chaindata.capture[1];
+            }
+
+            const auto loadInstance = [=, &blockdata](const uint16_t instance)
+            {
+                if (active ? _host.add(blockdata.uri.c_str(), instance)
+                           : _host.preload(blockdata.uri.c_str(), instance))
+                {
+                    if (!blockdata.enabled)
+                        _host.bypass(instance, true);
+
+                    for (const Parameter& paramdata : blockdata.parameters)
+                    {
+                        if (isNullURI(paramdata.symbol))
+                            break;
+                        // TODO safe float comparison
+                        if (paramdata.value != paramdata.meta.def)
+                            _host.param_set(instance, paramdata.symbol.c_str(), paramdata.value);
+                    }
+
+                    for (const Property& propdata : blockdata.properties)
+                    {
+                        if (isNullURI(propdata.uri))
+                            break;
+                        if (propdata.value != propdata.meta.def)
+                            _host.patch_set(instance, propdata.uri.c_str(), propdata.value.c_str());
+                    }
+
+                    return true;
+                }
+
+                return false;
+            };
+
+            const bool dualmono = previousPluginStereoOut && blockdata.meta.numInputs == 1;
+            const HostBlockPair hbp = { _mapper.add(preset, row, bl), kMaxHostInstances };
+
+            bool added = loadInstance(hbp.id);
+
+            if (added)
+            {
+                if (dualmono)
+                {
+                    const uint16_t pair = _mapper.add_pair(preset, row, bl);
+
+                    if (! loadInstance(pair))
+                    {
+                        added = false;
+                        _host.remove(hbp.pair);
+                    }
+                }
+            }
+
+            if (! added)
+            {
+                if (active)
+                    resetBlock(_current.chains[row].blocks[bl]);
+
+                _mapper.remove(preset, row, bl);
+                continue;
+            }
+
+            previousPluginStereoOut = blockdata.meta.numOutputs == 2 || dualmono;
+
+            // dealing with connections after this point, only valid if preset is the active one
+            if (active)
+            {
+                if (++numLoadedPlugins == 1)
+                    hostConnectBlockToChainInput(row, bl);
+                else
+                    hostConnectBlockToBlock(row, last, bl);
+
+                hostSetupSideIO(row, bl, hbp, nullptr);
+                last = bl;
+            }
+        }
+
+        if (active)
+        {
+            if (numLoadedPlugins != 0)
+                hostConnectBlockToChainOutput(row, last);
+            else if (!_current.chains[row].capture[0].empty())
+                hostConnectChainEndpoints(row);
+
+            _current.numLoadedPlugins += numLoadedPlugins;
+        }
+    }
 }
 
 // --------------------------------------------------------------------------------------------------------------------
