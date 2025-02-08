@@ -16,14 +16,16 @@
 #include <lv2/morph/morph.h>
 #include <lv2/patch/patch.h>
 #include <lv2/port-props/port-props.h>
-#include <lv2/units/units.h>
 #include <lv2/state/state.h>
+#include <lv2/time/time.h>
+#include <lv2/units/units.h>
 #else
 #include <lv2/lv2plug.in/ns/ext/atom/atom.h>
 #include <lv2/lv2plug.in/ns/ext/morph/morph.h>
 #include <lv2/lv2plug.in/ns/ext/patch/patch.h>
 #include <lv2/lv2plug.in/ns/ext/port-props/port-props.h>
 #include <lv2/lv2plug.in/ns/ext/state/state.h>
+#include <lv2/lv2plug.in/ns/ext/time/time.h>
 #include <lv2/lv2plug.in/ns/ext/units/units.h>
 #endif
 
@@ -52,7 +54,20 @@
 #define LILV_NS_MOD "http://moddevices.com/ns/mod#"
 #define MOD__CVPort LILV_NS_MOD "CVPort"
 
-#define LILV_NS_MODGUI "http://moddevices.com/ns/modgui#"
+// --------------------------------------------------------------------------------------------------------------------
+// proper lilv_file_uri_parse function that returns absolute paths
+
+static char* lilv_file_abspath(const char* const path)
+{
+    if (char* const lilvpath = lilv_file_uri_parse(path, nullptr))
+    {
+        char* const ret = realpath(lilvpath, nullptr);
+        lilv_free(lilvpath);
+        return ret;
+    }
+
+    return nullptr;
+}
 
 // --------------------------------------------------------------------------------------------------------------------
 
@@ -64,12 +79,11 @@ struct Lv2NamespaceDefinitions {
     LilvNode* const lv2core_maximum;
     LilvNode* const lv2core_portProperty;
     LilvNode* const lv2core_shortName;
-    LilvNode* const modgui_gui;
-    LilvNode* const modgui_resourcesDirectory;
-    LilvNode* const modgui_screenshot;
     LilvNode* const patch_readable;
     LilvNode* const patch_writable;
     LilvNode* const rdf_type;
+    LilvNode* const rdfs_label;
+    LilvNode* const rdfs_range;
     LilvNode* const state_state;
     LilvNode* const units_unit;
 
@@ -81,12 +95,11 @@ struct Lv2NamespaceDefinitions {
           lv2core_maximum(lilv_new_uri(world, LV2_CORE__maximum)),
           lv2core_portProperty(lilv_new_uri(world, LV2_CORE__portProperty)),
           lv2core_shortName(lilv_new_uri(world, LV2_CORE__shortName)),
-          modgui_gui(lilv_new_uri(world, LILV_NS_MODGUI "gui")),
-          modgui_resourcesDirectory(lilv_new_uri(world, LILV_NS_MODGUI "resourcesDirectory")),
-          modgui_screenshot(lilv_new_uri(world, LILV_NS_MODGUI "screenshot")),
           patch_readable(lilv_new_uri(world, LV2_PATCH__readable)),
           patch_writable(lilv_new_uri(world, LV2_PATCH__writable)),
           rdf_type(lilv_new_uri(world, LILV_NS_RDF "type")),
+          rdfs_label(lilv_new_uri(world, LILV_NS_RDFS "label")),
+          rdfs_range(lilv_new_uri(world, LILV_NS_RDFS "range")),
           state_state(lilv_new_uri(world, LV2_STATE__state)),
           units_unit(lilv_new_uri(world, LV2_UNITS__unit))
     {
@@ -101,12 +114,11 @@ struct Lv2NamespaceDefinitions {
         lilv_node_free(lv2core_maximum);
         lilv_node_free(lv2core_portProperty);
         lilv_node_free(lv2core_shortName);
-        lilv_node_free(modgui_gui);
-        lilv_node_free(modgui_resourcesDirectory);
-        lilv_node_free(modgui_screenshot);
         lilv_node_free(patch_readable);
         lilv_node_free(patch_writable);
         lilv_node_free(rdf_type);
+        lilv_node_free(rdfs_label);
+        lilv_node_free(rdfs_range);
         lilv_node_free(state_state);
         lilv_node_free(units_unit);
     }
@@ -465,6 +477,8 @@ struct Lv2World::Impl
 
                             if (std::strcmp(designation, LV2_CORE__enabled) == 0)
                                 retport.designation = kLv2DesignationEnabled;
+                            else if (std::strcmp(designation, LV2_TIME__beatsPerMinute) == 0)
+                                retport.designation = kLv2DesignationBPM;
                             else if (std::strcmp(designation, KXSTUDIO__Reset) == 0)
                                 retport.designation = kLv2DesignationReset;
 
@@ -509,7 +523,7 @@ struct Lv2World::Impl
                             if (const unsigned int scalepointcount = lilv_scale_points_size(scalepoints))
                             {
                                 // get all scalepoints and sort them by value
-                                std::map<double, Lv2PortScalePoint> sortedpoints;
+                                std::map<double, Lv2ScalePoint> sortedpoints;
 
                                 LILV_FOREACH(scale_points, itscl, scalepoints)
                                 {
@@ -540,27 +554,27 @@ struct Lv2World::Impl
                             const char* uuri = lilv_node_as_uri(lilv_nodes_get_first(uunits));
 
                             // using pre-existing lv2 unit
-                            if (uuri != nullptr && std::strncmp(uuri, LV2_UNITS_PREFIX, 38) == 0)
+                            if (uuri != nullptr && std::strncmp(uuri, LV2_UNITS_PREFIX, std::strlen(LV2_UNITS_PREFIX)) == 0)
                             {
-                                uuri += 38; // strlen(LV2_UNITS_PREFIX)
+                                uuri += std::strlen(LV2_UNITS_PREFIX);
 
-                                /**/ if (strcmp(uuri, "s") == 0)
+                                /**/ if (std::strcmp(uuri, "s") == 0)
                                     retport.unit = "s";
-                                else if (strcmp(uuri, "ms") == 0)
+                                else if (std::strcmp(uuri, "ms") == 0)
                                     retport.unit = "ms";
-                                else if (strcmp(uuri, "db") == 0)
+                                else if (std::strcmp(uuri, "db") == 0)
                                     retport.unit = "dB";
-                                else if (strcmp(uuri, "pc") == 0)
+                                else if (std::strcmp(uuri, "pc") == 0)
                                     retport.unit = "%";
-                                else if (strcmp(uuri, "hz") == 0)
+                                else if (std::strcmp(uuri, "hz") == 0)
                                     retport.unit = "Hz";
-                                else if (strcmp(uuri, "khz") == 0)
+                                else if (std::strcmp(uuri, "khz") == 0)
                                     retport.unit = "kHz";
-                                else if (strcmp(uuri, "mhz") == 0)
+                                else if (std::strcmp(uuri, "mhz") == 0)
                                     retport.unit = "MHz";
-                                else if (strcmp(uuri, "cent") == 0)
+                                else if (std::strcmp(uuri, "cent") == 0)
                                     retport.unit = "ct";
-                                else if (strcmp(uuri, "semitone12TET") == 0)
+                                else if (std::strcmp(uuri, "semitone12TET") == 0)
                                     retport.unit = "semi";
                             }
 
@@ -576,12 +590,14 @@ struct Lv2World::Impl
             {
                 std::map<std::string, Lv2Property> properties;
 
-                const auto get_properties = [=](const bool writable)
+                const auto get_properties = [=, &properties](const bool writable)
                 {
                     if (LilvNodes* const patches = lilv_plugin_get_value(plugin, writable ? ns.patch_writable
                                                                                           : ns.patch_readable))
                     {
-                        // used to fetch default values
+                        Lv2Property property;
+
+                        // used to fetch default path value
                         LilvNode* const statenode = lilv_world_get(world,
                                                                    lilv_plugin_get_uri(plugin),
                                                                    ns.state_state,
@@ -589,8 +605,118 @@ struct Lv2World::Impl
 
                         LILV_FOREACH(nodes, itpatches, patches)
                         {
-                            // TODO
+                            const LilvNode* const patch = lilv_nodes_get(patches, itpatches);
+
+                            property = {};
+                            property.uri = lilv_node_as_uri(patch);
+
+                            if (properties.find(property.uri) != properties.end())
+                                continue;
+
+                            // type must be lv2:Parameter
+                            if (LilvNode* const typeNode = lilv_world_get(world, patch, ns.rdf_type, nullptr))
+                            {
+                                if (std::strcmp(lilv_node_as_uri(typeNode), LV2_CORE__Parameter) != 0)
+                                {
+                                    lilv_node_free(typeNode);
+                                    continue;
+                                }
+                                lilv_node_free(typeNode);
+                            }
+                            else
+                            {
+                                continue;
+                            }
+
+                            // must contain label
+                            if (LilvNode* const labelNode = lilv_world_get(world, patch, ns.rdfs_label, nullptr))
+                            {
+                                property.name = lilv_node_as_string(labelNode);
+                                lilv_node_free(labelNode);
+                            }
+
+                            if (property.name.empty())
+                                continue;
+
+                            // must contain range and be atom type
+                            if (LilvNode* const rangeNode = lilv_world_get(world, patch, ns.rdfs_range, nullptr))
+                            {
+                                const char* range = lilv_node_as_string(rangeNode);
+                                if (std::strncmp(range, LV2_ATOM_PREFIX, std::strlen(LV2_ATOM_PREFIX)) == 0)
+                                {
+                                    range += std::strlen(LV2_ATOM_PREFIX);
+
+                                    /**/ if (std::strcmp(range, "Bool") == 0)
+                                        property.flags = Lv2PropertyIsParameter|Lv2ParameterInteger|Lv2ParameterToggled;
+                                    else if (std::strcmp(range, "Int") == 0)
+                                        property.flags = Lv2PropertyIsParameter|Lv2ParameterInteger;
+                                    else if (std::strcmp(range, "Float") == 0)
+                                        property.flags = Lv2PropertyIsParameter;
+                                    else if (std::strcmp(range, "Path") == 0)
+                                        property.flags = Lv2PropertyIsPath;
+                                }
+
+                                lilv_node_free(rangeNode);
+                            }
+
+                            if (property.flags == 0)
+                                continue;
+
+                            // set default value
+                            if (property.flags == Lv2PropertyIsPath)
+                            {
+                                if (LilvNode* const keynode = lilv_new_uri(world, property.uri.c_str()))
+                                {
+                                    if (LilvNode* const valuenode = lilv_world_get(world, statenode, keynode, nullptr))
+                                    {
+                                        property.defpath = lilv_file_abspath(lilv_node_as_string(valuenode));
+                                        lilv_node_free(valuenode);
+                                    }
+
+                                    lilv_node_free(keynode);
+                                }
+                            }
+                            else
+                            {
+                                LilvNode* const xminimum = lilv_world_get(world, patch, ns.lv2core_minimum, nullptr);
+                                LilvNode* const xmaximum = lilv_world_get(world, patch, ns.lv2core_maximum, nullptr);
+                                LilvNode* const xdefault = lilv_world_get(world, patch, ns.lv2core_default, nullptr);
+
+                                if (xminimum != nullptr && xmaximum != nullptr)
+                                {
+                                    property.min = lilv_node_as_float(xminimum);
+                                    property.max = lilv_node_as_float(xmaximum);
+                                }
+                                else
+                                {
+                                    property.min = 0.f;
+                                    property.max = 1.f;
+                                }
+
+                                if (xdefault != nullptr)
+                                    property.def = std::min(property.max,
+                                                            std::max(property.min,
+                                                                     lilv_node_as_float(xdefault)));
+                                else
+                                    property.def = property.min;
+
+                                lilv_node_free(xminimum);
+                                lilv_node_free(xmaximum);
+                                lilv_node_free(xdefault);
+                            }
+
+                            // set shortname (optional)
+                            if (LilvNode* const node = lilv_world_get(world, patch, ns.lv2core_shortName, nullptr))
+                            {
+                                property.shortname = lilv_node_as_string(node);
+                                lilv_node_free(node);
+                            }
+
+                            if (! writable)
+                                property.flags |= Lv2PropertyIsReadOnly;
                         }
+
+                        properties[property.uri] = property;
 
                         lilv_node_free(statenode);
                         lilv_nodes_free(patches);
@@ -607,43 +733,6 @@ struct Lv2World::Impl
                     for (auto& prop : properties)
                         retplugin->properties.push_back(prop.second);
                 }
-            }
-
-            // --------------------------------------------------------------------------------------------------------
-            // screenshot
-
-            if (LilvNodes* const nodes = lilv_plugin_get_value(plugin, ns.modgui_gui))
-            {
-                LILV_FOREACH(nodes, it, nodes)
-                {
-                    const LilvNode* const modgui = lilv_nodes_get(nodes, it);
-                    lilv_world_load_resource(world, modgui);
-
-                    LilvNode* const resdirn = lilv_world_get(world, modgui, ns.modgui_resourcesDirectory, nullptr);
-                    if (resdirn == nullptr)
-                        continue;
-
-                    char* const resdir = lilv_file_uri_parse(lilv_node_as_string(resdirn), nullptr);
-                    lilv_node_free(resdirn);
-
-                    if (resdir == nullptr)
-                        continue;
-
-                    if (LilvNode* const modgui_scrn = lilv_world_get(world, modgui, ns.modgui_screenshot, nullptr))
-                    {
-                        if (char* const path = lilv_file_uri_parse(lilv_node_as_string(modgui_scrn), nullptr))
-                        {
-                            retplugin->screenshot = path;
-                            lilv_free(path);
-                        }
-                        lilv_node_free(modgui_scrn);
-                    }
-
-                    lilv_free(resdir);
-                    break;
-                }
-
-                lilv_nodes_free(nodes);
             }
 
             pluginscache[uri] = retplugin;

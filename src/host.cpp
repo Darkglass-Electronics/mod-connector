@@ -196,6 +196,9 @@ struct Host::Impl
 
     bool reconnect()
     {
+        if (dummyDevMode)
+            return true;
+
        #ifdef _WIN32
         if (! wsaInitialized)
             return false;

@@ -96,21 +96,21 @@ struct HostConnector : Host::FeedbackCallback {
             std::string name;
             std::string shortname;
             std::string unit;
-            std::vector<Lv2PortScalePoint> scalePoints;
+            std::vector<Lv2ScalePoint> scalePoints;
         } meta;
     };
 
     struct Property {
         std::string uri;
-        std::string value;
+        std::string value; // TODO float or string
         struct {
             // convenience meta-data, not stored in json state
             uint32_t flags;
             uint8_t hwbinding;
-            std::string def;
+            float def, min, max; // used for Lv2PropertyIsParameter
+            std::string defpath; // used for Lv2PropertyIsPath
             std::string name;
             std::string shortname;
-            std::vector<Lv2PropertyScalePoint> scalePoints;
         } meta;
     };
 

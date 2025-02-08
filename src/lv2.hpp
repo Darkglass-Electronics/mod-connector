@@ -55,6 +55,7 @@ enum Lv2Category {
 enum Lv2Designation {
     kLv2DesignationNone = 0,
     kLv2DesignationEnabled,
+    kLv2DesignationBPM,
     kLv2DesignationReset,
     kLv2DesignationQuickPot,
 };
@@ -67,8 +68,8 @@ enum Lv2Flags {
     Lv2PortIsSidechain     = 1 << 3,
     // property flags
     Lv2PropertyIsPath      = 1 << 0,
-    Lv2PropertyIsParameter = 1 << 1, // NOTE unsupported
-    Lv2PropertyIsReadOnly  = 1 << 2, // NOTE unsupported
+    Lv2PropertyIsParameter = 1 << 1,
+    Lv2PropertyIsReadOnly  = 1 << 2,
     // common flags
     Lv2ParameterToggled    = 1 << 4,
     Lv2ParameterInteger    = 1 << 5,
@@ -76,13 +77,10 @@ enum Lv2Flags {
     Lv2ParameterHidden     = 1 << 7,
 };
 
-struct Lv2PortScalePoint {
+struct Lv2ScalePoint {
     std::string label;
     float value = 0.f;
 };
-
-// TODO deprecated, remove this
-using Lv2ScalePoint = Lv2PortScalePoint;
 
 struct Lv2Port {
     std::string symbol;
@@ -94,12 +92,7 @@ struct Lv2Port {
     float min = 0.f;
     float max = 1.f;
     std::string unit;
-    std::vector<Lv2PortScalePoint> scalePoints;
-};
-
-struct Lv2PropertyScalePoint {
-    std::string label;
-    std::string value;
+    std::vector<Lv2ScalePoint> scalePoints;
 };
 
 struct Lv2Property {
@@ -107,7 +100,12 @@ struct Lv2Property {
     std::string name;
     std::string shortname;
     uint32_t flags = 0;
-    std::vector<Lv2PropertyScalePoint> scalePoints;
+    // used for Lv2PropertyIsPath
+    std::string defpath;
+    // used for Lv2PropertyIsParameter
+    float def = 0.f;
+    float min = 0.f;
+    float max = 1.f;
 };
 
 struct Lv2Plugin {
@@ -117,7 +115,6 @@ struct Lv2Plugin {
     Lv2Category category = kLv2CategoryNone;
     std::vector<Lv2Port> ports;
     std::vector<Lv2Property> properties;
-    std::string screenshot;
 };
 
 struct Lv2World {

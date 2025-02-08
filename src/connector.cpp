@@ -1757,6 +1757,8 @@ bool HostConnector::addBlockPropertyBinding(const uint8_t hwid,
 
     if (_current.bindings[hwid].properties.empty())
     {
+        // TODO
+        /*
         assert(! propdata.meta.scalePoints.empty());
 
         bool found = false;
@@ -1772,6 +1774,7 @@ bool HostConnector::addBlockPropertyBinding(const uint8_t hwid,
         assert(found);
         if (! found)
             _current.bindings[hwid].value = 0.0;
+        */
     }
 
     _current.bindings[hwid].properties.push_back({ row, block, propdata.uri, { propIndex } });
@@ -3655,7 +3658,7 @@ void HostConnector::hostLoadPreset(const uint8_t preset)
                     {
                         if (isNullURI(propdata.uri))
                             break;
-                        if (propdata.value != propdata.meta.def)
+                        if (propdata.value != propdata.meta.defpath)
                             _host.patch_set(instance, propdata.uri.c_str(), propdata.value.c_str());
                     }
 
@@ -4142,6 +4145,7 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
         case kLv2DesignationNone:
             break;
         case kLv2DesignationEnabled:
+        case kLv2DesignationBPM:
         case kLv2DesignationReset:
             // skip parameter
             continue;
@@ -4187,9 +4191,9 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
             .meta = {
                 .flags = prop.flags,
                 .hwbinding = UINT8_MAX,
+                .def = prop.def,
                 .name = prop.name,
                 .shortname = prop.shortname,
-                .scalePoints = prop.scalePoints,
             },
         };
 
