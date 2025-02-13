@@ -630,6 +630,27 @@ void HostConnector::loadBankFromPresetFiles(const std::array<std::string, NUM_PR
 
 // --------------------------------------------------------------------------------------------------------------------
 
+void HostConnector::loadEmptyBank(const uint8_t initialPresetToLoad)
+{
+    assert(initialPresetToLoad < NUM_PRESETS_PER_BANK);
+    mod_log_debug("loadEmptyBank(..., %u)", initialPresetToLoad);
+
+    for (uint8_t pr = 0; pr < NUM_PRESETS_PER_BANK; ++pr)
+    {
+        Preset& presetdata = _presets[pr];
+        resetPreset(presetdata);
+    }
+
+    // create current preset data from selected initial preset
+    static_cast<Preset&>(_current) = _presets[initialPresetToLoad];
+    _current.preset = initialPresetToLoad;
+
+    const Host::NonBlockingScope hnbs(_host);
+    hostClearAndLoadCurrentBank();
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 std::string HostConnector::getPresetNameFromFile(const char* const filename)
 {
     mod_log_debug("getPresetNameFromFile(\"%s\")", filename);
