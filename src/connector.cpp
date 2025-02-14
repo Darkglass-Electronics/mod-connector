@@ -3543,26 +3543,50 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann_json& json
             auto& jblock = jblocks[jblockid] = {
                 { "enabled", blockdata.enabled },
                 { "parameters", nlohmann::json::object({}) },
+                { "properties", nlohmann::json::object({}) },
                 { "quickpot", blockdata.quickPotSymbol },
                 { "scenes", nlohmann::json::object({}) },
                 { "uri", /*isNullBlock(blockdata) ? "-" :*/ blockdata.uri },
             };
 
-            auto& jparams = jblock["parameters"];
-            for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
             {
-                const Parameter& paramdata = blockdata.parameters[p];
+                auto& jparams = jblock["parameters"];
 
-                if (isNullURI(paramdata.symbol))
-                    break;
-                if ((paramdata.meta.flags & Lv2PortIsOutput) != 0)
-                    continue;
+                for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                {
+                    const Parameter& paramdata = blockdata.parameters[p];
 
-                const std::string jparamid = std::to_string(p + 1);
-                jparams[jparamid] = {
-                    { "symbol", paramdata.symbol },
-                    { "value", paramdata.value },
-                };
+                    if (isNullURI(paramdata.symbol))
+                        break;
+                    if ((paramdata.meta.flags & Lv2PortIsOutput) != 0)
+                        continue;
+
+                    const std::string jparamid = std::to_string(p + 1);
+                    jparams[jparamid] = {
+                        { "symbol", paramdata.symbol },
+                        { "value", paramdata.value },
+                    };
+                }
+            }
+
+            {
+                auto& jprops = jblock["properties"];
+
+                for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                {
+                    const Property& propdata = blockdata.properties[p];
+
+                    if (isNullURI(propdata.uri))
+                        break;
+                    if ((propdata.meta.flags & Lv2PropertyIsReadOnly) != 0)
+                        continue;
+
+                    const std::string jpropid = std::to_string(p + 1);
+                    jprops[jpropid] = {
+                        { "uri", propdata.uri },
+                        { "value", propdata.value },
+                    };
+                }
             }
 
             if (blockdata.meta.numParamsInScenes != 0)
