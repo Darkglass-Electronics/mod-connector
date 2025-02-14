@@ -669,7 +669,9 @@ struct Lv2World::Impl
                                 {
                                     if (LilvNode* const valuenode = lilv_world_get(world, statenode, keynode, nullptr))
                                     {
-                                        property.defpath = lilv_file_abspath(lilv_node_as_string(valuenode));
+                                        if (const char* const path = lilv_file_abspath(lilv_node_as_string(valuenode)))
+                                            property.defpath = path;
+
                                         lilv_node_free(valuenode);
                                     }
 
