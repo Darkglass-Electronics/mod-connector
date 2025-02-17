@@ -1599,7 +1599,7 @@ bool HostConnector::switchScene(const uint8_t scene)
 
     _current.scene = scene;
 
-    const Host::NonBlockingScopeWithAudioFades hnbs(_host);
+    const Host::NonBlockingScope hnbs(_host);
 
     for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
     {
