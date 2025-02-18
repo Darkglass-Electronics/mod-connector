@@ -31,6 +31,7 @@ struct HostConnector : Host::FeedbackCallback {
                 kToolParameterSet,
                 kToolPatchSet,
                 // TODO rename Patch to Property
+                kMidiProgramChange,
             } type;
             union {
                 // kAudioMonitor
@@ -78,6 +79,11 @@ struct HostConnector : Host::FeedbackCallback {
                     char type;
                     HostPatchData data;
                 } toolPatchSet;
+                // kMidiProgramChange
+                struct {
+                    uint8_t program;
+                    uint8_t channel;
+                } midiProgramChange;
             };
         };
 
@@ -258,6 +264,9 @@ public:
 
     // try to reconnect host if it previously failed
     bool reconnect();
+
+    // listen to MIDI program change messages
+    bool monitorMidiProgram(uint8_t midiChannel, bool enable);
 
     // poll for host updates (e.g. MIDI-mapped parameter changes, tempo changes)
     // NOTE make sure to call `requestHostUpdates()` after handling all updates
@@ -526,6 +535,18 @@ public:
     }
    #endif
 
+    // ----------------------------------------------------------------------------------------------------------------
+
+    // class to activate non-blocking mode during a function scope, same as Host::NonBlockingScope.
+    // NOTE must be used with care! A lot of HostConnector calls already use this and recursion is not supported!
+    class NonBlockingScope {
+        const Host::NonBlockingScope hnbs;
+    public:
+        NonBlockingScope(HostConnector& hostconn);
+    };
+
+    // ----------------------------------------------------------------------------------------------------------------
+
 protected:
     // load host state as stored in the `current` struct
     // also preloads the other presets in the bank
@@ -598,5 +619,6 @@ using HostProperty = HostConnector::Property;
 using HostPropertyBinding = HostConnector::PropertyBinding;
 using HostSceneMode = HostConnector::SceneMode;
 using HostCallbackData = HostConnector::Callback::Data;
+using HostNonBlockingScope = HostConnector::NonBlockingScope;
 
 // --------------------------------------------------------------------------------------------------------------------

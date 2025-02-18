@@ -363,6 +363,11 @@ bool HostConnector::reconnect()
     return _host.reconnect();
 }
 
+bool HostConnector::monitorMidiProgram(const uint8_t midiChannel, const bool enable)
+{
+    return _host.monitor_midi_program(midiChannel, enable);
+}
+
 // --------------------------------------------------------------------------------------------------------------------
 
 std::string HostConnector::getBlockId(const uint8_t row, const uint8_t block) const
@@ -4095,6 +4100,17 @@ void HostConnector::hostFeedbackCallback(const HostFeedbackData& data)
         }
         break;
 
+    case HostFeedbackData::kFeedbackMidiProgramChange:
+        assert(data.midiProgramChange.program >= 0);
+        assert(data.midiProgramChange.program < 128);
+        assert(data.midiProgramChange.channel >= 0);
+        assert(data.midiProgramChange.channel < 16);
+
+        cdata.type = HostCallbackData::kMidiProgramChange;
+        cdata.midiProgramChange.program = data.midiProgramChange.program;
+        cdata.midiProgramChange.channel = data.midiProgramChange.channel;
+        break;
+
     default:
         return;
     }
@@ -4344,5 +4360,9 @@ void HostConnector::resetPreset(Preset& preset)
         preset.bindings[hwid].properties.clear();
     }
 }
+
+// --------------------------------------------------------------------------------------------------------------------
+
+HostConnector::NonBlockingScope::NonBlockingScope(HostConnector& hostconn) : hnbs(hostconn._host) {}
 
 // --------------------------------------------------------------------------------------------------------------------
