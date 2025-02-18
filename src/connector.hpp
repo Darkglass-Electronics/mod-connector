@@ -146,7 +146,7 @@ struct HostConnector : Host::FeedbackCallback {
                 uint8_t hwbinding;
             } enable;
             uint8_t quickPotIndex;
-            uint8_t numParamsInScenes; // TODO rename
+            uint8_t numParametersInScenes;
             uint8_t numPropertiesInScenes;
             uint8_t numInputs;
             uint8_t numOutputs;
@@ -253,6 +253,10 @@ protected:
 public:
     // lv2 world for getting information about plugins
     const Lv2World lv2world;
+
+    // list of virtual parameters per plugin
+    // NOTE symbol MUST start with ":" and not be ":bypass"
+    std::unordered_map<std::string, std::vector<Lv2Port>> virtualParameters;
 
     // constructor, initializes connection to mod-host and sets `ok` to true if successful
     HostConnector();

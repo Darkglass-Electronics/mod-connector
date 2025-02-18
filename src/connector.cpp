@@ -179,7 +179,7 @@ static void resetBlock(HostConnector::Block& blockdata)
     blockdata.meta.enable.hasScenes = false;
     blockdata.meta.enable.hwbinding = UINT8_MAX;
     blockdata.meta.quickPotIndex = 0;
-    blockdata.meta.numParamsInScenes = 0;
+    blockdata.meta.numParametersInScenes = 0;
     blockdata.meta.numPropertiesInScenes = 0;
     blockdata.meta.numInputs = 0;
     blockdata.meta.numOutputs = 0;
@@ -420,7 +420,7 @@ void HostConnector::printStateForDebug(const bool withBlocks, const bool withPar
             if (withBlocks)
             {
                 fprintf(stderr, "\t\tQuick Pot: '%s' | %u\n", blockdata.quickPotSymbol.c_str(), blockdata.meta.quickPotIndex);
-                fprintf(stderr, "\t\tnumParamsInScenes: %u\n", blockdata.meta.numParamsInScenes);
+                fprintf(stderr, "\t\tnumParametersInScenes: %u\n", blockdata.meta.numParametersInScenes);
                 fprintf(stderr, "\t\tnumPropertiesInScenes: %u\n", blockdata.meta.numPropertiesInScenes);
                 fprintf(stderr, "\t\tnumInputs: %u\n", blockdata.meta.numInputs);
                 fprintf(stderr, "\t\tnumOutputs: %u\n", blockdata.meta.numOutputs);
@@ -904,7 +904,7 @@ bool HostConnector::enableBlock(const uint8_t row, const uint8_t block, const bo
     case SceneModeActivate:
         if (! blockdata.meta.enable.hasScenes)
         {
-            ++blockdata.meta.numParamsInScenes;
+            ++blockdata.meta.numParametersInScenes;
             blockdata.meta.enable.hasScenes = true;
 
             // set original value for all other scenes
@@ -921,7 +921,7 @@ bool HostConnector::enableBlock(const uint8_t row, const uint8_t block, const bo
     case SceneModeClear:
         if (blockdata.meta.enable.hasScenes)
         {
-            --blockdata.meta.numParamsInScenes;
+            --blockdata.meta.numParametersInScenes;
             blockdata.meta.enable.hasScenes = false;
         }
         break;
@@ -1106,7 +1106,7 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
 
             blockdata.meta.enable.hasScenes = false;
             blockdata.meta.enable.hwbinding = UINT8_MAX;
-            blockdata.meta.numParamsInScenes = 0;
+            blockdata.meta.numParametersInScenes = 0;
             blockdata.meta.numPropertiesInScenes = 0;
 
             for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
@@ -1613,7 +1613,7 @@ bool HostConnector::switchScene(const uint8_t scene)
             Block& blockdata(_current.chains[row].blocks[bl]);
             if (isNullBlock(blockdata))
                 continue;
-            if (blockdata.meta.numParamsInScenes == 0 && blockdata.meta.numPropertiesInScenes == 0)
+            if (blockdata.meta.numParametersInScenes == 0 && blockdata.meta.numPropertiesInScenes == 0)
                 continue;
 
             const HostBlockPair hbp = _mapper.get(_current.preset, row, bl);
@@ -2050,7 +2050,7 @@ void HostConnector::setBlockParameter(const uint8_t row,
     case SceneModeActivate:
         if ((paramdata.meta.flags & Lv2ParameterInScene) == 0)
         {
-            ++blockdata.meta.numParamsInScenes;
+            ++blockdata.meta.numParametersInScenes;
             paramdata.meta.flags |= Lv2ParameterInScene;
 
             // set original value for all other scenes
@@ -2067,7 +2067,7 @@ void HostConnector::setBlockParameter(const uint8_t row,
     case SceneModeClear:
         if ((paramdata.meta.flags & Lv2ParameterInScene) != 0)
         {
-            --blockdata.meta.numParamsInScenes;
+            --blockdata.meta.numParametersInScenes;
             paramdata.meta.flags &= ~Lv2ParameterInScene;
         }
         break;
@@ -3304,7 +3304,7 @@ uint8_t HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann_json& j
                         if (! blockdata.meta.enable.hasScenes)
                         {
                             blockdata.meta.enable.hasScenes = true;
-                            ++blockdata.meta.numParamsInScenes;
+                            ++blockdata.meta.numParametersInScenes;
                         }
 
                         blockdata.sceneValues[sid].enabled = jscene["value"].get<bool>();
@@ -3328,7 +3328,7 @@ uint8_t HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann_json& j
                     if ((paramdata.meta.flags & Lv2ParameterInScene) == 0)
                     {
                         paramdata.meta.flags |= Lv2ParameterInScene;
-                        ++blockdata.meta.numParamsInScenes;
+                        ++blockdata.meta.numParametersInScenes;
                     }
 
                     blockdata.sceneValues[sid].params[paramIndex] =
@@ -3551,7 +3551,7 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann_json& json
                 { "properties", nlohmann::json::object({}) },
                 { "quickpot", blockdata.quickPotSymbol },
                 { "scenes", nlohmann::json::object({}) },
-                { "uri", /*isNullBlock(blockdata) ? "-" :*/ blockdata.uri },
+                { "uri", blockdata.uri },
             };
 
             {
@@ -3563,6 +3563,8 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann_json& json
 
                     if (isNullURI(paramdata.symbol))
                         break;
+                    if (paramdata.symbol[0] == ':')
+                        continue;
                     if ((paramdata.meta.flags & Lv2PortIsOutput) != 0)
                         continue;
 
@@ -3594,7 +3596,7 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann_json& json
                 }
             }
 
-            if (blockdata.meta.numParamsInScenes != 0)
+            if (blockdata.meta.numParametersInScenes != 0)
             {
                 auto& jallscenes = jblock["scenes"];
 
@@ -4155,7 +4157,7 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
     blockdata.meta.enable.hasScenes = false;
     blockdata.meta.enable.hwbinding = UINT8_MAX;
     blockdata.meta.quickPotIndex = 0;
-    blockdata.meta.numParamsInScenes = 0;
+    blockdata.meta.numParametersInScenes = 0;
     blockdata.meta.numPropertiesInScenes = 0;
     blockdata.meta.numInputs = numInputs;
     blockdata.meta.numOutputs = numOutputs;
@@ -4175,10 +4177,11 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
                                                              : propToIndexMapLocal;
 
     uint8_t numParams = 0;
-    for (const Lv2Port& port : plugin->ports)
+
+    const auto handleLv2Port = [&blockdata, &numParams, &paramToIndexMap](const Lv2Port& port)
     {
         if ((port.flags & (Lv2PortIsControl|Lv2ParameterHidden)) != Lv2PortIsControl)
-            continue;
+            return;
 
         switch (port.designation)
         {
@@ -4188,7 +4191,7 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
         case kLv2DesignationBPM:
         case kLv2DesignationReset:
             // skip parameter
-            continue;
+            return;
         case kLv2DesignationQuickPot:
             blockdata.quickPotSymbol = port.symbol;
             blockdata.meta.quickPotIndex = numParams;
@@ -4212,6 +4215,26 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
                 .scalePoints = port.scalePoints,
             },
         };
+    };
+
+    try {
+        const std::vector<Lv2Port>& ports = virtualParameters.at(blockdata.uri);
+
+        for (const Lv2Port& port : ports)
+        {
+            assert(!port.symbol.empty());
+            assert(port.symbol[0] == ':');
+
+            handleLv2Port(port);
+
+            if (numParams == MAX_PARAMS_PER_BLOCK)
+                break;
+        }
+    } catch (...) {}
+
+    for (const Lv2Port& port : plugin->ports)
+    {
+        handleLv2Port(port);
 
         if (numParams == MAX_PARAMS_PER_BLOCK)
             break;
