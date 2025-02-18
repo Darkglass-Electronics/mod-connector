@@ -3013,9 +3013,9 @@ void HostConnector::hostRemoveInstanceForBlock(const uint8_t row, const uint8_t 
 // --------------------------------------------------------------------------------------------------------------------
 
 template<class nlohmann_json>
-uint8_t HostConnector::jsonPresetLoad(Preset& presetdata, nlohmann_json& json) const
+uint8_t HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann_json& json) const
 {
-    nlohmann::json& jpreset = static_cast<nlohmann::json&>(json);
+    const nlohmann::json& jpreset = static_cast<const nlohmann::json&>(json);
 
     if (!jpreset.contains("blocks"))
     {

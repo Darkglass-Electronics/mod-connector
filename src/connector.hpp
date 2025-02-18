@@ -582,7 +582,7 @@ private:
 
     // loads preset data, does not trigger host commands
     template<class nlohmann_json>
-    uint8_t jsonPresetLoad(Preset& presetdata, nlohmann_json& json) const;
+    uint8_t jsonPresetLoad(Preset& presetdata, const nlohmann_json& json) const;
 
     // saves preset data, also no host commands
     template<class nlohmann_json>
