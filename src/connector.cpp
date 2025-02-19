@@ -1090,7 +1090,7 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
     Block& blockdata(chaindata.blocks[block]);
 
     // do not change blocks if attempting to replace plugin with itself
-    if (blockdata.uri == uri)
+    if (uri != nullptr && blockdata.uri == uri)
     {
         mod_log_debug("replaceBlock(%u, %u, \"%s\"): uri matches old block, will not replace plugin",
                       row, block, uri);
@@ -2501,9 +2501,17 @@ void HostConnector::hostConnectChainEndpointsAction(const uint8_t row, const boo
     assert(!chain.capture[0].empty());
     assert(!chain.capture[1].empty());
 
-    // playback side is allowed to be empty
-    if (chain.playback[0].empty())
-        return;
+    if (row == 0)
+    {
+        // playback side cannot be empty
+        assert(!chain.playback[0].empty());
+    }
+    else
+    {
+        // playback side is allowed to be empty
+        if (chain.playback[0].empty())
+            return;
+    }
 
     assert(!chain.playback[1].empty());
 
@@ -3751,6 +3759,10 @@ void HostConnector::hostLoadPreset(const uint8_t preset)
 
             _current.numLoadedPlugins += numLoadedPlugins;
         }
+    }
+
+    if (_current.numLoadedPlugins == 0)
+    {
     }
 }
 

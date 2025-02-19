@@ -35,6 +35,9 @@ if(PROJECT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR AND NOT MOD_CONNECTOR_LIB_TEST)
   # building as regular application, uses Qt for event loop and notifies startup via systemd
   pkg_check_modules(systemd IMPORTED_TARGET libsystemd)
 
+  # connect directly to JACK for running tests
+  pkg_check_modules(jack IMPORTED_TARGET jack)
+
   find_package(Qt6 QUIET COMPONENTS Core Network WebSockets)
   if (Qt6_FOUND)
     add_library(Qt::Core ALIAS Qt6::Core)
@@ -86,6 +89,36 @@ if(PROJECT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR AND NOT MOD_CONNECTOR_LIB_TEST)
       src/main.cpp
       src/utils.cpp
       src/websocket.cpp
+  )
+
+  add_executable(tests)
+
+  target_compile_definitions(tests
+    PRIVATE
+      $<$<BOOL:${lv2_1_18_FOUND}>:HAVE_LV2_1_18>
+  )
+
+  target_include_directories(tests
+    PRIVATE
+      src
+  )
+
+  target_link_libraries(tests
+    PRIVATE
+      PkgConfig::jack
+      PkgConfig::lilv
+      PkgConfig::lv2
+      Qt::Core
+  )
+
+  target_sources(tests
+    PRIVATE
+      src/connector.cpp
+      src/host.cpp
+      src/instance_mapper.cpp
+      src/lv2.cpp
+      src/tests.cpp
+      src/utils.cpp
   )
 
 else()

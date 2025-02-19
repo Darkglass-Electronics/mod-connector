@@ -48,7 +48,7 @@ jobs:
         shell: bash
         run: |
           apt-get update -qq
-          apt-get install -yqq cmake g++ liblilv-dev lv2-dev pkg-config ${{ matrix.pkgs }}
+          apt-get install -yqq cmake g++ libjack-jackd2-dev liblilv-dev lv2-dev pkg-config ${{ matrix.pkgs }}
       - name: build
         shell: bash
         run: |
@@ -74,7 +74,7 @@ jobs:
         shell: bash
         run: |
           apt-get update -qq
-          apt-get install -yqq cmake g++ liblilv-dev lv2-dev pkg-config ${{ matrix.pkgs }}
+          apt-get install -yqq cmake g++ libjack-jackd2-dev liblilv-dev lv2-dev pkg-config ${{ matrix.pkgs }}
       - name: build
         shell: bash
         run: |
@@ -116,7 +116,7 @@ jobs:
       - name: install dependencies
         shell: bash
         run: |
-          brew install lilv ${{ matrix.pkgs }}
+          brew install jack lilv ${{ matrix.pkgs }}
           brew link ${{ matrix.pkgs }}
       - name: build
         shell: bash

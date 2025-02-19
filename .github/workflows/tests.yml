@@ -1,0 +1,85 @@
+name: tests
+
+on: [push, pull_request]
+
+env:
+  CACHE_VERSION: 1
+  DEBIAN_FRONTEND: noninteractive
+  JACKD_CMD_ARGS: -r -d dummy -r 48000 -p 8192
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    container:
+      image: ubuntu:24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: install dependencies
+        shell: bash
+        run: |
+          apt-get update -qq
+          apt-get install -yqq cmake g++ gdb git jackd2 libjack-jackd2-dev liblilv-dev libqt6websockets6-dev libreadline-dev lv2-dev mda-lv2 pkg-config psmisc
+      - name: set up cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/mod-host
+          key: linux-v${{ env.CACHE_VERSION }}
+      - name: build mod-host
+        shell: bash
+        run: |
+          if [ ! -d ~/mod-host ]; then
+            git clone --depth=1 https://github.com/mod-audio/mod-host.git ~/mod-host
+            make -C ~/mod-host -j $(nproc)
+          fi
+      - name: build mod-connector
+        shell: bash
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+          cmake --build build -j
+      - name: run tests (gdb)
+        shell: bash
+        run: |
+          echo $(which jackd) ${{ env.JACKD_CMD_ARGS }} | tee ~/.jackdrc
+          echo -e 'r\nbt\nq\ny\n' | gdb ./build/tests
+          killall -SIGKILL jackd mod-host || true
+          rm -rf /dev/shm/jack*
+      - name: run tests
+        shell: bash
+        run: |
+          echo $(which jackd) ${{ env.JACKD_CMD_ARGS }} | tee ~/.jackdrc
+          ./build/tests
+
+  macos:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: install dependencies
+        shell: bash
+        run: |
+          brew install jack lilv mda-lv2 qt@6
+      - name: set up cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/mod-host
+          key: macos-v${{ env.CACHE_VERSION }}
+      - name: build mod-host
+        shell: bash
+        run: |
+          if [ ! -d ~/mod-host ]; then
+            git clone --depth=1 https://github.com/mod-audio/mod-host.git ~/mod-host
+            make -C ~/mod-host -j $(sysctl -n hw.logicalcpu)
+          fi
+      - name: build mod-connector
+        shell: bash
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+          cmake --build build -j
+      - name: run tests
+        shell: bash
+        env:
+          LV2_PATH: /opt/homebrew/lib/lv2
+        run: |
+          echo $(which jackd) ${{ env.JACKD_CMD_ARGS }} | tee ~/.jackdrc
+          ./build/tests
