@@ -3760,10 +3760,6 @@ void HostConnector::hostLoadPreset(const uint8_t preset)
             _current.numLoadedPlugins += numLoadedPlugins;
         }
     }
-
-    if (_current.numLoadedPlugins == 0)
-    {
-    }
 }
 
 // --------------------------------------------------------------------------------------------------------------------
