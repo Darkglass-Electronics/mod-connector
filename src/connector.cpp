@@ -1090,10 +1090,9 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
     Block& blockdata(chaindata.blocks[block]);
 
     // do not change blocks if attempting to replace plugin with itself
-    if (uri != nullptr && blockdata.uri == uri)
+    if ((isNullURI(uri) && isNullURI(blockdata.uri)) || (uri != nullptr && blockdata.uri == uri))
     {
-        mod_log_debug("replaceBlock(%u, %u, \"%s\"): uri matches old block, will not replace plugin",
-                      row, block, uri);
+        mod_log_debug("replaceBlock(%u, %u, \"%s\"): uri matches old block, will not replace plugin", row, block, uri);
 
         // reset plugin to defaults
         if (!isNullURI(uri))
