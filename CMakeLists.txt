@@ -96,6 +96,7 @@ if(PROJECT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR AND NOT MOD_CONNECTOR_LIB_TEST)
   target_compile_definitions(tests
     PRIVATE
       $<$<BOOL:${lv2_1_18_FOUND}>:HAVE_LV2_1_18>
+      JACK_CAPTURE_PORT_2="system:capture_1" # 1in 2out system for tests
   )
 
   target_include_directories(tests
