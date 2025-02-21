@@ -1,7 +1,14 @@
 // SPDX-FileCopyrightText: 2024-2025 Filipe Coelho <falktx@darkglass.com>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+#include <cstdint>
+#include <string>
 #define MOD_LOG_GROUP "tests"
+
+#define MONOBLOCK "urn:mod-connector:test1in1out"
+#define STEREOBLOCK "urn:mod-connector:test2in2out"
+#define SIDEOUTBLOCK "urn:mod-connector:testsideout"
+#define SIDEINBLOCK "urn:mod-connector:testsidein"
 
 #include "connector.hpp"
 #include "utils.hpp"
@@ -138,7 +145,10 @@ class HostConnectorTests : public QObject
         }
 
         // ensure our required plugins exist
-        assert_return(connector.lv2world.get_plugin_by_uri("urn:mod-connector:test2in2out") != nullptr, false);
+        assert_return(connector.lv2world.get_plugin_by_uri(MONOBLOCK) != nullptr, false);
+        assert_return(connector.lv2world.get_plugin_by_uri(STEREOBLOCK) != nullptr, false);
+        assert_return(connector.lv2world.get_plugin_by_uri(SIDEOUTBLOCK) != nullptr, false);
+        assert_return(connector.lv2world.get_plugin_by_uri(SIDEINBLOCK) != nullptr, false);
 
         // initial empty bank load
         {
@@ -205,28 +215,35 @@ class HostConnectorTests : public QObject
 
         // ensure our single plugin is connected properly
         std::string port_name;
-        QStringList connections;
 
         port_name = connector.getBlockId(0, 0) + ":in1";
-        connections = q_jack_port_get_all_connections(client, port_name);
-        assert_return(connections == QStringList({ JACK_CAPTURE_PORT_1 }), false);
+        assert_return(checkOnlyConnection(port_name, JACK_CAPTURE_PORT_1), false);
 
         port_name = connector.getBlockId(0, 0) + ":in2";
-        connections = q_jack_port_get_all_connections(client, port_name);
-        assert_return(connections == QStringList({ JACK_CAPTURE_PORT_2 }), false);
+        assert_return(checkOnlyConnection(port_name, JACK_CAPTURE_PORT_2), false);
 
         port_name = connector.getBlockId(0, 0) + ":out1";
-        connections = q_jack_port_get_all_connections(client, port_name);
-        assert_return(connections == QStringList({ JACK_PLAYBACK_PORT_1 }), false);
+        assert_return(checkOnlyConnection(port_name, JACK_PLAYBACK_PORT_1), false);
 
         port_name = connector.getBlockId(0, 0) + ":out2";
-        connections = q_jack_port_get_all_connections(client, port_name);
-        assert_return(connections == QStringList({ JACK_PLAYBACK_PORT_2 }), false);
+        assert_return(checkOnlyConnection(port_name, JACK_PLAYBACK_PORT_2), false);
 
         // remove plugin
         assert_return(connector.replaceBlock(0, 0, nullptr), false);
 
         return true;
+    }
+
+    bool checkOnlyConnection(std::string &port_to_check, const char* const only_port_connected_to)
+    {
+        QStringList connections;
+        connections = q_jack_port_get_all_connections(client, port_to_check);
+        return connections == QStringList({ only_port_connected_to });
+    }
+
+    bool checkOnlyConnection(std::string &port_to_check, std::string only_port_connected_to)
+    {
+        return checkOnlyConnection(port_to_check, only_port_connected_to.c_str());
     }
 
 private slots:
