@@ -169,7 +169,12 @@ class HostConnectorTests : public QObject
         // test pass-through connections
         assert_return(testPassthrough(), false);
 
-        mod_log_info("All tests finished successfully!");
+        // test mono chain actions
+        assert_return(testSingleMonoChain(), false);
+        // check return to pass-through state
+        assert_return(testPassthrough(), false);
+
+        mod_log_info("SUCCESS: All tests finished successfully!");
 
         return true;
     }
@@ -253,6 +258,77 @@ class HostConnectorTests : public QObject
 
         return true;
     }
+
+    bool testSingleMonoChain() 
+    {
+        // add block to slot 1
+        assert_return(connector.replaceBlock(0, 1, MONOBLOCK), false);
+        assert_return(checkOnlyConnection(blockPortIn1(0, 1), JACK_CAPTURE_PORT_1), false);
+        assert_return(checkOnly2Connections(blockPortOut1(0, 1), JACK_PLAYBACK_PORT_1, JACK_PLAYBACK_PORT_2), false);
+        
+        // add another block to slot 2
+        assert_return(connector.replaceBlock(0, 2, MONOBLOCK), false);
+        assert_return(checkOnlyConnection(blockPortIn1(0, 1), JACK_CAPTURE_PORT_1), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 1), blockPortIn1(0, 2)), false);
+        assert_return(checkOnly2Connections(blockPortOut1(0, 2), JACK_PLAYBACK_PORT_1, JACK_PLAYBACK_PORT_2), false);
+
+        // add another block to slot 4
+        assert_return(connector.replaceBlock(0, 4, MONOBLOCK), false);
+        assert_return(checkOnlyConnection(blockPortIn1(0, 1), JACK_CAPTURE_PORT_1), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 1), blockPortIn1(0, 2)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 2), blockPortIn1(0, 4)), false);
+        assert_return(checkOnly2Connections(blockPortOut1(0, 4), JACK_PLAYBACK_PORT_1, JACK_PLAYBACK_PORT_2), false);
+
+        // add another block to slot 5
+        assert_return(connector.replaceBlock(0, 5, MONOBLOCK), false);
+        assert_return(checkOnlyConnection(blockPortIn1(0, 1), JACK_CAPTURE_PORT_1), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 1), blockPortIn1(0, 2)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 2), blockPortIn1(0, 4)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 4), blockPortIn1(0, 5)), false);
+        assert_return(checkOnly2Connections(blockPortOut1(0, 5), JACK_PLAYBACK_PORT_1, JACK_PLAYBACK_PORT_2), false);
+
+        // move block 4 to empty slot 3
+        assert_return(connector.reorderBlock(0, 4, 3), false);
+        assert_return(checkOnlyConnection(blockPortIn1(0, 1), JACK_CAPTURE_PORT_1), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 1), blockPortIn1(0, 2)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 2), blockPortIn1(0, 3)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 3), blockPortIn1(0, 5)), false);
+        assert_return(checkOnly2Connections(blockPortOut1(0, 5), JACK_PLAYBACK_PORT_1, JACK_PLAYBACK_PORT_2), false);
+
+        // move first block last
+        assert_return(connector.reorderBlock(0, 1, 5), false);
+        assert_return(checkOnlyConnection(blockPortIn1(0, 1), JACK_CAPTURE_PORT_1), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 1), blockPortIn1(0, 2)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 2), blockPortIn1(0, 4)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 4), blockPortIn1(0, 5)), false);
+        assert_return(checkOnly2Connections(blockPortOut1(0, 5), JACK_PLAYBACK_PORT_1, JACK_PLAYBACK_PORT_2), false);
+
+        // remove plugin from end
+        assert_return(connector.replaceBlock(0, 5, nullptr), false);
+        assert_return(checkOnlyConnection(blockPortIn1(0, 1), JACK_CAPTURE_PORT_1), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 1), blockPortIn1(0, 2)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 2), blockPortIn1(0, 4)), false);
+        assert_return(checkOnly2Connections(blockPortOut1(0, 4), JACK_PLAYBACK_PORT_1, JACK_PLAYBACK_PORT_2), false);
+
+        // remove plugin from middle
+        assert_return(connector.replaceBlock(0, 2, nullptr), false);
+        assert_return(checkOnlyConnection(blockPortIn1(0, 1), JACK_CAPTURE_PORT_1), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 1), blockPortIn1(0, 4)), false);
+        assert_return(checkOnly2Connections(blockPortOut1(0, 4), JACK_PLAYBACK_PORT_1, JACK_PLAYBACK_PORT_2), false);
+
+        // remove plugin from start
+        assert_return(connector.replaceBlock(0, 1, nullptr), false);
+        assert_return(checkOnlyConnection(blockPortIn1(0, 4), JACK_CAPTURE_PORT_1), false);
+        assert_return(checkOnly2Connections(blockPortOut1(0, 4), JACK_PLAYBACK_PORT_1, JACK_PLAYBACK_PORT_2), false);
+
+        // remove last remaining plugin
+        assert_return(connector.replaceBlock(0, 4, nullptr), false);
+
+        return true;
+    }
+
+
+    // HELPERS
 
     bool checkOnlyConnection(std::string port_to_check, const char* const only_port_connected_to)
     {
