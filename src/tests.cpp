@@ -210,41 +210,97 @@ class HostConnectorTests : public QObject
     // test loading single plugin
     bool testPluginLoad()
     {
+        // MONOBLOCK
         // load plugin
-        assert_return(connector.replaceBlock(0, 0, "urn:mod-connector:test2in2out"), false);
-
+        assert_return(connector.replaceBlock(0, 0, MONOBLOCK), false);
         // ensure our single plugin is connected properly
-        std::string port_name;
-
-        port_name = connector.getBlockId(0, 0) + ":in1";
-        assert_return(checkOnlyConnection(port_name, JACK_CAPTURE_PORT_1), false);
-
-        port_name = connector.getBlockId(0, 0) + ":in2";
-        assert_return(checkOnlyConnection(port_name, JACK_CAPTURE_PORT_2), false);
-
-        port_name = connector.getBlockId(0, 0) + ":out1";
-        assert_return(checkOnlyConnection(port_name, JACK_PLAYBACK_PORT_1), false);
-
-        port_name = connector.getBlockId(0, 0) + ":out2";
-        assert_return(checkOnlyConnection(port_name, JACK_PLAYBACK_PORT_2), false);
-
+        assert_return(checkOnlyConnection(blockPortIn1(0, 0), JACK_CAPTURE_PORT_1), false);
+        assert_return(checkOnly2Connections(blockPortOut1(0, 0), JACK_PLAYBACK_PORT_1, JACK_PLAYBACK_PORT_2), false);
         // remove plugin
+        assert_return(connector.replaceBlock(0, 0, nullptr), false);
+    
+        // STEREOBLOCK
+        // load plugin
+        assert_return(connector.replaceBlock(0, 0, STEREOBLOCK), false);
+        // ensure our single plugin is connected properly
+        assert_return(checkOnlyConnection(blockPortIn1(0, 0), JACK_CAPTURE_PORT_1), false);
+        assert_return(checkOnlyConnection(blockPortIn2(0, 0), JACK_CAPTURE_PORT_2), false);
+        assert_return(checkOnlyConnection(blockPortOut1(0, 0), JACK_PLAYBACK_PORT_1), false);
+        assert_return(checkOnlyConnection(blockPortOut2(0, 0), JACK_PLAYBACK_PORT_2), false);
+        // remove plugin
+        assert_return(connector.replaceBlock(0, 0, nullptr), false);
+
+        // SIDEOUTBLOCK
+        // load plugin
+        assert_return(connector.replaceBlock(0, 0, SIDEOUTBLOCK), false);
+        // ensure our single plugin is connected properly
+        assert_return(checkOnlyConnection(blockPortIn1(0, 0), JACK_CAPTURE_PORT_1), false);
+        assert_return(checkOnly2Connections(blockPortOut1(0, 0), JACK_PLAYBACK_PORT_1, JACK_PLAYBACK_PORT_2), false);
+
+        // SIDEINBLOCK AFTER SIDEOUTBLOCK -> create sidechain
+        // load plugin
+        assert_return(connector.replaceBlock(0, 1, SIDEINBLOCK), false);
+        // ensure our single plugin is connected properly
+        // row 1 inter-connection
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 0), blockPortIn1(0, 1)), false);
+        // row 2 inter-connection
+        assert_return(checkOnlyConnectionBothWays(blockPortOut2(0, 0), blockPortIn2(0, 1)), false);
+        // output
+        assert_return(checkOnly2Connections(blockPortOut1(0, 1), JACK_PLAYBACK_PORT_1, JACK_PLAYBACK_PORT_2), false);
+        // remove plugins (sidechain input first)
+        assert_return(connector.replaceBlock(0, 1, nullptr), false);
         assert_return(connector.replaceBlock(0, 0, nullptr), false);
 
         return true;
     }
 
-    bool checkOnlyConnection(std::string &port_to_check, const char* const only_port_connected_to)
+    bool checkOnlyConnection(std::string port_to_check, const char* const only_port_connected_to)
     {
         QStringList connections;
         connections = q_jack_port_get_all_connections(client, port_to_check);
         return connections == QStringList({ only_port_connected_to });
     }
 
-    bool checkOnlyConnection(std::string &port_to_check, std::string only_port_connected_to)
+    bool checkOnlyConnection(std::string port_to_check, std::string only_port_connected_to)
     {
         return checkOnlyConnection(port_to_check, only_port_connected_to.c_str());
     }
+
+    bool checkOnlyConnectionBothWays(std::string port_1, std::string port_2)
+    {
+        return checkOnlyConnection(port_1, port_2.c_str()) &&
+               checkOnlyConnection(port_2, port_1.c_str());
+    }
+
+    bool checkOnly2Connections(std::string port_to_check, const char* const port_1_connected_to, const char* const port_2_connected_to)
+    {
+        QStringList connections;
+        connections = q_jack_port_get_all_connections(client, port_to_check);
+        return connections.contains(port_1_connected_to) &&
+               connections.contains(port_2_connected_to) &&
+               connections.size() == 2;
+    }
+
+    bool checkOnly2Connections(std::string port_to_check, std::string port_1_connected_to, std::string port_2_connected_to)
+    {
+        return checkOnly2Connections(port_to_check, port_1_connected_to.c_str(), port_2_connected_to.c_str());
+    }
+
+    std::string blockPortIn1(uint8_t row, uint8_t block) { return connector.getBlockIdNoPair(row, block) + ":in1"; }
+
+    std::string blockPortIn2(uint8_t row, uint8_t block) { return connector.getBlockIdNoPair(row, block) + ":in2"; }
+
+    std::string blockPortOut1(uint8_t row, uint8_t block) { return connector.getBlockIdNoPair(row, block) + ":out1"; }
+
+    std::string blockPortOut2(uint8_t row, uint8_t block) { return connector.getBlockIdNoPair(row, block) + ":out2"; }
+
+    std::string blockPairPortIn1(uint8_t row, uint8_t block) { return connector.getBlockIdPairOnly(row, block) + ":in1"; }
+
+    std::string blockPairPortIn2(uint8_t row, uint8_t block) { return connector.getBlockIdPairOnly(row, block) + ":in2"; }
+
+    std::string blockPairPortOut1(uint8_t row, uint8_t block) { return connector.getBlockIdPairOnly(row, block) + ":out1"; }
+
+    std::string blockPairPortOut2(uint8_t row, uint8_t block) { return connector.getBlockIdPairOnly(row, block) + ":out2"; }
 
 private slots:
     void reconnect()

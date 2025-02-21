@@ -285,6 +285,12 @@ public:
     // get internal Id(s) used for debugging
     [[nodiscard]] std::string getBlockId(uint8_t row, uint8_t block) const;
 
+    // get internal Id without pair's id used for debugging
+    [[nodiscard]] std::string getBlockIdNoPair(uint8_t row, uint8_t block) const;
+
+    // get internal Id of pair used for debugging
+    [[nodiscard]] std::string getBlockIdPairOnly(uint8_t row, uint8_t block) const;
+
     // print current state for debugging
     void printStateForDebug(bool withBlocks, bool withParams, bool withBindings) const;
 

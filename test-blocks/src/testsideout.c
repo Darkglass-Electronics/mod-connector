@@ -1,3 +1,3 @@
-#define TESTBLOCK_URN "urn:mod-connector:testsidein"
+#define TESTBLOCK_URN "urn:mod-connector:testsideout"
 
 #include "testblock.c"
