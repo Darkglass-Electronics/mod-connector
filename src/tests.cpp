@@ -138,7 +138,7 @@ class HostConnectorTests : public QObject
         }
 
         // ensure our required plugins exist
-        assert_return(connector.lv2world.get_plugin_by_uri("http://drobilla.net/plugins/mda/Ambience") != nullptr, false);
+        assert_return(connector.lv2world.get_plugin_by_uri("urn:mod-connector:test2in2out") != nullptr, false);
 
         // initial empty bank load
         {
@@ -158,6 +158,8 @@ class HostConnectorTests : public QObject
 
         // test pass-through connections
         assert_return(testPassthrough(), false);
+
+        mod_log_info("All tests finished successfully!");
 
         return true;
     }
@@ -199,25 +201,25 @@ class HostConnectorTests : public QObject
     bool testPluginLoad()
     {
         // load plugin
-        assert_return(connector.replaceBlock(0, 0, "http://drobilla.net/plugins/mda/Ambience"), false);
+        assert_return(connector.replaceBlock(0, 0, "urn:mod-connector:test2in2out"), false);
 
         // ensure our single plugin is connected properly
         std::string port_name;
         QStringList connections;
 
-        port_name = connector.getBlockId(0, 0) + ":left_in";
+        port_name = connector.getBlockId(0, 0) + ":in1";
         connections = q_jack_port_get_all_connections(client, port_name);
         assert_return(connections == QStringList({ JACK_CAPTURE_PORT_1 }), false);
 
-        port_name = connector.getBlockId(0, 0) + ":right_in";
+        port_name = connector.getBlockId(0, 0) + ":in2";
         connections = q_jack_port_get_all_connections(client, port_name);
         assert_return(connections == QStringList({ JACK_CAPTURE_PORT_2 }), false);
 
-        port_name = connector.getBlockId(0, 0) + ":left_out";
+        port_name = connector.getBlockId(0, 0) + ":out1";
         connections = q_jack_port_get_all_connections(client, port_name);
         assert_return(connections == QStringList({ JACK_PLAYBACK_PORT_1 }), false);
 
-        port_name = connector.getBlockId(0, 0) + ":right_out";
+        port_name = connector.getBlockId(0, 0) + ":out2";
         connections = q_jack_port_get_all_connections(client, port_name);
         assert_return(connections == QStringList({ JACK_PLAYBACK_PORT_2 }), false);
 

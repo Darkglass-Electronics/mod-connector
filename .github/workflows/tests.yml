@@ -32,6 +32,13 @@ jobs:
             git clone --depth=1 https://github.com/mod-audio/mod-host.git ~/mod-host
             make -C ~/mod-host -j $(nproc)
           fi
+      - name: build test blocks
+        shell: bash
+        run: |
+          cd test-blocks
+          make
+          ln -s $(pwd)/build/*.lv2 ~/.lv2/
+          cd ..
       - name: build mod-connector
         shell: bash
         run: |
