@@ -37,6 +37,7 @@ jobs:
         run: |
           cd test-blocks
           make
+          mkdir ~/.lv2
           ln -s $(pwd)/build/*.lv2 ~/.lv2/
           cd ..
       - name: build mod-connector
