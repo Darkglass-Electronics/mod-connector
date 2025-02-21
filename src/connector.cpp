@@ -1113,7 +1113,7 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
                 Parameter& paramdata(blockdata.parameters[p]);
                 if (isNullURI(paramdata.symbol))
                     break;
-                if ((paramdata.meta.flags & Lv2PortIsOutput) != 0)
+                if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual)) != 0)
                     continue;
 
                 paramdata.meta.flags &= ~Lv2ParameterInScene;
@@ -1427,7 +1427,7 @@ bool HostConnector::saveBlockStateAsDefault(const uint8_t row, const uint8_t blo
                 Parameter& paramdata(blockdata.parameters[p]);
                 if (isNullURI(paramdata.symbol))
                     break;
-                if ((paramdata.meta.flags & Lv2PortIsOutput) != 0)
+                if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual)) != 0)
                     continue;
 
                 blockdataB.parameters[p].meta.def = paramdata.value;
@@ -1638,7 +1638,7 @@ bool HostConnector::switchScene(const uint8_t scene)
                 Parameter& paramdata(blockdata.parameters[p]);
                 if (isNullURI(paramdata.symbol))
                     break;
-                if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterInScene)) != Lv2ParameterInScene)
+                if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual|Lv2ParameterInScene)) != Lv2ParameterInScene)
                     continue;
 
                 paramdata.value = sceneValues.params[p];
@@ -2036,7 +2036,7 @@ void HostConnector::setBlockParameter(const uint8_t row,
 
     Parameter& paramdata(blockdata.parameters[paramIndex]);
     assert_return(!isNullURI(paramdata.symbol),);
-    assert_return((paramdata.meta.flags & Lv2PortIsOutput) == 0,);
+    assert_return((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual)) == 0,);
 
     _current.dirty = true;
 
@@ -3231,7 +3231,7 @@ uint8_t HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann_json& j
 
                     if (isNullURI(paramdata.symbol))
                         continue;
-                    if ((paramdata.meta.flags & Lv2PortIsOutput) != 0)
+                    if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual)) != 0)
                         continue;
 
                     paramdata.value = std::max(paramdata.meta.min,
@@ -3329,7 +3329,7 @@ uint8_t HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann_json& j
 
                     if (isNullURI(paramdata.symbol))
                         continue;
-                    if ((paramdata.meta.flags & Lv2PortIsOutput) != 0)
+                    if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual)) != 0)
                         continue;
 
                     if ((paramdata.meta.flags & Lv2ParameterInScene) == 0)
@@ -3443,7 +3443,7 @@ uint8_t HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann_json& j
 
                     if (isNullURI(paramdata.symbol))
                         break;
-                    if ((paramdata.meta.flags & Lv2PortIsOutput) != 0)
+                    if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual)) != 0)
                         continue;
 
                     if (paramdata.symbol == symbol)
@@ -3572,7 +3572,7 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann_json& json
                         break;
                     if (paramdata.symbol[0] == ':')
                         continue;
-                    if ((paramdata.meta.flags & Lv2PortIsOutput) != 0)
+                    if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual)) != 0)
                         continue;
 
                     const std::string jparamid = std::to_string(p + 1);
@@ -3626,7 +3626,7 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann_json& json
 
                         if (isNullURI(paramdata.symbol))
                             break;
-                        if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterInScene)) != Lv2ParameterInScene)
+                        if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual|Lv2ParameterInScene)) != Lv2ParameterInScene)
                             continue;
 
                         jscenes.push_back({
@@ -4308,7 +4308,7 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
 
         if (isNullURI(paramdata.symbol))
             continue;
-        if ((paramdata.meta.flags & Lv2PortIsOutput) != 0)
+        if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual)) != 0)
             continue;
 
         paramdata.meta.def = paramdata.value = value;
