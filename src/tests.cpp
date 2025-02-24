@@ -174,6 +174,11 @@ class HostConnectorTests : public QObject
         // check return to pass-through state
         assert_return(testPassthrough(), false);
 
+        // test stereo chain actions (WIP)
+        assert_return(testSingleStereoChain(), false);
+        // check return to pass-through state
+        assert_return(testPassthrough(), false);
+
         mod_log_info("SUCCESS: All tests finished successfully!");
 
         return true;
@@ -323,6 +328,119 @@ class HostConnectorTests : public QObject
 
         // remove last remaining plugin
         assert_return(connector.replaceBlock(0, 4, nullptr), false);
+
+        return true;
+    }
+
+    bool testSingleStereoChain() 
+    {
+        // add mono block to slot 0
+        assert_return(connector.replaceBlock(0, 0, MONOBLOCK), false);
+        assert_return(checkOnlyConnection(blockPortIn1(0, 0), JACK_CAPTURE_PORT_1), false);
+        assert_return(checkOnly2Connections(blockPortOut1(0, 0), JACK_PLAYBACK_PORT_1, JACK_PLAYBACK_PORT_2), false);
+
+        // add stereo block to slot 1
+        assert_return(connector.replaceBlock(0, 1, STEREOBLOCK), false);
+        // system in
+        assert_return(checkOnlyConnection(blockPortIn1(0, 0), JACK_CAPTURE_PORT_1), false);
+        // connections 0<->1
+        assert_return(checkOnly2Connections(blockPortOut1(0, 0), blockPortIn1(0, 1), blockPortIn2(0, 1)), false);
+        assert_return(checkOnlyConnection(blockPortIn1(0, 1), blockPortOut1(0, 0)), false);
+        assert_return(checkOnlyConnection(blockPortIn2(0, 1), blockPortOut1(0, 0)), false);
+        // system out
+        assert_return(checkOnlyConnection(blockPortOut1(0, 1), JACK_PLAYBACK_PORT_1), false);
+        assert_return(checkOnlyConnection(blockPortOut2(0, 1), JACK_PLAYBACK_PORT_2), false);
+        // basic mono to stereo OK
+
+        // add stereo block to slot 2
+        assert_return(connector.replaceBlock(0, 2, STEREOBLOCK), false);
+        // system in
+        assert_return(checkOnlyConnection(blockPortIn1(0, 0), JACK_CAPTURE_PORT_1), false);
+        // connections 0<->1
+        assert_return(checkOnly2Connections(blockPortOut1(0, 0), blockPortIn1(0, 1), blockPortIn2(0, 1)), false);
+        assert_return(checkOnlyConnection(blockPortIn1(0, 1), blockPortOut1(0, 0)), false);
+        assert_return(checkOnlyConnection(blockPortIn2(0, 1), blockPortOut1(0, 0)), false);
+        // connections 1<->2
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 1), blockPortIn1(0, 2)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut2(0, 1), blockPortIn2(0, 2)), false);
+        // system out
+        assert_return(checkOnlyConnection(blockPortOut1(0, 2), JACK_PLAYBACK_PORT_1), false);
+        assert_return(checkOnlyConnection(blockPortOut2(0, 2), JACK_PLAYBACK_PORT_2), false);
+        // basic stereo to stereo OK
+
+        // add a (dual) mono block to slot 3
+        assert_return(connector.replaceBlock(0, 3, MONOBLOCK), false);
+        // system in
+        assert_return(checkOnlyConnection(blockPortIn1(0, 0), JACK_CAPTURE_PORT_1), false);
+        // connections 0<->1
+        assert_return(checkOnly2Connections(blockPortOut1(0, 0), blockPortIn1(0, 1), blockPortIn2(0, 1)), false);
+        assert_return(checkOnlyConnection(blockPortIn1(0, 1), blockPortOut1(0, 0)), false);
+        assert_return(checkOnlyConnection(blockPortIn2(0, 1), blockPortOut1(0, 0)), false);
+        // connections 1<->2
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 1), blockPortIn1(0, 2)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut2(0, 1), blockPortIn2(0, 2)), false);
+        // connections 2<->3
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 2), blockPortIn1(0, 3)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut2(0, 2), blockPairPortIn1(0, 3)), false);
+        // system out
+        assert_return(checkOnlyConnection(blockPortOut1(0, 3), JACK_PLAYBACK_PORT_1), false);
+        assert_return(checkOnlyConnection(blockPairPortOut1(0, 3), JACK_PLAYBACK_PORT_2), false);
+        // basic stereo to dual mono OK
+
+        // add another (dual) mono block to slot 4
+        assert_return(connector.replaceBlock(0, 4, MONOBLOCK), false);
+        // system in
+        assert_return(checkOnlyConnection(blockPortIn1(0, 0), JACK_CAPTURE_PORT_1), false);
+        // connections 0<->1
+        assert_return(checkOnly2Connections(blockPortOut1(0, 0), blockPortIn1(0, 1), blockPortIn2(0, 1)), false);
+        assert_return(checkOnlyConnection(blockPortIn1(0, 1), blockPortOut1(0, 0)), false);
+        assert_return(checkOnlyConnection(blockPortIn2(0, 1), blockPortOut1(0, 0)), false);
+        // connections 1<->2
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 1), blockPortIn1(0, 2)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut2(0, 1), blockPortIn2(0, 2)), false);
+        // connections 2<->3
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 2), blockPortIn1(0, 3)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut2(0, 2), blockPairPortIn1(0, 3)), false);
+        // connections 3<->4
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 3), blockPortIn1(0, 4)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPairPortOut1(0, 3), blockPairPortIn1(0, 4)), false);
+        // system out
+        assert_return(checkOnlyConnection(blockPortOut1(0, 4), JACK_PLAYBACK_PORT_1), false);
+        assert_return(checkOnlyConnection(blockPairPortOut1(0, 4), JACK_PLAYBACK_PORT_2), false);
+        // basic dual mono to dual mono OK
+
+        // add a stereo mono block to slot 5
+        assert_return(connector.replaceBlock(0, 5, STEREOBLOCK), false);
+        // system in
+        assert_return(checkOnlyConnection(blockPortIn1(0, 0), JACK_CAPTURE_PORT_1), false);
+        // connections 0<->1
+        assert_return(checkOnly2Connections(blockPortOut1(0, 0), blockPortIn1(0, 1), blockPortIn2(0, 1)), false);
+        assert_return(checkOnlyConnection(blockPortIn1(0, 1), blockPortOut1(0, 0)), false);
+        assert_return(checkOnlyConnection(blockPortIn2(0, 1), blockPortOut1(0, 0)), false);
+        // connections 1<->2
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 1), blockPortIn1(0, 2)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut2(0, 1), blockPortIn2(0, 2)), false);
+        // connections 2<->3
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 2), blockPortIn1(0, 3)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut2(0, 2), blockPairPortIn1(0, 3)), false);
+        // connections 3<->4
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 3), blockPortIn1(0, 4)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPairPortOut1(0, 3), blockPairPortIn1(0, 4)), false);
+        // connections 4<->5
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 4), blockPortIn1(0, 5)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPairPortOut1(0, 4), blockPortIn2(0, 5)), false);
+        // system out
+        assert_return(checkOnlyConnection(blockPortOut1(0, 5), JACK_PLAYBACK_PORT_1), false);
+        assert_return(checkOnlyConnection(blockPortOut2(0, 5), JACK_PLAYBACK_PORT_2), false);
+        // basic dual mono to stereo OK
+
+        // remove all plugins
+        assert_return(connector.replaceBlock(0, 0, nullptr), false);
+        assert_return(connector.replaceBlock(0, 1, nullptr), false);
+        assert_return(connector.replaceBlock(0, 2, nullptr), false);
+        assert_return(connector.replaceBlock(0, 3, nullptr), false);
+        assert_return(connector.replaceBlock(0, 4, nullptr), false);
+        assert_return(connector.replaceBlock(0, 5, nullptr), false);
 
         return true;
     }
