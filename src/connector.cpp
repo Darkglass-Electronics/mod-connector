@@ -2135,13 +2135,48 @@ void HostConnector::monitorBlockOutputParameter(const uint8_t row, const uint8_t
 
 // --------------------------------------------------------------------------------------------------------------------
 
-bool HostConnector::enableTool(const uint8_t toolIndex, const char* const uri)
+bool HostConnector::addTool(const uint8_t toolIndex, const char* const uri)
 {
-    mod_log_debug("enableTool(%u, \"%s\")", toolIndex, uri);
+    mod_log_debug("addTool(%u, \"%s\")", toolIndex, uri);
+    assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
+    assert(!isNullURI(uri));
+
+    for (const Tool& tool : _tools)
+    {
+        // must remove tool before adding a new one in the same index
+        assert_return(tool.index == toolIndex, false)
+    }
+
+    return _host.add(uri, MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+bool HostConnector::removeTool(const uint8_t toolIndex)
+{
+    mod_log_debug("removeTool(%u)", toolIndex);
     assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
 
-    return isNullURI(uri) ? _host.remove(MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex)
-                          : _host.add(uri, MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex);
+    return _host.remove(MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+bool HostConnector::enableTool(const uint8_t toolIndex, bool enable)
+{
+    mod_log_debug("enableTool(%u, %s)", toolIndex, bool2str(enable));
+    assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
+
+    bool toolExists = false;
+    for (const Tool& tool : _tools)
+    {
+        if (tool.index == toolIndex) toolExists = true;
+    }
+    assert_return(toolExists, false);
+
+    _host.bypass(MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, !enable);
+
+    return true;
 }
 
 // --------------------------------------------------------------------------------------------------------------------

@@ -500,10 +500,19 @@ public:
     // ----------------------------------------------------------------------------------------------------------------
     // tool handling NOTICE WORK-IN-PROGRESS
 
-    // enable a "system tool" lv2 plugin (referenced by its URI)
-    // passing null or empty string as the URI means disabling the tool
+    // add a "system tool" lv2 plugin (referenced by its URI)
     // NOTE toolIndex must be < 10
-    bool enableTool(uint8_t toolIndex, const char* uri);
+    bool addTool(uint8_t toolIndex, const char* uri);
+
+    // remove previously added tool lv2
+    bool removeTool(uint8_t toolIndex);
+
+    // enable or disable/bypass a block
+    bool enableTool(const uint8_t toolIndex, bool enable);
+
+    // enable or disable/bypass a block
+    // returning false means the block was unchanged
+    bool enableBlock(uint8_t toolIndex, bool enable);
 
     // connect a tool audio input port to an arbitrary jack output port
     void connectToolAudioInput(uint8_t toolIndex, const char* symbol, const char* jackPort);
@@ -614,6 +623,13 @@ private:
 
     static void allocPreset(Preset& preset);
     static void resetPreset(Preset& preset);
+
+    struct Tool {
+        uint8_t index;
+        std::string uri;
+    };
+
+    std::vector<Tool> _tools;
 };
 
 using HostBindings = HostConnector::Bindings;
