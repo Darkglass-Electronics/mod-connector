@@ -5,7 +5,6 @@ PREFIX ?= /usr
 
 CFLAGS += -Wall -Wextra -std=gnu11 -fPIC
 CFLAGS += -O3 -fvisibility=hidden
-LDFLAGS += -Wl,--no-undefined
 
 LV2_CFLAGS = $(shell pkg-config --cflags lv2)
 LV2_LDFLAGS = $(shell pkg-config --libs lv2)
