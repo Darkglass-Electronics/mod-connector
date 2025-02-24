@@ -95,7 +95,7 @@ jobs:
       - name: run tests
         shell: bash
         env:
-          LV2_PATH: /opt/homebrew/lib/lv2
+          LV2_PATH: /opt/homebrew/lib/lv2:$HOME/.lv2/
         run: |
           echo $(which jackd) ${{ env.JACKD_CMD_ARGS }} | tee ~/.jackdrc
           ./build/tests
