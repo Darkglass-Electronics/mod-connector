@@ -246,7 +246,7 @@ class HostConnectorTests : public QObject
         return true;
     }
 
-    // test loading single plugin
+    // test loading each individual test block
     bool testPluginLoad()
     {
         // MONOBLOCK
@@ -297,6 +297,7 @@ class HostConnectorTests : public QObject
         return true;
     }
 
+    // test adding, reordering and removing on a single-row mono chain
     bool testSingleMonoChain() 
     {
         // add block to slot 1
@@ -374,6 +375,7 @@ class HostConnectorTests : public QObject
         return true;
     }
 
+    // test adding, reordering and removing on a single-row mixed mono/stereo/dualmono chain
     bool testSingleStereoChain() 
     {
         // stereo block to slot 0
@@ -659,12 +661,9 @@ class HostConnectorTests : public QObject
         return true;
     }
 
+    // test building 2-row (sidechain) setup from left to right (and dismantling right to left)
     bool testSideChainBuiltInOrder() 
     {
-        // This test case was created when only a single sidechain was possible
-        // However, the sidechain block indices i are 
-        // [sideout block index on row 0] < i < [sidein block index on row 0]
-
         // branch to sidechain
         assert_return(connector.replaceBlock(0, 1, SIDEOUTBLOCK), false);
         assert_return(checkOnlyConnection(blockPortIn1(0, 1), JACK_CAPTURE_PORT_1), false);
@@ -858,6 +857,7 @@ class HostConnectorTests : public QObject
         return true;
     }
 
+    // test adding stereo blocks to an existing 2-row (sidechaining) setup
     bool testSideChainAddStereoInBetween() 
     {
         // create sidechain (these actions tested in testPluginLoad())
@@ -979,8 +979,207 @@ class HostConnectorTests : public QObject
         return true;
     }
 
+    // test moving a stereo block around and within sidechaining setup
+    // (only on row 0, meaning using only replaceBlock and reorderBlock)
+    bool testSideChainMoveStereoOnFirstRow() 
+    {
+        // create sidechain (these actions tested in testPluginLoad())
+        assert_return(connector.replaceBlock(0, 1, SIDEOUTBLOCK), false);
+        assert_return(connector.replaceBlock(0, 4, SIDEINBLOCK), false);
+
+        // add stereo block to end
+        assert_return(connector.replaceBlock(0, 5, STEREOBLOCK), false);
+        // row 0 
+        assert_return(checkOnlyConnection(blockPortIn1(0, 1), JACK_CAPTURE_PORT_1), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 1), blockPortIn1(0, 4)), false);
+        assert_return(checkOnly2Connections(blockPortOut1(0, 4), blockPortIn1(0, 5), blockPortIn2(0, 5)), false);
+        assert_return(checkOnlyConnection(blockPortIn1(0, 5), blockPortOut1(0, 4)), false);
+        assert_return(checkOnlyConnection(blockPortIn2(0, 5), blockPortOut1(0, 4)), false);
+        assert_return(checkOnlyConnection(blockPortOut1(0, 5), JACK_PLAYBACK_PORT_1), false);
+        assert_return(checkOnlyConnection(blockPortOut2(0, 5), JACK_PLAYBACK_PORT_2), false);
+        // row 1 
+        assert_return(checkOnlyConnectionBothWays(blockPortOut2(0, 1), blockPortIn2(0, 4)), false);
+        assert_return(testNoPassthrough(), false);
+
+        // move stereo block in between sidechaining blocks on row 0
+        // SIDEINBLOCK 4 becomes block 5
+        assert_return(connector.reorderBlock(0, 5, 2), false);
+        // row 0 connections
+        assert_return(checkOnlyConnection(blockPortIn1(0, 1), JACK_CAPTURE_PORT_1), false);
+        assert_return(checkOnly2Connections(blockPortOut1(0, 1), blockPortIn1(0, 2), blockPortIn2(0, 2)), false);
+        assert_return(checkOnlyConnection(blockPortIn1(0, 2), blockPortOut1(0, 1)), false);
+        assert_return(checkOnlyConnection(blockPortIn2(0, 2), blockPortOut1(0, 1)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 2), blockPortIn1(0, 5)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut2(0, 2), blockPairPortIn1(0, 5)), false);
+        assert_return(checkOnlyConnection(blockPortOut1(0, 5), JACK_PLAYBACK_PORT_1), false);
+        assert_return(checkOnlyConnection(blockPairPortOut1(0, 5), JACK_PLAYBACK_PORT_2), false);
+        // row 1 connections
+        assert_return(checkOnly2Connections(blockPortOut2(0, 1), blockPortIn2(0, 5), blockPairPortIn2(0, 5)), false);
+        assert_return(checkOnlyConnection(blockPortIn2(0, 5), blockPortOut2(0, 1)), false);
+        assert_return(checkOnlyConnection(blockPairPortIn2(0, 5), blockPortOut2(0, 1)), false);
+        assert_return(testNoPassthrough(), false);
+
+        // move stereo block before sidechaining blocks on row 0
+        // SIDEOUTBLOCK 1 becomes block 2
+        assert_return(connector.reorderBlock(0, 2, 0), false);
+        // row 0 connections
+        assert_return(checkOnlyConnection(blockPortIn1(0, 0), JACK_CAPTURE_PORT_1), false);
+        assert_return(checkOnlyConnection(blockPortIn2(0, 0), JACK_CAPTURE_PORT_2), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 0), blockPortIn1(0, 2)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut2(0, 0), blockPairPortIn1(0, 2)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 2), blockPortIn1(0, 5)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPairPortOut1(0, 2), blockPairPortIn1(0, 5)), false);
+        assert_return(checkOnlyConnection(blockPortOut1(0, 5), JACK_PLAYBACK_PORT_1), false);
+        assert_return(checkOnlyConnection(blockPairPortOut1(0, 5), JACK_PLAYBACK_PORT_2), false);
+        // row 1 connections
+        assert_return(checkOnlyConnectionBothWays(blockPortOut2(0, 2), blockPortIn2(0, 5)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPairPortOut2(0, 2), blockPairPortIn2(0, 5)), false);
+        assert_return(testNoPassthrough(), false);
+
+        // move stereo block back inside sidechaining blocks on row 0
+        // SIDEOUTBLOCK 2 becomes block 1
+        assert_return(connector.reorderBlock(0, 0, 3), false);
+        // row 0 connections
+        assert_return(checkOnlyConnection(blockPortIn1(0, 1), JACK_CAPTURE_PORT_1), false);
+        assert_return(checkOnly2Connections(blockPortOut1(0, 1), blockPortIn1(0, 3), blockPortIn2(0, 3)), false);
+        assert_return(checkOnlyConnection(blockPortIn1(0, 3), blockPortOut1(0, 1)), false);
+        assert_return(checkOnlyConnection(blockPortIn2(0, 3), blockPortOut1(0, 1)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 3), blockPortIn1(0, 5)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut2(0, 3), blockPairPortIn1(0, 5)), false);
+        assert_return(checkOnlyConnection(blockPortOut1(0, 5), JACK_PLAYBACK_PORT_1), false);
+        assert_return(checkOnlyConnection(blockPairPortOut1(0, 5), JACK_PLAYBACK_PORT_2), false);
+        // row 1 connections
+        assert_return(checkOnly2Connections(blockPortOut2(0, 1), blockPortIn2(0, 5), blockPairPortIn2(0, 5)), false);
+        assert_return(checkOnlyConnection(blockPortIn2(0, 5), blockPortOut2(0, 1)), false);
+        assert_return(checkOnlyConnection(blockPairPortIn2(0, 5), blockPortOut2(0, 1)), false);
+        assert_return(testNoPassthrough(), false);
+
+        // move stereo block to end
+        assert_return(connector.reorderBlock(0, 3, 5), false);
+        // row 0 
+        assert_return(checkOnlyConnection(blockPortIn1(0, 1), JACK_CAPTURE_PORT_1), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 1), blockPortIn1(0, 4)), false);
+        assert_return(checkOnly2Connections(blockPortOut1(0, 4), blockPortIn1(0, 5), blockPortIn2(0, 5)), false);
+        assert_return(checkOnlyConnection(blockPortIn1(0, 5), blockPortOut1(0, 4)), false);
+        assert_return(checkOnlyConnection(blockPortIn2(0, 5), blockPortOut1(0, 4)), false);
+        assert_return(checkOnlyConnection(blockPortOut1(0, 5), JACK_PLAYBACK_PORT_1), false);
+        assert_return(checkOnlyConnection(blockPortOut2(0, 5), JACK_PLAYBACK_PORT_2), false);
+        // row 1 
+        assert_return(checkOnlyConnectionBothWays(blockPortOut2(0, 1), blockPortIn2(0, 4)), false);
+        assert_return(testNoPassthrough(), false);
+
+        // remove all blocks
+        assert_return(connector.replaceBlock(0, 5, nullptr), false);
+        assert_return(connector.replaceBlock(0, 4, nullptr), false);
+        assert_return(connector.replaceBlock(0, 1, nullptr), false);
+
+        return true;
+    }
+
+    // test moving a stereo block around on both rows of a 2-row setup
+    bool testSideChainSwapBlockRows()
+    {
+        // NOTE: swapBlockRow is called here for blocks at the end of the two rows,
+        // meaning that block is first moved to the end, row swapped and then moved to destination index
+
+        // create sidechain (these actions tested in testPluginLoad())
+        assert_return(connector.replaceBlock(0, 1, SIDEOUTBLOCK), false);
+        assert_return(connector.replaceBlock(0, 4, SIDEINBLOCK), false);
+        // add stereo block to end
+        assert_return(connector.replaceBlock(0, 5, STEREOBLOCK), false);
+        // connections of this starting point checked in testSideChainMoveStereoOnFirstRow()
+
+        // move stereo block in between sidechaining blocks on row 1
+        assert_return(connector.swapBlockRow(0, 5, 1, 5), false);
+        assert_return(connector.reorderBlock(1, 5, 2), false);
+        // row 0 connections
+        assert_return(checkOnlyConnection(blockPortIn1(0, 1), JACK_CAPTURE_PORT_1), false);
+        assert_return(checkOnly2Connections(blockPortOut1(0, 1), blockPortIn1(0, 4), blockPairPortIn1(0, 4)), false);
+        assert_return(checkOnlyConnection(blockPortIn1(0, 4), blockPortOut1(0, 1)), false);
+        assert_return(checkOnlyConnection(blockPairPortIn1(0, 4), blockPortOut1(0, 1)), false);
+        assert_return(checkOnlyConnection(blockPortOut1(0, 4), JACK_PLAYBACK_PORT_1), false);
+        assert_return(checkOnlyConnection(blockPairPortOut1(0, 4), JACK_PLAYBACK_PORT_2), false);
+        // row 1 connections
+        assert_return(checkOnly2Connections(blockPortOut2(0, 1), blockPortIn1(1, 2), blockPortIn2(1, 2)), false);
+        assert_return(checkOnlyConnection(blockPortIn1(1, 2), blockPortOut2(0, 1)), false);
+        assert_return(checkOnlyConnection(blockPortIn2(1, 2), blockPortOut2(0, 1)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(1, 2), blockPortIn2(0, 4)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut2(1, 2), blockPairPortIn2(0, 4)), false);
+        assert_return(testNoPassthrough(), false);
+
+        // move stereo block to beginning on row 0
+        assert_return(connector.reorderBlock(1, 2, 5), false);
+        assert_return(connector.swapBlockRow(1, 5, 0, 5), false);
+        assert_return(connector.reorderBlock(0, 5, 0), false);
+        // SIDEOUTBLOCK 1 becomes block 2
+        // SIDEINBLOCK 4 becomes block 5
+        // row 0 connections
+        assert_return(checkOnlyConnection(blockPortIn1(0, 0), JACK_CAPTURE_PORT_1), false);
+        assert_return(checkOnlyConnection(blockPortIn2(0, 0), JACK_CAPTURE_PORT_2), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 0), blockPortIn1(0, 2)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut2(0, 0), blockPairPortIn1(0, 2)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 2), blockPortIn1(0, 5)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPairPortOut1(0, 2), blockPairPortIn1(0, 5)), false);
+        assert_return(checkOnlyConnection(blockPortOut1(0, 5), JACK_PLAYBACK_PORT_1), false);
+        assert_return(checkOnlyConnection(blockPairPortOut1(0, 5), JACK_PLAYBACK_PORT_2), false);
+        // row 1 connections
+        assert_return(checkOnlyConnectionBothWays(blockPortOut2(0, 2), blockPortIn2(0, 5)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPairPortOut2(0, 2), blockPairPortIn2(0, 5)), false);
+        assert_return(testNoPassthrough(), false);
+
+        // move stereo block back to where it was on row 1
+        assert_return(connector.reorderBlock(0, 0, 5), false);
+        assert_return(connector.swapBlockRow(0, 5, 1, 5), false);
+        assert_return(connector.reorderBlock(1, 5, 2), false);
+        // row 0 connections
+        assert_return(checkOnlyConnection(blockPortIn1(0, 1), JACK_CAPTURE_PORT_1), false);
+        assert_return(checkOnly2Connections(blockPortOut1(0, 1), blockPortIn1(0, 4), blockPairPortIn1(0, 4)), false);
+        assert_return(checkOnlyConnection(blockPortIn1(0, 4), blockPortOut1(0, 1)), false);
+        assert_return(checkOnlyConnection(blockPairPortIn1(0, 4), blockPortOut1(0, 1)), false);
+        assert_return(checkOnlyConnection(blockPortOut1(0, 4), JACK_PLAYBACK_PORT_1), false);
+        assert_return(checkOnlyConnection(blockPairPortOut1(0, 4), JACK_PLAYBACK_PORT_2), false);
+        // row 1 connections
+        assert_return(checkOnly2Connections(blockPortOut2(0, 1), blockPortIn1(1, 2), blockPortIn2(1, 2)), false);
+        assert_return(checkOnlyConnection(blockPortIn1(1, 2), blockPortOut2(0, 1)), false);
+        assert_return(checkOnlyConnection(blockPortIn2(1, 2), blockPortOut2(0, 1)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(1, 2), blockPortIn2(0, 4)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut2(1, 2), blockPairPortIn2(0, 4)), false);
+        assert_return(testNoPassthrough(), false);
+
+        // move stereo block to row 0 between the sidechaining blocks
+        assert_return(connector.reorderBlock(1, 2, 5), false);
+        assert_return(connector.swapBlockRow(1, 5, 0, 5), false);
+        assert_return(connector.reorderBlock(0, 5, 3), false);
+        // row 0 connections
+        assert_return(checkOnlyConnection(blockPortIn1(0, 1), JACK_CAPTURE_PORT_1), false);
+        assert_return(checkOnly2Connections(blockPortOut1(0, 1), blockPortIn1(0, 3), blockPortIn2(0, 3)), false);
+        assert_return(checkOnlyConnection(blockPortIn1(0, 3), blockPortOut1(0, 1)), false);
+        assert_return(checkOnlyConnection(blockPortIn2(0, 3), blockPortOut1(0, 1)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 3), blockPortIn1(0, 5)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut2(0, 3), blockPairPortIn1(0, 5)), false);
+        assert_return(checkOnlyConnection(blockPortOut1(0, 5), JACK_PLAYBACK_PORT_1), false);
+        assert_return(checkOnlyConnection(blockPairPortOut1(0, 5), JACK_PLAYBACK_PORT_2), false);
+        // row 1 connections
+        assert_return(checkOnly2Connections(blockPortOut2(0, 1), blockPortIn2(0, 5), blockPairPortIn2(0, 5)), false);
+        assert_return(checkOnlyConnection(blockPortIn2(0, 5), blockPortOut2(0, 1)), false);
+        assert_return(checkOnlyConnection(blockPairPortIn2(0, 5), blockPortOut2(0, 1)), false);
+        assert_return(testNoPassthrough(), false);
+
+        // remove all blocks
+        assert_return(connector.replaceBlock(0, 5, nullptr), false);
+        assert_return(connector.replaceBlock(0, 3, nullptr), false);
+        assert_return(connector.replaceBlock(0, 1, nullptr), false);
+
+        return true;
+    }
+
     bool testSideChain() 
     {
+        // NOTE: even though this test set is extensive, it doesn't include every possible scenario
+        // focus is on issues that have appeared earlier in development
+
+        // NOTE: many of the connection checks in between actions are the same within one test
+        // and between test functions but the steps to get there are different
 
         assert_return(testSideChainBuiltInOrder(), false);
         assert_return(testPassthrough(), false);
@@ -988,13 +1187,11 @@ class HostConnectorTests : public QObject
         assert_return(testSideChainAddStereoInBetween(), false);
         assert_return(testPassthrough(), false);
 
-        // TODO:
-        // * sideout&sidein -> move stereo block inbetween to row 0 (from before and from after)
-        // * sideout&sidein -> move stereo block inbetween to row 0 (from before and from after)
-        // * all of the above combining row 0 add and row 1 add in both orders
-        // * stereo -> sideout -> sidein
-        // * move stereo from end of chain to before sideout
-        // * add stereo to before mono sidein&sideout
+        assert_return(testSideChainMoveStereoOnFirstRow(), false);
+        assert_return(testPassthrough(), false);
+        
+        assert_return(testSideChainSwapBlockRows(), false);
+        assert_return(testPassthrough(), false);
 
         return true;
     }
