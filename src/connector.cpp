@@ -682,7 +682,7 @@ bool HostConnector::preloadPresetFromFile(const uint8_t preset, const char* cons
 {
     mod_log_debug("preloadPresetFromFile(%u, \"%s\")", preset, filename);
     assert(preset < NUM_PRESETS_PER_BANK);
-    assert(preset != _current.preset);
+    assert_return(preset != _current.preset, false);
 
     // load initial json object
     nlohmann::json j;
@@ -4000,6 +4000,10 @@ void HostConnector::hostSwitchPreset(const Current& old)
                     const Parameter& defparamdata(defblockdata.parameters[p]);
                     if (isNullURI(defparamdata.symbol))
                         break;
+                    if ((defparamdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual)) != 0)
+                        continue;
+                    if (isNotEqual(defparamdata.value, defparamdata.meta.def2))
+                        continue;
 
                     params.push_back({ defparamdata.symbol.c_str(), defparamdata.value });
                 }
@@ -4009,6 +4013,10 @@ void HostConnector::hostSwitchPreset(const Current& old)
                     const Property& defpropdata(defblockdata.properties[p]);
                     if (isNullURI(defpropdata.uri))
                         break;
+                    if ((defpropdata.meta.flags & Lv2PropertyIsReadOnly) != 0)
+                        continue;
+                    if (defpropdata.value == defpropdata.meta.defpath)
+                        continue;
 
                     _host.patch_set(hbp.id, defpropdata.uri.c_str(), defpropdata.value.c_str());
 
