@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2024-2025 Filipe Coelho <falktx@darkglass.com>
 // SPDX-License-Identifier: ISC
 
+#include "config.h"
+#include <cstdint>
 #define MOD_LOG_GROUP "connector"
 
 #include "connector.hpp"
@@ -210,6 +212,25 @@ static void allocBlock(HostConnector::Block& blockdata)
     }
 }
 
+static void resetTool(HostConnector::Tool& blockdata)
+{
+    blockdata.enabled = false;
+    blockdata.uri.clear();
+
+    for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+        resetParameter(blockdata.parameters[p]);
+
+    for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+        resetProperty(blockdata.properties[p]);
+
+}
+
+static void allocTool(HostConnector::Tool& blockdata)
+{
+    blockdata.parameters.resize(MAX_PARAMS_PER_BLOCK);
+    blockdata.properties.resize(MAX_PARAMS_PER_BLOCK);
+}
+
 // --------------------------------------------------------------------------------------------------------------------
 
 static bool isNullBlock(const HostConnector::Block& blockdata)
@@ -352,6 +373,9 @@ HostConnector::HostConnector()
 
     allocPreset(_current);
     resetPreset(_current);
+
+    allocTools(_tools);
+    resetTools(_tools);
 
     ok = _host.last_error.empty();
 }
@@ -2139,15 +2163,26 @@ bool HostConnector::addTool(const uint8_t toolIndex, const char* const uri)
 {
     mod_log_debug("addTool(%u, \"%s\")", toolIndex, uri);
     assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
-    assert(!isNullURI(uri));
+    assert_return(!isNullURI(uri), false);
+    assert_return(isNullURI(_tools[toolIndex].uri), false); // must remove tool before adding a new one in the same index
 
-    for (const Tool& tool : _tools)
+    bool retval = _host.add(uri, MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex);
+
+    if (!retval)
     {
-        // must remove tool before adding a new one in the same index
-        assert_return(tool.index == toolIndex, false)
+        mod_log_warn("Failed to load plugin %s as tool %d: %s", uri, toolIndex, _host.last_error.c_str());
+    }
+    else 
+    {
+        mod_log_debug("lv2world.get_plugin_by_uri");
+        const Lv2Plugin* const plugin = lv2world.get_plugin_by_uri(uri);
+        assert_return(plugin != nullptr, false);
+    
+        mod_log_debug("initTool");
+        initTool(_tools[toolIndex], plugin, toolIndex);
     }
 
-    return _host.add(uri, MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex);
+    return retval;
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -2156,27 +2191,23 @@ bool HostConnector::removeTool(const uint8_t toolIndex)
 {
     mod_log_debug("removeTool(%u)", toolIndex);
     assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
+    assert_return(!isNullURI(_tools[toolIndex].uri), false);
+
+    resetTool(_tools[toolIndex]);
 
     return _host.remove(MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
 
-bool HostConnector::enableTool(const uint8_t toolIndex, bool enable)
+void HostConnector::enableTool(const uint8_t toolIndex, bool enable)
 {
     mod_log_debug("enableTool(%u, %s)", toolIndex, bool2str(enable));
     assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
+    assert_return(!isNullURI(_tools[toolIndex].uri), false);
 
-    bool toolExists = false;
-    for (const Tool& tool : _tools)
-    {
-        if (tool.index == toolIndex) toolExists = true;
-    }
-    assert_return(toolExists, false);
-
+    _tools[toolIndex].enabled = enable;
     _host.bypass(MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, !enable);
-
-    return true;
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -4379,6 +4410,124 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
 
 // --------------------------------------------------------------------------------------------------------------------
 
+void HostConnector::initTool(HostConnector::Tool& blockdata,
+                              const Lv2Plugin* const plugin,
+                              uint8_t toolIndex,
+                              std::unordered_map<std::string, uint8_t>* paramToIndexMapOpt,
+                              std::unordered_map<std::string, uint8_t>* propToIndexMapOpt) const
+{
+    assert(plugin != nullptr);
+
+    blockdata.index = toolIndex;
+    blockdata.enabled = true;
+    blockdata.uri = plugin->uri;
+
+    std::unordered_map<std::string, uint8_t> paramToIndexMapLocal;
+    std::unordered_map<std::string, uint8_t>& paramToIndexMap = paramToIndexMapOpt != nullptr
+                                                              ? *paramToIndexMapOpt
+                                                              : paramToIndexMapLocal;
+
+    std::unordered_map<std::string, uint8_t> propToIndexMapLocal;
+    std::unordered_map<std::string, uint8_t>& propToIndexMap = propToIndexMapOpt != nullptr
+                                                             ? *propToIndexMapOpt
+                                                             : propToIndexMapLocal;
+
+    uint8_t numParams = 0;
+
+    const auto handleLv2Port = [&blockdata, &numParams, &paramToIndexMap](const Lv2Port& port)
+    {
+        if ((port.flags & (Lv2PortIsControl|Lv2ParameterHidden)) != Lv2PortIsControl)
+            return;
+
+        switch (port.designation)
+        {
+        case kLv2DesignationNone:
+            break;
+        case kLv2DesignationEnabled:
+        case kLv2DesignationBPM:
+        case kLv2DesignationReset:
+            // skip parameter
+            return;
+        case kLv2DesignationQuickPot:
+            break;
+        }
+
+        paramToIndexMap[port.symbol] = numParams;
+
+        blockdata.parameters[numParams++] = {
+            .symbol = port.symbol,
+            .value = port.def,
+            .meta = {
+                .flags = port.flags,
+                .hwbinding = UINT8_MAX,
+                .def = port.def,
+                .min = port.min,
+                .max = port.max,
+                .name = port.name,
+                .shortname = port.shortname,
+                .unit = port.unit,
+                .scalePoints = port.scalePoints,
+            },
+        };
+    };
+
+    try {
+        const std::vector<Lv2Port>& ports = virtualParameters.at(blockdata.uri);
+
+        for (const Lv2Port& port : ports)
+        {
+            assert(!port.symbol.empty());
+            assert(port.symbol[0] == ':');
+
+            handleLv2Port(port);
+
+            if (numParams == MAX_PARAMS_PER_BLOCK)
+                break;
+        }
+    } catch (...) {}
+
+    for (const Lv2Port& port : plugin->ports)
+    {
+        handleLv2Port(port);
+
+        if (numParams == MAX_PARAMS_PER_BLOCK)
+            break;
+    }
+
+    uint8_t numProps = 0;
+    for (const Lv2Property& prop : plugin->properties)
+    {
+        if ((prop.flags & Lv2ParameterHidden) != 0)
+            continue;
+
+        propToIndexMap[prop.uri] = numProps;
+
+        blockdata.properties[numProps++] = {
+            .uri = prop.uri,
+            .value = {},
+            .meta = {
+                .flags = prop.flags,
+                .hwbinding = UINT8_MAX,
+                .def = prop.def,
+                .name = prop.name,
+                .shortname = prop.shortname,
+            },
+        };
+
+        if (numProps == MAX_PARAMS_PER_BLOCK)
+            break;
+    }
+
+    for (uint8_t p = numParams; p < MAX_PARAMS_PER_BLOCK; ++p)
+        resetParameter(blockdata.parameters[p]);
+
+    for (uint8_t p = numProps; p < MAX_PARAMS_PER_BLOCK; ++p)
+        resetProperty(blockdata.properties[p]);
+
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 void HostConnector::allocPreset(Preset& preset)
 {
     preset.chains[0].capture[0] = JACK_CAPTURE_PORT_1;
@@ -4424,6 +4573,21 @@ void HostConnector::resetPreset(Preset& preset)
         preset.bindings[hwid].params.clear();
         preset.bindings[hwid].properties.clear();
     }
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::allocTools(std::vector<Tool>& tools)
+{
+    tools.resize(MAX_MOD_HOST_TOOL_INSTANCES);
+    for (Tool& tool : tools)
+        allocTool(tool);
+}
+
+void HostConnector::resetTools(std::vector<Tool>& tools)
+{
+    for (uint8_t tl = 0; tl < MAX_MOD_HOST_TOOL_INSTANCES; ++tl)
+        resetTool(tools[tl]);
 }
 
 // --------------------------------------------------------------------------------------------------------------------

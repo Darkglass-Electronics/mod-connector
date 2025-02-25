@@ -161,6 +161,14 @@ struct HostConnector : Host::FeedbackCallback {
         std::array<SceneValues, NUM_SCENES_PER_PRESET> sceneValues;
     };
 
+    struct Tool {
+        uint8_t index;
+        bool enabled;
+        std::string uri;
+        std::vector<Parameter> parameters;
+        std::vector<Property> properties;
+    };
+
     struct ParameterBinding {
         uint8_t row;
         uint8_t block;
@@ -250,6 +258,9 @@ protected:
 
     // first time booting up
     bool _firstboot = true;
+
+    // tool blocks
+    std::vector<Tool> _tools;
 
 public:
     // lv2 world for getting information about plugins
@@ -508,7 +519,7 @@ public:
     bool removeTool(uint8_t toolIndex);
 
     // enable or disable/bypass a block
-    bool enableTool(const uint8_t toolIndex, bool enable);
+    void enableTool(uint8_t toolIndex, bool enable);
 
     // enable or disable/bypass a block
     // returning false means the block was unchanged
@@ -621,15 +632,19 @@ private:
                    std::unordered_map<std::string, uint8_t>* paramToIndexMapOpt = nullptr,
                    std::unordered_map<std::string, uint8_t>* propToIndexMapOpt = nullptr) const;
 
+    // init tool using plugin default values, optionally fill index maps
+    void initTool(Tool& blockdata,
+        const Lv2Plugin* plugin,
+        uint8_t toolIndex,
+        std::unordered_map<std::string, uint8_t>* paramToIndexMapOpt = nullptr,
+        std::unordered_map<std::string, uint8_t>* propToIndexMapOpt = nullptr) const;
+
     static void allocPreset(Preset& preset);
     static void resetPreset(Preset& preset);
 
-    struct Tool {
-        uint8_t index;
-        std::string uri;
-    };
+    static void allocTools(std::vector<Tool>& tools);
+    static void resetTools(std::vector<Tool>& tools);
 
-    std::vector<Tool> _tools;
 };
 
 using HostBindings = HostConnector::Bindings;
