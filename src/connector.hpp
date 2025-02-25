@@ -100,6 +100,7 @@ struct HostConnector : Host::FeedbackCallback {
             uint32_t flags;
             uint8_t hwbinding;
             float def, min, max;
+            float def2; // default from plugin ttl, which might not match default preset
             std::string name;
             std::string shortname;
             std::string unit;

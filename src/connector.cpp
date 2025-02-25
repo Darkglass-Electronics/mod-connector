@@ -1128,24 +1128,11 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
 
                 paramdata.meta.flags &= ~Lv2ParameterInScene;
 
-                if (paramdata.value != paramdata.meta.def)
+                if (isNotEqual(paramdata.value, paramdata.meta.def))
                 {
                     paramdata.value = paramdata.meta.def;
                     params.push_back({ paramdata.symbol.c_str(), paramdata.meta.def });
                 }
-            }
-
-            for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
-            {
-                Property& propdata(blockdata.properties[p]);
-                if (isNullURI(propdata.uri))
-                    break;
-                if ((propdata.meta.flags & Lv2PropertyIsReadOnly) != 0)
-                    continue;
-
-                propdata.meta.flags &= ~Lv2ParameterInScene;
-
-                // TODO reset properties too
             }
 
             const Host::NonBlockingScopeWithAudioFades hnbs(_host);
@@ -1164,6 +1151,26 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
 
             if (hbp.pair != kMaxHostInstances)
                 _host.params_flush(hbp.pair, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params.size(), params.data());
+
+            for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+            {
+                Property& propdata(blockdata.properties[p]);
+                if (isNullURI(propdata.uri))
+                    break;
+                if ((propdata.meta.flags & Lv2PropertyIsReadOnly) != 0)
+                    continue;
+
+                propdata.meta.flags &= ~Lv2ParameterInScene;
+
+                if (propdata.value != propdata.meta.defpath)
+                {
+                    propdata.value = propdata.meta.defpath;
+                    _host.patch_set(hbp.id, propdata.uri.c_str(), propdata.value.c_str());
+
+                    if (hbp.pair != kMaxHostInstances)
+                        _host.patch_set(hbp.pair, propdata.uri.c_str(), propdata.value.c_str());
+                }
+            }
         }
 
         return true;
@@ -2718,7 +2725,6 @@ void HostConnector::hostEnsureStereoChain(const uint8_t row, const uint8_t block
         {
             const uint16_t pair = _mapper.add_pair(_current.preset, row, bl);
 
-            // NOTE this does not take into account our custom defaults, we set all params
             if (_host.add(blockdata.uri.c_str(), pair))
             {
                 if (!blockdata.enabled)
@@ -2728,13 +2734,18 @@ void HostConnector::hostEnsureStereoChain(const uint8_t row, const uint8_t block
                 {
                     if (isNullURI(paramdata.symbol))
                         break;
-                    _host.param_set(pair, paramdata.symbol.c_str(), paramdata.value);
+                    if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual)) != 0)
+                        continue;
+                    if (isNotEqual(paramdata.value, paramdata.meta.def2))
+                        _host.param_set(pair, paramdata.symbol.c_str(), paramdata.value);
                 }
 
                 for (const Property& propdata : blockdata.properties)
                 {
                     if (isNullURI(propdata.uri))
                         break;
+                    if ((propdata.meta.flags & Lv2PropertyIsReadOnly) != 0)
+                        continue;
                     _host.patch_set(pair, propdata.uri.c_str(), propdata.value.c_str());
                 }
             }
@@ -3561,7 +3572,6 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann_json& json
             const std::string jblockid = format("%u:%u", row + 1, bl + 1);
            #endif
 
-            // TODO handle properties
             auto& jblock = jblocks[jblockid] = {
                 { "enabled", blockdata.enabled },
                 { "parameters", nlohmann::json::object({}) },
@@ -3580,8 +3590,6 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann_json& json
 
                     if (isNullURI(paramdata.symbol))
                         break;
-                    if (paramdata.symbol[0] == ':')
-                        continue;
                     if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual)) != 0)
                         continue;
 
@@ -3646,6 +3654,11 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann_json& json
                     }
                 }
             }
+
+            if (blockdata.meta.numPropertiesInScenes != 0)
+            {
+                // TODO
+            }
         }
     }
 }
@@ -3697,8 +3710,9 @@ void HostConnector::hostLoadPreset(const uint8_t preset)
                     {
                         if (isNullURI(paramdata.symbol))
                             break;
-                        // TODO safe float comparison
-                        if (paramdata.value != paramdata.meta.def)
+                        if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual)) != 0)
+                            continue;
+                        if (isNotEqual(paramdata.value, paramdata.meta.def2))
                             _host.param_set(instance, paramdata.symbol.c_str(), paramdata.value);
                     }
 
@@ -3706,6 +3720,8 @@ void HostConnector::hostLoadPreset(const uint8_t preset)
                     {
                         if (isNullURI(propdata.uri))
                             break;
+                        if ((propdata.meta.flags & Lv2PropertyIsReadOnly) != 0)
+                            continue;
                         if (propdata.value != propdata.meta.defpath)
                             _host.patch_set(instance, propdata.uri.c_str(), propdata.value.c_str());
                     }
@@ -3909,7 +3925,9 @@ void HostConnector::hostSwitchPreset(const Current& old)
 
                         if (isNullURI(defparamdata.symbol))
                             break;
-                        if (defparamdata.value == oldparamdata.value)
+                        if ((defparamdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual)) != 0)
+                            continue;
+                        if (isEqual(defparamdata.value, oldparamdata.value))
                             continue;
 
                         params.push_back({ defparamdata.symbol.c_str(), defparamdata.value });
@@ -3922,6 +3940,8 @@ void HostConnector::hostSwitchPreset(const Current& old)
 
                         if (isNullURI(defpropdata.uri))
                             break;
+                        if ((defpropdata.meta.flags & Lv2PropertyIsReadOnly) != 0)
+                            continue;
                         if (defpropdata.value == oldpropdata.value)
                             continue;
 
@@ -4121,7 +4141,6 @@ void HostConnector::hostFeedbackCallback(const HostFeedbackData& data)
 
     case HostFeedbackData::kFeedbackMidiProgramChange:
         assert(data.midiProgramChange.program >= 0);
-        assert(data.midiProgramChange.program < 128);
         assert(data.midiProgramChange.channel >= 0);
         assert(data.midiProgramChange.channel < 16);
 
@@ -4226,6 +4245,7 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
                 .def = port.def,
                 .min = port.min,
                 .max = port.max,
+                .def2 = port.def,
                 .name = port.name,
                 .shortname = port.shortname,
                 .unit = port.unit,
@@ -4272,6 +4292,9 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
                 .flags = prop.flags,
                 .hwbinding = UINT8_MAX,
                 .def = prop.def,
+                .min = prop.min,
+                .max = prop.max,
+                .defpath = prop.defpath,
                 .name = prop.name,
                 .shortname = prop.shortname,
             },
