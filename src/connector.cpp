@@ -850,6 +850,16 @@ void HostConnector::clearCurrentPreset()
 
 // --------------------------------------------------------------------------------------------------------------------
 
+void HostConnector::clearCurrentPresetBackground()
+{
+    mod_log_debug("clearCurrentPresetBackground()");
+
+    _current.background.color = 0;
+    _current.background.style.clear();
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 void HostConnector::regenUUID()
 {
     mod_log_debug("regenUUID()");

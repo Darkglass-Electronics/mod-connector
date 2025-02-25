@@ -359,6 +359,9 @@ public:
     // uuid is also regenerated
     void clearCurrentPreset();
 
+    // clear current preset background (color and style)
+    void clearCurrentPresetBackground();
+
     // regenerate current preset uuid
     void regenUUID();
 
