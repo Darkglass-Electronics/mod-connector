@@ -613,16 +613,14 @@ void HostConnector::loadBankFromPresetFiles(const std::array<std::string, NUM_PR
     for (uint8_t pr = 0; pr < NUM_PRESETS_PER_BANK; ++pr)
     {
         Preset& presetdata = _presets[pr];
-        presetdata.filename = filenames[pr];
 
         nlohmann::json j;
-        if (! loadPresetFromFile(filenames[pr].c_str(), j))
-        {
+        if (loadPresetFromFile(filenames[pr].c_str(), j))
+            jsonPresetLoad(presetdata, j);
+        else
             resetPreset(presetdata);
-            continue;
-        }
 
-        jsonPresetLoad(presetdata, j);
+        presetdata.filename = filenames[pr];
     }
 
     // create current preset data from selected initial preset
@@ -657,14 +655,17 @@ bool HostConnector::loadCurrentPresetFromFile(const char* const filename, const 
     mod_log_debug("loadCurrentPresetFromFile(\"%s\")", filename);
 
     nlohmann::json j;
-    if (! loadPresetFromFile(filename, j))
-        return false;
+    const bool loaded = loadPresetFromFile(filename, j);
 
     // store old active preset in memory before doing anything
     const Current old = _current;
 
     // load new preset data
-    jsonPresetLoad(_current, j);
+    if (loaded)
+        jsonPresetLoad(_current, j);
+    else
+        resetPreset(_current);
+
     _current.filename = filename;
 
     // switch old preset with new one
@@ -686,13 +687,17 @@ bool HostConnector::preloadPresetFromFile(const uint8_t preset, const char* cons
 
     // load initial json object
     nlohmann::json j;
-    if (! loadPresetFromFile(filename, j))
-        return false;
+    const bool loaded = loadPresetFromFile(filename, j);
 
     // load preset data
     Preset presetdata;
     allocPreset(presetdata);
-    jsonPresetLoad(presetdata, j);
+
+    if (loaded)
+        jsonPresetLoad(presetdata, j);
+    else
+        resetPreset(presetdata);
+
     presetdata.filename = filename;
 
     // unload old preset
