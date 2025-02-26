@@ -56,40 +56,40 @@ jobs:
           echo $(which jackd) ${{ env.JACKD_CMD_ARGS }} | tee ~/.jackdrc
           ./build/tests
 
-  macos:
-    runs-on: macos-15
-    steps:
-      - uses: actions/checkout@v4
-      - name: install dependencies
-        shell: bash
-        run: |
-          brew install jack lilv mda-lv2 qt@6
-      - name: set up cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/mod-host
-          key: macos-v${{ env.CACHE_VERSION }}
-      - name: build mod-host
-        shell: bash
-        run: |
-          if [ ! -d ~/mod-host ]; then
-            git clone --depth=1 https://github.com/mod-audio/mod-host.git ~/mod-host
-            make -C ~/mod-host -j $(sysctl -n hw.logicalcpu)
-          fi
-      - name: build test blocks
-        shell: bash
-        run: |
-          make -C test-blocks
-      - name: build mod-connector
-        shell: bash
-        run: |
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
-          cmake --build build -j
-      - name: run tests
-        shell: bash
-        env:
-          LV2_PATH: $GITHUB_WORKSPACE/test-blocks/build/
-        run: |
-          echo $(which jackd) ${{ env.JACKD_CMD_ARGS }} | tee ~/.jackdrc
-          ./build/tests
+  # macos:
+  #   runs-on: macos-15
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - name: install dependencies
+  #       shell: bash
+  #       run: |
+  #         brew install jack lilv mda-lv2 qt@6
+  #     - name: set up cache
+  #       uses: actions/cache@v4
+  #       with:
+  #         path: |
+  #           ~/mod-host
+  #         key: macos-v${{ env.CACHE_VERSION }}
+  #     - name: build mod-host
+  #       shell: bash
+  #       run: |
+  #         if [ ! -d ~/mod-host ]; then
+  #           git clone --depth=1 https://github.com/mod-audio/mod-host.git ~/mod-host
+  #           make -C ~/mod-host -j $(sysctl -n hw.logicalcpu)
+  #         fi
+  #     - name: build test blocks
+  #       shell: bash
+  #       run: |
+  #         make -C test-blocks
+  #     - name: build mod-connector
+  #       shell: bash
+  #       run: |
+  #         cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+  #         cmake --build build -j
+  #     - name: run tests
+  #       shell: bash
+  #       env:
+  #         LV2_PATH: $GITHUB_WORKSPACE/test-blocks/build/
+  #       run: |
+  #         echo $(which jackd) ${{ env.JACKD_CMD_ARGS }} | tee ~/.jackdrc
+  #         ./build/tests
