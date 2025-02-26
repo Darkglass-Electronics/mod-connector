@@ -65,6 +65,14 @@ if(PROJECT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR AND NOT MOD_CONNECTOR_LIB_TEST)
       $<$<BOOL:${systemd_FOUND}>:HAVE_SYSTEMD>
   )
 
+  target_compile_options(mod-connector
+    PRIVATE
+      -Wall
+      -Wextra
+      -Wfloat-equal
+      -Wshadow
+  )
+
   target_include_directories(mod-connector
     PRIVATE
       src

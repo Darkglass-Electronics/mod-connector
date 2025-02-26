@@ -5,6 +5,7 @@
 
 #include <cassert>
 #include <cstdint>
+#include <limits>
 #include <string>
 
 // clang doesn't support constexpr string functions
@@ -64,6 +65,27 @@ static inline
 bool isNullURI(const std::string& uri)
 {
     return uri.empty() || uri == "-";
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+// safely check if values are equal
+
+template<typename T>
+[[maybe_unused]]
+[[nodiscard]]
+static inline constexpr
+bool isEqual(const T v1, const T v2) noexcept
+{
+    return std::abs(v1 - v2) < std::numeric_limits<T>::epsilon();
+}
+
+template<typename T>
+[[maybe_unused]]
+[[nodiscard]]
+static inline constexpr
+bool isNotEqual(const T v1, const T v2) noexcept
+{
+    return std::abs(v1 - v2) >= std::numeric_limits<T>::epsilon();
 }
 
 // --------------------------------------------------------------------------------------------------------------------

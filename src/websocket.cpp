@@ -13,9 +13,9 @@
 
 struct WebSocketServer::Impl : QObject
 {
-    Impl(Callbacks* const callbacks, std::string& lastError)
-        : callbacks(callbacks),
-          lastError(lastError),
+    Impl(Callbacks* const callbacks_, std::string& lastError_)
+        : callbacks(callbacks_),
+          lastError(lastError_),
          #ifndef QT_NO_SSL
           wsServer("", std::getenv("SSL_CERT") != nullptr ? QWebSocketServer::SecureMode : QWebSocketServer::NonSecureMode)
          #else
