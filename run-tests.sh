@@ -1,12 +1,10 @@
+#!/bin/bash
+
 JACKD_CMD_ARGS="-r -d dummy -r 48000 -p 8192"
 
-killall -SIGKILL jackd mod-host || true
-
 # build test blocks
-pushd test-blocks
-make
-ln -s $(pwd)/build/*.lv2 ~/.lv2/
-popd
+make -C test-blocks
+export LV2_PATH=$(pwd)/test-blocks/build/
 
 # build mod-connector
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
@@ -15,5 +13,3 @@ cmake --build build -j
 # run tests
 echo $(which jackd) $JACKD_CMD_ARGS | tee ~/.jackdrc
 ./build/tests
-
-killall -SIGKILL jackd mod-host || true

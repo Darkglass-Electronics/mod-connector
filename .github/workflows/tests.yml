@@ -35,11 +35,7 @@ jobs:
       - name: build test blocks
         shell: bash
         run: |
-          cd test-blocks
-          make
-          mkdir ~/.lv2
-          ln -s $(pwd)/build/*.lv2 ~/.lv2/
-          cd ..
+          make -C test-blocks
       - name: build mod-connector
         shell: bash
         run: |
@@ -54,6 +50,8 @@ jobs:
           rm -rf /dev/shm/jack*
       - name: run tests
         shell: bash
+        env:
+          LV2_PATH: $GITHUB_WORKSPACE/test-blocks/build/
         run: |
           echo $(which jackd) ${{ env.JACKD_CMD_ARGS }} | tee ~/.jackdrc
           ./build/tests
@@ -82,11 +80,7 @@ jobs:
       - name: build test blocks
         shell: bash
         run: |
-          cd test-blocks
-          make
-          mkdir ~/.lv2
-          ln -s $(pwd)/build/*.lv2 ~/.lv2/
-          cd ..
+          make -C test-blocks
       - name: build mod-connector
         shell: bash
         run: |
@@ -95,7 +89,7 @@ jobs:
       - name: run tests
         shell: bash
         env:
-          LV2_PATH: /opt/homebrew/lib/lv2:$HOME/.lv2/
+          LV2_PATH: $GITHUB_WORKSPACE/test-blocks/build/
         run: |
           echo $(which jackd) ${{ env.JACKD_CMD_ARGS }} | tee ~/.jackdrc
           ./build/tests

@@ -1,5 +1,5 @@
 #ifndef TESTBLOCK_URN
-    #define TESTBLOCK_URN "urn:mod-connector:testblock"
+#error "TESTBLOCK_URN undefined"
 #endif
 
 #include <stdlib.h>

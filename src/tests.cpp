@@ -1,9 +1,6 @@
 // SPDX-FileCopyrightText: 2024-2025 Filipe Coelho <falktx@darkglass.com>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-#include "config.h"
-#include <cstdint>
-#include <string>
 #define MOD_LOG_GROUP "tests"
 
 #define MONOBLOCK "urn:mod-connector:test1in1out"
