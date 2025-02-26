@@ -1,0 +1,33 @@
+@prefix doap: <http://usefulinc.com/ns/doap#> .
+@prefix lv2:  <http://lv2plug.in/ns/lv2core#> .
+@prefix pg:   <http://lv2plug.in/ns/ext/port-groups#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+
+<urn:mod-connector:test1in1out#audiogroup>
+    a pg:MonoGroup, pg:Group ;
+    lv2:symbol "audio" ;
+    lv2:name "Audio" .
+
+<urn:mod-connector:test1in1out>
+    a lv2:UtilityPlugin, lv2:Plugin, doap:Project ;
+
+    lv2:binary <plugin.so> ;
+    lv2:optionalFeature lv2:hardRTCapable ;
+
+    lv2:port [
+        a lv2:InputPort, lv2:AudioPort ;
+        lv2:index 0 ;
+        lv2:symbol "in1" ;
+        lv2:name "In 1" ;
+        lv2:designation pg:center ;
+        pg:group <urn:mod-connector:test1in1out#audiogroup> ;
+    ] , [
+        a lv2:OutputPort, lv2:AudioPort ;
+        lv2:index 1 ;
+        lv2:symbol "out1" ;
+        lv2:name "Out 1" ;
+        lv2:designation pg:center ;
+        pg:group <urn:mod-connector:test1in1out#audiogroup> ;
+    ] ;
+
+    doap:name "test1in1out" .
