@@ -317,6 +317,9 @@ public:
     // public and read-only current preset state
     const Current& current = _current;
 
+    // public and read-only tools state
+    const std::vector<Tool>& tools = _tools;
+
     // get the preset at @a index
     // returns the preset state from the current bank (which might be different from the current state)
     [[nodiscard]] const Preset& getBankPreset(uint8_t preset) const;
@@ -649,6 +652,7 @@ private:
 
 using HostBindings = HostConnector::Bindings;
 using HostBlock = HostConnector::Block;
+using HostTool = HostConnector::Tool;
 using HostParameter = HostConnector::Parameter;
 using HostParameterBinding = HostConnector::ParameterBinding;
 using HostProperty = HostConnector::Property;
