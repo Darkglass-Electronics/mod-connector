@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: 2024-2025 Filipe Coelho <falktx@darkglass.com>
 // SPDX-License-Identifier: ISC
 
-#include "config.h"
-#include <cstdint>
 #define MOD_LOG_GROUP "connector"
 
 #include "connector.hpp"
@@ -2185,7 +2183,7 @@ bool HostConnector::addTool(const uint8_t toolIndex, const char* const uri)
 {
     mod_log_debug("addTool(%u, \"%s\")", toolIndex, uri);
     assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
-    assert_return(!isNullURI(uri), false);
+    assert(!isNullURI(uri));
     assert_return(isNullURI(_tools[toolIndex].uri), false); // must remove tool before adding a new one in the same index
 
     bool retval = _host.add(uri, MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex);
@@ -2226,7 +2224,7 @@ void HostConnector::enableTool(const uint8_t toolIndex, bool enable)
 {
     mod_log_debug("enableTool(%u, %s)", toolIndex, bool2str(enable));
     assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
-    assert_return(!isNullURI(_tools[toolIndex].uri), false);
+    assert(!isNullURI(_tools[toolIndex].uri));
 
     _tools[toolIndex].enabled = enable;
     _host.bypass(MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, !enable);
