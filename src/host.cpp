@@ -1128,6 +1128,8 @@ Host::NonBlockingScopeWithAudioFades::~NonBlockingScopeWithAudioFades()
 #ifdef NDEBUG
 #define VALIDATE_INSTANCE_NUMBER(n)
 #define VALIDATE_INSTANCE_REMOVE_NUMBER(n)
+#define VALIDATE_BPB(b)
+#define VALIDATE_BPM(b)
 #define VALIDATE_JACK_PORT(p)
 #define VALIDATE_MIDI_CHANNEL(c)
 #define VALIDATE_SYMBOL(s)
