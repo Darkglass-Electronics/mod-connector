@@ -2155,24 +2155,58 @@ void HostConnector::setBlockQuickPot(const uint8_t row, const uint8_t block, con
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::monitorBlockOutputParameter(const uint8_t row, const uint8_t block, const uint8_t paramIndex)
+bool HostConnector::monitorBlockOutputParameter(const uint8_t row,
+                                                const uint8_t block,
+                                                const uint8_t paramIndex,
+                                                const bool enable)
 {
-    mod_log_debug("monitorBlockOutputParameter(%u, %u, %u)", row, block, paramIndex);
+    mod_log_debug("monitorBlockOutputParameter(%u, %u, %u, %s)", row, block, paramIndex, bool2str(enable));
     assert(row < NUM_BLOCK_CHAIN_ROWS);
     assert(block < NUM_BLOCKS_PER_PRESET);
     assert(paramIndex < MAX_PARAMS_PER_BLOCK);
 
     const Block& blockdata(_current.chains[row].blocks[block]);
-    assert_return(!isNullBlock(blockdata),);
+    assert_return(!isNullBlock(blockdata), false);
 
     const HostBlockPair hbp = _mapper.get(_current.preset, row, block);
-    assert_return(hbp.id != kMaxHostInstances,);
+    assert_return(hbp.id != kMaxHostInstances, false);
 
     const Parameter& paramdata(blockdata.parameters[paramIndex]);
-    assert_return(!isNullURI(paramdata.symbol),);
-    assert_return((paramdata.meta.flags & Lv2PortIsOutput) != 0,);
+    assert_return(!isNullURI(paramdata.symbol), false);
+    assert_return((paramdata.meta.flags & Lv2PortIsOutput) != 0, false);
 
-    _host.monitor_output(hbp.id, paramdata.symbol.c_str());
+    return _host.monitor_output(hbp.id, paramdata.symbol.c_str(), enable);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+bool HostConnector::setBeatsPerBar(const double beatsPerBar)
+{
+    mod_log_debug("setBeatsPerBar(%f)", beatsPerBar);
+    assert(beatsPerBar >= 1 && beatsPerBar <= 16);
+
+    return _host.set_bpb(beatsPerBar);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+bool HostConnector::setBeatsPerMinute(const double beatsPerMinute)
+{
+    mod_log_debug("setBeatsPerMinute(%f)", beatsPerMinute);
+    assert(beatsPerMinute >= 20 && beatsPerMinute <= 280);
+
+    return _host.set_bpm(beatsPerMinute);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+bool HostConnector::transport(const bool rolling, const double beatsPerBar, const double beatsPerMinute)
+{
+    mod_log_debug("transport(%s, %f, %f)", bool2str(rolling), beatsPerBar, beatsPerMinute);
+    assert(beatsPerBar >= 1 && beatsPerBar <= 16);
+    assert(beatsPerMinute >= 20 && beatsPerMinute <= 280);
+
+    return _host.transport(rolling, beatsPerBar, beatsPerMinute);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -2248,13 +2282,13 @@ void HostConnector::setToolParameter(const uint8_t toolIndex, const char* const 
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::monitorToolOutputParameter(const uint8_t toolIndex, const char* const symbol)
+void HostConnector::monitorToolOutputParameter(const uint8_t toolIndex, const char* const symbol, const bool enable)
 {
-    mod_log_debug("monitorToolOutputParameter(%u, \"%s\")", toolIndex, symbol);
+    mod_log_debug("monitorToolOutputParameter(%u, \"%s\", %s)", toolIndex, symbol, bool2str(enable));
     assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
     assert(symbol != nullptr && *symbol != '\0');
 
-    _host.monitor_output(MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, symbol);
+    _host.monitor_output(MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, symbol, enable);
 }
 
 // --------------------------------------------------------------------------------------------------------------------

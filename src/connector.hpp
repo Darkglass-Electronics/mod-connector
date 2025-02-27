@@ -489,7 +489,7 @@ public:
     void setBlockQuickPot(uint8_t row, uint8_t block, uint8_t paramIndex);
 
     // enable monitoring for block output parameter
-    void monitorBlockOutputParameter(uint8_t row, uint8_t block, uint8_t paramIndex);
+    bool monitorBlockOutputParameter(uint8_t row, uint8_t block, uint8_t paramIndex, bool enable = true);
 
     // convenience calls for single-chain builds
    #if NUM_BLOCK_CHAIN_ROWS == 1
@@ -501,18 +501,30 @@ public:
         setBlockParameter(0, block, paramIndex, value, sceneMode);
     }
 
-    inline void monitorBlockOutputParameter(const uint8_t block, const uint8_t paramIndex)
+    inline bool monitorBlockOutputParameter(const uint8_t block, const uint8_t paramIndex, const bool enable = true)
     {
-        monitorBlockOutputParameter(0, block, paramIndex);
+        return monitorBlockOutputParameter(0, block, paramIndex, enable);
     }
    #endif
+
+    // ----------------------------------------------------------------------------------------------------------------
+    // tempo handling NOTICE WORK-IN-PROGRESS
+
+    // set the global beats per bar transport value
+    bool setBeatsPerBar(double beatsPerBar);
+
+    // set the global beats per minute transport value
+    bool setBeatsPerMinute(double beatsPerMinute);
+
+    // change the global transport state
+    bool transport(bool rolling, double beatsPerBar, double beatsPerMinute);
 
     // ----------------------------------------------------------------------------------------------------------------
     // tool handling NOTICE WORK-IN-PROGRESS
 
     // enable a "system tool" lv2 plugin (referenced by its URI)
     // passing null or empty string as the URI means disabling the tool
-    // NOTE toolIndex must be < 10
+    // NOTE toolIndex must be < 10 and != 5
     bool enableTool(uint8_t toolIndex, const char* uri);
 
     // connect a tool audio input port to an arbitrary jack output port
@@ -529,7 +541,7 @@ public:
     void setToolParameter(uint8_t toolIndex, const char* symbol, float value);
 
     // enable monitoring for tool output parameter
-    void monitorToolOutputParameter(uint8_t toolIndex, const char* symbol);
+    void monitorToolOutputParameter(uint8_t toolIndex, const char* symbol, bool enable = true);
 
     // ----------------------------------------------------------------------------------------------------------------
     // properties

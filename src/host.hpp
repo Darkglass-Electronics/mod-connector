@@ -50,6 +50,12 @@ struct Host {
         kFeatureProcessing,
     };
 
+    enum TransportSync {
+        kTransportSyncNone,
+        kTransportSyncAbletonLink,
+        kTransportSyncMIDI,
+    };
+
     enum ProcessingType {
         // regular on/off
         kProcessingOff = 0,
@@ -239,7 +245,7 @@ struct Host {
     /**
      * request monitoring of an output control port (on the feedback port)
      */
-    bool monitor_output(int16_t instance_number, const char* param_symbol);
+    bool monitor_output(int16_t instance_number, const char* param_symbol, bool enable);
 
     /**
      * start MIDI learn for a control port
@@ -392,14 +398,14 @@ struct Host {
     bool feature_enable(Feature feature, int value);
 
     /**
-     * set the global beats per minute transport value
-     */
-    bool set_bpm(double beats_per_minute);
-
-    /**
      * set the global beats per bar transport value
      */
     bool set_bpb(double beats_per_bar);
+
+    /**
+     * set the global beats per minute transport value
+     */
+    bool set_bpm(double beats_per_minute);
 
    /**
      * change the global transport state
@@ -408,10 +414,9 @@ struct Host {
 
    /**
      * change the transport sync mode
-     * TODO mode as enum
-     * @a mode can be one of "none", "link" or "midi"
+     * NOTE kTransportSyncAbletonLink requires build with hylia (optional dependency)
      */
-    bool transport_sync(const char* mode);
+    bool transport_sync(TransportSync sync);
 
    /**
      * report feedback port ready for more messages

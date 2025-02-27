@@ -1180,6 +1180,8 @@ static bool valid_uri(const char* const uri)
     if (__builtin_expect(!(expr),0)) { _assert_print(#expr, __FILE__, __LINE__); abort(); return {}; }
 #define VALIDATE_INSTANCE_NUMBER(n) VALIDATE(n >= 0 && n < MAX_MOD_HOST_INSTANCES)
 #define VALIDATE_INSTANCE_REMOVE_NUMBER(n) VALIDATE(n >= -1 && n < MAX_MOD_HOST_INSTANCES)
+#define VALIDATE_BPB(b) VALIDATE(b >= 1 && b < 16)
+#define VALIDATE_BPM(b) VALIDATE(b >= 20 && b < 280)
 #define VALIDATE_JACK_PORT(p) VALIDATE(valid_jack_port(p))
 #define VALIDATE_MIDI_CHANNEL(c) VALIDATE(c >= 0 && c < 16)
 #define VALIDATE_SYMBOL(s) VALIDATE(valid_symbol(s))
@@ -1391,12 +1393,13 @@ bool Host::monitor(const char* const addr, const int port, const bool status)
     return impl->writeMessageAndWait(format("monitor %s %d %d", addr, port, status ? 1 : 0));
 }
 
-bool Host::monitor_output(const int16_t instance_number, const char* const param_symbol)
+bool Host::monitor_output(const int16_t instance_number, const char* const param_symbol, const bool enable)
 {
     VALIDATE_INSTANCE_NUMBER(instance_number)
     VALIDATE_SYMBOL(param_symbol)
 
-    return impl->writeMessageAndWait(format("monitor_output %d %s", instance_number, param_symbol));
+    return impl->writeMessageAndWait(format("monitor_output%s %d %s",
+                                            enable ? "" : "_off", instance_number, param_symbol));
 }
 
 bool Host::midi_learn(const int16_t instance_number,
@@ -1652,24 +1655,42 @@ bool Host::feature_enable(const Feature feature, const int value)
     return false;
 }
 
-bool Host::set_bpm(const double beats_per_minute)
-{
-    return impl->writeMessageAndWait(format("set_bpm %f", beats_per_minute));
-}
-
 bool Host::set_bpb(const double beats_per_bar)
 {
+    VALIDATE_BPB(beats_per_bar)
+
     return impl->writeMessageAndWait(format("set_bpb %f", beats_per_bar));
+}
+
+bool Host::set_bpm(const double beats_per_minute)
+{
+    VALIDATE_BPM(beats_per_minute)
+
+    return impl->writeMessageAndWait(format("set_bpm %f", beats_per_minute));
 }
 
 bool Host::transport(const bool rolling, const double beats_per_bar, const double beats_per_minute)
 {
+    VALIDATE_BPB(beats_per_bar)
+    VALIDATE_BPM(beats_per_minute)
+
     return impl->writeMessageAndWait(format("transport %d %f %f", rolling ? 1 : 0, beats_per_bar, beats_per_minute));
 }
 
-bool Host::transport_sync(const char* const mode)
+bool Host::transport_sync(const TransportSync sync)
 {
-    return impl->writeMessageAndWait(format("transport_sync %s", mode));
+    switch (sync)
+    {
+    case kTransportSyncNone:
+        return impl->writeMessageAndWait(format("transport_sync none"));
+    case kTransportSyncAbletonLink:
+        return impl->writeMessageAndWait(format("transport_sync link"));
+    case kTransportSyncMIDI:
+        return impl->writeMessageAndWait(format("transport_sync midi"));
+    }
+
+    impl->last_error = "Invalid sync argument";
+    return false;
 }
 
 bool Host::output_data_ready()
