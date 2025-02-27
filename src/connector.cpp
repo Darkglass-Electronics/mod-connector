@@ -383,6 +383,26 @@ std::string HostConnector::getBlockId(const uint8_t row, const uint8_t block) co
     return format("effect_%u + effect_%u", hbp.id, hbp.pair);
 }
 
+std::string HostConnector::getBlockIdNoPair(const uint8_t row, const uint8_t block) const
+{
+    const HostBlockPair hbp = _mapper.get(_current.preset, row, block);
+
+    if (hbp.id == kMaxHostInstances)
+        return {};
+
+    return format("effect_%u", hbp.id);
+}
+
+std::string HostConnector::getBlockIdPairOnly(const uint8_t row, const uint8_t block) const
+{
+    const HostBlockPair hbp = _mapper.get(_current.preset, row, block);
+
+    if (hbp.pair == kMaxHostInstances)
+        return {};
+
+    return format("effect_%u", hbp.pair);
+}
+
 // --------------------------------------------------------------------------------------------------------------------
 
 void HostConnector::printStateForDebug(const bool withBlocks, const bool withParams, const bool withBindings) const
