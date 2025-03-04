@@ -143,10 +143,10 @@ class HostConnectorTests : public QObject
         }
 
         // ensure our required plugins exist
-        assert_return(connector.lv2world.get_plugin_by_uri(MONOBLOCK) != nullptr, false);
-        assert_return(connector.lv2world.get_plugin_by_uri(STEREOBLOCK) != nullptr, false);
-        assert_return(connector.lv2world.get_plugin_by_uri(SIDEOUTBLOCK) != nullptr, false);
-        assert_return(connector.lv2world.get_plugin_by_uri(SIDEINBLOCK) != nullptr, false);
+        assert_return(connector.lv2world.getPluginByURI(MONOBLOCK) != nullptr, false);
+        assert_return(connector.lv2world.getPluginByURI(STEREOBLOCK) != nullptr, false);
+        assert_return(connector.lv2world.getPluginByURI(SIDEOUTBLOCK) != nullptr, false);
+        assert_return(connector.lv2world.getPluginByURI(SIDEINBLOCK) != nullptr, false);
 
         // initial empty bank load
         {
@@ -255,7 +255,7 @@ class HostConnectorTests : public QObject
         assert_return(testNoPassthrough(), false);
         // remove plugin
         assert_return(connector.replaceBlock(0, 0, nullptr), false);
-    
+
         // STEREOBLOCK
         // load plugin
         assert_return(connector.replaceBlock(0, 0, STEREOBLOCK), false);
@@ -295,14 +295,14 @@ class HostConnectorTests : public QObject
     }
 
     // test adding, reordering and removing on a single-row mono chain
-    bool testSingleMonoChain() 
+    bool testSingleMonoChain()
     {
         // add block to slot 1
         assert_return(connector.replaceBlock(0, 1, MONOBLOCK), false);
         assert_return(checkOnlyConnection(blockPortIn1(0, 1), JACK_CAPTURE_PORT_1), false);
         assert_return(checkOnly2Connections(blockPortOut1(0, 1), JACK_PLAYBACK_PORT_1, JACK_PLAYBACK_PORT_2), false);
         assert_return(testNoPassthrough(), false);
-        
+
         // add another block to slot 2
         assert_return(connector.replaceBlock(0, 2, MONOBLOCK), false);
         assert_return(checkOnlyConnection(blockPortIn1(0, 1), JACK_CAPTURE_PORT_1), false);
@@ -373,7 +373,7 @@ class HostConnectorTests : public QObject
     }
 
     // test adding, reordering and removing on a single-row mixed mono/stereo/dualmono chain
-    bool testSingleStereoChain() 
+    bool testSingleStereoChain()
     {
         // stereo block to slot 0
         assert_return(connector.replaceBlock(0, 0, STEREOBLOCK), false);
@@ -627,7 +627,7 @@ class HostConnectorTests : public QObject
         assert_return(checkOnlyConnection(blockPairPortOut1(0, 5), JACK_PLAYBACK_PORT_2), false);
         assert_return(testNoPassthrough(), false);
 
-        // reorder with empty slots 
+        // reorder with empty slots
         // chain becomes: empty - empty - stereo - empty - empty - dual mono
         assert_return(connector.reorderBlock(0, 1, 3), false);
         // system in
@@ -641,7 +641,7 @@ class HostConnectorTests : public QObject
         assert_return(checkOnlyConnection(blockPairPortOut1(0, 5), JACK_PLAYBACK_PORT_2), false);
         assert_return(testNoPassthrough(), false);
 
-        // remove dual mono from end 
+        // remove dual mono from end
         // chain becomes: empty - empty - stereo - empty - empty - empty
         assert_return(connector.replaceBlock(0, 5, nullptr), false);
         // system in
@@ -659,7 +659,7 @@ class HostConnectorTests : public QObject
     }
 
     // test building 2-row (sidechain) setup from left to right (and dismantling right to left)
-    bool testSideChainBuiltInOrder() 
+    bool testSideChainBuiltInOrder()
     {
         // branch to sidechain
         assert_return(connector.replaceBlock(0, 1, SIDEOUTBLOCK), false);
@@ -783,7 +783,7 @@ class HostConnectorTests : public QObject
         // row 1 connections
         assert_return(checkNoConnections(blockPortOut2(0, 1)), false); // no sidechain
         assert_return(testNoPassthrough(), false);
-        
+
         // remove remaining stereo block
         assert_return(connector.replaceBlock(0, 2, nullptr), false);
         // row 0 connections
@@ -855,7 +855,7 @@ class HostConnectorTests : public QObject
     }
 
     // test adding stereo blocks to an existing 2-row (sidechaining) setup
-    bool testSideChainAddStereoInBetween() 
+    bool testSideChainAddStereoInBetween()
     {
         // create sidechain (these actions tested in testPluginLoad())
         assert_return(connector.replaceBlock(0, 1, SIDEOUTBLOCK), false);
@@ -884,7 +884,7 @@ class HostConnectorTests : public QObject
         assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 1), blockPortIn1(0, 4)), false);
         assert_return(checkOnly2Connections(blockPortOut1(0, 4), JACK_PLAYBACK_PORT_1, JACK_PLAYBACK_PORT_2), false);
         assert_return(testNoPassthrough(), false);
-        // row 1 
+        // row 1
         assert_return(checkOnlyConnectionBothWays(blockPortOut2(0, 1), blockPortIn2(0, 4)), false);
 
         // add stereo block in between the blocks on row 1
@@ -910,7 +910,7 @@ class HostConnectorTests : public QObject
         assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 1), blockPortIn1(0, 4)), false);
         assert_return(checkOnly2Connections(blockPortOut1(0, 4), JACK_PLAYBACK_PORT_1, JACK_PLAYBACK_PORT_2), false);
         assert_return(testNoPassthrough(), false);
-        // row 1 
+        // row 1
         assert_return(checkOnlyConnectionBothWays(blockPortOut2(0, 1), blockPortIn2(0, 4)), false);
 
         // add stereo block in both rows
@@ -967,7 +967,7 @@ class HostConnectorTests : public QObject
         assert_return(checkOnlyConnection(blockPortIn2(0, 4), blockPortOut2(0, 1)), false);
         assert_return(checkOnlyConnection(blockPairPortIn2(0, 4), blockPortOut2(0, 1)), false);
         assert_return(testNoPassthrough(), false);
-        
+
         // remove remaining blocks
         assert_return(connector.replaceBlock(0, 2, nullptr), false);
         assert_return(connector.replaceBlock(0, 4, nullptr), false);
@@ -978,7 +978,7 @@ class HostConnectorTests : public QObject
 
     // test moving a stereo block around and within sidechaining setup
     // (only on row 0, meaning using only replaceBlock and reorderBlock)
-    bool testSideChainMoveStereoOnFirstRow() 
+    bool testSideChainMoveStereoOnFirstRow()
     {
         // create sidechain (these actions tested in testPluginLoad())
         assert_return(connector.replaceBlock(0, 1, SIDEOUTBLOCK), false);
@@ -986,7 +986,7 @@ class HostConnectorTests : public QObject
 
         // add stereo block to end
         assert_return(connector.replaceBlock(0, 5, STEREOBLOCK), false);
-        // row 0 
+        // row 0
         assert_return(checkOnlyConnection(blockPortIn1(0, 1), JACK_CAPTURE_PORT_1), false);
         assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 1), blockPortIn1(0, 4)), false);
         assert_return(checkOnly2Connections(blockPortOut1(0, 4), blockPortIn1(0, 5), blockPortIn2(0, 5)), false);
@@ -994,7 +994,7 @@ class HostConnectorTests : public QObject
         assert_return(checkOnlyConnection(blockPortIn2(0, 5), blockPortOut1(0, 4)), false);
         assert_return(checkOnlyConnection(blockPortOut1(0, 5), JACK_PLAYBACK_PORT_1), false);
         assert_return(checkOnlyConnection(blockPortOut2(0, 5), JACK_PLAYBACK_PORT_2), false);
-        // row 1 
+        // row 1
         assert_return(checkOnlyConnectionBothWays(blockPortOut2(0, 1), blockPortIn2(0, 4)), false);
         assert_return(testNoPassthrough(), false);
 
@@ -1053,7 +1053,7 @@ class HostConnectorTests : public QObject
 
         // move stereo block to end
         assert_return(connector.reorderBlock(0, 3, 5), false);
-        // row 0 
+        // row 0
         assert_return(checkOnlyConnection(blockPortIn1(0, 1), JACK_CAPTURE_PORT_1), false);
         assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 1), blockPortIn1(0, 4)), false);
         assert_return(checkOnly2Connections(blockPortOut1(0, 4), blockPortIn1(0, 5), blockPortIn2(0, 5)), false);
@@ -1061,7 +1061,7 @@ class HostConnectorTests : public QObject
         assert_return(checkOnlyConnection(blockPortIn2(0, 5), blockPortOut1(0, 4)), false);
         assert_return(checkOnlyConnection(blockPortOut1(0, 5), JACK_PLAYBACK_PORT_1), false);
         assert_return(checkOnlyConnection(blockPortOut2(0, 5), JACK_PLAYBACK_PORT_2), false);
-        // row 1 
+        // row 1
         assert_return(checkOnlyConnectionBothWays(blockPortOut2(0, 1), blockPortIn2(0, 4)), false);
         assert_return(testNoPassthrough(), false);
 
@@ -1170,7 +1170,7 @@ class HostConnectorTests : public QObject
         return true;
     }
 
-    bool testSideChain() 
+    bool testSideChain()
     {
         // NOTE: even though this test set is extensive, it doesn't include every possible scenario
         // focus is on issues that have appeared earlier in development
@@ -1186,7 +1186,7 @@ class HostConnectorTests : public QObject
 
         assert_return(testSideChainMoveStereoOnFirstRow(), false);
         assert_return(testPassthrough(), false);
-        
+
         assert_return(testSideChainSwapBlockRows(), false);
         assert_return(testPassthrough(), false);
 

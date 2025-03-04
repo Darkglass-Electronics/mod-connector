@@ -149,11 +149,11 @@ struct WebSocketConnector : QObject,
         {
             QJsonArray plugins;
 
-            if (const uint32_t pcount = lv2world.get_plugin_count())
+            if (const uint32_t pcount = lv2world.getPluginCount())
             {
                 for (uint32_t i = 0; i < pcount; ++i)
                 {
-                    if (const Lv2Plugin* const plugin = lv2world.get_plugin_by_index(i))
+                    if (const Lv2Plugin* const plugin = lv2world.getPluginByIndex(i))
                     {
                         QJsonObject jsonObj;
                         lv2_plugin_to_json(plugin, jsonObj);

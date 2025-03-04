@@ -746,6 +746,21 @@ struct Lv2World::Impl
         return pluginscache[uri];
     }
 
+    const Lv2Port& getPluginPort(const char* const uri, const char* const symbol)
+    {
+        if (const Lv2Plugin* const plugin = getPluginByURI(uri))
+        {
+            for (const Lv2Port& port : plugin->ports)
+            {
+                if (port.symbol == symbol)
+                    return port;
+            }
+        }
+
+        static const Lv2Port fallback = {};
+        return fallback;
+    }
+
     std::unordered_map<std::string, float> loadPluginState(const char* const path)
     {
         LV2_URID_Map uridMap = { this, _mapfn };
@@ -867,22 +882,27 @@ void Lv2World::Impl::_portfn(const char* const symbol,
 
 // --------------------------------------------------------------------------------------------------------------------
 
-uint32_t Lv2World::get_plugin_count() const noexcept
+uint32_t Lv2World::getPluginCount() const noexcept
 {
     return impl->getPluginCount();
 }
 
-const Lv2Plugin* Lv2World::get_plugin_by_index(const uint32_t index) const
+const Lv2Plugin* Lv2World::getPluginByIndex(const uint32_t index) const
 {
     return impl->getPluginByIndex(index);
 }
 
-const Lv2Plugin* Lv2World::get_plugin_by_uri(const char* const uri) const
+const Lv2Plugin* Lv2World::getPluginByURI(const char* const uri) const
 {
     return impl->getPluginByURI(uri);
 }
 
-std::unordered_map<std::string, float> Lv2World::load_plugin_state(const char* const path) const
+const Lv2Port& Lv2World::getPluginPort(const char* const uri, const char* const symbol) const
+{
+    return impl->getPluginPort(uri, symbol);
+}
+
+std::unordered_map<std::string, float> Lv2World::loadPluginState(const char* const path) const
 {
     return impl->loadPluginState(path);
 }

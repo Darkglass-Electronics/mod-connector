@@ -126,21 +126,41 @@ struct Lv2World {
 
    /* get the amount of lv2 plugins
     */
-    [[nodiscard]] uint32_t get_plugin_count() const noexcept;
+    [[nodiscard]] uint32_t getPluginCount() const noexcept;
+    [[deprecated]] inline uint32_t get_plugin_count() const noexcept
+    {
+        return getPluginCount();
+    }
 
    /* get the plugin @a index
     * can return null in case of error or the plugin requires unsupported features
     */
-    [[nodiscard]] const Lv2Plugin* get_plugin_by_index(uint32_t index) const;
+    [[nodiscard]] const Lv2Plugin* getPluginByIndex(uint32_t index) const;
+    [[deprecated]] inline const Lv2Plugin* get_plugin_by_index(uint32_t index) const
+    {
+        return getPluginByIndex(index);
+    }
 
    /* get the plugin with a known uri
     * can return null in case of error or the plugin requires unsupported features
     */
-    [[nodiscard]] const Lv2Plugin* get_plugin_by_uri(const char* uri) const;
+    [[nodiscard]] const Lv2Plugin* getPluginByURI(const char* uri) const;
+    [[deprecated]] inline const Lv2Plugin* get_plugin_by_uri(const char* uri) const
+    {
+        return getPluginByURI(uri);
+    }
+
+   /* get the plugin port with a known symbol
+    */
+    [[nodiscard]] const Lv2Port& getPluginPort(const char* uri, const char* symbol) const;
 
    /* load a plugin state from disk and return a symbol -> value map
     */
-    [[nodiscard]] std::unordered_map<std::string, float> load_plugin_state(const char* path) const;
+    [[nodiscard]] std::unordered_map<std::string, float> loadPluginState(const char* path) const;
+    [[deprecated]] inline std::unordered_map<std::string, float> load_plugin_state(const char* path) const
+    {
+        return loadPluginState(path);
+    }
 
     Lv2World();
     ~Lv2World();
