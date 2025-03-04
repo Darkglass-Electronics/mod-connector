@@ -397,7 +397,7 @@ struct Lv2World::Impl
                 }
 
                 retplugin->ports.resize(numports);
- 
+
                 for (uint32_t i = 0; i < numports; ++i)
                 {
                     const LilvPort* const port = lilv_plugin_get_port_by_index(plugin, i);
@@ -464,6 +464,8 @@ struct Lv2World::Impl
                                     retport.flags |= Lv2ParameterInteger;
                                 else if (std::strcmp(propuri, LV2_CORE__enumeration) == 0)
                                     retport.flags |= Lv2ParameterEnumerated;
+                                else if (std::strcmp(propuri, LV2_PORT_PROPS__logarithmic) == 0)
+                                    retport.flags |= Lv2ParameterLogarithmic;
                                 else if (std::strcmp(propuri, LV2_PORT_PROPS__notOnGUI) == 0)
                                     retport.flags |= Lv2ParameterHidden;
                             }
