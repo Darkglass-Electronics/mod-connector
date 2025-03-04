@@ -624,6 +624,81 @@ bool HostConnector::canAddSidechainOutput(const uint8_t row, const uint8_t block
 
 // --------------------------------------------------------------------------------------------------------------------
 
+bool HostConnector::setJackPorts(const std::array<std::string, 2>& capture, const std::array<std::string, 2>& playback)
+{
+    ChainRow& chaindata(_current.chains[0]);
+
+    if (chaindata.capture[0] == capture[0] && chaindata.capture[1] == capture[1] &&
+        chaindata.playback[0] == playback[0] && chaindata.playback[1] == playback[1])
+        return false;
+
+    // nothing special to do if first preset has not been loaded yet
+    if (_firstboot)
+    {
+        chaindata.capture = capture;
+        chaindata.playback = playback;
+        for (Preset& presetdata : _presets)
+        {
+            presetdata.chains[0].capture = capture;
+            presetdata.chains[0].playback = playback;
+        }
+        return true;
+    }
+
+    // first first and last blocks
+    uint8_t firstBlock = UINT8_MAX;
+    uint8_t lastBlock = UINT8_MAX;
+
+    // disconnect old chain endpoints
+    if (_current.numLoadedPlugins == 0)
+    {
+        hostDisconnectChainEndpoints(0);
+    }
+    else
+    {
+        for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
+        {
+            if (!isNullBlock(chaindata.blocks[bl]))
+            {
+                if (firstBlock == UINT8_MAX)
+                    firstBlock = bl;
+
+                lastBlock = bl;
+            }
+        }
+
+        assert(firstBlock != UINT8_MAX);
+        assert(lastBlock != UINT8_MAX);
+
+        hostDisconnectAllBlockInputs(0, firstBlock);
+        hostDisconnectAllBlockOutputs(0, lastBlock);
+    }
+
+    // set new ports
+    chaindata.capture = capture;
+    chaindata.playback = playback;
+    for (Preset& presetdata : _presets)
+    {
+        presetdata.chains[0].capture = capture;
+        presetdata.chains[0].playback = playback;
+    }
+
+    // reconnect endpoints again
+    if (_current.numLoadedPlugins == 0)
+    {
+        hostConnectChainEndpoints(0);
+    }
+    else
+    {
+        hostConnectBlockToChainInput(0, firstBlock);
+        hostConnectBlockToChainOutput(0, lastBlock);
+    }
+
+    return true;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 void HostConnector::loadBankFromPresetFiles(const std::array<std::string, NUM_PRESETS_PER_BANK>& filenames,
                                             const uint8_t initialPresetToLoad)
 {
@@ -4494,5 +4569,10 @@ void HostConnector::resetPreset(Preset& preset)
 // --------------------------------------------------------------------------------------------------------------------
 
 HostConnector::NonBlockingScope::NonBlockingScope(HostConnector& hostconn) : hnbs(hostconn._host) {}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+HostConnector::NonBlockingScopeWithAudioFades::NonBlockingScopeWithAudioFades(HostConnector& hostconn)
+    : hnbs(hostconn._host) {}
 
 // --------------------------------------------------------------------------------------------------------------------

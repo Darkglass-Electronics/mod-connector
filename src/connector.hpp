@@ -329,6 +329,9 @@ public:
     // requires no sidechain blocks to be present or having matched pairs
     [[nodiscard]] bool canAddSidechainOutput(uint8_t row, uint8_t block) const;
 
+    // set new custom ports to be used as chain capture can playback ports
+    bool setJackPorts(const std::array<std::string, 2>& capture, const std::array<std::string, 2>& playback);
+
     void hostReady();
 
     // ----------------------------------------------------------------------------------------------------------------
@@ -572,6 +575,13 @@ public:
         NonBlockingScope(HostConnector& hostconn);
     };
 
+    // same as above, but with audio fade-in and fade-out
+    class NonBlockingScopeWithAudioFades {
+        const Host::NonBlockingScopeWithAudioFades hnbs;
+    public:
+        NonBlockingScopeWithAudioFades(HostConnector& hostconn);
+    };
+
     // ----------------------------------------------------------------------------------------------------------------
 
 protected:
@@ -647,5 +657,6 @@ using HostPropertyBinding = HostConnector::PropertyBinding;
 using HostSceneMode = HostConnector::SceneMode;
 using HostCallbackData = HostConnector::Callback::Data;
 using HostNonBlockingScope = HostConnector::NonBlockingScope;
+using HostNonBlockingScopeWithAudioFades = HostConnector::NonBlockingScopeWithAudioFades;
 
 // --------------------------------------------------------------------------------------------------------------------
