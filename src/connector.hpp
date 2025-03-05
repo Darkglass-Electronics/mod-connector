@@ -14,8 +14,8 @@
 #include <unordered_map>
 
 enum ExtraLv2Flags {
-    Lv2ParameterVirtual = 1 << 8,
-    Lv2ParameterInScene = 1 << 9,
+    Lv2ParameterVirtual = 1 << 9,
+    Lv2ParameterInScene = 1 << 10,
 };
 
 // --------------------------------------------------------------------------------------------------------------------

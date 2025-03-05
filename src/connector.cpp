@@ -4398,6 +4398,7 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
 
     try {
         const std::vector<Lv2Port>& ports = virtualParameters.at(blockdata.uri);
+        assert(! ports.empty());
 
         for (const Lv2Port& port : ports)
         {
@@ -4409,6 +4410,9 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
             if (numParams == MAX_PARAMS_PER_BLOCK)
                 break;
         }
+
+        assert(numParams != 0);
+        assert(blockdata.parameters[0].symbol[0] == ':');
     } catch (...) {}
 
     for (const Lv2Port& port : plugin->ports)
