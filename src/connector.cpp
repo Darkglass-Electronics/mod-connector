@@ -2268,7 +2268,7 @@ bool HostConnector::setBeatsPerBar(const double beatsPerBar)
 bool HostConnector::setBeatsPerMinute(const double beatsPerMinute)
 {
     mod_log_debug("setBeatsPerMinute(%f)", beatsPerMinute);
-    assert(beatsPerMinute >= 40 && beatsPerMinute <= 300);
+    assert(beatsPerMinute >= 20 && beatsPerMinute <= 300);
 
     return _host.set_bpm(beatsPerMinute);
 }
