@@ -674,6 +674,17 @@ bool HostConnector::setJackPorts(const std::array<std::string, 2>& capture, cons
         hostDisconnectAllBlockOutputs(0, lastBlock);
     }
 
+    // unmonitor old ports
+    if constexprstr (std::strcmp(JACK_PLAYBACK_MONITOR_PORT_1, JACK_PLAYBACK_MONITOR_PORT_2) != 0)
+        _host.monitor_audio_levels(JACK_PLAYBACK_MONITOR_PORT_2, false);
+
+    _host.monitor_audio_levels(JACK_PLAYBACK_MONITOR_PORT_1, false);
+
+    if (chaindata.capture[0] != chaindata.capture[1])
+        _host.monitor_audio_levels(chaindata.capture[1].c_str(), false);
+
+    _host.monitor_audio_levels(chaindata.capture[0].c_str(), false);
+
     // set new ports
     chaindata.capture = capture;
     chaindata.playback = playback;
@@ -693,6 +704,17 @@ bool HostConnector::setJackPorts(const std::array<std::string, 2>& capture, cons
         hostConnectBlockToChainInput(0, firstBlock);
         hostConnectBlockToChainOutput(0, lastBlock);
     }
+
+    // monitor new ports
+    _host.monitor_audio_levels(capture[0].c_str(), true);
+
+    if (capture[0] != capture[1])
+        _host.monitor_audio_levels(capture[1].c_str(), true);
+
+    _host.monitor_audio_levels(JACK_PLAYBACK_MONITOR_PORT_1, true);
+
+    if constexprstr (std::strcmp(JACK_PLAYBACK_MONITOR_PORT_1, JACK_PLAYBACK_MONITOR_PORT_2) != 0)
+        _host.monitor_audio_levels(JACK_PLAYBACK_MONITOR_PORT_2, true);
 
     return true;
 }
@@ -4302,12 +4324,14 @@ void HostConnector::hostFeedbackCallback(const HostFeedbackData& data)
 
 void HostConnector::hostReady()
 {
+    ChainRow& chaindata = _current.chains[0];
+
     const Host::NonBlockingScope hnbs(_host);
 
-    _host.monitor_audio_levels(JACK_CAPTURE_PORT_1, true);
+    _host.monitor_audio_levels(chaindata.capture[0].c_str(), true);
 
-    if constexprstr (std::strcmp(JACK_CAPTURE_PORT_1, JACK_CAPTURE_PORT_2) != 0)
-        _host.monitor_audio_levels(JACK_CAPTURE_PORT_2, true);
+    if (chaindata.capture[0] != chaindata.capture[1])
+        _host.monitor_audio_levels(chaindata.capture[1].c_str(), true);
 
     _host.monitor_audio_levels(JACK_PLAYBACK_MONITOR_PORT_1, true);
 
