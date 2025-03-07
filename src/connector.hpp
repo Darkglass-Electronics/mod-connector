@@ -271,6 +271,9 @@ public:
     // try to reconnect host if it previously failed
     bool reconnect();
 
+    // get last error from host in case something failed
+    [[nodiscard]] const std::string& getLastError() const;
+
     // listen to MIDI program change messages
     bool monitorMidiProgram(uint8_t midiChannel, bool enable);
 

@@ -360,8 +360,18 @@ HostConnector::HostConnector()
 
 bool HostConnector::reconnect()
 {
-    return _host.reconnect();
+    ok = _host.reconnect();
+    return ok;
 }
+
+// --------------------------------------------------------------------------------------------------------------------
+
+const std::string& HostConnector::getLastError() const
+{
+    return _host.last_error;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
 
 bool HostConnector::monitorMidiProgram(const uint8_t midiChannel, const bool enable)
 {
