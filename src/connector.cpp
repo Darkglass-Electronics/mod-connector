@@ -2321,6 +2321,7 @@ bool HostConnector::enableTool(const uint8_t toolIndex, const char* const uri)
 {
     mod_log_debug("enableTool(%u, \"%s\")", toolIndex, uri);
     assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
+    assert(toolIndex != 5);
 
     return isNullURI(uri) ? _host.remove(MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex)
                           : _host.add(uri, MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex);
