@@ -46,7 +46,8 @@
 #endif
 
 #define LILV_NS_DARKGLASS "http://www.darkglass.com/lv2/ns"
-#define DARKGLASS__abbreviation LILV_NS_DARKGLASS "#abbreviation"
+#define DARKGLASS__abbreviation    LILV_NS_DARKGLASS "#abbreviation"
+#define DARKGLASS__oneDecimalPoint LILV_NS_DARKGLASS "#oneDecimalPoint"
 
 #define LILV_NS_KXSTUDIO "http://kxstudio.sf.net/ns/lv2ext/props"
 #define KXSTUDIO__Reset LILV_NS_KXSTUDIO "#Reset"
@@ -556,28 +557,35 @@ struct Lv2World::Impl
                             const char* uuri = lilv_node_as_uri(lilv_nodes_get_first(uunits));
 
                             // using pre-existing lv2 unit
-                            if (uuri != nullptr && std::strncmp(uuri, LV2_UNITS_PREFIX, std::strlen(LV2_UNITS_PREFIX)) == 0)
+                            if (uuri != nullptr)
                             {
-                                uuri += std::strlen(LV2_UNITS_PREFIX);
+                                if (std::strncmp(uuri, LV2_UNITS_PREFIX, std::strlen(LV2_UNITS_PREFIX)) == 0)
+                                {
+                                    uuri += std::strlen(LV2_UNITS_PREFIX);
 
-                                /**/ if (std::strcmp(uuri, "s") == 0)
-                                    retport.unit = "s";
-                                else if (std::strcmp(uuri, "ms") == 0)
-                                    retport.unit = "ms";
-                                else if (std::strcmp(uuri, "db") == 0)
-                                    retport.unit = "dB";
-                                else if (std::strcmp(uuri, "pc") == 0)
-                                    retport.unit = "%";
-                                else if (std::strcmp(uuri, "hz") == 0)
-                                    retport.unit = "Hz";
-                                else if (std::strcmp(uuri, "khz") == 0)
-                                    retport.unit = "kHz";
-                                else if (std::strcmp(uuri, "mhz") == 0)
-                                    retport.unit = "MHz";
-                                else if (std::strcmp(uuri, "cent") == 0)
-                                    retport.unit = "ct";
-                                else if (std::strcmp(uuri, "semitone12TET") == 0)
-                                    retport.unit = "semi";
+                                    /**/ if (std::strcmp(uuri, "s") == 0)
+                                        retport.unit = "s";
+                                    else if (std::strcmp(uuri, "ms") == 0)
+                                        retport.unit = "ms";
+                                    else if (std::strcmp(uuri, "db") == 0)
+                                        retport.unit = "dB";
+                                    else if (std::strcmp(uuri, "pc") == 0)
+                                        retport.unit = "%";
+                                    else if (std::strcmp(uuri, "hz") == 0)
+                                        retport.unit = "Hz";
+                                    else if (std::strcmp(uuri, "khz") == 0)
+                                        retport.unit = "kHz";
+                                    else if (std::strcmp(uuri, "mhz") == 0)
+                                        retport.unit = "MHz";
+                                    else if (std::strcmp(uuri, "cent") == 0)
+                                        retport.unit = "ct";
+                                    else if (std::strcmp(uuri, "semitone12TET") == 0)
+                                        retport.unit = "semi";
+                                }
+                                else if (std::strcmp(uuri, DARKGLASS__oneDecimalPoint) == 0)
+                                {
+                                    retport.unit = "1dPt";
+                                }
                             }
 
                             lilv_nodes_free(uunits);

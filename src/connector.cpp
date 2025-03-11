@@ -977,7 +977,6 @@ void HostConnector::clearCurrentPreset()
 
     // direct connections
     hostConnectChainEndpoints(0);
-
 }
 
 // --------------------------------------------------------------------------------------------------------------------
