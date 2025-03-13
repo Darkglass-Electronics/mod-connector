@@ -77,6 +77,8 @@ enum Lv2Flags {
     Lv2ParameterLogarithmic     = 1 << 7,
     Lv2ParameterHidden          = 1 << 8,
     Lv2ParameterNotGUIButPreset = 1 << 9,
+    // NOTE: on addition, adjust ExtraLv2Flags
+    // in connector.hpp
 };
 
 struct Lv2ScalePoint {
