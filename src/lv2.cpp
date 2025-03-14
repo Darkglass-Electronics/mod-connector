@@ -48,6 +48,7 @@
 #define LILV_NS_DARKGLASS "http://www.darkglass.com/lv2/ns"
 #define DARKGLASS__abbreviation    LILV_NS_DARKGLASS "#abbreviation"
 #define DARKGLASS__oneDecimalPoint LILV_NS_DARKGLASS "#oneDecimalPoint"
+#define DARKGLASS__notOnGUIsavedToPreset LILV_NS_DARKGLASS "#notOnGUIsavedToPreset"
 
 #define LILV_NS_KXSTUDIO "http://kxstudio.sf.net/ns/lv2ext/props"
 #define KXSTUDIO__Reset LILV_NS_KXSTUDIO "#Reset"
@@ -469,6 +470,8 @@ struct Lv2World::Impl
                                     retport.flags |= Lv2ParameterLogarithmic;
                                 else if (std::strcmp(propuri, LV2_PORT_PROPS__notOnGUI) == 0)
                                     retport.flags |= Lv2ParameterHidden;
+                                else if (std::strcmp(propuri, DARKGLASS__notOnGUIsavedToPreset) == 0)
+                                    retport.flags |= Lv2ParameterNotGUIButPreset;
                             }
 
                             lilv_nodes_free(nodes);
