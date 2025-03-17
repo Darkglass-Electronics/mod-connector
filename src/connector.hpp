@@ -205,6 +205,7 @@ struct HostConnector : Host::FeedbackCallback {
             uint32_t color;
             std::string style;
         } background;
+        std::array<std::string, NUM_SCENES_PER_PRESET> sceneNames;
         std::array<unsigned char, UUID_SIZE> uuid;
     private:
         friend struct HostConnector;
@@ -436,6 +437,15 @@ public:
     // switch to another scene within the current preset
     // returning false means the current chain was unchanged
     bool switchScene(uint8_t scene);
+
+    // rename a scene within the current preset
+    bool renameScene(uint8_t scene, const char* name);
+
+    // convenience call for renaming current scene name
+    inline bool renameCurrentName(const char* name)
+    {
+        return renameScene(_current.scene, name);
+    }
 
     // ----------------------------------------------------------------------------------------------------------------
     // bindings NOTICE WORK-IN-PROGRESS

@@ -1772,7 +1772,7 @@ bool HostConnector::switchScene(const uint8_t scene)
             const SceneValues& sceneValues(blockdata.sceneValues[_current.scene]);
 
             // bypass/disable first if relevant
-            if (blockdata.meta.enable.hasScenes && !blockdata.sceneValues[_current.scene].enabled)
+            if (blockdata.meta.enable.hasScenes && !sceneValues.enabled)
             {
                 blockdata.enabled = false;
                 _host.bypass(hbp.id, true);
@@ -1827,6 +1827,21 @@ bool HostConnector::switchScene(const uint8_t scene)
         }
     }
 
+    return true;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+bool HostConnector::renameScene(const uint8_t scene, const char* const name)
+{
+    mod_log_debug("renameScene(%u, %s)", scene, name);
+    assert(scene < NUM_SCENES_PER_PRESET);
+
+    if (_current.sceneNames[scene] == name)
+        return false;
+
+    _current.dirty = true;
+    _current.sceneNames[scene] = name;
     return true;
 }
 
@@ -4602,6 +4617,9 @@ void HostConnector::resetPreset(Preset& preset)
         preset.bindings[hwid].params.clear();
         preset.bindings[hwid].properties.clear();
     }
+
+    for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
+        preset.sceneNames[s].clear();
 }
 
 // --------------------------------------------------------------------------------------------------------------------
