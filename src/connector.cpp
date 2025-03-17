@@ -1861,7 +1861,12 @@ bool HostConnector::addBlockBinding(const uint8_t hwid, const uint8_t row, const
     blockdata.meta.enable.hwbinding = hwid;
 
     if (_current.bindings[hwid].params.empty())
+    {
         _current.bindings[hwid].value = blockdata.enabled ? 1.f : 0.f;
+
+        if (_current.bindings[hwid].properties.empty())
+            _current.bindings[hwid].name = blockdata.meta.name;
+    }
 
     _current.bindings[hwid].params.push_back({ row, block, ":bypass", { 0 } });
     _current.dirty = true;
@@ -1892,7 +1897,12 @@ bool HostConnector::addBlockParameterBinding(const uint8_t hwid,
     paramdata.meta.hwbinding = hwid;
 
     if (_current.bindings[hwid].params.empty())
+    {
         _current.bindings[hwid].value = paramdata.value;
+
+        if (_current.bindings[hwid].properties.empty())
+            _current.bindings[hwid].name = paramdata.meta.name;
+    }
 
     _current.bindings[hwid].params.push_back({ row, block, paramdata.symbol, { paramIndex } });
     _current.dirty = true;
@@ -1942,6 +1952,9 @@ bool HostConnector::addBlockPropertyBinding(const uint8_t hwid,
         if (! found)
             _current.bindings[hwid].value = 0.0;
         */
+
+        if (_current.bindings[hwid].params.empty())
+            _current.bindings[hwid].name = propdata.meta.name;
     }
 
     _current.bindings[hwid].properties.push_back({ row, block, propdata.uri, { propIndex } });
@@ -1973,6 +1986,10 @@ bool HostConnector::removeBlockBinding(const uint8_t hwid, const uint8_t row, co
             continue;
 
         bindings.erase(it);
+
+        if (_current.bindings[hwid].params.empty() && _current.bindings[hwid].properties.empty())
+            _current.bindings[hwid].name.clear();
+
         _current.dirty = true;
         return true;
     }
@@ -2012,6 +2029,10 @@ bool HostConnector::removeBlockParameterBinding(const uint8_t hwid,
             continue;
 
         bindings.erase(it);
+
+        if (_current.bindings[hwid].params.empty() && _current.bindings[hwid].properties.empty())
+            _current.bindings[hwid].name.clear();
+
         _current.dirty = true;
         return true;
     }
@@ -2051,10 +2072,28 @@ bool HostConnector::removeBlockPropertyBinding(const uint8_t hwid,
             continue;
 
         bindings.erase(it);
+
+        if (_current.bindings[hwid].params.empty() && _current.bindings[hwid].properties.empty())
+            _current.bindings[hwid].name.clear();
+
         _current.dirty = true;
         return true;
     }
 
+    return false;
+}
+
+bool HostConnector::renameBinding(const uint8_t hwid, const char* const name)
+{
+    mod_log_debug("renameBinding(%u, %s)", hwid, name);
+    assert(hwid < NUM_BINDING_ACTUATORS);
+    assert(name != nullptr);
+
+    if (_current.bindings[hwid].name == name)
+        return false;
+
+    _current.bindings[hwid].name = name;
+    _current.dirty = true;
     return false;
 }
 
@@ -4614,6 +4653,7 @@ void HostConnector::resetPreset(Preset& preset)
     for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
     {
         preset.bindings[hwid].value = 0.f;
+        preset.bindings[hwid].name.clear();
         preset.bindings[hwid].params.clear();
         preset.bindings[hwid].properties.clear();
     }

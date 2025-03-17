@@ -183,6 +183,7 @@ struct HostConnector : Host::FeedbackCallback {
     };
 
     struct Bindings {
+        std::string name;
         std::list<ParameterBinding> params;
         std::list<PropertyBinding> properties;
         double value; // NOTE normalized 0-1 if multiple, matching value if single
@@ -467,6 +468,9 @@ public:
 
     // remove a block parameter binding
     bool removeBlockPropertyBinding(uint8_t hwid, uint8_t row, uint8_t block, uint8_t propIndex);
+
+    // rename a binding
+    bool renameBinding(uint8_t hwid, const char* name);
 
     // reorder bindings
     bool reorderBlockBinding(uint8_t hwid, uint8_t dest);
