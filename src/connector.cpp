@@ -2012,7 +2012,7 @@ bool HostConnector::removeBlockBinding(const uint8_t hwid, const uint8_t row, co
 
         bindings.erase(it);
 
-        if (_current.bindings[hwid].params.empty() && _current.bindings[hwid].properties.empty())
+        if (bindings.empty() && _current.bindings[hwid].properties.empty())
             _current.bindings[hwid].name.clear();
 
         _current.dirty = true;
@@ -2055,7 +2055,7 @@ bool HostConnector::removeBlockParameterBinding(const uint8_t hwid,
 
         bindings.erase(it);
 
-        if (_current.bindings[hwid].params.empty() && _current.bindings[hwid].properties.empty())
+        if (bindings.empty() && _current.bindings[hwid].properties.empty())
             _current.bindings[hwid].name.clear();
 
         _current.dirty = true;
@@ -2098,7 +2098,7 @@ bool HostConnector::removeBlockPropertyBinding(const uint8_t hwid,
 
         bindings.erase(it);
 
-        if (_current.bindings[hwid].params.empty() && _current.bindings[hwid].properties.empty())
+        if (bindings.empty() && _current.bindings[hwid].params.empty())
             _current.bindings[hwid].name.clear();
 
         _current.dirty = true;
@@ -2110,7 +2110,7 @@ bool HostConnector::removeBlockPropertyBinding(const uint8_t hwid,
 
 bool HostConnector::renameBinding(const uint8_t hwid, const char* const name)
 {
-    mod_log_debug("renameBinding(%u, %s)", hwid, name);
+    mod_log_debug("renameBinding(%u, \"%s\")", hwid, name);
     assert(hwid < NUM_BINDING_ACTUATORS);
     assert(name != nullptr);
 
@@ -2119,7 +2119,7 @@ bool HostConnector::renameBinding(const uint8_t hwid, const char* const name)
 
     _current.bindings[hwid].name = name;
     _current.dirty = true;
-    return false;
+    return true;
 }
 
 // --------------------------------------------------------------------------------------------------------------------
