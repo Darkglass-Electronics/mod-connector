@@ -390,6 +390,9 @@ public:
     // returning false means the current chain was unchanged
     bool switchPreset(uint8_t preset);
 
+    // rename a preset within the current bank
+    void renamePreset(uint8_t preset, const char* name);
+
     // ----------------------------------------------------------------------------------------------------------------
     // block handling
 
@@ -443,7 +446,7 @@ public:
     bool renameScene(uint8_t scene, const char* name);
 
     // convenience call for renaming current scene name
-    inline bool renameCurrentName(const char* name)
+    inline bool renameCurrentScene(const char* name)
     {
         return renameScene(_current.scene, name);
     }

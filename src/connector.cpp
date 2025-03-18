@@ -1737,6 +1737,20 @@ bool HostConnector::switchPreset(const uint8_t preset)
 
 // --------------------------------------------------------------------------------------------------------------------
 
+void HostConnector::renamePreset(const uint8_t preset, const char* const name)
+{
+    mod_log_debug("renamePreset(%u, \"%s\")", preset, name);
+    assert(preset < NUM_PRESETS_PER_BANK);
+    assert(name != nullptr);
+
+    if (_current.preset == preset)
+        return setCurrentPresetName(name);
+
+    _presets[preset].name = name;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 bool HostConnector::switchScene(const uint8_t scene)
 {
     mod_log_debug("switchScene(%u)", scene);
@@ -1834,8 +1848,9 @@ bool HostConnector::switchScene(const uint8_t scene)
 
 bool HostConnector::renameScene(const uint8_t scene, const char* const name)
 {
-    mod_log_debug("renameScene(%u, %s)", scene, name);
+    mod_log_debug("renameScene(%u, \"%s\")", scene, name);
     assert(scene < NUM_SCENES_PER_PRESET);
+    assert(name != nullptr);
 
     if (_current.sceneNames[scene] == name)
         return false;
