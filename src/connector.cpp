@@ -3337,7 +3337,6 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann_json& json
             const std::string jrowid = std::to_string(row + 1);
             if (! jchains.contains(jrowid))
             {
-                mod_log_warn("jsonPresetLoad(): preset does not include chain row %d", row + 1);
                 for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
                     resetBlock(chaindata.blocks[bl]);
                 continue;
@@ -3353,7 +3352,7 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann_json& json
                 continue;
             }
 
-            const auto& jblocks = jpreset["blocks"];
+            const auto& jblocks = jchain["blocks"];
 
             for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
             {
@@ -3362,15 +3361,11 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann_json& json
                 const std::string jblockid = std::to_string(bl + 1);
                 if (! jblocks.contains(jblockid))
                 {
-                    mod_log_warn("jsonPresetLoad(): preset chain row %d does not block %d", row + 1, bl + 1);
                     resetBlock(blockdata);
                     continue;
                 }
 
                 const auto& jblock = jblocks[jblockid];
-
-                // ----------------------------------------------------------------------------------------------------
-                // name
 
                 if (jblock.contains("uri"))
                 {
@@ -3416,11 +3411,36 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann_json& json
                 initBlock(blockdata, plugin, numInputs, numOutputs, numSideInputs, numSideOutputs,
                         &paramToIndexMap, &propToIndexMap);
 
-                if (jblock.contains("enabled"))
-                    blockdata.enabled = jblock["enabled"].get<bool>();
+                // ----------------------------------------------------------------------------------------------------
+                // enabled
 
-                try {
-                    const std::string quickpot = jblock["quickpot"].get<std::string>();
+                {
+                    bool enabled = true;
+
+                    if (jblock.contains("enabled"))
+                    {
+                        try {
+                            enabled = jblock["enabled"].get<bool>();
+                        } catch (...) {
+                            mod_log_warn("jsonPresetLoad(): block %u contains invalid enabled state", bl + 1);
+                        }
+                    }
+
+                    blockdata.enabled = enabled;
+                }
+
+                // ----------------------------------------------------------------------------------------------------
+                // quickpot
+
+                if (jblock.contains("quickpot"))
+                {
+                    std::string quickpot;
+
+                    try {
+                        quickpot = jblock["quickpot"].get<std::string>();
+                    } catch (...) {
+                        mod_log_warn("jsonPresetLoad(): block %u contains invalid quickpot", bl + 1);
+                    }
 
                     if (!quickpot.empty())
                     {
@@ -3430,8 +3450,10 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann_json& json
                             blockdata.meta.quickPotIndex = it->second;
                         }
                     }
+                }
 
-                } catch (...) {}
+                // ----------------------------------------------------------------------------------------------------
+                // parameters
 
                 if (jblock.contains("parameters"))
                 {
@@ -3472,6 +3494,9 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann_json& json
                     }
                 }
 
+                // ----------------------------------------------------------------------------------------------------
+                // properties
+
                 if (jblock.contains("properties"))
                 {
                     auto& jprops = jblock["properties"];
@@ -3509,71 +3534,172 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann_json& json
                     }
                 }
 
-                if (! jblock.contains("scenes"))
-                    continue;
+                // ----------------------------------------------------------------------------------------------------
+                // scenes
 
-                auto& jallscenes = jblock["scenes"];
-                for (uint8_t sid = 0; sid < NUM_SCENES_PER_PRESET; ++sid)
+                if (jblock.contains("scenes"))
                 {
-                    const std::string jsceneid = std::to_string(sid + 1);
+                    const auto& jscenes = jblock["scenes"];
 
-                    if (! jallscenes.contains(jsceneid))
-                        continue;
-
-                    auto& jscenes = jallscenes[jsceneid];
-                    if (! jscenes.is_array())
+                    for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
                     {
-                        mod_log_info("jsonPresetLoad(): preset scenes are not arrays");
-                        continue;
-                    }
+                        const std::string jsceneid = std::to_string(s + 1);
 
-                    // TODO handle properties
-                    for (auto& jscene : jscenes)
-                    {
-                        if (! (jscene.contains("symbol") && jscene.contains("value")))
-                        {
-                            mod_log_info("jsonPresetLoad(): scene param is missing symbol and/or value");
+                        if (! jscenes.contains(jsceneid))
                             continue;
-                        }
 
-                        const std::string symbol = jscene["symbol"].get<std::string>();
+                        const auto& jscene = jscenes[jsceneid];
 
-                        if (symbol == ":bypass")
+                        if (jscene.contains("enabled"))
                         {
-                            if (! blockdata.meta.enable.hasScenes)
-                            {
-                                blockdata.meta.enable.hasScenes = true;
-                                ++blockdata.meta.numParametersInScenes;
+                            bool enabled, valid;
+
+                            try {
+                                enabled = jscene["enabled"].get<bool>();
+                                valid = true;
+                            } catch (...) {
+                                mod_log_warn("jsonPresetLoad(): block %u contains invalid enabled scene", bl + 1);
+                                valid = false;
                             }
 
-                            blockdata.sceneValues[sid].enabled = jscene["value"].get<bool>();
-                            continue;
+                            if (valid)
+                            {
+                                if (! blockdata.meta.enable.hasScenes)
+                                {
+                                    blockdata.meta.enable.hasScenes = true;
+                                    ++blockdata.meta.numParametersInScenes;
+                                }
+
+                                blockdata.sceneValues[s].enabled = enabled;
+                            }
                         }
 
-                        if (paramToIndexMap.find(symbol) == paramToIndexMap.end())
+                        if (jscene.contains("parameters"))
                         {
-                            mod_log_info("jsonPresetLoad(): scene param with '%s' symbol does not exist", symbol.c_str());
-                            continue;
+                            const auto& jsceneparams = jscene["parameters"];
+
+                            if (jsceneparams.is_array())
+                            {
+                                std::string symbol;
+                                double value;
+
+                                for (const auto& jsceneparam : jsceneparams)
+                                {
+                                    bool missing = false;
+                                    if (! jsceneparam.contains("symbol"))
+                                    {
+                                        mod_log_info("jsonPresetLoad(): scene parameter is missing symbol");
+                                        missing = true;
+                                    }
+                                    if (! jsceneparam.contains("value"))
+                                    {
+                                        mod_log_info("jsonPresetLoad(): scene parameter is missing value");
+                                        missing = true;
+                                    }
+                                    if (missing)
+                                        continue;
+
+                                    try {
+                                        symbol = jsceneparam["symbol"].get<std::string>();
+                                    } catch (...) {
+                                        mod_log_warn("jsonPresetLoad(): scene parameter contains invalid symbol");
+                                        continue;
+                                    }
+                                    try {
+                                        value = jsceneparam["value"].get<double>();
+                                    } catch (...) {
+                                        mod_log_warn("jsonPresetLoad(): scene parameter contains invalid value");
+                                        continue;
+                                    }
+
+                                    if (paramToIndexMap.find(symbol) == paramToIndexMap.end())
+                                    {
+                                        mod_log_info("jsonPresetLoad(): scene parameter with '%s' symbol does not exist", symbol.c_str());
+                                        continue;
+                                    }
+
+                                    const uint8_t paramIndex = paramToIndexMap[symbol];
+                                    Parameter& paramdata = blockdata.parameters[paramIndex];
+
+                                    if (isNullURI(paramdata.symbol))
+                                        continue;
+                                    if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterHidden|Lv2ParameterVirtual)) != 0)
+                                        continue;
+
+                                    if ((paramdata.meta.flags & Lv2ParameterInScene) == 0)
+                                    {
+                                        paramdata.meta.flags |= Lv2ParameterInScene;
+                                        ++blockdata.meta.numParametersInScenes;
+                                    }
+
+                                    blockdata.sceneValues[s].parameters[paramIndex] =
+                                        std::max(paramdata.meta.min, std::min<float>(paramdata.meta.max, value));
+                                }
+                            }
                         }
 
-                        const uint8_t paramIndex = paramToIndexMap[symbol];
-                        Parameter& paramdata = blockdata.parameters[paramIndex];
-
-                        if (isNullURI(paramdata.symbol))
-                            continue;
-                        if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual)) != 0)
-                            continue;
-
-                        if ((paramdata.meta.flags & Lv2ParameterInScene) == 0)
+                        if (jscene.contains("properties"))
                         {
-                            paramdata.meta.flags |= Lv2ParameterInScene;
-                            ++blockdata.meta.numParametersInScenes;
-                        }
+                            const auto& jsceneprops = jscene["properties"];
 
-                        blockdata.sceneValues[sid].parameters[paramIndex] =
-                            std::max(paramdata.meta.min,
-                                    std::min<float>(paramdata.meta.max,
-                                                    jscene["value"].get<double>()));
+                            if (jsceneprops.is_array())
+                            {
+                                std::string puri;
+                                std::string value;
+
+                                for (const auto& jsceneprop : jsceneprops)
+                                {
+                                    bool missing = false;
+                                    if (! jsceneprop.contains("uri"))
+                                    {
+                                        mod_log_info("jsonPresetLoad(): scene parameter is missing uri");
+                                        missing = true;
+                                    }
+                                    if (! jsceneprop.contains("value"))
+                                    {
+                                        mod_log_info("jsonPresetLoad(): scene parameter is missing value");
+                                        missing = true;
+                                    }
+                                    if (missing)
+                                        continue;
+
+                                    try {
+                                        puri = jsceneprop["uri"].get<std::string>();
+                                    } catch (...) {
+                                        mod_log_warn("jsonPresetLoad(): scene parameter contains invalid uri");
+                                        continue;
+                                    }
+                                    try {
+                                        value = jsceneprop["value"].get<double>();
+                                    } catch (...) {
+                                        mod_log_warn("jsonPresetLoad(): scene parameter contains invalid value");
+                                        continue;
+                                    }
+
+                                    if (propToIndexMap.find(puri) == propToIndexMap.end())
+                                    {
+                                        mod_log_info("jsonPresetLoad(): scene parameter with '%s' uri does not exist", puri.c_str());
+                                        continue;
+                                    }
+
+                                    const uint8_t propIndex = propToIndexMap[puri];
+                                    Property& propdata = blockdata.properties[propIndex];
+
+                                    if (isNullURI(propdata.uri))
+                                        continue;
+                                    if ((propdata.meta.flags & (Lv2PropertyIsReadOnly|Lv2ParameterHidden)) != 0)
+                                        continue;
+
+                                    if ((propdata.meta.flags & Lv2ParameterInScene) == 0)
+                                    {
+                                        propdata.meta.flags |= Lv2ParameterInScene;
+                                        ++blockdata.meta.numPropertiesInScenes;
+                                    }
+
+                                    blockdata.sceneValues[s].properties[propIndex] = value;
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -3619,12 +3745,10 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann_json& json
            #endif
             if (! jallbindings.contains(jbindingsid))
             {
-                mod_log_warn("jsonPresetLoad(): preset does not include bindings for hw '%s'", jbindingsid.c_str());
-
                 bindings.name.clear();
                 bindings.parameters.clear();
                 bindings.properties.clear();
-                bindings.value = 0;
+                bindings.value = 0.0;
                 continue;
             }
 
@@ -4040,6 +4164,9 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann_json& json
         {
             const Bindings& bindings(presetdata.bindings[hwid]);
 
+            if (presetdata.bindings[hwid].parameters.size() + presetdata.bindings[hwid].properties.size() == 0)
+                continue;
+
            #ifdef BINDING_ACTUATOR_IDS
             const std::string jbindingsid = kBindingActuatorIDs[hwid];
            #else
@@ -4091,6 +4218,9 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann_json& json
         for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
         {
             const ChainRow& chaindata(presetdata.chains[row]);
+
+            if (chaindata.capture[0].empty())
+                continue;
 
             const std::string jrowid = std::to_string(row + 1);
             auto& jchain = jchains[jrowid] = nlohmann::json::object({
