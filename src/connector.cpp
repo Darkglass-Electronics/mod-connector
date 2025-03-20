@@ -5023,7 +5023,16 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
     }
 
     if (blockdata.quickPotSymbol.empty() && numParams != 0)
-        blockdata.quickPotSymbol = blockdata.parameters[0].symbol;
+    {
+        for (uint8_t p = 0; p < numParams; ++p)
+        {
+            if ((blockdata.parameters[p].meta.flags & Lv2ParameterNotInQuickPot) != 0)
+                continue;
+            blockdata.quickPotSymbol = blockdata.parameters[p].symbol;
+            blockdata.meta.quickPotIndex = p;
+            break;
+        }
+    }
 
     for (uint8_t p = numParams; p < MAX_PARAMS_PER_BLOCK; ++p)
         resetParameter(blockdata.parameters[p]);

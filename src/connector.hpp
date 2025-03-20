@@ -16,6 +16,7 @@
 enum ExtraLv2Flags {
     Lv2ParameterVirtual = 1 << 10,
     Lv2ParameterInScene = 1 << 11,
+    Lv2ParameterNotInQuickPot = 1 << 12,
 };
 
 // --------------------------------------------------------------------------------------------------------------------
