@@ -3777,20 +3777,6 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann_json& json
             // --------------------------------------------------------------------------------------------------------
             // parameters
 
-//                         if (symbol == ":bypass")
-//                         {
-//                             blockdata.meta.enable.hwbinding = hwid;
-//
-//                             bindings.parameters.push_back({
-//                                 .row = static_cast<uint8_t>(row - 1),
-//                                 .block = static_cast<uint8_t>(block - 1),
-//                                 .parameterSymbol = ":bypass",
-//                                 .meta = {
-//                                     .parameterIndex = 0,
-//                                 },
-//                             });
-//                         }
-
             if (jbindings.contains("parameters"))
             {
                 const auto& jbindingparams = jbindings["parameters"];
@@ -3852,6 +3838,21 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann_json& json
                         }
 
                         Block& blockdata = presetdata.chains[row - 1].blocks[block - 1];
+
+                        if (symbol == ":bypass")
+                        {
+                            blockdata.meta.enable.hwbinding = hwid;
+
+                            parameters.push_back({
+                                .row = static_cast<uint8_t>(row - 1),
+                                .block = static_cast<uint8_t>(block - 1),
+                                .parameterSymbol = ":bypass",
+                                .meta = {
+                                    .parameterIndex = 0,
+                                },
+                            });
+                            continue;
+                        }
 
                         for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
                         {
@@ -4288,47 +4289,55 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann_json& json
 
                 if (blockdata.meta.numParametersInScenes + blockdata.meta.numPropertiesInScenes != 0)
                 {
-                    auto& jallscenes = jblock["scenes"];
+                    auto& jscenes = jblock["scenes"];
 
                     for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
                     {
                         const std::string jsceneid = std::to_string(s + 1);
-                        auto& jscenes = jallscenes[jsceneid] = nlohmann::json::object({
+                        auto& jscene = jscenes[jsceneid] = nlohmann::json::object({
                             { "parameters", nlohmann::json::array() },
                             { "properties", nlohmann::json::array() },
                         });
 
                         if (blockdata.meta.enable.hasScenes)
-                            jscenes["enabled"] = blockdata.sceneValues[s].enabled;
+                            jscene["enabled"] = blockdata.sceneValues[s].enabled;
 
-                        for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
                         {
-                            const Parameter& paramdata = blockdata.parameters[p];
+                            auto& jsceneparams = jscene["parameters"];
 
-                            if (isNullURI(paramdata.symbol))
-                                break;
-                            if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterHidden|Lv2ParameterVirtual|Lv2ParameterInScene)) != Lv2ParameterInScene)
-                                continue;
+                            for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                            {
+                                const Parameter& paramdata = blockdata.parameters[p];
 
-                            jscenes.push_back({
-                                { "symbol", paramdata.symbol },
-                                { "value", blockdata.sceneValues[s].parameters[p] },
-                            });
+                                if (isNullURI(paramdata.symbol))
+                                    break;
+                                if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterHidden|Lv2ParameterVirtual|Lv2ParameterInScene)) != Lv2ParameterInScene)
+                                    continue;
+
+                                jsceneparams.push_back(nlohmann::json::object({
+                                    { "symbol", paramdata.symbol },
+                                    { "value", blockdata.sceneValues[s].parameters[p] },
+                                }));
+                            }
                         }
 
-                        for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
                         {
-                            const Property& propdata = blockdata.properties[p];
+                            auto& jsceneprops = jscene["properties"];
 
-                            if (isNullURI(propdata.uri))
-                                break;
-                            if ((propdata.meta.flags & (Lv2PropertyIsReadOnly|Lv2ParameterHidden|Lv2ParameterInScene)) != Lv2ParameterInScene)
-                                continue;
+                            for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                            {
+                                const Property& propdata = blockdata.properties[p];
 
-                            jscenes.push_back({
-                                { "uri", propdata.uri },
-                                { "value", blockdata.sceneValues[s].properties[p] },
-                            });
+                                if (isNullURI(propdata.uri))
+                                    break;
+                                if ((propdata.meta.flags & (Lv2PropertyIsReadOnly|Lv2ParameterHidden|Lv2ParameterInScene)) != Lv2ParameterInScene)
+                                    continue;
+
+                                jsceneprops.push_back(nlohmann::json::object({
+                                    { "uri", propdata.uri },
+                                    { "value", blockdata.sceneValues[s].properties[p] },
+                                }));
+                            }
                         }
                     }
                 }
