@@ -380,11 +380,17 @@ public:
     // regenerate current preset uuid
     void regenUUID();
 
+    // set the filename of a preset
+    void setPresetFilename(uint8_t preset, const char* filename);
+
     // set the name of the current preset
     void setCurrentPresetName(const char* name);
 
-    // set the filename of the current preset
-    void setCurrentPresetFilename(const char* filename);
+    // convenience call for setting current preset filename
+    void setCurrentPresetFilename(const char* filename)
+    {
+        setPresetFilename(_current.preset, filename);
+    }
 
     // switch to another preset within the current bank
     // returning false means the current chain was unchanged

@@ -1000,6 +1000,19 @@ void HostConnector::regenUUID()
 
 // --------------------------------------------------------------------------------------------------------------------
 
+void HostConnector::setPresetFilename(const uint8_t preset, const char* const filename)
+{
+    mod_log_debug("setPresetFilename(%u, \"%s\")", preset, filename);
+    assert(preset < NUM_PRESETS_PER_BANK);
+
+    _presets[preset].filename = filename;
+
+    if (_current.preset == preset)
+        _current.filename = filename;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 void HostConnector::setCurrentPresetName(const char* const name)
 {
     mod_log_debug("setCurrentPresetName(\"%s\")", name);
@@ -1009,15 +1022,6 @@ void HostConnector::setCurrentPresetName(const char* const name)
 
     _current.name = name;
     _current.dirty = true;
-}
-
-// --------------------------------------------------------------------------------------------------------------------
-
-void HostConnector::setCurrentPresetFilename(const char* const filename)
-{
-    mod_log_debug("setCurrentPresetFilename(\"%s\")", filename);
-
-    _presets[_current.preset].filename = _current.filename = filename;
 }
 
 // --------------------------------------------------------------------------------------------------------------------
