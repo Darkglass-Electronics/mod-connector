@@ -25,9 +25,9 @@ typedef enum {
     LV2_KXSTUDIO_PROPERTIES_RESET_SOFT = 2  // Soft reset, e.g. reset filter state but do not clear audio buffers
 } LV2_KXStudio_Properties_Reset;
 
-#define JSON_PRESET_VERSION_CURRENT 0
-#define JSON_PRESET_VERSION_MIN_SUPPORTED 0
-#define JSON_PRESET_VERSION_MAX_SUPPORTED 0
+#define JSON_PRESET_VERSION_CURRENT 1
+#define JSON_PRESET_VERSION_MIN_SUPPORTED 1
+#define JSON_PRESET_VERSION_MAX_SUPPORTED 1
 
 #ifdef BINDING_ACTUATOR_IDS
 static constexpr const char* kBindingActuatorIDs[NUM_BINDING_ACTUATORS] = { BINDING_ACTUATOR_IDS };
@@ -205,7 +205,7 @@ static void allocBlock(HostConnector::Block& blockdata)
 
     for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
     {
-        blockdata.sceneValues[s].params.resize(MAX_PARAMS_PER_BLOCK);
+        blockdata.sceneValues[s].parameters.resize(MAX_PARAMS_PER_BLOCK);
         blockdata.sceneValues[s].properties.resize(MAX_PARAMS_PER_BLOCK);
     }
 }
@@ -515,13 +515,13 @@ void HostConnector::printStateForDebug(const bool withBlocks, const bool withPar
        #endif
         fprintf(stderr, "\n\tBindings for '%s', value: %f:\n", hwname.c_str(), _current.bindings[hwid].value);
 
-        if (_current.bindings[hwid].params.empty() && _current.bindings[hwid].properties.empty())
+        if (_current.bindings[hwid].parameters.empty() && _current.bindings[hwid].properties.empty())
         {
             fprintf(stderr, "\t\t(empty)\n");
             continue;
         }
 
-        for (const ParameterBinding& bindingdata : _current.bindings[hwid].params)
+        for (const ParameterBinding& bindingdata : _current.bindings[hwid].parameters)
         {
             fprintf(stderr, "\t\t- Block %u, Parameter '%s' | %u\n",
                     bindingdata.block,
@@ -967,7 +967,7 @@ void HostConnector::clearCurrentPreset()
     for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
     {
         _current.bindings[hwid].value = 0.f;
-        _current.bindings[hwid].params.clear();
+        _current.bindings[hwid].parameters.clear();
         _current.bindings[hwid].properties.clear();
     }
 
@@ -1071,7 +1071,7 @@ bool HostConnector::enableBlock(const uint8_t row, const uint8_t block, const bo
     if (blockdata.meta.enable.hwbinding != UINT8_MAX)
     {
         Bindings& bindings(_current.bindings[blockdata.meta.enable.hwbinding]);
-        assert(!bindings.params.empty());
+        assert(!bindings.parameters.empty());
 
         bindings.value = enable ? 1.f : 0.f;
     }
@@ -1206,7 +1206,7 @@ bool HostConnector::reorderBlock(const uint8_t row, const uint8_t orig, const ui
 
     for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
     {
-        for (ParameterBinding& bindingdata : _current.bindings[hwid].params)
+        for (ParameterBinding& bindingdata : _current.bindings[hwid].parameters)
             updateBinding(bindingdata);
 
         for (PropertyBinding& bindingdata : _current.bindings[hwid].properties)
@@ -1659,7 +1659,7 @@ bool HostConnector::swapBlockRow(const uint8_t row,
 
         for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
         {
-            for (ParameterBinding& bindingdata : _current.bindings[hwid].params)
+            for (ParameterBinding& bindingdata : _current.bindings[hwid].parameters)
             {
                 if (bindingdata.row == row)
                     bindingdata.row = emptyRow;
@@ -1680,7 +1680,7 @@ bool HostConnector::swapBlockRow(const uint8_t row,
 
         for (Bindings& bindings : _current.bindings)
         {
-            for (ParameterBinding& bindingdata : bindings.params)
+            for (ParameterBinding& bindingdata : bindings.parameters)
             {
                 if (bindingdata.row == row && bindingdata.block == block)
                 {
@@ -1813,7 +1813,7 @@ bool HostConnector::switchScene(const uint8_t scene)
                 if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual|Lv2ParameterInScene)) != Lv2ParameterInScene)
                     continue;
 
-                paramdata.value = sceneValues.params[p];
+                paramdata.value = sceneValues.parameters[p];
 
                 params.push_back({ paramdata.symbol.c_str(), paramdata.value });
             }
@@ -1885,7 +1885,7 @@ bool HostConnector::addBlockBinding(const uint8_t hwid, const uint8_t row, const
 
     blockdata.meta.enable.hwbinding = hwid;
 
-    if (_current.bindings[hwid].params.empty())
+    if (_current.bindings[hwid].parameters.empty())
     {
         _current.bindings[hwid].value = blockdata.enabled ? 1.f : 0.f;
 
@@ -1893,7 +1893,7 @@ bool HostConnector::addBlockBinding(const uint8_t hwid, const uint8_t row, const
             _current.bindings[hwid].name = blockdata.meta.name;
     }
 
-    _current.bindings[hwid].params.push_back({ row, block, ":bypass", { 0 } });
+    _current.bindings[hwid].parameters.push_back({ row, block, ":bypass", { 0 } });
     _current.dirty = true;
     return true;
 }
@@ -1921,7 +1921,7 @@ bool HostConnector::addBlockParameterBinding(const uint8_t hwid,
 
     paramdata.meta.hwbinding = hwid;
 
-    if (_current.bindings[hwid].params.empty())
+    if (_current.bindings[hwid].parameters.empty())
     {
         _current.bindings[hwid].value = paramdata.value;
 
@@ -1929,7 +1929,7 @@ bool HostConnector::addBlockParameterBinding(const uint8_t hwid,
             _current.bindings[hwid].name = paramdata.meta.name;
     }
 
-    _current.bindings[hwid].params.push_back({ row, block, paramdata.symbol, { paramIndex } });
+    _current.bindings[hwid].parameters.push_back({ row, block, paramdata.symbol, { paramIndex } });
     _current.dirty = true;
     return true;
 }
@@ -1978,7 +1978,7 @@ bool HostConnector::addBlockPropertyBinding(const uint8_t hwid,
             _current.bindings[hwid].value = 0.0;
         */
 
-        if (_current.bindings[hwid].params.empty())
+        if (_current.bindings[hwid].parameters.empty())
             _current.bindings[hwid].name = propdata.meta.name;
     }
 
@@ -2002,7 +2002,7 @@ bool HostConnector::removeBlockBinding(const uint8_t hwid, const uint8_t row, co
 
     blockdata.meta.enable.hwbinding = UINT8_MAX;
 
-    std::list<ParameterBinding>& bindings(_current.bindings[hwid].params);
+    std::list<ParameterBinding>& bindings(_current.bindings[hwid].parameters);
     for (ParameterBindingIteratorConst it = bindings.cbegin(), end = bindings.cend(); it != end; ++it)
     {
         if (it->block != block)
@@ -2045,7 +2045,7 @@ bool HostConnector::removeBlockParameterBinding(const uint8_t hwid,
 
     paramdata.meta.hwbinding = UINT8_MAX;
 
-    std::list<ParameterBinding>& bindings(_current.bindings[hwid].params);
+    std::list<ParameterBinding>& bindings(_current.bindings[hwid].parameters);
     for (ParameterBindingIteratorConst it = bindings.cbegin(), end = bindings.cend(); it != end; ++it)
     {
         if (it->block != block)
@@ -2098,7 +2098,7 @@ bool HostConnector::removeBlockPropertyBinding(const uint8_t hwid,
 
         bindings.erase(it);
 
-        if (bindings.empty() && _current.bindings[hwid].params.empty())
+        if (bindings.empty() && _current.bindings[hwid].parameters.empty())
             _current.bindings[hwid].name.clear();
 
         _current.dirty = true;
@@ -2270,7 +2270,7 @@ void HostConnector::setBlockParameter(const uint8_t row,
     switch (sceneMode)
     {
     case SceneModeNone:
-        blockdata.sceneValues[_current.scene].params[paramIndex] = value;
+        blockdata.sceneValues[_current.scene].parameters[paramIndex] = value;
         break;
 
     case SceneModeActivate:
@@ -2284,10 +2284,10 @@ void HostConnector::setBlockParameter(const uint8_t row,
             {
                 if (_current.scene == scene)
                     continue;
-                blockdata.sceneValues[scene].params[paramIndex] = paramdata.value;
+                blockdata.sceneValues[scene].parameters[paramIndex] = paramdata.value;
             }
         }
-        blockdata.sceneValues[_current.scene].params[paramIndex] = value;
+        blockdata.sceneValues[_current.scene].parameters[paramIndex] = value;
         break;
 
     case SceneModeClear:
@@ -2302,9 +2302,9 @@ void HostConnector::setBlockParameter(const uint8_t row,
     if (paramdata.meta.hwbinding != UINT8_MAX)
     {
         Bindings& bindings(_current.bindings[paramdata.meta.hwbinding]);
-        assert(!bindings.params.empty());
+        assert(!bindings.parameters.empty());
 
-        if (bindings.params.size() == 1)
+        if (bindings.parameters.size() == 1)
             bindings.value = value;
         else
             bindings.value = normalized(paramdata.meta, value);
@@ -3209,7 +3209,7 @@ void HostConnector::hostRemoveAllBlockBindings(const uint8_t row, const uint8_t 
     {
         _current.bindings[hwid].value = 0.f;
 
-        std::list<ParameterBinding>& bindings(_current.bindings[hwid].params);
+        std::list<ParameterBinding>& bindings(_current.bindings[hwid].parameters);
 
     restartParameter:
         for (ParameterBindingIteratorConst it = bindings.cbegin(), end = bindings.cend(); it != end; ++it)
@@ -3286,29 +3286,12 @@ void HostConnector::hostRemoveInstanceForBlock(const uint8_t row, const uint8_t 
 // --------------------------------------------------------------------------------------------------------------------
 
 template<class nlohmann_json>
-uint8_t HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann_json& json) const
+void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann_json& json) const
 {
     const nlohmann::json& jpreset = static_cast<const nlohmann::json&>(json);
 
-    if (!jpreset.contains("blocks"))
-    {
-        mod_log_info("jsonPresetLoad(): preset does not include blocks, loading empty");
-        resetPreset(presetdata);
-        return 0;
-    }
-
-    {
-        std::string name;
-
-        if (jpreset.contains("name"))
-        {
-            try {
-                name = jpreset["name"].get<std::string>();
-            } catch (...) {}
-        }
-
-        presetdata.name = name;
-    }
+    // ----------------------------------------------------------------------------------------------------------------
+    // background
 
     {
         uint32_t color = 0;
@@ -3321,34 +3304,641 @@ uint8_t HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann_json& j
             try {
                 color = jbackground["color"].get<uint32_t>();
                 style = jbackground["style"].get<std::string>();
-            } catch (...) {}
+            } catch (...) {
+                mod_log_warn("jsonPresetLoad(): preset contains invalid background");
+            }
         }
 
         presetdata.background.color = color;
         presetdata.background.style = style;
     }
 
-    {
-        std::string uuid;
+    // ----------------------------------------------------------------------------------------------------------------
+    // chains (NOTE needs to be before "bindings" step, as it accesses and modifies parameter data)
 
-        if (jpreset.contains("uuid"))
+    if (jpreset.contains("chains"))
+    {
+        const auto& jchains = jpreset["chains"];
+        std::string uri;
+
+        for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
+        {
+            ChainRow& chaindata(presetdata.chains[row]);
+
+            if (row != 0)
+            {
+                chaindata.capture.fill({});
+                chaindata.playback.fill({});
+            }
+
+            chaindata.captureId.fill(kMaxHostInstances);
+            chaindata.playbackId.fill(kMaxHostInstances);
+
+            const std::string jrowid = std::to_string(row + 1);
+            if (! jchains.contains(jrowid))
+            {
+                mod_log_warn("jsonPresetLoad(): preset does not include chain row %d", row + 1);
+                for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
+                    resetBlock(chaindata.blocks[bl]);
+                continue;
+            }
+
+            const auto& jchain = jchains[jrowid];
+
+            if (! jchain.contains("blocks"))
+            {
+                mod_log_warn("jsonPresetLoad(): preset chain row %d does not contain blocks", row + 1);
+                for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
+                    resetBlock(chaindata.blocks[bl]);
+                continue;
+            }
+
+            const auto& jblocks = jpreset["blocks"];
+
+            for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
+            {
+                Block& blockdata = presetdata.chains[row].blocks[bl];
+
+                const std::string jblockid = std::to_string(bl + 1);
+                if (! jblocks.contains(jblockid))
+                {
+                    mod_log_warn("jsonPresetLoad(): preset chain row %d does not block %d", row + 1, bl + 1);
+                    resetBlock(blockdata);
+                    continue;
+                }
+
+                const auto& jblock = jblocks[jblockid];
+
+                // ----------------------------------------------------------------------------------------------------
+                // name
+
+                if (jblock.contains("uri"))
+                {
+                    try {
+                        uri = jblock["uri"].get<std::string>();
+                    } catch (...) {
+                        mod_log_warn("jsonPresetLoad(): block %u contains invalid uri", bl + 1);
+                        uri.clear();
+                    }
+                }
+                else
+                {
+                    mod_log_info("jsonPresetLoad(): block %u does not include uri", bl + 1);
+                    uri.clear();
+                }
+
+                if (isNullURI(uri))
+                {
+                    resetBlock(blockdata);
+                    continue;
+                }
+
+                const Lv2Plugin* const plugin = !isNullURI(uri)
+                                                ? lv2world.getPluginByURI(uri.c_str())
+                                                : nullptr;
+
+                if (plugin == nullptr)
+                {
+                    mod_log_info("jsonPresetLoad(): plugin with uri '%s' not available", uri.c_str());
+                    resetBlock(blockdata);
+                    continue;
+                }
+
+                uint8_t numInputs, numOutputs, numSideInputs, numSideOutputs;
+                if (!getSupportedPluginIO(plugin, numInputs, numOutputs, numSideInputs, numSideOutputs))
+                {
+                    mod_log_info("jsonPresetLoad(): plugin with uri '%s' has invalid IO, using empty block", uri.c_str());
+                    resetBlock(blockdata);
+                    continue;
+                }
+
+                std::unordered_map<std::string, uint8_t> paramToIndexMap, propToIndexMap;
+                initBlock(blockdata, plugin, numInputs, numOutputs, numSideInputs, numSideOutputs,
+                        &paramToIndexMap, &propToIndexMap);
+
+                if (jblock.contains("enabled"))
+                    blockdata.enabled = jblock["enabled"].get<bool>();
+
+                try {
+                    const std::string quickpot = jblock["quickpot"].get<std::string>();
+
+                    if (!quickpot.empty())
+                    {
+                        if (const auto it = paramToIndexMap.find(quickpot); it != paramToIndexMap.end())
+                        {
+                            blockdata.quickPotSymbol = quickpot;
+                            blockdata.meta.quickPotIndex = it->second;
+                        }
+                    }
+
+                } catch (...) {}
+
+                if (jblock.contains("parameters"))
+                {
+                    auto& jparams = jblock["parameters"];
+                    for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                    {
+                        const std::string jparamid = std::to_string(p + 1);
+
+                        if (! jparams.contains(jparamid))
+                            continue;
+
+                        auto& jparam = jparams[jparamid];
+                        if (! (jparam.contains("symbol") && jparam.contains("value")))
+                        {
+                            mod_log_info("jsonPresetLoad(): parameter %u is missing symbol and/or value", p);
+                            continue;
+                        }
+
+                        const std::string symbol = jparam["symbol"].get<std::string>();
+
+                        if (paramToIndexMap.find(symbol) == paramToIndexMap.end())
+                        {
+                            mod_log_info("jsonPresetLoad(): parameter with '%s' symbol does not exist in plugin", symbol.c_str());
+                            continue;
+                        }
+
+                        const uint8_t paramIndex = paramToIndexMap[symbol];
+                        Parameter& paramdata = blockdata.parameters[paramIndex];
+
+                        if (isNullURI(paramdata.symbol))
+                            continue;
+                        if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual)) != 0)
+                            continue;
+
+                        paramdata.value = std::max(paramdata.meta.min,
+                                                    std::min<float>(paramdata.meta.max,
+                                                                    jparam["value"].get<double>()));
+                    }
+                }
+
+                if (jblock.contains("properties"))
+                {
+                    auto& jprops = jblock["properties"];
+                    for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                    {
+                        const std::string jpropid = std::to_string(p + 1);
+
+                        if (! jprops.contains(jpropid))
+                            continue;
+
+                        auto& jprop = jprops[jpropid];
+                        if (! (jprop.contains("uri") && jprop.contains("value")))
+                        {
+                            mod_log_info("jsonPresetLoad(): property %u is missing uri and/or value", p);
+                            continue;
+                        }
+
+                        const std::string propuri = jprop["uri"].get<std::string>();
+
+                        if (propToIndexMap.find(propuri) == propToIndexMap.end())
+                        {
+                            mod_log_info("jsonPresetLoad(): property with '%s' uri does not exist in plugin", uri.c_str());
+                            continue;
+                        }
+
+                        const uint8_t propIndex = propToIndexMap[propuri];
+                        Property& propdata = blockdata.properties[propIndex];
+
+                        if (isNullURI(propdata.uri))
+                            continue;
+                        if ((propdata.meta.flags & Lv2PropertyIsReadOnly) != 0)
+                            continue;
+
+                        propdata.value = jprop["value"].get<std::string>();
+                    }
+                }
+
+                if (! jblock.contains("scenes"))
+                    continue;
+
+                auto& jallscenes = jblock["scenes"];
+                for (uint8_t sid = 0; sid < NUM_SCENES_PER_PRESET; ++sid)
+                {
+                    const std::string jsceneid = std::to_string(sid + 1);
+
+                    if (! jallscenes.contains(jsceneid))
+                        continue;
+
+                    auto& jscenes = jallscenes[jsceneid];
+                    if (! jscenes.is_array())
+                    {
+                        mod_log_info("jsonPresetLoad(): preset scenes are not arrays");
+                        continue;
+                    }
+
+                    // TODO handle properties
+                    for (auto& jscene : jscenes)
+                    {
+                        if (! (jscene.contains("symbol") && jscene.contains("value")))
+                        {
+                            mod_log_info("jsonPresetLoad(): scene param is missing symbol and/or value");
+                            continue;
+                        }
+
+                        const std::string symbol = jscene["symbol"].get<std::string>();
+
+                        if (symbol == ":bypass")
+                        {
+                            if (! blockdata.meta.enable.hasScenes)
+                            {
+                                blockdata.meta.enable.hasScenes = true;
+                                ++blockdata.meta.numParametersInScenes;
+                            }
+
+                            blockdata.sceneValues[sid].enabled = jscene["value"].get<bool>();
+                            continue;
+                        }
+
+                        if (paramToIndexMap.find(symbol) == paramToIndexMap.end())
+                        {
+                            mod_log_info("jsonPresetLoad(): scene param with '%s' symbol does not exist", symbol.c_str());
+                            continue;
+                        }
+
+                        const uint8_t paramIndex = paramToIndexMap[symbol];
+                        Parameter& paramdata = blockdata.parameters[paramIndex];
+
+                        if (isNullURI(paramdata.symbol))
+                            continue;
+                        if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual)) != 0)
+                            continue;
+
+                        if ((paramdata.meta.flags & Lv2ParameterInScene) == 0)
+                        {
+                            paramdata.meta.flags |= Lv2ParameterInScene;
+                            ++blockdata.meta.numParametersInScenes;
+                        }
+
+                        blockdata.sceneValues[sid].parameters[paramIndex] =
+                            std::max(paramdata.meta.min,
+                                    std::min<float>(paramdata.meta.max,
+                                                    jscene["value"].get<double>()));
+                    }
+                }
+            }
+        }
+    }
+    else
+    {
+        mod_log_warn("jsonPresetLoad(): preset does not include any chains");
+
+        for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
+        {
+            ChainRow& chaindata(presetdata.chains[row]);
+
+            if (row != 0)
+            {
+                chaindata.capture.fill({});
+                chaindata.playback.fill({});
+            }
+
+            chaindata.captureId.fill(kMaxHostInstances);
+            chaindata.playbackId.fill(kMaxHostInstances);
+
+            for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
+                resetBlock(chaindata.blocks[bl]);
+        }
+    }
+
+    // ----------------------------------------------------------------------------------------------------------------
+    // bindings (NOTE needs to be after "chains" step, as it accesses and modifies parameter data)
+
+    if (jpreset.contains("bindings"))
+    {
+        const auto& jallbindings = jpreset["bindings"];
+
+        for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
+        {
+            Bindings& bindings(presetdata.bindings[hwid]);
+
+           #ifdef BINDING_ACTUATOR_IDS
+            const std::string jbindingsid = kBindingActuatorIDs[hwid];
+           #else
+            const std::string jbindingsid = std::to_string(hwid + 1);
+           #endif
+            if (! jallbindings.contains(jbindingsid))
+            {
+                mod_log_warn("jsonPresetLoad(): preset does not include bindings for hw '%s'", jbindingsid.c_str());
+
+                bindings.name.clear();
+                bindings.parameters.clear();
+                bindings.properties.clear();
+                bindings.value = 0;
+                continue;
+            }
+
+            const auto& jbindings = jallbindings[jbindingsid];
+
+            // --------------------------------------------------------------------------------------------------------
+            // name
+
+            if (jbindings.contains("name"))
+            {
+                std::string name;
+
+                try {
+                    name = jbindings["name"].get<std::string>();
+                } catch (...) {
+                    mod_log_warn("jsonPresetLoad(): binding contains invalid name");
+                }
+
+                bindings.name = name;
+            }
+            else
+            {
+                bindings.name.clear();
+            }
+
+            // --------------------------------------------------------------------------------------------------------
+            // parameters
+
+//                         if (symbol == ":bypass")
+//                         {
+//                             blockdata.meta.enable.hwbinding = hwid;
+//
+//                             bindings.parameters.push_back({
+//                                 .row = static_cast<uint8_t>(row - 1),
+//                                 .block = static_cast<uint8_t>(block - 1),
+//                                 .parameterSymbol = ":bypass",
+//                                 .meta = {
+//                                     .parameterIndex = 0,
+//                                 },
+//                             });
+//                         }
+
+            if (jbindings.contains("parameters"))
+            {
+                const auto& jbindingparams = jbindings["parameters"];
+                if (jbindingparams.is_array())
+                {
+                    std::list<ParameterBinding> parameters;
+                    std::string symbol;
+                    int block, row;
+
+                    for (const auto& jbindingparam : jbindingparams)
+                    {
+                        bool missing = false;
+                        if (! jbindingparam.contains("row"))
+                        {
+                            mod_log_info("jsonPresetLoad(): binding is missing row");
+                            missing = true;
+                        }
+                        if (! jbindingparam.contains("block"))
+                        {
+                            mod_log_info("jsonPresetLoad(): binding is missing block");
+                            missing = true;
+                        }
+                        if (! jbindingparam.contains("symbol"))
+                        {
+                            mod_log_info("jsonPresetLoad(): binding is missing symbol");
+                            missing = true;
+                        }
+                        if (missing)
+                            continue;
+
+                        try {
+                            row = jbindingparam["row"].get<int>();
+                        } catch (...) {
+                            mod_log_warn("jsonPresetLoad(): binding contains invalid row");
+                            continue;
+                        }
+                        try {
+                            block = jbindingparam["block"].get<int>();
+                        } catch (...) {
+                            mod_log_warn("jsonPresetLoad(): binding contains invalid block");
+                            continue;
+                        }
+                        try {
+                            symbol = jbindingparam["symbol"].get<std::string>();
+                        } catch (...) {
+                            mod_log_warn("jsonPresetLoad(): binding contains invalid symbol");
+                            continue;
+                        }
+
+                        if (row < 1 || row > NUM_BLOCK_CHAIN_ROWS)
+                        {
+                            mod_log_info("jsonPresetLoad(): binding has out of bounds row %d", row);
+                            continue;
+                        }
+                        if (block < 1 || block > NUM_BLOCKS_PER_PRESET)
+                        {
+                            mod_log_info("jsonPresetLoad(): binding has out of bounds block %d", block);
+                            continue;
+                        }
+
+                        Block& blockdata = presetdata.chains[row - 1].blocks[block - 1];
+
+                        for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                        {
+                            Parameter& paramdata = blockdata.parameters[p];
+
+                            if (isNullURI(paramdata.symbol))
+                                break;
+                            if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterHidden|Lv2ParameterVirtual)) != 0)
+                                continue;
+                            if (paramdata.symbol != symbol)
+                                continue;
+
+                            paramdata.meta.hwbinding = hwid;
+
+                            parameters.push_back({
+                                .row = static_cast<uint8_t>(row - 1),
+                                .block = static_cast<uint8_t>(block - 1),
+                                .parameterSymbol = symbol,
+                                .meta = {
+                                    .parameterIndex = p,
+                                },
+                            });
+                            break;
+                        }
+                    }
+
+                    bindings.parameters = parameters;
+                }
+                else
+                {
+                    mod_log_info("jsonPresetLoad(): preset binding parameters is not an array");
+                    bindings.parameters.clear();
+                }
+            }
+            else
+            {
+                mod_log_info("jsonPresetLoad(): bindings is missing parameters");
+                bindings.parameters.clear();
+            }
+
+            // --------------------------------------------------------------------------------------------------------
+            // properties
+
+            if (jbindings.contains("properties"))
+            {
+                const auto& jbindingprops = jbindings["properties"];
+                if (jbindingprops.is_array())
+                {
+                    std::list<PropertyBinding> properties;
+                    std::string uri;
+                    int block, row;
+
+                    for (const auto& jbindingprop : jbindingprops)
+                    {
+                        bool missing = false;
+                        if (! jbindingprop.contains("row"))
+                        {
+                            mod_log_info("jsonPresetLoad(): binding is missing row");
+                            missing = true;
+                        }
+                        if (! jbindingprop.contains("block"))
+                        {
+                            mod_log_info("jsonPresetLoad(): binding is missing block");
+                            missing = true;
+                        }
+                        if (! jbindingprop.contains("uri"))
+                        {
+                            mod_log_info("jsonPresetLoad(): binding is missing uri");
+                            missing = true;
+                        }
+                        if (missing)
+                            continue;
+
+                        try {
+                            row = jbindingprop["row"].get<int>();
+                        } catch (...) {
+                            mod_log_warn("jsonPresetLoad(): binding contains invalid row");
+                            continue;
+                        }
+                        try {
+                            block = jbindingprop["block"].get<int>();
+                        } catch (...) {
+                            mod_log_warn("jsonPresetLoad(): binding contains invalid block");
+                            continue;
+                        }
+                        try {
+                            uri = jbindingprop["uri"].get<std::string>();
+                        } catch (...) {
+                            mod_log_warn("jsonPresetLoad(): binding contains invalid uri");
+                            continue;
+                        }
+
+                        if (row < 1 || row > NUM_BLOCK_CHAIN_ROWS)
+                        {
+                            mod_log_info("jsonPresetLoad(): binding has out of bounds row %d", row);
+                            continue;
+                        }
+                        if (block < 1 || block > NUM_BLOCKS_PER_PRESET)
+                        {
+                            mod_log_info("jsonPresetLoad(): binding has out of bounds block %d", block);
+                            continue;
+                        }
+
+                        Block& blockdata = presetdata.chains[row - 1].blocks[block - 1];
+
+                        for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                        {
+                            Property& propdata = blockdata.properties[p];
+
+                            if (isNullURI(propdata.uri))
+                                break;
+                            if ((propdata.meta.flags & (Lv2PropertyIsReadOnly|Lv2ParameterHidden)) != 0)
+                                continue;
+                            if (propdata.uri != uri)
+                                continue;
+
+                            propdata.meta.hwbinding = hwid;
+
+                            properties.push_back({
+                                .row = static_cast<uint8_t>(row - 1),
+                                .block = static_cast<uint8_t>(block - 1),
+                                .propertyURI = uri,
+                                .meta = {
+                                    .propertyIndex = p,
+                                },
+                            });
+                            break;
+                        }
+                    }
+
+                    bindings.properties = properties;
+                }
+                else
+                {
+                    mod_log_info("jsonPresetLoad(): preset binding properties is not an array");
+                    bindings.properties.clear();
+                }
+            }
+            else
+            {
+                mod_log_info("jsonPresetLoad(): bindings is missing properties");
+                bindings.properties.clear();
+            }
+
+            // --------------------------------------------------------------------------------------------------------
+            // value
+
+            if (jbindings.contains("value"))
+            {
+                // TODO
+                const double jvalue = jbindings["value"].get<double>();
+                if (bindings.parameters.size() == 1)
+                {
+                    const ParameterBinding& binding = bindings.parameters.front();
+                    const Block& blockdata = presetdata.chains[binding.row].blocks[binding.block];
+                    const Parameter& paramdata = blockdata.parameters[binding.meta.parameterIndex];
+                    bindings.value = std::max(paramdata.meta.min, std::min(paramdata.meta.max, static_cast<float>(jvalue)));
+                }
+                else
+                {
+                    bindings.value = std::max(0.0, std::min(1.0, jvalue));
+                }
+            }
+            else
+            {
+                mod_log_info("jsonPresetLoad(): bindings is missing value");
+                bindings.value = 0;
+            }
+        }
+    }
+    else
+    {
+        mod_log_warn("jsonPresetLoad(): preset does not include any bindings");
+
+        for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
+        {
+            presetdata.bindings[hwid].name.clear();
+            presetdata.bindings[hwid].parameters.clear();
+            presetdata.bindings[hwid].properties.clear();
+            presetdata.bindings[hwid].value = 0;
+        }
+    }
+
+    // ----------------------------------------------------------------------------------------------------------------
+    // name
+
+    {
+        std::string name;
+
+        if (jpreset.contains("name"))
         {
             try {
-                uuid = jpreset["uuid"].get<std::string>();
-            } catch (...) {}
+                name = jpreset["name"].get<std::string>();
+            } catch (...) {
+                mod_log_warn("jsonPresetLoad(): preset contains invalid name");
+            }
         }
 
-        if (!uuid.empty())
-            presetdata.uuid = str2uuid(uuid);
-        else
-            presetdata.uuid = generateUUID();
+        presetdata.name = name;
     }
+
+    // ----------------------------------------------------------------------------------------------------------------
+    // scene
 
     if (jpreset.contains("scene"))
     {
         try {
             presetdata.scene = jpreset["scene"].get<int>();
-        } catch (...) {}
+        } catch (...) {
+            mod_log_warn("jsonPresetLoad(): preset contains invalid scene");
+        }
 
         if (presetdata.scene >= NUM_SCENES_PER_PRESET)
             presetdata.scene = 0;
@@ -3358,393 +3948,61 @@ uint8_t HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann_json& j
         presetdata.scene = 0;
     }
 
-    uint8_t numLoadedPlugins = 0;
+    // ----------------------------------------------------------------------------------------------------------------
+    // sceneNames
 
-    auto& jblocks = jpreset["blocks"];
-    for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
+    if (jpreset.contains("sceneNames"))
     {
-        if (row != 0)
+        const auto& jsceneNames = jpreset["sceneNames"];
+        std::string name;
+
+        for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
         {
-            presetdata.chains[row].capture.fill({});
-            presetdata.chains[row].playback.fill({});
-        }
+            const std::string jsceneid = std::to_string(s + 1);
 
-        presetdata.chains[row].captureId.fill(kMaxHostInstances);
-        presetdata.chains[row].playbackId.fill(kMaxHostInstances);
-
-        for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
-        {
-            Block& blockdata = presetdata.chains[row].blocks[bl];
-
-           #if NUM_BLOCK_CHAIN_ROWS == 1
-            // single row, load direct block id if available
-            std::string jblockid = std::to_string(bl + 1);
-
-            if (! jblocks.contains(jblockid))
+            if (jsceneNames.contains(jsceneid))
             {
-                // fallback: try loading multi-row file with 1st row
-                jblockid = format("1:%u", bl + 1);
-
-                if (! jblocks.contains(jblockid))
-                {
-                    resetBlock(blockdata);
-                    continue;
-                }
-            }
-           #else
-            // multiple rows, load row + block id if available
-            std::string jblockid = format("%u:%u", row + 1, bl + 1);
-
-            if (! jblocks.contains(jblockid))
-            {
-                // fallback only valid for first row
-                if (row != 0)
-                {
-                    resetBlock(blockdata);
-                    continue;
+                try {
+                    name = jsceneNames[jsceneid].get<std::string>();
+                } catch (...) {
+                    mod_log_warn("jsonPresetLoad(): preset contains invalid scene name");
+                    name.clear();
                 }
 
-                // fallback: try loading single-row file
-                jblockid = std::to_string(bl + 1);
-
-                if (! jblocks.contains(jblockid))
-                {
-                    resetBlock(blockdata);
-                    continue;
-                }
-            }
-           #endif
-
-            auto& jblock = jblocks[jblockid];
-            if (! jblock.contains("uri"))
-            {
-                mod_log_info("jsonPresetLoad(): block %u does not include uri, loading empty", bl);
-                resetBlock(blockdata);
-                continue;
-            }
-
-            const std::string uri = jblock["uri"].get<std::string>();
-
-            const Lv2Plugin* const plugin = !isNullURI(uri)
-                                            ? lv2world.getPluginByURI(uri.c_str())
-                                            : nullptr;
-
-            if (plugin == nullptr)
-            {
-                mod_log_info("jsonPresetLoad(): plugin with uri '%s' not available, using empty block", uri.c_str());
-                resetBlock(blockdata);
-                continue;
-            }
-
-            uint8_t numInputs, numOutputs, numSideInputs, numSideOutputs;
-            if (!getSupportedPluginIO(plugin, numInputs, numOutputs, numSideInputs, numSideOutputs))
-            {
-                mod_log_info("jsonPresetLoad(): plugin with uri '%s' has invalid IO, using empty block", uri.c_str());
-                resetBlock(blockdata);
-                continue;
-            }
-
-            std::unordered_map<std::string, uint8_t> paramToIndexMap, propToIndexMap;
-            initBlock(blockdata, plugin, numInputs, numOutputs, numSideInputs, numSideOutputs,
-                      &paramToIndexMap, &propToIndexMap);
-
-            if (jblock.contains("enabled"))
-                blockdata.enabled = jblock["enabled"].get<bool>();
-
-            ++numLoadedPlugins;
-
-            try {
-                const std::string quickpot = jblock["quickpot"].get<std::string>();
-
-                if (!quickpot.empty())
-                {
-                    if (const auto it = paramToIndexMap.find(quickpot); it != paramToIndexMap.end())
-                    {
-                        blockdata.quickPotSymbol = quickpot;
-                        blockdata.meta.quickPotIndex = it->second;
-                    }
-                }
-
-            } catch (...) {}
-
-            if (jblock.contains("parameters"))
-            {
-                auto& jparams = jblock["parameters"];
-                for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
-                {
-                    const std::string jparamid = std::to_string(p + 1);
-
-                    if (! jparams.contains(jparamid))
-                        continue;
-
-                    auto& jparam = jparams[jparamid];
-                    if (! (jparam.contains("symbol") && jparam.contains("value")))
-                    {
-                        mod_log_info("jsonPresetLoad(): parameter %u is missing symbol and/or value", p);
-                        continue;
-                    }
-
-                    const std::string symbol = jparam["symbol"].get<std::string>();
-
-                    if (paramToIndexMap.find(symbol) == paramToIndexMap.end())
-                    {
-                        mod_log_info("jsonPresetLoad(): parameter with '%s' symbol does not exist in plugin", symbol.c_str());
-                        continue;
-                    }
-
-                    const uint8_t paramIndex = paramToIndexMap[symbol];
-                    Parameter& paramdata = blockdata.parameters[paramIndex];
-
-                    if (isNullURI(paramdata.symbol))
-                        continue;
-                    if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual)) != 0)
-                        continue;
-
-                    paramdata.value = std::max(paramdata.meta.min,
-                                                std::min<float>(paramdata.meta.max,
-                                                                jparam["value"].get<double>()));
-                }
-            }
-
-            if (jblock.contains("properties"))
-            {
-                auto& jprops = jblock["properties"];
-                for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
-                {
-                    const std::string jpropid = std::to_string(p + 1);
-
-                    if (! jprops.contains(jpropid))
-                        continue;
-
-                    auto& jprop = jprops[jpropid];
-                    if (! (jprop.contains("uri") && jprop.contains("value")))
-                    {
-                        mod_log_info("jsonPresetLoad(): property %u is missing uri and/or value", p);
-                        continue;
-                    }
-
-                    const std::string propuri = jprop["uri"].get<std::string>();
-
-                    if (propToIndexMap.find(propuri) == propToIndexMap.end())
-                    {
-                        mod_log_info("jsonPresetLoad(): property with '%s' uri does not exist in plugin", uri.c_str());
-                        continue;
-                    }
-
-                    const uint8_t propIndex = propToIndexMap[propuri];
-                    Property& propdata = blockdata.properties[propIndex];
-
-                    if (isNullURI(propdata.uri))
-                        continue;
-                    if ((propdata.meta.flags & Lv2PropertyIsReadOnly) != 0)
-                        continue;
-
-                    propdata.value = jprop["value"].get<std::string>();
-                }
-            }
-
-            if (! jblock.contains("scenes"))
-                continue;
-
-            auto& jallscenes = jblock["scenes"];
-            for (uint8_t sid = 0; sid < NUM_SCENES_PER_PRESET; ++sid)
-            {
-                const std::string jsceneid = std::to_string(sid + 1);
-
-                if (! jallscenes.contains(jsceneid))
-                    continue;
-
-                auto& jscenes = jallscenes[jsceneid];
-                if (! jscenes.is_array())
-                {
-                    mod_log_info("jsonPresetLoad(): preset scenes are not arrays");
-                    continue;
-                }
-
-                // TODO handle properties
-                for (auto& jscene : jscenes)
-                {
-                    if (! (jscene.contains("symbol") && jscene.contains("value")))
-                    {
-                        mod_log_info("jsonPresetLoad(): scene param is missing symbol and/or value");
-                        continue;
-                    }
-
-                    const std::string symbol = jscene["symbol"].get<std::string>();
-
-                    if (symbol == ":bypass")
-                    {
-                        if (! blockdata.meta.enable.hasScenes)
-                        {
-                            blockdata.meta.enable.hasScenes = true;
-                            ++blockdata.meta.numParametersInScenes;
-                        }
-
-                        blockdata.sceneValues[sid].enabled = jscene["value"].get<bool>();
-                        continue;
-                    }
-
-                    if (paramToIndexMap.find(symbol) == paramToIndexMap.end())
-                    {
-                        mod_log_info("jsonPresetLoad(): scene param with '%s' symbol does not exist", symbol.c_str());
-                        continue;
-                    }
-
-                    const uint8_t paramIndex = paramToIndexMap[symbol];
-                    Parameter& paramdata = blockdata.parameters[paramIndex];
-
-                    if (isNullURI(paramdata.symbol))
-                        continue;
-                    if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual)) != 0)
-                        continue;
-
-                    if ((paramdata.meta.flags & Lv2ParameterInScene) == 0)
-                    {
-                        paramdata.meta.flags |= Lv2ParameterInScene;
-                        ++blockdata.meta.numParametersInScenes;
-                    }
-
-                    blockdata.sceneValues[sid].params[paramIndex] =
-                        std::max(paramdata.meta.min,
-                                 std::min<float>(paramdata.meta.max,
-                                                 jscene["value"].get<double>()));
-                }
-            }
-        }
-    }
-
-    for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
-    {
-        presetdata.bindings[hwid].params.clear();
-        presetdata.bindings[hwid].properties.clear();
-    }
-
-    if (! jpreset.contains("bindings"))
-    {
-        mod_log_info("jsonPresetLoad(): preset does not include any bindings");
-        return numLoadedPlugins;
-    }
-
-    auto& jallbindings = jpreset["bindings"];
-    for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
-    {
-       #ifdef BINDING_ACTUATOR_IDS
-        const std::string jbindingsid = kBindingActuatorIDs[hwid];
-       #else
-        const std::string jbindingsid = std::to_string(hwid + 1);
-       #endif
-
-        if (! jallbindings.contains(jbindingsid))
-        {
-            mod_log_info("jsonPresetLoad(): preset does not include bindings for hw '%s'", jbindingsid.c_str());
-            continue;
-        }
-
-        // TODO handle properties
-        auto& jbindings = jallbindings[jbindingsid];
-        if (! (jbindings.contains("params") && jbindings.contains("value")))
-        {
-            mod_log_info("jsonPresetLoad(): bindings is missing params and/or value");
-            continue;
-        }
-
-        auto& jbindingparams = jbindings["params"];
-        if (! jbindingparams.is_array())
-        {
-            mod_log_info("jsonPresetLoad(): preset binding params is not an array");
-            continue;
-        }
-
-        Bindings& bindings(presetdata.bindings[hwid]);
-
-        for (auto& jbindingparam : jbindingparams)
-        {
-            if (! (jbindingparam.contains("block") && jbindingparam.contains("symbol")))
-            {
-                mod_log_info("jsonPresetLoad(): binding is missing block and/or symbol");
-                continue;
-            }
-
-            const int block = jbindingparam["block"].get<int>();
-            if (block < 1 || block > NUM_BLOCKS_PER_PRESET)
-            {
-                mod_log_info("jsonPresetLoad(): binding has out of bounds block %d", block);
-                continue;
-            }
-            int row = 1;
-            if (jbindingparam.contains("row"))
-            {
-                row = jbindingparam["row"].get<int>();
-                if (row < 1 || row > NUM_BLOCK_CHAIN_ROWS)
-                {
-                   #if NUM_BLOCK_CHAIN_ROWS != 1
-                    mod_log_info("jsonPresetLoad(): binding has out of bounds block %d", block);
-                   #endif
-                    continue;
-                }
-            }
-
-            Block& blockdata = presetdata.chains[row - 1].blocks[block - 1];
-
-            const std::string symbol = jbindingparam["symbol"].get<std::string>();
-
-            if (symbol == ":bypass")
-            {
-                blockdata.meta.enable.hwbinding = hwid;
-
-                bindings.params.push_back({
-                    .row = static_cast<uint8_t>(row - 1),
-                    .block = static_cast<uint8_t>(block - 1),
-                    .parameterSymbol = ":bypass",
-                    .meta = {
-                        .parameterIndex = 0,
-                    },
-                });
+                presetdata.sceneNames[s] = name;
             }
             else
             {
-                for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
-                {
-                    Parameter& paramdata = blockdata.parameters[p];
+                presetdata.sceneNames[s].clear();
+            }
+        }
+    }
+    else
+    {
+        for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
+            presetdata.sceneNames[s].clear();
+    }
 
-                    if (isNullURI(paramdata.symbol))
-                        break;
-                    if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual)) != 0)
-                        continue;
+    // ----------------------------------------------------------------------------------------------------------------
+    // uuid
 
-                    if (paramdata.symbol == symbol)
-                    {
-                        paramdata.meta.hwbinding = hwid;
+    {
+        std::string uuid;
 
-                        bindings.params.push_back({
-                            .row = static_cast<uint8_t>(row - 1),
-                            .block = static_cast<uint8_t>(block - 1),
-                            .parameterSymbol = symbol,
-                            .meta = {
-                                .parameterIndex = p,
-                            },
-                        });
-                        break;
-                    }
-                }
+        if (jpreset.contains("uuid"))
+        {
+            try {
+                uuid = jpreset["uuid"].get<std::string>();
+            } catch (...) {
+                mod_log_warn("jsonPresetLoad(): preset contains invalid uuid");
             }
         }
 
-        const double jvalue = jbindings["value"].get<double>();
-        if (bindings.params.size() == 1)
-        {
-            const ParameterBinding& binding = bindings.params.front();
-            const Block& blockdata = presetdata.chains[binding.row].blocks[binding.block];
-            const Parameter& paramdata = blockdata.parameters[binding.meta.parameterIndex];
-            bindings.value = std::max(paramdata.meta.min, std::min(paramdata.meta.max, static_cast<float>(jvalue)));
-        }
+        if (!uuid.empty())
+            presetdata.uuid = str2uuid(uuid);
         else
-        {
-            bindings.value = std::max(0.0, std::min(1.0, jvalue));
-        }
+            presetdata.uuid = generateUUID();
     }
-
-    return numLoadedPlugins;
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -3756,11 +4014,14 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann_json& json
 
     jpreset = nlohmann::json::object({
         { "bindings", nlohmann::json::object({}) },
-        { "blocks", nlohmann::json::object({}) },
+        { "chains", nlohmann::json::object({}) },
         { "name", presetdata.name },
         { "scene", presetdata.scene },
         { "uuid", uuid2str(presetdata.uuid) },
     });
+
+    // ----------------------------------------------------------------------------------------------------------------
+    // background
 
     if (! presetdata.background.style.empty())
     {
@@ -3769,119 +4030,94 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann_json& json
         jbackground["style"] = presetdata.background.style;
     }
 
-    auto& jallbindings = jpreset["bindings"];
+    // ----------------------------------------------------------------------------------------------------------------
+    // bindings
 
-    for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
     {
-        const Bindings& bindings(presetdata.bindings[hwid]);
+        auto& jallbindings = jpreset["bindings"];
 
-       #ifdef BINDING_ACTUATOR_IDS
-        const std::string jbindingsid = kBindingActuatorIDs[hwid];
-       #else
-        const std::string jbindingsid = std::to_string(hwid + 1);
-       #endif
-        // TODO handle properties
-        auto& jbindings = jallbindings[jbindingsid] = nlohmann::json::object({
-            { "params", nlohmann::json::array() },
-            { "value", bindings.value },
-        });
-
-        auto& jbindingparams = jbindings["params"];
-
-        for (const ParameterBinding& bindingdata : presetdata.bindings[hwid].params)
+        for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
         {
-            jbindingparams.push_back({
-               #if NUM_BLOCK_CHAIN_ROWS != 1
-                { "row", bindingdata.row + 1 },
-               #endif
-                { "block", bindingdata.block + 1 },
-                { "symbol", bindingdata.parameterSymbol },
+            const Bindings& bindings(presetdata.bindings[hwid]);
+
+           #ifdef BINDING_ACTUATOR_IDS
+            const std::string jbindingsid = kBindingActuatorIDs[hwid];
+           #else
+            const std::string jbindingsid = std::to_string(hwid + 1);
+           #endif
+            auto& jbindings = jallbindings[jbindingsid] = nlohmann::json::object({
+                { "parameters", nlohmann::json::array() },
+                { "properties", nlohmann::json::array() },
+                { "value", bindings.value },
             });
+
+            if (! bindings.name.empty())
+                jbindings["name"] = bindings.name;
+
+            {
+                auto& jbindingparams = jbindings["parameters"];
+
+                for (const ParameterBinding& bindingdata : presetdata.bindings[hwid].parameters)
+                {
+                    jbindingparams.push_back(nlohmann::json::object({
+                        { "row", bindingdata.row + 1 },
+                        { "block", bindingdata.block + 1 },
+                        { "symbol", bindingdata.parameterSymbol },
+                    }));
+                }
+            }
+
+            {
+                auto& jbindingprops = jbindings["properties"];
+
+                for (const PropertyBinding& bindingdata : presetdata.bindings[hwid].properties)
+                {
+                    jbindingprops.push_back(nlohmann::json::object({
+                        { "row", bindingdata.row + 1 },
+                        { "block", bindingdata.block + 1 },
+                        { "uri", bindingdata.propertyURI },
+                    }));
+                }
+            }
         }
     }
 
-    auto& jblocks = jpreset["blocks"];
+    // ----------------------------------------------------------------------------------------------------------------
+    // chains
 
-    for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
     {
-        for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
+        auto& jchains = jpreset["chains"];
+
+        for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
         {
-            const Block& blockdata = presetdata.chains[row].blocks[bl];
+            const ChainRow& chaindata(presetdata.chains[row]);
 
-            if (isNullBlock(blockdata))
-                continue;
+            const std::string jrowid = std::to_string(row + 1);
+            auto& jchain = jchains[jrowid] = nlohmann::json::object({
+                { "blocks", nlohmann::json::object({}) },
+            });
 
-           #if NUM_BLOCK_CHAIN_ROWS == 1
-            const std::string jblockid = std::to_string(bl + 1);
-           #else
-            const std::string jblockid = format("%u:%u", row + 1, bl + 1);
-           #endif
+            auto& jblocks = jchain["blocks"];
 
-            auto& jblock = jblocks[jblockid] = {
-                { "enabled", blockdata.enabled },
-                { "parameters", nlohmann::json::object({}) },
-                { "properties", nlohmann::json::object({}) },
-                { "quickpot", blockdata.quickPotSymbol },
-                { "scenes", nlohmann::json::object({}) },
-                { "uri", blockdata.uri },
-            };
-
+            for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
             {
-                auto& jparams = jblock["parameters"];
+                const Block& blockdata = chaindata.blocks[bl];
 
-                for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                if (isNullBlock(blockdata))
+                    continue;
+
+                const std::string jblockid = std::to_string(bl + 1);
+                auto& jblock = jblocks[jblockid] = nlohmann::json::object({
+                    { "enabled", blockdata.enabled },
+                    { "parameters", nlohmann::json::object({}) },
+                    { "properties", nlohmann::json::object({}) },
+                    { "quickpot", blockdata.quickPotSymbol },
+                    { "scenes", nlohmann::json::object({}) },
+                    { "uri", blockdata.uri },
+                });
+
                 {
-                    const Parameter& paramdata = blockdata.parameters[p];
-
-                    if (isNullURI(paramdata.symbol))
-                        break;
-                    if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual)) != 0)
-                        continue;
-
-                    const std::string jparamid = std::to_string(p + 1);
-                    jparams[jparamid] = {
-                        { "symbol", paramdata.symbol },
-                        { "value", paramdata.value },
-                    };
-                }
-            }
-
-            {
-                auto& jprops = jblock["properties"];
-
-                for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
-                {
-                    const Property& propdata = blockdata.properties[p];
-
-                    if (isNullURI(propdata.uri))
-                        break;
-                    if ((propdata.meta.flags & Lv2PropertyIsReadOnly) != 0)
-                        continue;
-
-                    const std::string jpropid = std::to_string(p + 1);
-                    jprops[jpropid] = {
-                        { "uri", propdata.uri },
-                        { "value", propdata.value },
-                    };
-                }
-            }
-
-            if (blockdata.meta.numParametersInScenes != 0)
-            {
-                auto& jallscenes = jblock["scenes"];
-
-                for (uint8_t sid = 0; sid < NUM_SCENES_PER_PRESET; ++sid)
-                {
-                    const std::string jsceneid = std::to_string(sid + 1);
-                    auto& jscenes = jallscenes[jsceneid] = nlohmann::json::array();
-
-                    if (blockdata.meta.enable.hasScenes)
-                    {
-                        jscenes.push_back({
-                            { "symbol", ":bypass" },
-                            { "value", blockdata.sceneValues[sid].enabled },
-                        });
-                    }
+                    auto& jparams = jblock["parameters"];
 
                     for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
                     {
@@ -3889,22 +4125,102 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann_json& json
 
                         if (isNullURI(paramdata.symbol))
                             break;
-                        if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual|Lv2ParameterInScene)) != Lv2ParameterInScene)
+                        if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterHidden|Lv2ParameterVirtual)) != 0)
                             continue;
 
-                        jscenes.push_back({
-                            { "symbol", blockdata.parameters[p].symbol },
-                            { "value", blockdata.sceneValues[sid].params[p] },
+                        const std::string jparamid = std::to_string(p + 1);
+                        jparams[jparamid] = nlohmann::json::object({
+                            { "symbol", paramdata.symbol },
+                            { "value", paramdata.value },
                         });
                     }
                 }
-            }
 
-            if (blockdata.meta.numPropertiesInScenes != 0)
-            {
-                // TODO
+                {
+                    auto& jprops = jblock["properties"];
+
+                    for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                    {
+                        const Property& propdata = blockdata.properties[p];
+
+                        if (isNullURI(propdata.uri))
+                            break;
+                        if ((propdata.meta.flags & (Lv2PropertyIsReadOnly|Lv2ParameterHidden)) != 0)
+                            continue;
+
+                        const std::string jpropid = std::to_string(p + 1);
+                        jprops[jpropid] = nlohmann::json::object({
+                            { "uri", propdata.uri },
+                            { "value", propdata.value },
+                        });
+                    }
+                }
+
+                if (blockdata.meta.numParametersInScenes + blockdata.meta.numPropertiesInScenes != 0)
+                {
+                    auto& jallscenes = jblock["scenes"];
+
+                    for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
+                    {
+                        const std::string jsceneid = std::to_string(s + 1);
+                        auto& jscenes = jallscenes[jsceneid] = nlohmann::json::object({
+                            { "parameters", nlohmann::json::array() },
+                            { "properties", nlohmann::json::array() },
+                        });
+
+                        if (blockdata.meta.enable.hasScenes)
+                            jscenes["enabled"] = blockdata.sceneValues[s].enabled;
+
+                        for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                        {
+                            const Parameter& paramdata = blockdata.parameters[p];
+
+                            if (isNullURI(paramdata.symbol))
+                                break;
+                            if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterHidden|Lv2ParameterVirtual|Lv2ParameterInScene)) != Lv2ParameterInScene)
+                                continue;
+
+                            jscenes.push_back({
+                                { "symbol", paramdata.symbol },
+                                { "value", blockdata.sceneValues[s].parameters[p] },
+                            });
+                        }
+
+                        for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                        {
+                            const Property& propdata = blockdata.properties[p];
+
+                            if (isNullURI(propdata.uri))
+                                break;
+                            if ((propdata.meta.flags & (Lv2PropertyIsReadOnly|Lv2ParameterHidden|Lv2ParameterInScene)) != Lv2ParameterInScene)
+                                continue;
+
+                            jscenes.push_back({
+                                { "uri", propdata.uri },
+                                { "value", blockdata.sceneValues[s].properties[p] },
+                            });
+                        }
+                    }
+                }
             }
         }
+    }
+
+    // ----------------------------------------------------------------------------------------------------------------
+    // sceneNames
+
+    for (const std::string& sceneName : presetdata.sceneNames)
+    {
+        if (sceneName.empty())
+            continue;
+
+        auto& jsceneNames = jpreset["sceneNames"] = nlohmann::json::object({});
+        for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
+        {
+            const std::string jsceneid = std::to_string(s + 1);
+            jsceneNames[jsceneid] = presetdata.sceneNames[s];
+        }
+        break;
     }
 }
 
@@ -4677,10 +4993,10 @@ void HostConnector::resetPreset(Preset& preset)
 
     for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
     {
-        preset.bindings[hwid].value = 0.f;
         preset.bindings[hwid].name.clear();
-        preset.bindings[hwid].params.clear();
+        preset.bindings[hwid].parameters.clear();
         preset.bindings[hwid].properties.clear();
+        preset.bindings[hwid].value = 0.0;
     }
 
     for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)

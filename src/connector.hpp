@@ -133,7 +133,7 @@ struct HostConnector : Host::FeedbackCallback {
 
     struct SceneValues {
         bool enabled;
-        std::vector<float> params;
+        std::vector<float> parameters;
         std::vector<std::string> properties;
     };
 
@@ -184,7 +184,7 @@ struct HostConnector : Host::FeedbackCallback {
 
     struct Bindings {
         std::string name;
-        std::list<ParameterBinding> params;
+        std::list<ParameterBinding> parameters;
         std::list<PropertyBinding> properties;
         double value; // NOTE normalized 0-1 if multiple, matching value if single
     };
@@ -639,7 +639,7 @@ private:
 
     // loads preset data, does not trigger host commands
     template<class nlohmann_json>
-    uint8_t jsonPresetLoad(Preset& presetdata, const nlohmann_json& json) const;
+    void jsonPresetLoad(Preset& presetdata, const nlohmann_json& json) const;
 
     // saves preset data, also no host commands
     template<class nlohmann_json>
