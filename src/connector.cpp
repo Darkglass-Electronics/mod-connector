@@ -4266,6 +4266,7 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann_json& json
                         const std::string jparamid = std::to_string(p + 1);
                         jparams[jparamid] = nlohmann::json::object({
                             { "symbol", paramdata.symbol },
+                            { "name", paramdata.meta.name },
                             { "value", paramdata.value },
                         });
                     }
@@ -4286,6 +4287,7 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann_json& json
                         const std::string jpropid = std::to_string(p + 1);
                         jprops[jpropid] = nlohmann::json::object({
                             { "uri", propdata.uri },
+                            { "name", propdata.meta.name },
                             { "value", propdata.value },
                         });
                     }
