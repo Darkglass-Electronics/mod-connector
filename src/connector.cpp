@@ -899,6 +899,75 @@ bool HostConnector::saveCurrentPresetToFile(const char* const filename)
 
 // --------------------------------------------------------------------------------------------------------------------
 
+bool HostConnector::reorderPresets(const uint8_t orig, const uint8_t dest)
+{
+    mod_log_debug("reorderPresets(%u, %u)", orig, dest);
+    assert(orig < NUM_PRESETS_PER_BANK);
+    assert(dest < NUM_PRESETS_PER_BANK);
+
+    if (orig == dest)
+    {
+        mod_log_warn("reorderPresets(%u, %u) - orig == dest, rejected", orig, dest);
+        return false;
+    }
+
+    // moving preset backwards to the left
+    // a b c!
+    // a c! b
+    // c! a b
+    if (orig > dest)
+    {
+        for (int i = orig; i > dest; --i)
+        {
+            std::swap(_presets[i], _presets[i - 1]);
+            _mapper.swapPresets(i, i - 1);
+
+            // swap filenames again for keeping the originals
+            std::swap(_presets[i].filename, _presets[i - 1].filename);
+        }
+    }
+
+    // moving preset forward to the right
+    // a! b c
+    // b !a c
+    // b c a!
+    else
+    {
+        for (int i = orig; i < dest; ++i)
+        {
+            std::swap(_presets[i], _presets[i + 1]);
+            _mapper.swapPresets(i, i + 1);
+
+            // swap filenames again for keeping the originals
+            std::swap(_presets[i].filename, _presets[i + 1].filename);
+        }
+    }
+
+    // current preset matches orig, moving it to dest
+    if (_current.preset == orig)
+        _current.preset = dest;
+
+    // current preset matches dest, moving it by +1 or -1 accordingly
+    else if (_current.preset == dest)
+        _current.preset += orig > dest ? 1 : -1;
+
+    // current preset > dest, moving +1
+    else if (_current.preset > dest)
+        ++_current.preset;
+
+    // current preset < dest, moving -1
+    else
+        --_current.preset;
+
+    assert(_current.preset < NUM_PRESETS_PER_BANK);
+    assert(_current.preset < NUM_PRESETS_PER_BANK);
+
+    _current.filename = _presets[_current.preset].filename;
+    return true;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 bool HostConnector::swapPresets(const uint8_t presetA, const uint8_t presetB)
 {
     mod_log_debug("swapPresets(%u, %u)", presetA, presetB);
@@ -910,7 +979,7 @@ bool HostConnector::swapPresets(const uint8_t presetA, const uint8_t presetB)
     std::swap(_presets[presetA], _presets[presetB]);
     _mapper.swapPresets(presetA, presetB);
 
-    // swap filenames again so the keep the originals
+    // swap filenames again for keeping the originals
     std::swap(_presets[presetA].filename, _presets[presetB].filename);
 
     // adjust data for current preset, if matching
@@ -1206,6 +1275,9 @@ bool HostConnector::reorderBlock(const uint8_t row, const uint8_t orig, const ui
         // block < dest, moving -1
         else
             --bindingdata.block;
+
+        assert(bindingdata.block < NUM_BLOCKS_PER_PRESET);
+        assert(bindingdata.block < NUM_BLOCKS_PER_PRESET);
     };
 
     for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)

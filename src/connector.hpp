@@ -363,6 +363,9 @@ public:
     // save current preset to a file
     bool saveCurrentPresetToFile(const char* filename);
 
+    // reorder a preset into a new position
+    bool reorderPresets(uint8_t orig, uint8_t dest);
+
     // swap 2 presets within the current bank
     bool swapPresets(uint8_t presetA, uint8_t presetB);
 
@@ -407,7 +410,7 @@ public:
     // returning false means the block was unchanged
     bool enableBlock(uint8_t row, uint8_t block, bool enable, SceneMode sceneMode);
 
-    // reorder a block into aconst  new position
+    // reorder a block into a new position
     // returning false means the current chain was unchanged
     bool reorderBlock(uint8_t row, uint8_t orig, uint8_t dest);
 
