@@ -1677,7 +1677,7 @@ bool HostConnector::saveBlockStateAsDefault(const uint8_t row, const uint8_t blo
 
 // --------------------------------------------------------------------------------------------------------------------
 
-// #if NUM_BLOCK_CHAIN_ROWS != 1
+#if NUM_BLOCK_CHAIN_ROWS != 1
 
 bool HostConnector::swapBlockRow(const uint8_t row,
                                  const uint8_t block,
@@ -1785,7 +1785,7 @@ bool HostConnector::swapBlockRow(const uint8_t row,
     return true;
 }
 
-// #endif // NUM_BLOCK_CHAIN_ROWS != 1
+#endif // NUM_BLOCK_CHAIN_ROWS != 1
 
 // --------------------------------------------------------------------------------------------------------------------
 
