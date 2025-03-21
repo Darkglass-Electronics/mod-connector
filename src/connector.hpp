@@ -363,11 +363,11 @@ public:
     // save current preset to a file
     bool saveCurrentPresetToFile(const char* filename);
 
-    // reorder a preset into a new position
+    // reorder/move a preset into a new position (within the current bank)
     bool reorderPresets(uint8_t orig, uint8_t dest);
 
     // swap 2 presets within the current bank
-    bool swapPresets(uint8_t presetA, uint8_t presetB);
+    void swapPresets(uint8_t presetA, uint8_t presetB);
 
     // save current preset
     // a preset must have been loaded or saved to a file before, so that `current.filename` is valid
@@ -410,7 +410,7 @@ public:
     // returning false means the block was unchanged
     bool enableBlock(uint8_t row, uint8_t block, bool enable, SceneMode sceneMode);
 
-    // reorder a block into a new position
+    // reorder/move a block into a new position
     // returning false means the current chain was unchanged
     bool reorderBlock(uint8_t row, uint8_t orig, uint8_t dest);
 
@@ -424,7 +424,7 @@ public:
     bool saveBlockStateAsDefault(uint8_t row, uint8_t block);
 
     // convenience calls for single-chain builds
-   // #if NUM_BLOCK_CHAIN_ROWS == 1
+   #if NUM_BLOCK_CHAIN_ROWS == 1
     inline bool enableBlock(const uint8_t block, const bool enable, const SceneMode sceneMode)
     {
         return enableBlock(0, block, enable, sceneMode);
@@ -439,14 +439,20 @@ public:
     {
         return replaceBlock(0, block, uri);
     }
-   // #else
+   #else
     // move a block into a new row, by swapping position with an empty block
     // returning false means the current chain was unchanged
     bool swapBlockRow(uint8_t row, uint8_t block, uint8_t emptyRow, uint8_t emptyBlock);
-   // #endif
+   #endif
 
     // ----------------------------------------------------------------------------------------------------------------
     // scene handling
+
+    // reorder/move a scene into a new position (within the current preset)
+    bool reorderScenes(uint8_t orig, uint8_t dest);
+
+    // swap 2 scenes within the current preset
+    void swapScenes(uint8_t sceneA, uint8_t sceneB);
 
     // switch to another scene within the current preset
     // returning false means the current chain was unchanged

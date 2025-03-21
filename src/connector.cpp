@@ -968,7 +968,7 @@ bool HostConnector::reorderPresets(const uint8_t orig, const uint8_t dest)
 
 // --------------------------------------------------------------------------------------------------------------------
 
-bool HostConnector::swapPresets(const uint8_t presetA, const uint8_t presetB)
+void HostConnector::swapPresets(const uint8_t presetA, const uint8_t presetB)
 {
     mod_log_debug("swapPresets(%u, %u)", presetA, presetB);
     assert(presetA < NUM_PRESETS_PER_BANK);
@@ -993,8 +993,6 @@ bool HostConnector::swapPresets(const uint8_t presetA, const uint8_t presetB)
         _current.preset = presetA;
         _current.filename = _presets[presetA].filename;
     }
-
-    return true;
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -1837,6 +1835,113 @@ void HostConnector::renamePreset(const uint8_t preset, const char* const name)
 
 // --------------------------------------------------------------------------------------------------------------------
 
+bool HostConnector::reorderScenes(const uint8_t orig, const uint8_t dest)
+{
+    mod_log_debug("reorderScenes(%u, %u)", orig, dest);
+    assert(orig < NUM_SCENES_PER_PRESET);
+    assert(dest < NUM_SCENES_PER_PRESET);
+
+    if (orig == dest)
+    {
+        mod_log_warn("reorderScenes(%u, %u) - orig == dest, rejected", orig, dest);
+        return false;
+    }
+
+    const auto swapScenes = [=](const uint8_t sceneA, const uint8_t sceneB)
+    {
+        for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
+        {
+            for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
+            {
+                Block& blockdata(_current.chains[row].blocks[bl]);
+                if (isNullBlock(blockdata))
+                    continue;
+                if (blockdata.meta.numParametersInScenes + blockdata.meta.numPropertiesInScenes == 0)
+                    continue;
+
+                std::swap(blockdata.sceneValues[sceneA], blockdata.sceneValues[sceneB]);
+            }
+        }
+
+        std::swap(_current.sceneNames[sceneA], _current.sceneNames[sceneB]);
+    };
+
+    // moving preset backwards to the left
+    // a b c!
+    // a c! b
+    // c! a b
+    if (orig > dest)
+    {
+        for (int i = orig; i > dest; --i)
+            swapScenes(i, i - 1);
+    }
+
+    // moving preset forward to the right
+    // a! b c
+    // b !a c
+    // b c a!
+    else
+    {
+        for (int i = orig; i < dest; ++i)
+            swapScenes(i, i + 1);
+    }
+
+    // current scene matches orig, moving it to dest
+    if (_current.scene == orig)
+        _current.scene = dest;
+
+    // current scene matches dest, moving it by +1 or -1 accordingly
+    else if (_current.scene == dest)
+        _current.scene += orig > dest ? 1 : -1;
+
+    // current scene > dest, moving +1
+    else if (_current.scene > dest)
+        ++_current.scene;
+
+    // current scene < dest, moving -1
+    else
+        --_current.scene;
+
+    assert(_current.scene < NUM_SCENES_PER_PRESET);
+    assert(_current.scene < NUM_SCENES_PER_PRESET);
+
+    return true;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::swapScenes(const uint8_t sceneA, const uint8_t sceneB)
+{
+    mod_log_debug("swapScenes(%u, %u)", sceneA, sceneB);
+    assert(sceneA < NUM_SCENES_PER_PRESET);
+    assert(sceneB < NUM_SCENES_PER_PRESET);
+    assert(sceneA != sceneB);
+
+    for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
+    {
+        for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
+        {
+            Block& blockdata(_current.chains[row].blocks[bl]);
+            if (isNullBlock(blockdata))
+                continue;
+            if (blockdata.meta.numParametersInScenes + blockdata.meta.numPropertiesInScenes == 0)
+                continue;
+
+            std::swap(blockdata.sceneValues[sceneA], blockdata.sceneValues[sceneB]);
+        }
+    }
+
+    std::swap(_current.sceneNames[sceneA], _current.sceneNames[sceneB]);
+
+    // adjust data for current scene, if matching
+    if (_current.scene == sceneA)
+        _current.scene = sceneB;
+    else if (_current.scene == sceneB)
+        _current.scene = sceneA;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 bool HostConnector::switchScene(const uint8_t scene)
 {
     mod_log_debug("switchScene(%u)", scene);
@@ -1860,7 +1965,7 @@ bool HostConnector::switchScene(const uint8_t scene)
             Block& blockdata(_current.chains[row].blocks[bl]);
             if (isNullBlock(blockdata))
                 continue;
-            if (blockdata.meta.numParametersInScenes == 0 && blockdata.meta.numPropertiesInScenes == 0)
+            if (blockdata.meta.numParametersInScenes + blockdata.meta.numPropertiesInScenes == 0)
                 continue;
 
             const HostBlockPair hbp = _mapper.get(_current.preset, row, bl);
