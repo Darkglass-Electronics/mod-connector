@@ -3467,7 +3467,7 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann_json& json
                         const std::string jparamid = std::to_string(p + 1);
 
                         if (! jparams.contains(jparamid))
-                            continue;
+                            break;
 
                         auto& jparam = jparams[jparamid];
                         if (! (jparam.contains("symbol") && jparam.contains("value")))
@@ -3509,7 +3509,7 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann_json& json
                         const std::string jpropid = std::to_string(p + 1);
 
                         if (! jprops.contains(jpropid))
-                            continue;
+                            break;
 
                         auto& jprop = jprops[jpropid];
                         if (! (jprop.contains("uri") && jprop.contains("value")))
@@ -4254,7 +4254,7 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann_json& json
                 {
                     auto& jparams = jblock["parameters"];
 
-                    for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                    for (uint8_t p = 0, jp = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
                     {
                         const Parameter& paramdata = blockdata.parameters[p];
 
@@ -4263,7 +4263,7 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann_json& json
                         if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterHidden|Lv2ParameterVirtual)) != 0)
                             continue;
 
-                        const std::string jparamid = std::to_string(p + 1);
+                        const std::string jparamid = std::to_string(++jp);
                         jparams[jparamid] = nlohmann::json::object({
                             { "symbol", paramdata.symbol },
                             { "name", paramdata.meta.name },
@@ -4275,7 +4275,7 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann_json& json
                 {
                     auto& jprops = jblock["properties"];
 
-                    for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                    for (uint8_t p = 0, jp = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
                     {
                         const Property& propdata = blockdata.properties[p];
 
@@ -4284,7 +4284,7 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann_json& json
                         if ((propdata.meta.flags & (Lv2PropertyIsReadOnly|Lv2ParameterHidden)) != 0)
                             continue;
 
-                        const std::string jpropid = std::to_string(p + 1);
+                        const std::string jpropid = std::to_string(++jp);
                         jprops[jpropid] = nlohmann::json::object({
                             { "uri", propdata.uri },
                             { "name", propdata.meta.name },
