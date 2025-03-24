@@ -1983,7 +1983,7 @@ bool HostConnector::switchScene(const uint8_t scene)
                 _host.bypass(hbp.id, true);
 
                 if (hbp.pair != kMaxHostInstances)
-                    _host.bypass(hbp.id, true);
+                    _host.bypass(hbp.pair, true);
             }
 
             for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
@@ -2027,7 +2027,7 @@ bool HostConnector::switchScene(const uint8_t scene)
                 _host.bypass(hbp.id, false);
 
                 if (hbp.pair != kMaxHostInstances)
-                    _host.bypass(hbp.id, false);
+                    _host.bypass(hbp.pair, false);
             }
         }
     }
