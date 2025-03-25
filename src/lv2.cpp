@@ -45,10 +45,13 @@
 #define LV2_CORE__shortName LV2_CORE_PREFIX "shortName"
 #endif
 
-#define LILV_NS_DARKGLASS "http://www.darkglass.com/lv2/ns"
-#define DARKGLASS__abbreviation    LILV_NS_DARKGLASS "#abbreviation"
-#define DARKGLASS__oneDecimalPoint LILV_NS_DARKGLASS "#oneDecimalPoint"
-#define DARKGLASS__notOnGUIsavedToPreset LILV_NS_DARKGLASS "#notOnGUIsavedToPreset"
+#define LV2_DARKGLASS_PROPERTIES_URI    "http://www.darkglass.com/lv2/ns"
+#define LV2_DARKGLASS_PROPERTIES_PREFIX LV2_DARKGLASS_PROPERTIES_URI "#"
+
+#define LV2_DARKGLASS_PROPERTIES__abbreviation          LV2_DARKGLASS_PROPERTIES_PREFIX "abbreviation"
+#define LV2_DARKGLASS_PROPERTIES__notOnGUIsavedToPreset LV2_DARKGLASS_PROPERTIES_PREFIX "#notOnGUIsavedToPreset"
+#define LV2_DARKGLASS_PROPERTIES__oneDecimalPoint       LV2_DARKGLASS_PROPERTIES_PREFIX "oneDecimalPoint"
+#define LV2_DARKGLASS_PROPERTIES__quickPot              LV2_DARKGLASS_PROPERTIES_PREFIX "quickPot"
 
 #define LILV_NS_KXSTUDIO "http://kxstudio.sf.net/ns/lv2ext/props"
 #define KXSTUDIO__Reset LILV_NS_KXSTUDIO "#Reset"
@@ -90,7 +93,7 @@ struct Lv2NamespaceDefinitions {
     LilvNode* const units_unit;
 
     Lv2NamespaceDefinitions(LilvWorld* const world)
-        : dargkglass_abbreviation(lilv_new_uri(world, DARKGLASS__abbreviation)),
+        : dargkglass_abbreviation(lilv_new_uri(world, LV2_DARKGLASS_PROPERTIES__abbreviation)),
           lv2core_default(lilv_new_uri(world, LV2_CORE__default)),
           lv2core_designation(lilv_new_uri(world, LV2_CORE__designation)),
           lv2core_minimum(lilv_new_uri(world, LV2_CORE__minimum)),
@@ -470,7 +473,7 @@ struct Lv2World::Impl
                                     retport.flags |= Lv2ParameterLogarithmic;
                                 else if (std::strcmp(propuri, LV2_PORT_PROPS__notOnGUI) == 0)
                                     retport.flags |= Lv2ParameterHidden;
-                                else if (std::strcmp(propuri, DARKGLASS__notOnGUIsavedToPreset) == 0)
+                                else if (std::strcmp(propuri, LV2_DARKGLASS_PROPERTIES__notOnGUIsavedToPreset) == 0)
                                     retport.flags |= Lv2ParameterNotGUIButPreset;
                             }
 
@@ -485,10 +488,10 @@ struct Lv2World::Impl
                                 retport.designation = kLv2DesignationEnabled;
                             else if (std::strcmp(designation, LV2_TIME__beatsPerMinute) == 0)
                                 retport.designation = kLv2DesignationBPM;
+                            else if (std::strcmp(designation, LV2_DARKGLASS_PROPERTIES__quickPot) == 0)
+                                retport.designation = kLv2DesignationQuickPot;
                             else if (std::strcmp(designation, KXSTUDIO__Reset) == 0)
                                 retport.designation = kLv2DesignationReset;
-
-                            // TODO define quick pot URI and spec
 
                             lilv_nodes_free(xdesignation);
                         }
@@ -585,7 +588,7 @@ struct Lv2World::Impl
                                     else if (std::strcmp(uuri, "semitone12TET") == 0)
                                         retport.unit = "semi";
                                 }
-                                else if (std::strcmp(uuri, DARKGLASS__oneDecimalPoint) == 0)
+                                else if (std::strcmp(uuri, LV2_DARKGLASS_PROPERTIES__oneDecimalPoint) == 0)
                                 {
                                     retport.unit = "1dPt";
                                 }
