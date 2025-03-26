@@ -1970,6 +1970,7 @@ bool HostConnector::switchScene(const uint8_t scene)
     params.reserve(MAX_PARAMS_PER_BLOCK);
 
     _current.scene = scene;
+    _current.dirty = true;
 
     const Host::NonBlockingScope hnbs(_host);
 
