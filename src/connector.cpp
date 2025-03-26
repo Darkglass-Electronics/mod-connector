@@ -1393,6 +1393,21 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
                 return false;
             }
         }
+
+        if (row + 1 < NUM_BLOCK_CHAIN_ROWS)
+        {
+            ChainRow& chaindata2(_current.chains[row + 1]);
+
+            for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
+            {
+                if (isNullBlock(chaindata2.blocks[bl]))
+                    continue;
+
+                mod_log_warn("replaceBlock(%u, %u, \"%s\"): cannot remove block, there is a block on the next chain",
+                             row, block, uri);
+                return false;
+            }
+        }
     }
 
     // store for later use after we change change blockdata
