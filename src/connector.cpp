@@ -4573,6 +4573,13 @@ void HostConnector::hostLoadPreset(const uint8_t preset)
 
     const bool active = _current.preset == preset;
 
+    // for active preset, before making connections below, 
+    // disconnect possible endpoint direct connection left from previous empty preset
+    if (active) 
+    {
+        hostDisconnectChainEndpoints(0);
+    }
+
     for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
     {
         const ChainRow& chaindata(active ? _current.chains[row] : _presets[preset].chains[row]);
