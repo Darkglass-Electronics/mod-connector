@@ -4575,7 +4575,7 @@ void HostConnector::hostLoadPreset(const uint8_t preset)
 
     // for active preset, before making connections below, 
     // disconnect possible endpoint direct connection left from previous empty preset
-    if (active) 
+    if (active && _current.numLoadedPlugins == 0) 
     {
         hostDisconnectChainEndpoints(0);
     }
