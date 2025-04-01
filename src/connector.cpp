@@ -1340,6 +1340,8 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
                 }
             }
 
+            _current.dirty = true;
+
             const Host::NonBlockingScopeWithAudioFades hnbs(_host);
 
             if (!blockdata.enabled)
