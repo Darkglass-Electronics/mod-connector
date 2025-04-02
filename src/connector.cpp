@@ -2231,13 +2231,48 @@ bool HostConnector::addBlockPropertyBinding(const uint8_t hwid,
 
 // --------------------------------------------------------------------------------------------------------------------
 
-bool HostConnector::removeBindings(uint8_t hwid)
+bool HostConnector::removeBindings(const uint8_t hwid)
 {
     mod_log_debug("removeBindings(%u)", hwid);
     assert(hwid < NUM_BINDING_ACTUATORS);
 
     if (_current.bindings[hwid].parameters.empty() && _current.bindings[hwid].properties.empty())
         return false;
+
+    for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
+    {
+        ChainRow& chaindata(_current.chains[row]);
+
+        for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
+        {
+            Block& blockdata(chaindata.blocks[bl]);
+            if (isNullBlock(blockdata))
+                continue;
+
+            if (blockdata.meta.enable.hwbinding == hwid)
+                blockdata.meta.enable.hwbinding = UINT8_MAX;
+
+            for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+            {
+                Parameter& paramdata(blockdata.parameters[p]);
+                if (isNullURI(paramdata.symbol))
+                    break;
+
+                if (paramdata.meta.hwbinding == hwid)
+                    paramdata.meta.hwbinding = UINT8_MAX;
+            }
+
+            for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+            {
+                Property& propdata(blockdata.properties[p]);
+                if (isNullURI(propdata.uri))
+                    break;
+
+                if (propdata.meta.hwbinding == hwid)
+                    propdata.meta.hwbinding = UINT8_MAX;
+            }
+        }
+    }
 
     _current.bindings[hwid].parameters.clear();
     _current.bindings[hwid].properties.clear();
