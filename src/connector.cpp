@@ -70,6 +70,31 @@ static std::string getDefaultPluginBundleForBlock(const HostBlock& blockdata)
    #endif
 }
 
+static std::string getNextMacroBindingName(const HostConnector::Current& current)
+{
+    std::string test;
+
+    for (uint8_t i = 0; i < NUM_BINDING_ACTUATORS; ++i)
+    {
+        test = format("Macro %d", i + 1);
+
+        bool usable = true;
+        for (uint8_t j = 0; j < NUM_BINDING_ACTUATORS; ++j)
+        {
+            if (current.bindings[j].name == test)
+            {
+                usable = false;
+                break;
+            }
+        }
+
+        if (usable)
+            return test;
+    }
+
+    return "Macro";
+}
+
 // --------------------------------------------------------------------------------------------------------------------
 
 static std::array<unsigned char, UUID_SIZE> generateUUID()
@@ -2084,12 +2109,17 @@ bool HostConnector::addBlockBinding(const uint8_t hwid, const uint8_t row, const
 
     blockdata.meta.enable.hwbinding = hwid;
 
-    if (_current.bindings[hwid].parameters.empty())
+    const size_t numBindings = _current.bindings[hwid].parameters.size();
+    if (numBindings == 0)
     {
         _current.bindings[hwid].value = blockdata.enabled ? 1.f : 0.f;
 
         if (_current.bindings[hwid].properties.empty())
             _current.bindings[hwid].name = blockdata.meta.name;
+    }
+    else if (numBindings + _current.bindings[hwid].properties.size() == 1)
+    {
+        _current.bindings[hwid].name = getNextMacroBindingName(_current);
     }
 
     _current.bindings[hwid].parameters.push_back({ row, block, ":bypass", { 0 } });
@@ -2120,12 +2150,17 @@ bool HostConnector::addBlockParameterBinding(const uint8_t hwid,
 
     paramdata.meta.hwbinding = hwid;
 
-    if (_current.bindings[hwid].parameters.empty())
+    const size_t numBindings = _current.bindings[hwid].parameters.size();
+    if (numBindings == 0)
     {
         _current.bindings[hwid].value = paramdata.value;
 
         if (_current.bindings[hwid].properties.empty())
             _current.bindings[hwid].name = paramdata.meta.name;
+    }
+    else if (numBindings + _current.bindings[hwid].properties.size() == 1)
+    {
+        _current.bindings[hwid].name = getNextMacroBindingName(_current);
     }
 
     _current.bindings[hwid].parameters.push_back({ row, block, paramdata.symbol, { paramIndex } });
@@ -2156,7 +2191,8 @@ bool HostConnector::addBlockPropertyBinding(const uint8_t hwid,
 
     propdata.meta.hwbinding = hwid;
 
-    if (_current.bindings[hwid].properties.empty())
+    const size_t numBindings = _current.bindings[hwid].properties.size();
+    if (numBindings == 0)
     {
         // TODO
         /*
@@ -2179,6 +2215,10 @@ bool HostConnector::addBlockPropertyBinding(const uint8_t hwid,
 
         if (_current.bindings[hwid].parameters.empty())
             _current.bindings[hwid].name = propdata.meta.name;
+    }
+    else if (numBindings + _current.bindings[hwid].parameters.size() == 1)
+    {
+        _current.bindings[hwid].name = getNextMacroBindingName(_current);
     }
 
     _current.bindings[hwid].properties.push_back({ row, block, propdata.uri, { propIndex } });
