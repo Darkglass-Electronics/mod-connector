@@ -2120,6 +2120,7 @@ bool HostConnector::addBlockBinding(const uint8_t hwid, const uint8_t row, const
     else if (numBindings + _current.bindings[hwid].properties.size() == 1)
     {
         _current.bindings[hwid].name = getNextMacroBindingName(_current);
+        _current.bindings[hwid].value = blockdata.enabled ? 1.f : 0.f;
     }
 
     _current.bindings[hwid].parameters.push_back({ row, block, ":bypass", { 0 } });
@@ -2161,6 +2162,7 @@ bool HostConnector::addBlockParameterBinding(const uint8_t hwid,
     else if (numBindings + _current.bindings[hwid].properties.size() == 1)
     {
         _current.bindings[hwid].name = getNextMacroBindingName(_current);
+        _current.bindings[hwid].value = normalized(paramdata.meta, paramdata.value);
     }
 
     _current.bindings[hwid].parameters.push_back({ row, block, paramdata.symbol, { paramIndex } });
@@ -2219,6 +2221,7 @@ bool HostConnector::addBlockPropertyBinding(const uint8_t hwid,
     else if (numBindings + _current.bindings[hwid].parameters.size() == 1)
     {
         _current.bindings[hwid].name = getNextMacroBindingName(_current);
+        _current.bindings[hwid].value = 0.0; // TODO
     }
 
     _current.bindings[hwid].properties.push_back({ row, block, propdata.uri, { propIndex } });
