@@ -2228,6 +2228,23 @@ bool HostConnector::addBlockPropertyBinding(const uint8_t hwid,
 
 // --------------------------------------------------------------------------------------------------------------------
 
+bool HostConnector::removeBindings(uint8_t hwid)
+{
+    mod_log_debug("removeBindings(%u)", hwid);
+    assert(hwid < NUM_BINDING_ACTUATORS);
+
+    if (_current.bindings[hwid].parameters.empty() && _current.bindings[hwid].properties.empty())
+        return false;
+
+    _current.bindings[hwid].parameters.clear();
+    _current.bindings[hwid].properties.clear();
+    _current.bindings[hwid].name.clear();
+    _current.dirty = true;
+    return true;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 bool HostConnector::removeBlockBinding(const uint8_t hwid, const uint8_t row, const uint8_t block)
 {
     mod_log_debug("removeBlockBinding(%u, %u, %u)", hwid, row, block);

@@ -479,6 +479,9 @@ public:
     // add a block property binding
     bool addBlockPropertyBinding(uint8_t hwid, uint8_t row, uint8_t block, uint8_t propIndex);
 
+    // remove all binds for a specific actuator
+    bool removeBindings(uint8_t hwid);
+
     // remove a block binding (for enable/disable control)
     bool removeBlockBinding(uint8_t hwid, uint8_t row, uint8_t block);
 
