@@ -5254,6 +5254,7 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
             .value = port.def,
             .meta = {
                 .flags = port.flags,
+                .designation = port.designation,
                 .hwbinding = UINT8_MAX,
                 .def = port.def,
                 .min = port.min,
