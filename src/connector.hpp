@@ -420,6 +420,11 @@ public:
     // returning false means the block was unchanged
     bool replaceBlock(uint8_t row, uint8_t block, const char* uri);
 
+    // replace a block with another lv2 plugin that matches current one (referenced by its URI)
+    // the current and new plugin must have the exact same parameters and properties
+    // returning false means the block was unchanged
+    bool replaceBlockWhileKeepingCurrentData(uint8_t row, uint8_t block, const char* uri);
+
     // save a current block state as the default state for next time the same block is loaded
     // this is done by saving an lv2 preset of the plugin inside the block
     bool saveBlockStateAsDefault(uint8_t row, uint8_t block);

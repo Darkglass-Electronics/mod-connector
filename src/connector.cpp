@@ -1661,6 +1661,95 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
     return true;
 }
 
+bool HostConnector::replaceBlockWhileKeepingCurrentData(const uint8_t row, const uint8_t block, const char* const uri)
+{
+    mod_log_debug("replaceBlockWhileKeepingCurrentData(%u, %u, \"%s\")", row, block, uri);
+    assert(row < NUM_BLOCK_CHAIN_ROWS);
+    assert(block < NUM_BLOCKS_PER_PRESET);
+    assert(!isNullURI(uri));
+
+    const Block blockcopy = _current.chains[row].blocks[block];
+    assert(!isNullURI(blockcopy.uri));
+
+    if (blockcopy.uri == uri)
+    {
+        mod_log_warn("replaceBlockWhileKeepingCurrentData(%u, %u, \"%s\") - same uri, rejected", row, block, uri);
+        return false;
+    }
+
+    if (! replaceBlock(row, block, uri))
+        return false;
+
+    {
+        Block& blockdata = _current.chains[row].blocks[block];
+        blockdata.enabled = blockcopy.enabled;
+        blockdata.quickPotSymbol = blockcopy.quickPotSymbol;
+        blockdata.meta.enable.hasScenes = blockcopy.meta.enable.hasScenes;
+        blockdata.meta.enable.hwbinding = blockcopy.meta.enable.hwbinding;
+        blockdata.meta.quickPotIndex = blockcopy.meta.quickPotIndex;
+        blockdata.meta.numParametersInScenes = blockcopy.meta.numParametersInScenes;
+        blockdata.meta.numPropertiesInScenes = blockcopy.meta.numPropertiesInScenes;
+        blockdata.parameters = blockcopy.parameters;
+        blockdata.properties = blockcopy.properties;
+        blockdata.sceneValues = blockcopy.sceneValues;
+    }
+
+    const HostBlockPair hbp = _mapper.get(_current.preset, row, block);
+    assert_return(hbp.id != kMaxHostInstances, false);
+
+    std::vector<flushed_param> params;
+    params.reserve(MAX_PARAMS_PER_BLOCK);
+
+    for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+    {
+        const Parameter& paramdata(blockcopy.parameters[p]);
+        if (isNullURI(paramdata.symbol))
+            break;
+        if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual)) != 0)
+            continue;
+
+        if (isNotEqual(paramdata.value, paramdata.meta.def2))
+            params.push_back({ paramdata.symbol.c_str(), paramdata.value });
+    }
+
+    {
+        const Host::NonBlockingScopeWithAudioFades hnbs(_host);
+
+        if (!blockcopy.enabled)
+        {
+            _host.bypass(hbp.id, true);
+
+            if (hbp.pair != kMaxHostInstances)
+                _host.bypass(hbp.pair, true);
+        }
+
+        _host.params_flush(hbp.id, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params.size(), params.data());
+
+        if (hbp.pair != kMaxHostInstances)
+            _host.params_flush(hbp.pair, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params.size(), params.data());
+
+        for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+        {
+            const Property& propdata(blockcopy.properties[p]);
+            if (isNullURI(propdata.uri))
+                break;
+            if ((propdata.meta.flags & Lv2PropertyIsReadOnly) != 0)
+                continue;
+
+            if (propdata.value != propdata.meta.defpath)
+            {
+                _host.patch_set(hbp.id, propdata.uri.c_str(), propdata.value.c_str());
+
+                if (hbp.pair != kMaxHostInstances)
+                    _host.patch_set(hbp.pair, propdata.uri.c_str(), propdata.value.c_str());
+            }
+        }
+    }
+
+    _current.dirty = true;
+    return true;
+}
+
 // --------------------------------------------------------------------------------------------------------------------
 
 bool HostConnector::saveBlockStateAsDefault(const uint8_t row, const uint8_t block)
