@@ -4881,7 +4881,7 @@ void HostConnector::hostLoadPreset(const uint8_t preset)
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::hostSwitchPreset(const Current& old)
+void HostConnector::hostSwitchPreset(const Current& prev)
 {
     mod_log_debug("hostSwitchPreset(...)");
 
@@ -4894,13 +4894,13 @@ void HostConnector::hostSwitchPreset(const Current& old)
     _current.dirty = false;
     _current.numLoadedPlugins = 0;
 
-    // scope for fade-out, old deactivate, new activate, fade-in
+    // scope for fade-out, prev deactivate, new activate, fade-in
     {
         const Host::NonBlockingScopeWithAudioFades hnbs(_host);
 
-        // step 1: disconnect and deactivate all plugins in old preset
+        // step 1: disconnect and deactivate all plugins in prev preset
         // NOTE not removing plugins, done after processing is reenabled
-        if (old.numLoadedPlugins == 0)
+        if (prev.numLoadedPlugins == 0)
         {
             std::memset(oldloaded, 0, sizeof(oldloaded));
             hostDisconnectChainEndpoints(0);
@@ -4913,12 +4913,12 @@ void HostConnector::hostSwitchPreset(const Current& old)
 
                 for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
                 {
-                    const Block& blockdata(old.chains[row].blocks[bl]);
+                    const Block& blockdata(prev.chains[row].blocks[bl]);
 
                     if (! (oldloaded[row][bl] = !isNullBlock(blockdata)))
                         continue;
 
-                    const HostBlockPair hbp = _mapper.get(old.preset, row, bl);
+                    const HostBlockPair hbp = _mapper.get(prev.preset, row, bl);
                     hostDisconnectAllBlockInputs(blockdata, hbp);
                     hostDisconnectAllBlockOutputs(blockdata, hbp);
 
@@ -4931,7 +4931,7 @@ void HostConnector::hostSwitchPreset(const Current& old)
                     ++numLoadedPlugins;
                 }
 
-                if (numLoadedPlugins == 0 && !old.chains[row].capture[0].empty())
+                if (numLoadedPlugins == 0 && !prev.chains[row].capture[0].empty())
                     hostDisconnectChainEndpoints(row);
             }
         }
@@ -4979,7 +4979,7 @@ void HostConnector::hostSwitchPreset(const Current& old)
 
     // scope for preloading default preset state
     {
-        const Preset& defaults = _presets[old.preset];
+        const Preset& defaults = _presets[prev.preset];
         // bool defloaded[NUM_BLOCKS_PER_PRESET];
 
         const Host::NonBlockingScope hnbs(_host);
@@ -4989,18 +4989,18 @@ void HostConnector::hostSwitchPreset(const Current& old)
             for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
             {
                 const Block& defblockdata = defaults.chains[row].blocks[bl];
-                const Block& oldblockdata = old.chains[row].blocks[bl];
+                const Block& prevblockdata = prev.chains[row].blocks[bl];
 
                 // using same plugin (or both empty)
-                if (defblockdata.uri == oldblockdata.uri)
+                if (defblockdata.uri == prevblockdata.uri)
                 {
                     if (isNullBlock(defblockdata))
                         continue;
 
-                    const HostBlockPair hbp = _mapper.get(old.preset, row, bl);
+                    const HostBlockPair hbp = _mapper.get(prev.preset, row, bl);
                     assert_continue(hbp.id != kMaxHostInstances);
 
-                    if (defblockdata.enabled != oldblockdata.enabled)
+                    if (defblockdata.enabled != prevblockdata.enabled)
                     {
                         _host.bypass(hbp.id, !defblockdata.enabled);
 
@@ -5012,8 +5012,8 @@ void HostConnector::hostSwitchPreset(const Current& old)
 
                     for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
                     {
-                        const Parameter& defparamdata(defblockdata.parameters[p]);
-                        const Parameter& oldparamdata(oldblockdata.parameters[p]);
+                        const Parameter& defparamdata(prevblockdata.parameters[p]);
+                        const Parameter& oldparamdata(prevblockdata.parameters[p]);
 
                         if (isNullURI(defparamdata.symbol))
                             break;
@@ -5028,13 +5028,13 @@ void HostConnector::hostSwitchPreset(const Current& old)
                     for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
                     {
                         const Property& defpropdata(defblockdata.properties[p]);
-                        const Property& oldpropdata(oldblockdata.properties[p]);
+                        const Property& prevpropdata(prevblockdata.properties[p]);
 
                         if (isNullURI(defpropdata.uri))
                             break;
                         if ((defpropdata.meta.flags & Lv2PropertyIsReadOnly) != 0)
                             continue;
-                        if (defpropdata.value == oldpropdata.value)
+                        if (defpropdata.value == prevpropdata.value)
                             continue;
 
                         _host.patch_set(hbp.id, defpropdata.uri.c_str(), defpropdata.value.c_str());
@@ -5054,7 +5054,7 @@ void HostConnector::hostSwitchPreset(const Current& old)
                 // different plugin, unload old one if there is any
                 if (oldloaded[row][bl])
                 {
-                    const HostBlockPair hbp = _mapper.remove(old.preset, row, bl);
+                    const HostBlockPair hbp = _mapper.remove(prev.preset, row, bl);
 
                     if (hbp.id != kMaxHostInstances)
                         _host.remove(hbp.id);
@@ -5064,16 +5064,16 @@ void HostConnector::hostSwitchPreset(const Current& old)
                 }
 
                 // nothing else to do if block is empty
-                if (isNullBlock(defaults.chains[row].blocks[bl]))
+                if (isNullBlock(defblockdata))
                     continue;
 
                 // otherwise load default plugin
-                HostBlockPair hbp = { _mapper.add(old.preset, row, bl), kMaxHostInstances };
+                HostBlockPair hbp = { _mapper.add(prev.preset, row, bl), kMaxHostInstances };
                 _host.preload(defblockdata.uri.c_str(), hbp.id);
 
                 if (shouldBlockBeStereo(defaults.chains[row], bl))
                 {
-                    hbp.pair = _mapper.add_pair(old.preset, row, bl);
+                    hbp.pair = _mapper.add_pair(prev.preset, row, bl);
                     _host.preload(defblockdata.uri.c_str(), hbp.pair);
                 }
 
@@ -5094,7 +5094,7 @@ void HostConnector::hostSwitchPreset(const Current& old)
                         break;
                     if ((defparamdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual)) != 0)
                         continue;
-                    if (isNotEqual(defparamdata.value, defparamdata.meta.def2))
+                    if (isEqual(defparamdata.value, defparamdata.meta.def2))
                         continue;
 
                     params.push_back({ defparamdata.symbol.c_str(), defparamdata.value });
