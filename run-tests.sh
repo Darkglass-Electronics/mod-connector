@@ -10,6 +10,11 @@ export LV2_PATH=$(pwd)/test-blocks/build/
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build -j
 
+# temp directory for preset files
+mkdir test-presets
+
 # run tests
 echo $(which jackd) $JACKD_CMD_ARGS | tee ~/.jackdrc
 ./build/tests
+
+rm -rf test-presets
