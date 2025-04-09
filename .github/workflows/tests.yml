@@ -53,8 +53,10 @@ jobs:
         env:
           LV2_PATH: $GITHUB_WORKSPACE/test-blocks/build/
         run: |
+          mkdir test-presets
           echo $(which jackd) ${{ env.JACKD_CMD_ARGS }} | tee ~/.jackdrc
           ./build/tests
+          rm -rf test-presets
 
   # macos:
   #   runs-on: macos-15
@@ -91,5 +93,7 @@ jobs:
   #       env:
   #         LV2_PATH: $GITHUB_WORKSPACE/test-blocks/build/
   #       run: |
+  #         mkdir test-presets
   #         echo $(which jackd) ${{ env.JACKD_CMD_ARGS }} | tee ~/.jackdrc
   #         ./build/tests
+  #         rm -rf test-presets
