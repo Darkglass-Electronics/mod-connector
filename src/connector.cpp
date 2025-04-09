@@ -5049,13 +5049,6 @@ void HostConnector::hostSwitchPreset(const Current& prev)
                 HostBlockPair hbp = { _mapper.add(prev.preset, row, bl), kMaxHostInstances };
                 _host.preload(defblockdata.uri.c_str(), hbp.id);
 
-                if (shouldBlockBeStereo(defaults.chains[row], bl) && 
-                    defblockdata.meta.numInputs == 1)
-                {
-                    hbp.pair = _mapper.add_pair(prev.preset, row, bl);
-                    _host.preload(defblockdata.uri.c_str(), hbp.pair);
-                }
-
                 if (!defblockdata.enabled)
                 {
                     _host.bypass(hbp.id, true);
