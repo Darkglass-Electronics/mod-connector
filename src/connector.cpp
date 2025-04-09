@@ -4780,10 +4780,8 @@ void HostConnector::hostLoadPreset(const uint8_t preset)
         const ChainRow& chaindata(active ? _current.chains[row] : _presets[preset].chains[row]);
 
         bool firstBlock = true;
-        // bool previousPluginStereoOut;
 
         // related to active preset only
-        // uint8_t last = 0;
         uint8_t numLoadedPlugins = 0;
 
         for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
@@ -4793,10 +4791,7 @@ void HostConnector::hostLoadPreset(const uint8_t preset)
                 continue;
 
             if (firstBlock)
-            {
                 firstBlock = false;
-                // previousPluginStereoOut = chaindata.capture[0] != chaindata.capture[1];
-            }
 
             const auto loadInstance = [=, &blockdata](const uint16_t instance)
             {
@@ -4832,24 +4827,9 @@ void HostConnector::hostLoadPreset(const uint8_t preset)
                 return false;
             };
 
-            // const bool dualmono = previousPluginStereoOut && blockdata.meta.numInputs == 1;
             const HostBlockPair hbp = { _mapper.add(preset, row, bl), kMaxHostInstances };
 
             bool added = loadInstance(hbp.id);
-
-            // if (added)
-            // {
-            //     if (dualmono)
-            //     {
-            //         const uint16_t pair = _mapper.add_pair(preset, row, bl);
-
-            //         if (! loadInstance(pair))
-            //         {
-            //             added = false;
-            //             _host.remove(hbp.pair);
-            //         }
-            //     }
-            // }
 
             if (! added)
             {
@@ -4860,32 +4840,15 @@ void HostConnector::hostLoadPreset(const uint8_t preset)
                 continue;
             }
 
-            // previousPluginStereoOut = blockdata.meta.numOutputs == 2 || dualmono;
-
             // dealing with connections after this point, only valid if preset is the active one
             if (active)
-            {
                 numLoadedPlugins++;
-                // if (++numLoadedPlugins == 1)
-            //         hostConnectBlockToChainInput(row, bl);
-            //     else
-            //         hostConnectBlockToBlock(row, last, bl);
 
-                // hostSetupSideIO(row, bl, hbp, nullptr);
-                // last = bl;
-            }
             hostSetupSideIO(preset, row, bl, hbp, nullptr);
         }
 
         if (active)
-        {
-            // if (numLoadedPlugins != 0)
-            //     hostConnectBlockToChainOutput(row, last);
-            // else if (!_current.chains[row].capture[0].empty())
-            //     hostConnectChainEndpoints(row);
-
             _current.numLoadedPlugins += numLoadedPlugins;
-        }
     }
 
     // add necessary dual mono pairs
