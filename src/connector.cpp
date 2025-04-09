@@ -2212,7 +2212,7 @@ bool HostConnector::addBlockBinding(const uint8_t hwid, const uint8_t row, const
         _current.bindings[hwid].value = blockdata.enabled ? 1.f : 0.f;
     }
 
-    _current.bindings[hwid].parameters.push_back({ row, block, ":bypass", { 0 } });
+    _current.bindings[hwid].parameters.push_back({ row, block, 0.f, 1.f, ":bypass", { 0 } });
     _current.dirty = true;
     return true;
 }
@@ -2254,7 +2254,9 @@ bool HostConnector::addBlockParameterBinding(const uint8_t hwid,
         _current.bindings[hwid].value = normalized(paramdata.meta, paramdata.value);
     }
 
-    _current.bindings[hwid].parameters.push_back({ row, block, paramdata.symbol, { paramIndex } });
+    _current.bindings[hwid].parameters.push_back({
+        row, block, paramdata.meta.min, paramdata.meta.max, paramdata.symbol, { paramIndex }
+    });
     _current.dirty = true;
     return true;
 }
@@ -2316,6 +2318,48 @@ bool HostConnector::addBlockPropertyBinding(const uint8_t hwid,
     _current.bindings[hwid].properties.push_back({ row, block, propdata.uri, { propIndex } });
     _current.dirty = true;
     return true;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+bool HostConnector::editBlockParameterBinding(const uint8_t hwid,
+                                              const uint8_t row,
+                                              const uint8_t block,
+                                              const uint8_t paramIndex,
+                                              const float min,
+                                              const float max)
+{
+    mod_log_debug("editBlockParameterBinding(%u, %u, %u, %u, %f, %f)", hwid, row, block, paramIndex, min, max);
+    assert(hwid < NUM_BINDING_ACTUATORS);
+    assert(row < NUM_BLOCK_CHAIN_ROWS);
+    assert(block < NUM_BLOCKS_PER_PRESET);
+    assert(paramIndex < MAX_PARAMS_PER_BLOCK);
+
+    Block& blockdata(_current.chains[row].blocks[block]);
+    assert_return(!isNullBlock(blockdata), false);
+
+    Parameter& paramdata(blockdata.parameters[paramIndex]);
+    assert_return(!isNullURI(paramdata.symbol), false);
+    assert_return((paramdata.meta.flags & Lv2PortIsOutput) == 0, false);
+    assert_return(paramdata.meta.hwbinding != UINT8_MAX, false);
+
+    std::list<ParameterBinding>& bindings(_current.bindings[hwid].parameters);
+    for (ParameterBindingIterator it = bindings.begin(), end = bindings.end(); it != end; ++it)
+    {
+        if (it->row != row)
+            continue;
+        if (it->block != block)
+            continue;
+        if (it->meta.parameterIndex != paramIndex)
+            continue;
+
+        it->min = min;
+        it->max = max;
+        _current.dirty = true;
+        return true;
+    }
+
+    return false;
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -2388,6 +2432,8 @@ bool HostConnector::removeBlockBinding(const uint8_t hwid, const uint8_t row, co
     std::list<ParameterBinding>& bindings(_current.bindings[hwid].parameters);
     for (ParameterBindingIteratorConst it = bindings.cbegin(), end = bindings.cend(); it != end; ++it)
     {
+        if (it->row != row)
+            continue;
         if (it->block != block)
             continue;
         if (it->parameterSymbol != ":bypass")
@@ -2431,6 +2477,8 @@ bool HostConnector::removeBlockParameterBinding(const uint8_t hwid,
     std::list<ParameterBinding>& bindings(_current.bindings[hwid].parameters);
     for (ParameterBindingIteratorConst it = bindings.cbegin(), end = bindings.cend(); it != end; ++it)
     {
+        if (it->row != row)
+            continue;
         if (it->block != block)
             continue;
         if (it->meta.parameterIndex != paramIndex)
@@ -2474,6 +2522,8 @@ bool HostConnector::removeBlockPropertyBinding(const uint8_t hwid,
     std::list<PropertyBinding>& bindings(_current.bindings[hwid].properties);
     for (PropertyBindingIteratorConst it = bindings.cbegin(), end = bindings.cend(); it != end; ++it)
     {
+        if (it->row != row)
+            continue;
         if (it->block != block)
             continue;
         if (it->meta.propertyIndex != propIndex)
@@ -4168,6 +4218,7 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann_json& json
                     std::list<ParameterBinding> parameters;
                     std::string symbol;
                     int block, row;
+                    float min, max;
 
                     for (const auto& jbindingparam : jbindingparams)
                     {
@@ -4220,6 +4271,26 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann_json& json
                             continue;
                         }
 
+                        bool hasRanges = false;
+                        if (jbindingparam.contains("min") && jbindingparam.contains("max"))
+                        {
+                            do {
+                                try {
+                                    min = jbindingparam["min"].get<double>();
+                                } catch (...) {
+                                    mod_log_warn("jsonPresetLoad(): binding contains invalid min");
+                                    break;
+                                }
+                                try {
+                                    max = jbindingparam["block"].get<double>();
+                                } catch (...) {
+                                    mod_log_warn("jsonPresetLoad(): binding contains invalid max");
+                                    break;
+                                }
+                                hasRanges = true;
+                            } while (false);
+                        }
+
                         Block& blockdata = presetdata.chains[row - 1].blocks[block - 1];
 
                         if (symbol == ":bypass")
@@ -4229,6 +4300,8 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann_json& json
                             parameters.push_back({
                                 .row = static_cast<uint8_t>(row - 1),
                                 .block = static_cast<uint8_t>(block - 1),
+                                .min = 0.f,
+                                .max = 1.f,
                                 .parameterSymbol = ":bypass",
                                 .meta = {
                                     .parameterIndex = 0,
@@ -4248,11 +4321,19 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann_json& json
                             if (paramdata.symbol != symbol)
                                 continue;
 
+                            if (! hasRanges)
+                            {
+                                min = paramdata.meta.min;
+                                max = paramdata.meta.max;
+                            }
+
                             paramdata.meta.hwbinding = hwid;
 
                             parameters.push_back({
                                 .row = static_cast<uint8_t>(row - 1),
                                 .block = static_cast<uint8_t>(block - 1),
+                                .min = min,
+                                .max = max,
                                 .parameterSymbol = symbol,
                                 .meta = {
                                     .parameterIndex = p,
@@ -4573,6 +4654,8 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann_json& json
                     jbindingparams.push_back(nlohmann::json::object({
                         { "row", bindingdata.row + 1 },
                         { "block", bindingdata.block + 1 },
+                        { "min", bindingdata.min },
+                        { "max", bindingdata.max },
                         { "symbol", bindingdata.parameterSymbol },
                     }));
                 }
