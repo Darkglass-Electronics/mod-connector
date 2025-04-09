@@ -163,20 +163,20 @@ class HostConnectorTests : public QObject
         // test pass-through connections
         assert_return(testPassthrough(), false);
 
-        // // test loading single plugin
-        // assert_return(testPluginLoad(), false);
-        // // check return to pass-through connections
-        // assert_return(testPassthrough(), false);
+        // test loading single plugin
+        assert_return(testPluginLoad(), false);
+        // check return to pass-through connections
+        assert_return(testPassthrough(), false);
 
-        // // test mono chain actions
-        // assert_return(testSingleMonoChain(), false);
-        // // check return to pass-through state
-        // assert_return(testPassthrough(), false);
+        // test mono chain actions
+        assert_return(testSingleMonoChain(), false);
+        // check return to pass-through state
+        assert_return(testPassthrough(), false);
 
-        // // test stereo chain actions
-        // assert_return(testSingleStereoChain(), false);
-        // // check return to pass-through state
-        // assert_return(testPassthrough(), false);
+        // test stereo chain actions
+        assert_return(testSingleStereoChain(), false);
+        // check return to pass-through state
+        assert_return(testPassthrough(), false);
 
         // test side chain management
         assert_return(testSideChain(), false);
@@ -777,11 +777,6 @@ class HostConnectorTests : public QObject
         assert_return(testNoPassthrough(), false);
 
         // load empty bank
-        const std::array<std::string, NUM_PRESETS_PER_BANK> bankPresetsEmpty = {
-            "1.json", // nonexisting
-            "2.json", // nonexisting
-            "3.json", // nonexisting
-        };
         connector.loadBankFromPresetFiles(bankPresetsEmpty, 0);
 
         return true;
@@ -877,6 +872,52 @@ class HostConnectorTests : public QObject
         assert_return(checkNoConnections(blockPortOut2(0, 1)), false); // no sidechain
         assert_return(testNoPassthrough(), false);
 
+        // remove remaining block
+        assert_return(connector.replaceBlock(0, 1, nullptr), false);
+
+        assert_return(testPassthrough(), false);
+        
+        // switch to an empty preset and back
+        assert_return(connector.switchPreset(1), false);
+        assert_return(testPassthrough(), false);
+        assert_return(connector.switchPreset(0), false);
+
+        // check connections are the same as before saving the file
+        // row 0 connections
+        assert_return(checkOnlyConnection(blockPortIn1(0, 1), JACK_CAPTURE_PORT_1), false);
+        assert_return(checkOnly2Connections(blockPortOut1(0, 1), blockPortIn1(0, 4), blockPairPortIn1(0, 4)), false);
+        assert_return(checkOnlyConnection(blockPortIn1(0, 4), blockPortOut1(0, 1)), false);
+        assert_return(checkOnlyConnection(blockPairPortIn1(0, 4), blockPortOut1(0, 1)), false);
+        assert_return(checkOnlyConnection(blockPortOut1(0, 4), JACK_PLAYBACK_PORT_1), false);
+        assert_return(checkOnlyConnection(blockPairPortOut1(0, 4), JACK_PLAYBACK_PORT_2), false);
+        // row 1 connections
+        assert_return(checkOnly2Connections(blockPortOut2(0, 1), blockPortIn1(1, 2), blockPortIn2(1, 2)), false);
+        assert_return(checkOnlyConnection(blockPortIn1(1, 2), blockPortOut2(0, 1)), false);
+        assert_return(checkOnlyConnection(blockPortIn2(1, 2), blockPortOut2(0, 1)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(1, 2), blockPortIn2(0, 4)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut2(1, 2), blockPairPortIn2(0, 4)), false);
+        assert_return(testNoPassthrough(), false);
+
+        // load empty bank
+        const std::array<std::string, NUM_PRESETS_PER_BANK> bankPresetsEmpty = {
+            "1.json", // nonexisting
+            "2.json", // nonexisting
+            "3.json", // nonexisting
+        };
+        connector.loadBankFromPresetFiles(bankPresetsEmpty, 0);
+
+        assert_return(testPassthrough(), false);
+
+
+        // ***** New setup: stereo between sidechaining blocks on row 0
+
+        // branch to sidechain
+        assert_return(connector.replaceBlock(0, 1, SIDEOUTBLOCK), false);
+        assert_return(checkOnlyConnection(blockPortIn1(0, 1), JACK_CAPTURE_PORT_1), false);
+        assert_return(checkOnly2Connections(blockPortOut1(0, 1), JACK_PLAYBACK_PORT_1, JACK_PLAYBACK_PORT_2), false);
+        assert_return(checkNoConnections(blockPortOut2(0, 1)), false); // no sidechain
+        assert_return(testNoPassthrough(), false);
+
         // add stereo block on row 0
         assert_return(connector.replaceBlock(0, 2, STEREOBLOCK), false);
         assert_return(checkOnlyConnection(blockPortIn1(0, 1), JACK_CAPTURE_PORT_1), false);
@@ -926,6 +967,47 @@ class HostConnectorTests : public QObject
         // remove remaining stereo block
         assert_return(connector.replaceBlock(0, 2, nullptr), false);
         // row 0 connections
+        assert_return(checkOnlyConnection(blockPortIn1(0, 1), JACK_CAPTURE_PORT_1), false);
+        assert_return(checkOnly2Connections(blockPortOut1(0, 1), JACK_PLAYBACK_PORT_1, JACK_PLAYBACK_PORT_2), false);
+        assert_return(checkNoConnections(blockPortOut2(0, 1)), false); // no sidechain
+        assert_return(testNoPassthrough(), false);
+
+        // remove remaining block
+        assert_return(connector.replaceBlock(0, 1, nullptr), false);
+
+        assert_return(testPassthrough(), false);
+        
+        // switch to an empty preset and back
+        assert_return(connector.switchPreset(1), false);
+        assert_return(testPassthrough(), false);
+        assert_return(connector.switchPreset(0), false);
+
+        // check connections are the same as before saving the file
+        // row 0 connections
+        assert_return(checkOnlyConnection(blockPortIn1(0, 1), JACK_CAPTURE_PORT_1), false);
+        assert_return(checkOnly2Connections(blockPortOut1(0, 1), blockPortIn1(0, 2), blockPortIn2(0, 2)), false);
+        assert_return(checkOnlyConnection(blockPortIn1(0, 2), blockPortOut1(0, 1)), false);
+        assert_return(checkOnlyConnection(blockPortIn2(0, 2), blockPortOut1(0, 1)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 2), blockPortIn1(0, 4)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut2(0, 2), blockPairPortIn1(0, 4)), false);
+        assert_return(checkOnlyConnection(blockPortOut1(0, 4), JACK_PLAYBACK_PORT_1), false);
+        assert_return(checkOnlyConnection(blockPairPortOut1(0, 4), JACK_PLAYBACK_PORT_2), false);
+        // row 1 connections
+        assert_return(checkOnly2Connections(blockPortOut2(0, 1), blockPortIn2(0, 4), blockPairPortIn2(0, 4)), false);
+        assert_return(checkOnlyConnection(blockPortIn2(0, 4), blockPortOut2(0, 1)), false);
+        assert_return(checkOnlyConnection(blockPairPortIn2(0, 4), blockPortOut2(0, 1)), false);
+        assert_return(testNoPassthrough(), false);
+
+        // load empty bank
+        connector.loadBankFromPresetFiles(bankPresetsEmpty, 0);
+
+        assert_return(testPassthrough(), false);
+
+
+        // ***** New setup: stereo between sidechaining blocks on both rows
+
+        // branch to sidechain
+        assert_return(connector.replaceBlock(0, 1, SIDEOUTBLOCK), false);
         assert_return(checkOnlyConnection(blockPortIn1(0, 1), JACK_CAPTURE_PORT_1), false);
         assert_return(checkOnly2Connections(blockPortOut1(0, 1), JACK_PLAYBACK_PORT_1, JACK_PLAYBACK_PORT_2), false);
         assert_return(checkNoConnections(blockPortOut2(0, 1)), false); // no sidechain
@@ -995,8 +1077,38 @@ class HostConnectorTests : public QObject
         assert_return(connector.replaceBlock(0, 1, nullptr), false);
 
         assert_return(testPassthrough(), false);
+        
+        // switch to an empty preset and back
+        assert_return(connector.switchPreset(1), false);
+        assert_return(testPassthrough(), false);
+        assert_return(connector.switchPreset(0), false);
 
-        // test loading from file
+        // check connections are the same as before saving the file
+        // row 0 connections
+        assert_return(checkOnlyConnection(blockPortIn1(0, 1), JACK_CAPTURE_PORT_1), false);
+        assert_return(checkOnly2Connections(blockPortOut1(0, 1), blockPortIn1(0, 2), blockPortIn2(0, 2)), false);
+        assert_return(checkOnlyConnection(blockPortIn1(0, 2), blockPortOut1(0, 1)), false);
+        assert_return(checkOnlyConnection(blockPortIn2(0, 2), blockPortOut1(0, 1)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 2), blockPortIn1(0, 4)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut2(0, 2), blockPairPortIn1(0, 4)), false);
+        assert_return(checkOnlyConnection(blockPortOut1(0, 4), JACK_PLAYBACK_PORT_1), false);
+        assert_return(checkOnlyConnection(blockPairPortOut1(0, 4), JACK_PLAYBACK_PORT_2), false);
+        // row 1 connections
+        assert_return(checkOnly2Connections(blockPortOut2(0, 1), blockPortIn1(1, 2), blockPortIn2(1, 2)), false);
+        assert_return(checkOnlyConnection(blockPortIn1(1, 2), blockPortOut2(0, 1)), false);
+        assert_return(checkOnlyConnection(blockPortIn2(1, 2), blockPortOut2(0, 1)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(1, 2), blockPortIn2(0, 4)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut2(1, 2), blockPairPortIn2(0, 4)), false);
+        assert_return(testNoPassthrough(), false);
+
+        // load empty bank
+        connector.loadBankFromPresetFiles(bankPresetsEmpty, 0);
+
+        assert_return(testPassthrough(), false);
+
+
+        // ***** test loading all previously saved presets from file
+
         const std::array<std::string, NUM_PRESETS_PER_BANK> bankPresets = {
             presetFileName1,
             presetFileName2,
@@ -1060,11 +1172,6 @@ class HostConnectorTests : public QObject
         assert_return(testNoPassthrough(), false);
 
         // load empty bank
-        const std::array<std::string, NUM_PRESETS_PER_BANK> bankPresetsEmpty = {
-            "1.json", // nonexisting
-            "2.json", // nonexisting
-            "3.json", // nonexisting
-        };
         connector.loadBankFromPresetFiles(bankPresetsEmpty, 0);
 
         return true;
@@ -1296,6 +1403,37 @@ class HostConnectorTests : public QObject
 
         assert_return(testPassthrough(), false);
 
+        // switch to an empty preset and back
+        assert_return(connector.switchPreset(1), false);
+        assert_return(testPassthrough(), false);
+        assert_return(connector.switchPreset(0), false);
+
+        // check that connections returned to the saved state
+        // row 0 connections
+        assert_return(checkOnlyConnection(blockPortIn1(0, 0), JACK_CAPTURE_PORT_1), false);
+        assert_return(checkOnlyConnection(blockPortIn2(0, 0), JACK_CAPTURE_PORT_2), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 0), blockPortIn1(0, 2)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut2(0, 0), blockPairPortIn1(0, 2)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 2), blockPortIn1(0, 5)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPairPortOut1(0, 2), blockPairPortIn1(0, 5)), false);
+        assert_return(checkOnlyConnection(blockPortOut1(0, 5), JACK_PLAYBACK_PORT_1), false);
+        assert_return(checkOnlyConnection(blockPairPortOut1(0, 5), JACK_PLAYBACK_PORT_2), false);
+        // row 1 connections
+        assert_return(checkOnlyConnectionBothWays(blockPortOut2(0, 2), blockPortIn2(0, 5)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPairPortOut2(0, 2), blockPairPortIn2(0, 5)), false);
+        assert_return(testNoPassthrough(), false);
+
+        // load empty bank
+        const std::array<std::string, NUM_PRESETS_PER_BANK> bankPresetsEmpty = {
+            "1.json", // nonexisting
+            "2.json", // nonexisting
+            "3.json", // nonexisting
+        };
+        connector.loadBankFromPresetFiles(bankPresetsEmpty, 0);
+
+        // test pass-through
+        assert_return(testPassthrough(), false);
+
         // test loading from file
         const std::array<std::string, NUM_PRESETS_PER_BANK> bankPresets = {
             presetFileName1,
@@ -1320,11 +1458,6 @@ class HostConnectorTests : public QObject
         assert_return(testNoPassthrough(), false);
 
         // load empty bank
-        const std::array<std::string, NUM_PRESETS_PER_BANK> bankPresetsEmpty = {
-            "1.json", // nonexisting
-            "2.json", // nonexisting
-            "3.json", // nonexisting
-        };
         connector.loadBankFromPresetFiles(bankPresetsEmpty, 0);
 
         return true;
