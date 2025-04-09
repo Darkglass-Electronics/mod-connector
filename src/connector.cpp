@@ -3354,7 +3354,8 @@ void HostConnector::hostEnsureStereoChain(const uint8_t preset, const uint8_t ro
         {
             const uint16_t pair = _mapper.add_pair(preset, row, bl);
 
-            if (_host.add(blockdata.uri.c_str(), pair))
+            if (active ? _host.add(blockdata.uri.c_str(), pair)
+                       : _host.preload(blockdata.uri.c_str(), pair))
             {
                 if (!blockdata.enabled)
                     _host.bypass(pair, true);
@@ -5048,7 +5049,8 @@ void HostConnector::hostSwitchPreset(const Current& prev)
                 HostBlockPair hbp = { _mapper.add(prev.preset, row, bl), kMaxHostInstances };
                 _host.preload(defblockdata.uri.c_str(), hbp.id);
 
-                if (shouldBlockBeStereo(defaults.chains[row], bl))
+                if (shouldBlockBeStereo(defaults.chains[row], bl) && 
+                    defblockdata.meta.numInputs == 1)
                 {
                     hbp.pair = _mapper.add_pair(prev.preset, row, bl);
                     _host.preload(defblockdata.uri.c_str(), hbp.pair);
@@ -5099,6 +5101,8 @@ void HostConnector::hostSwitchPreset(const Current& prev)
                     _host.params_flush(hbp.pair, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params.size(), params.data());
             }
         }
+        // ensure necessary dual mono blocks are added
+        hostEnsureStereoChain(prev.preset, 0, 0);
     }
 }
 
