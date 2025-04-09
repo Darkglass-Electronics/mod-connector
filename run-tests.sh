@@ -18,3 +18,5 @@ echo $(which jackd) $JACKD_CMD_ARGS | tee ~/.jackdrc
 ./build/tests
 
 rm -rf test-presets
+
+killall -SIGKILL jackd || true
