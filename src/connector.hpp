@@ -692,6 +692,9 @@ private:
     // set bypass state of block and its pair if exists
     void hostBypassBlockPair(const HostBlockPair& hbp, bool bypass);
 
+    // set bypass state of block and its pair if exists
+    void hostRemoveBlockPair(const HostBlockPair& hbp);
+
     // internal feedback handling, for updating parameter values
     void hostFeedbackCallback(const HostFeedbackData& data) override;
 

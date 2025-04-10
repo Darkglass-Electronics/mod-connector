@@ -867,11 +867,7 @@ bool HostConnector::preloadPresetFromFile(const uint8_t preset, const char* cons
 
                 const HostBlockPair hbp = _mapper.remove(preset, row, bl);
 
-                if (hbp.id != kMaxHostInstances)
-                    _host.remove(hbp.id);
-
-                if (hbp.pair != kMaxHostInstances)
-                    _host.remove(hbp.pair);
+                hostRemoveBlockPair(hbp);
             }
         }
     }
@@ -3639,11 +3635,7 @@ void HostConnector::hostRemoveInstanceForBlock(const uint8_t row, const uint8_t 
 
     const HostBlockPair hbp = _mapper.remove(_current.preset, row, block);
 
-    if (hbp.id != kMaxHostInstances)
-        _host.remove(hbp.id);
-
-    if (hbp.pair != kMaxHostInstances)
-        _host.remove(hbp.pair);
+    hostRemoveBlockPair(hbp);
 
    #if NUM_BLOCK_CHAIN_ROWS != 1
     if (row == 0)
@@ -5021,11 +5013,7 @@ void HostConnector::hostSwitchPreset(const Current& prev)
                 {
                     const HostBlockPair hbp = _mapper.remove(prev.preset, row, bl);
 
-                    if (hbp.id != kMaxHostInstances)
-                        _host.remove(hbp.id);
-
-                    if (hbp.pair != kMaxHostInstances)
-                        _host.remove(hbp.pair);
+                    hostRemoveBlockPair(hbp);
                 }
 
                 // nothing else to do if block is empty
@@ -5127,6 +5115,17 @@ void HostConnector::hostBypassBlockPair(const HostBlockPair& hbp, const bool byp
 
     if (hbp.pair != kMaxHostInstances)
         _host.bypass(hbp.pair, bypass);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::hostRemoveBlockPair(const HostBlockPair& hbp)
+{
+    if (hbp.id != kMaxHostInstances)
+        _host.remove(hbp.id);
+
+    if (hbp.pair != kMaxHostInstances)
+        _host.remove(hbp.pair);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
