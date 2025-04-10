@@ -167,6 +167,8 @@ struct HostConnector : Host::FeedbackCallback {
     struct ParameterBinding {
         uint8_t row;
         uint8_t block;
+        float min;
+        float max;
         std::string parameterSymbol;
         struct {
             // convenience meta-data, not stored in json state
@@ -484,6 +486,14 @@ public:
 
     // add a block property binding
     bool addBlockPropertyBinding(uint8_t hwid, uint8_t row, uint8_t block, uint8_t propIndex);
+
+    // edit a block parameter binding
+    bool editBlockParameterBinding(uint8_t hwid,
+                                   uint8_t row,
+                                   uint8_t block,
+                                   uint8_t paramIndex,
+                                   float min,
+                                   float max);
 
     // remove all binds for a specific actuator
     bool removeBindings(uint8_t hwid);
