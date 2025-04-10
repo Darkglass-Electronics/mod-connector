@@ -692,8 +692,14 @@ private:
     // set bypass state of block and its pair if exists
     void hostBypassBlockPair(const HostBlockPair& hbp, bool bypass);
 
-    // set bypass state of block and its pair if exists
+    // remove block instance and its pair if exists
     void hostRemoveBlockPair(const HostBlockPair& hbp);
+
+    // patch_set for block and its pair if exists
+    void hostPatchSetBlockPair(const HostBlockPair& hbp, const Property& propdata);
+
+    // params_flush for block and its pair if exists
+    void hostParamsFlushBlockPair(const HostBlockPair& hbp, uint8_t reset_value, const std::vector<flushed_param>& params);
 
     // internal feedback handling, for updating parameter values
     void hostFeedbackCallback(const HostFeedbackData& data) override;

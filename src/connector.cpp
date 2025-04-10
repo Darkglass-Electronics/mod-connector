@@ -1369,10 +1369,7 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
                 hostBypassBlockPair(hbp, false);
             }
 
-            _host.params_flush(hbp.id, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params.size(), params.data());
-
-            if (hbp.pair != kMaxHostInstances)
-                _host.params_flush(hbp.pair, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params.size(), params.data());
+            hostParamsFlushBlockPair(hbp, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params);
 
             for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
             {
@@ -1387,10 +1384,7 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
                 if (propdata.value != propdata.meta.defpath)
                 {
                     propdata.value = propdata.meta.defpath;
-                    _host.patch_set(hbp.id, propdata.uri.c_str(), propdata.value.c_str());
-
-                    if (hbp.pair != kMaxHostInstances)
-                        _host.patch_set(hbp.pair, propdata.uri.c_str(), propdata.value.c_str());
+                    hostPatchSetBlockPair(hbp, propdata);
                 }
             }
         }
@@ -1683,11 +1677,8 @@ bool HostConnector::replaceBlockWhileKeepingCurrentData(const uint8_t row, const
             hostBypassBlockPair(hbp, true);
         }
 
-        _host.params_flush(hbp.id, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params.size(), params.data());
-
-        if (hbp.pair != kMaxHostInstances)
-            _host.params_flush(hbp.pair, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params.size(), params.data());
-
+        hostParamsFlushBlockPair(hbp, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params);
+        
         for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
         {
             const Property& propdata(blockcopy.properties[p]);
@@ -1697,12 +1688,7 @@ bool HostConnector::replaceBlockWhileKeepingCurrentData(const uint8_t row, const
                 continue;
 
             if (propdata.value != propdata.meta.defpath)
-            {
-                _host.patch_set(hbp.id, propdata.uri.c_str(), propdata.value.c_str());
-
-                if (hbp.pair != kMaxHostInstances)
-                    _host.patch_set(hbp.pair, propdata.uri.c_str(), propdata.value.c_str());
-            }
+                hostPatchSetBlockPair(hbp, propdata);
         }
     }
 
@@ -2098,17 +2084,11 @@ bool HostConnector::switchScene(const uint8_t scene)
 
                 propdata.value = sceneValues.properties[p];
 
-                _host.patch_set(hbp.id, propdata.uri.c_str(), propdata.value.c_str());
-
-                if (hbp.pair != kMaxHostInstances)
-                    _host.patch_set(hbp.pair, propdata.uri.c_str(), propdata.value.c_str());
+                hostPatchSetBlockPair(hbp, propdata);
             }
 
-            _host.params_flush(hbp.id, LV2_KXSTUDIO_PROPERTIES_RESET_NONE, params.size(), params.data());
-
-            if (hbp.pair != kMaxHostInstances)
-                _host.params_flush(hbp.pair, LV2_KXSTUDIO_PROPERTIES_RESET_NONE, params.size(), params.data());
-
+            hostParamsFlushBlockPair(hbp, LV2_KXSTUDIO_PROPERTIES_RESET_NONE, params);
+            
             // unbypass/enable last if relevant
             if (blockdata.meta.enable.hasScenes && blockdata.sceneValues[_current.scene].enabled)
             {
@@ -2934,10 +2914,7 @@ void HostConnector::setBlockProperty(const uint8_t row,
 
     propdata.value = value;
 
-    _host.patch_set(hbp.id, propdata.uri.c_str(), value);
-
-    if (hbp.pair != kMaxHostInstances)
-        _host.patch_set(hbp.pair, propdata.uri.c_str(), value);
+    hostPatchSetBlockPair(hbp, propdata);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -4994,17 +4971,11 @@ void HostConnector::hostSwitchPreset(const Current& prev)
                         if (defpropdata.value == prevpropdata.value)
                             continue;
 
-                        _host.patch_set(hbp.id, defpropdata.uri.c_str(), defpropdata.value.c_str());
-
-                        if (hbp.pair != kMaxHostInstances)
-                            _host.patch_set(hbp.pair, defpropdata.uri.c_str(), defpropdata.value.c_str());
+                        hostPatchSetBlockPair(hbp, defpropdata);
                     }
 
-                    _host.params_flush(hbp.id, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params.size(), params.data());
-
-                    if (hbp.pair != kMaxHostInstances)
-                        _host.params_flush(hbp.pair, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params.size(), params.data());
-
+                    hostParamsFlushBlockPair(hbp, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params);
+                    
                     continue;
                 }
 
@@ -5054,16 +5025,10 @@ void HostConnector::hostSwitchPreset(const Current& prev)
                     if (defpropdata.value == defpropdata.meta.defpath)
                         continue;
 
-                    _host.patch_set(hbp.id, defpropdata.uri.c_str(), defpropdata.value.c_str());
-
-                    if (hbp.pair != kMaxHostInstances)
-                        _host.patch_set(hbp.pair, defpropdata.uri.c_str(), defpropdata.value.c_str());
+                    hostPatchSetBlockPair(hbp, defpropdata);
                 }
 
-                _host.params_flush(hbp.id, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params.size(), params.data());
-
-                if (hbp.pair != kMaxHostInstances)
-                    _host.params_flush(hbp.pair, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params.size(), params.data());
+                hostParamsFlushBlockPair(hbp, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params);
             }
         }
         // ensure necessary dual mono blocks are added
@@ -5126,6 +5091,26 @@ void HostConnector::hostRemoveBlockPair(const HostBlockPair& hbp)
 
     if (hbp.pair != kMaxHostInstances)
         _host.remove(hbp.pair);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::hostPatchSetBlockPair(const HostBlockPair& hbp, const Property& propdata)
+{
+    _host.patch_set(hbp.id, propdata.uri.c_str(), propdata.value.c_str());
+
+    if (hbp.pair != kMaxHostInstances)
+        _host.patch_set(hbp.pair, propdata.uri.c_str(), propdata.value.c_str());
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::hostParamsFlushBlockPair(const HostBlockPair& hbp, const uint8_t reset_value, const std::vector<flushed_param>& params)
+{
+    _host.params_flush(hbp.id, reset_value, params.size(), params.data());
+
+    if (hbp.pair != kMaxHostInstances)
+        _host.params_flush(hbp.pair, reset_value, params.size(), params.data());
 }
 
 // --------------------------------------------------------------------------------------------------------------------
