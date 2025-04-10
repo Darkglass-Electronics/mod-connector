@@ -1462,39 +1462,12 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
             hostRemoveInstanceForBlock(row, block);
         }
 
-        // activate dual mono if previous plugin is stereo or also dualmono
-        bool dualmono = false;
-        if (numInputs == 1) {
-            dualmono = shouldBlockBeStereo(chaindata, block);
-            if ((numSideInputs != 0) && 
-                !dualmono && 
-                (row + 1 < NUM_BLOCK_CHAIN_ROWS)) {
-                // if dual mono wasn't enforced by current row, it might be enforced by next row
-                ChainRow& chain2data(_current.chains[row + 1]);
-                dualmono = shouldBlockBeStereo(chain2data, NUM_BLOCKS_PER_PRESET);
-            }
-        }
-
         HostBlockPair hbp = { _mapper.add(_current.preset, row, block), kMaxHostInstances };
 
         bool added = _host.add(uri, hbp.id);
         if (added)
         {
             mod_log_debug("block %u loaded plugin %s", block, uri);
-
-            if (dualmono)
-            {
-                hbp.pair = _mapper.add_pair(_current.preset, row, block);
-
-                if (! _host.add(uri, hbp.pair))
-                {
-                    mod_log_warn("block %u failed to load dual-mono plugin %s: %s",
-                                 block, uri, _host.last_error.c_str());
-
-                    added = false;
-                    _host.remove(hbp.id);
-                }
-            }
         }
         else
         {
