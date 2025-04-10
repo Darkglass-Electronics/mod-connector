@@ -1175,10 +1175,7 @@ bool HostConnector::enableBlock(const uint8_t row, const uint8_t block, const bo
     blockdata.enabled = enable;
     blockdata.sceneValues[_current.scene].enabled = enable;
 
-    _host.bypass(hbp.id, !enable);
-
-    if (hbp.pair != kMaxHostInstances)
-        _host.bypass(hbp.pair, !enable);
+    hostBypassBlockPair(hbp, !enable);
 
     return true;
 }
@@ -1373,10 +1370,7 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
             {
                 blockdata.enabled = true;
 
-                _host.bypass(hbp.id, false);
-
-                if (hbp.pair != kMaxHostInstances)
-                    _host.bypass(hbp.pair, false);
+                hostBypassBlockPair(hbp, false);
             }
 
             _host.params_flush(hbp.id, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params.size(), params.data());
@@ -1690,10 +1684,7 @@ bool HostConnector::replaceBlockWhileKeepingCurrentData(const uint8_t row, const
 
         if (!blockcopy.enabled)
         {
-            _host.bypass(hbp.id, true);
-
-            if (hbp.pair != kMaxHostInstances)
-                _host.bypass(hbp.pair, true);
+            hostBypassBlockPair(hbp, true);
         }
 
         _host.params_flush(hbp.id, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params.size(), params.data());
@@ -2085,10 +2076,7 @@ bool HostConnector::switchScene(const uint8_t scene)
             if (blockdata.meta.enable.hasScenes && !sceneValues.enabled)
             {
                 blockdata.enabled = false;
-                _host.bypass(hbp.id, true);
-
-                if (hbp.pair != kMaxHostInstances)
-                    _host.bypass(hbp.pair, true);
+                hostBypassBlockPair(hbp, true);
             }
 
             for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
@@ -2129,10 +2117,7 @@ bool HostConnector::switchScene(const uint8_t scene)
             if (blockdata.meta.enable.hasScenes && blockdata.sceneValues[_current.scene].enabled)
             {
                 blockdata.enabled = true;
-                _host.bypass(hbp.id, false);
-
-                if (hbp.pair != kMaxHostInstances)
-                    _host.bypass(hbp.pair, false);
+                hostBypassBlockPair(hbp, false);
             }
         }
     }
@@ -4985,10 +4970,7 @@ void HostConnector::hostSwitchPreset(const Current& prev)
 
                     if (defblockdata.enabled != prevblockdata.enabled)
                     {
-                        _host.bypass(hbp.id, !defblockdata.enabled);
-
-                        if (hbp.pair != kMaxHostInstances)
-                            _host.bypass(hbp.pair, !defblockdata.enabled);
+                        hostBypassBlockPair(hbp, !defblockdata.enabled);
                     }
 
                     params.clear();
@@ -5056,10 +5038,7 @@ void HostConnector::hostSwitchPreset(const Current& prev)
 
                 if (!defblockdata.enabled)
                 {
-                    _host.bypass(hbp.id, true);
-
-                    if (hbp.pair != kMaxHostInstances)
-                        _host.bypass(hbp.pair, true);
+                    hostBypassBlockPair(hbp, true);
                 }
 
                 params.clear();
@@ -5138,6 +5117,16 @@ bool HostConnector::hostLoadInstance(const Block& blockdata, const uint16_t inst
     }
 
     return false;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::hostBypassBlockPair(const HostBlockPair& hbp, const bool bypass)
+{
+    _host.bypass(hbp.id, bypass);
+
+    if (hbp.pair != kMaxHostInstances)
+        _host.bypass(hbp.pair, bypass);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
