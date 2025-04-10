@@ -3377,30 +3377,13 @@ void HostConnector::hostEnsureStereoChain(const uint8_t preset, const uint8_t ro
         {
             const uint16_t pair = _mapper.add_pair(preset, row, bl);
 
-            if (active ? _host.add(blockdata.uri.c_str(), pair)
-                       : _host.preload(blockdata.uri.c_str(), pair))
+            if (!hostLoadInstance(blockdata, pair, active))
             {
-                if (!blockdata.enabled)
-                    _host.bypass(pair, true);
-
-                for (const Parameter& paramdata : blockdata.parameters)
-                {
-                    if (isNullURI(paramdata.symbol))
-                        break;
-                    if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual)) != 0)
-                        continue;
-                    if (isNotEqual(paramdata.value, paramdata.meta.def2))
-                        _host.param_set(pair, paramdata.symbol.c_str(), paramdata.value);
-                }
-
-                for (const Property& propdata : blockdata.properties)
-                {
-                    if (isNullURI(propdata.uri))
-                        break;
-                    if ((propdata.meta.flags & Lv2PropertyIsReadOnly) != 0)
-                        continue;
-                    _host.patch_set(pair, propdata.uri.c_str(), propdata.value.c_str());
-                }
+                // adding pair failed
+                // -> stereo chain will be summed to mono from here on
+                _host.remove(_mapper.remove_pair(preset, row, bl));
+                newDualmono = false;
+                continue;
             }
         }
         else
@@ -4850,43 +4833,9 @@ void HostConnector::hostLoadPreset(const uint8_t preset)
             if (firstBlock)
                 firstBlock = false;
 
-            const auto loadInstance = [=, &blockdata](const uint16_t instance)
-            {
-                if (active ? _host.add(blockdata.uri.c_str(), instance)
-                           : _host.preload(blockdata.uri.c_str(), instance))
-                {
-                    if (!blockdata.enabled)
-                        _host.bypass(instance, true);
-
-                    for (const Parameter& paramdata : blockdata.parameters)
-                    {
-                        if (isNullURI(paramdata.symbol))
-                            break;
-                        if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual)) != 0)
-                            continue;
-                        if (isNotEqual(paramdata.value, paramdata.meta.def2))
-                            _host.param_set(instance, paramdata.symbol.c_str(), paramdata.value);
-                    }
-
-                    for (const Property& propdata : blockdata.properties)
-                    {
-                        if (isNullURI(propdata.uri))
-                            break;
-                        if ((propdata.meta.flags & Lv2PropertyIsReadOnly) != 0)
-                            continue;
-                        if (propdata.value != propdata.meta.defpath)
-                            _host.patch_set(instance, propdata.uri.c_str(), propdata.value.c_str());
-                    }
-
-                    return true;
-                }
-
-                return false;
-            };
-
             const HostBlockPair hbp = { _mapper.add(preset, row, bl), kMaxHostInstances };
 
-            bool added = loadInstance(hbp.id);
+            bool added = hostLoadInstance(blockdata, hbp.id, active);
 
             if (! added)
             {
@@ -5153,6 +5102,42 @@ void HostConnector::hostSwitchPreset(const Current& prev)
         // ensure necessary dual mono blocks are added
         hostEnsureStereoChain(prev.preset, 0, 0);
     }
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+bool HostConnector::hostLoadInstance(const Block& blockdata, const uint16_t instance_number, const bool active)
+{
+    if (active ? _host.add(blockdata.uri.c_str(), instance_number)
+               : _host.preload(blockdata.uri.c_str(), instance_number))
+    {
+        if (!blockdata.enabled)
+            _host.bypass(instance_number, true);
+
+        for (const Parameter& paramdata : blockdata.parameters)
+        {
+            if (isNullURI(paramdata.symbol))
+                break;
+            if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual)) != 0)
+                continue;
+            if (isNotEqual(paramdata.value, paramdata.meta.def2))
+                _host.param_set(instance_number, paramdata.symbol.c_str(), paramdata.value);
+        }
+
+        for (const Property& propdata : blockdata.properties)
+        {
+            if (isNullURI(propdata.uri))
+                break;
+            if ((propdata.meta.flags & Lv2PropertyIsReadOnly) != 0)
+                continue;
+            if (propdata.value != propdata.meta.defpath)
+                _host.patch_set(instance_number, propdata.uri.c_str(), propdata.value.c_str());
+        }
+
+        return true;
+    }
+
+    return false;
 }
 
 // --------------------------------------------------------------------------------------------------------------------

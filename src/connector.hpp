@@ -686,6 +686,9 @@ private:
     // unload "old" and load current preset, only does host commands
     void hostSwitchPreset(const Current& old);
 
+    // add (active==true) or preload block defined by blockdata to instance_number
+    bool hostLoadInstance(const Block& blockdata, uint16_t instance_number, bool active);
+
     // internal feedback handling, for updating parameter values
     void hostFeedbackCallback(const HostFeedbackData& data) override;
 
