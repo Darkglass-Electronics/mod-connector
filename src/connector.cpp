@@ -269,6 +269,14 @@ static inline constexpr float normalized(const Meta& meta, float value)
         : (value - meta.min) / (meta.max - meta.min);
 }
 
+template <class Meta>
+static inline constexpr float unnormalized(const Meta& meta, float value)
+{
+    return value <= 0.f ? meta.min
+        : value >= 1.f ? meta.max
+        : meta.min + (meta.max - value) * (meta.max - meta.min);
+}
+
 static bool shouldBlockBeStereo(const HostConnector::ChainRow& chaindata, const uint8_t block)
 {
     assert(block <= NUM_BLOCKS_PER_PRESET);
@@ -2486,6 +2494,232 @@ bool HostConnector::renameBinding(const uint8_t hwid, const char* const name)
     _current.bindings[hwid].name = name;
     _current.dirty = true;
     return true;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+bool HostConnector::replaceBlockBinding(const uint8_t hwid,
+                                        const uint8_t row,
+                                        const uint8_t block,
+                                        const uint8_t rowB,
+                                        const uint8_t blockB)
+{
+    mod_log_debug("replaceBlockBinding(%u, %u, %u, %u, %u)", hwid, row, block, rowB, blockB);
+    assert(hwid < NUM_BINDING_ACTUATORS);
+    assert(row < NUM_BLOCK_CHAIN_ROWS);
+    assert(block < NUM_BLOCKS_PER_PRESET);
+    assert(rowB < NUM_BLOCK_CHAIN_ROWS);
+    assert(blockB < NUM_BLOCKS_PER_PRESET);
+
+    if (row == rowB && block == blockB)
+        return false;
+
+    Block& blockdata(_current.chains[row].blocks[block]);
+    assert_return(!isNullBlock(blockdata), false);
+    assert_return(blockdata.meta.enable.hwbinding != UINT8_MAX, false);
+
+    Block& blockdataB(_current.chains[rowB].blocks[blockB]);
+    assert_return(!isNullBlock(blockdataB), false);
+    assert_return(blockdataB.meta.enable.hwbinding == UINT8_MAX, false);
+
+    std::list<ParameterBinding>& bindings(_current.bindings[hwid].parameters);
+    for (ParameterBindingIterator it = bindings.begin(), end = bindings.end(); it != end; ++it)
+    {
+        if (it->row != row)
+            continue;
+        if (it->block != block)
+            continue;
+        if (it->parameterSymbol != ":bypass")
+            continue;
+
+        it->row = rowB;
+        it->block = blockB;
+
+        blockdata.meta.enable.hwbinding = UINT8_MAX;
+        blockdataB.meta.enable.hwbinding = hwid;
+
+        if (_current.bindings[hwid].name == blockdata.meta.name)
+            _current.bindings[hwid].name = blockdataB.meta.name;
+
+        if (bindings.size() + _current.bindings[hwid].properties.size() == 1)
+        {
+            // update binding value to single matching binding
+            _current.bindings[hwid].value = blockdataB.enabled ? 1.f : 0.f;
+        }
+        else
+        {
+            // update block to match binding macro
+            enableBlock(rowB, blockB, _current.bindings[hwid].value > 0.5f, SceneModeNone);
+        }
+
+        _current.dirty = true;
+        return true;
+    }
+
+    return false;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+bool HostConnector::replaceBlockParameterBinding(const uint8_t hwid,
+                                                 const uint8_t row,
+                                                 const uint8_t block,
+                                                 const uint8_t paramIndex,
+                                                 const uint8_t rowB,
+                                                 const uint8_t blockB,
+                                                 const uint8_t paramIndexB)
+{
+    mod_log_debug("replaceBlockParameterBinding(%u, %u, %u, %u, %u, %u, %u)",
+                  hwid, row, block, paramIndex, rowB, blockB, paramIndexB);
+    assert(hwid < NUM_BINDING_ACTUATORS);
+    assert(row < NUM_BLOCK_CHAIN_ROWS);
+    assert(block < NUM_BLOCKS_PER_PRESET);
+    assert(paramIndex < MAX_PARAMS_PER_BLOCK);
+    assert(rowB < NUM_BLOCK_CHAIN_ROWS);
+    assert(blockB < NUM_BLOCKS_PER_PRESET);
+    assert(paramIndexB < NUM_BLOCKS_PER_PRESET);
+
+    if (row == rowB && block == blockB && paramIndex == paramIndexB)
+        return false;
+
+    Block& blockdata(_current.chains[row].blocks[block]);
+    assert_return(!isNullBlock(blockdata), false);
+
+    Block& blockdataB(_current.chains[rowB].blocks[blockB]);
+    assert_return(!isNullBlock(blockdataB), false);
+
+    Parameter& paramdata(blockdata.parameters[paramIndex]);
+    assert_return(!isNullURI(paramdata.symbol), false);
+    assert_return((paramdata.meta.flags & Lv2PortIsOutput) == 0, false);
+    assert_return(paramdata.meta.hwbinding != UINT8_MAX, false);
+
+    Parameter& paramdataB(blockdataB.parameters[paramIndexB]);
+    assert_return(!isNullURI(paramdataB.symbol), false);
+    assert_return((paramdataB.meta.flags & Lv2PortIsOutput) == 0, false);
+    assert_return(paramdataB.meta.hwbinding == UINT8_MAX, false);
+
+    std::list<ParameterBinding>& bindings(_current.bindings[hwid].parameters);
+    for (ParameterBindingIterator it = bindings.begin(), end = bindings.end(); it != end; ++it)
+    {
+        if (it->row != row)
+            continue;
+        if (it->block != block)
+            continue;
+        if (it->meta.parameterIndex != paramIndex)
+            continue;
+
+        it->row = rowB;
+        it->block = blockB;
+        it->meta.parameterIndex = paramIndexB;
+        it->min = paramdataB.meta.min;
+        it->max = paramdataB.meta.max;
+        it->parameterSymbol = paramdataB.symbol;
+
+        paramdata.meta.hwbinding = UINT8_MAX;
+        paramdataB.meta.hwbinding = hwid;
+
+        if (_current.bindings[hwid].name == paramdata.meta.name)
+            _current.bindings[hwid].name = paramdataB.meta.name;
+
+        if (bindings.size() + _current.bindings[hwid].properties.size() == 1)
+        {
+            // update binding value to single matching binding
+            _current.bindings[hwid].value = paramdataB.value;
+        }
+        else
+        {
+            // update parameter value to match binding macro
+            const float value = unnormalized(paramdataB.meta, _current.bindings[hwid].value);
+            setBlockParameter(rowB, blockB, paramIndexB, value, SceneModeNone);
+        }
+
+        _current.dirty = true;
+        return true;
+    }
+
+    return false;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+bool HostConnector::replaceBlockPropertyBinding(const uint8_t hwid,
+                                                const uint8_t row,
+                                                const uint8_t block,
+                                                const uint8_t propIndex,
+                                                const uint8_t rowB,
+                                                const uint8_t blockB,
+                                                const uint8_t propIndexB)
+{
+    mod_log_debug("replaceBlockPropertyBinding(%u, %u, %u, %u, %u, %u, %u)",
+                  hwid, row, block, propIndex, rowB, blockB, propIndexB);
+    assert(hwid < NUM_BINDING_ACTUATORS);
+    assert(row < NUM_BLOCK_CHAIN_ROWS);
+    assert(block < NUM_BLOCKS_PER_PRESET);
+    assert(propIndex < MAX_PARAMS_PER_BLOCK);
+    assert(rowB < NUM_BLOCK_CHAIN_ROWS);
+    assert(blockB < NUM_BLOCKS_PER_PRESET);
+    assert(propIndexB < NUM_BLOCKS_PER_PRESET);
+
+    if (row == rowB && block == blockB && propIndex == propIndexB)
+        return false;
+
+    Block& blockdata(_current.chains[row].blocks[block]);
+    assert_return(!isNullBlock(blockdata), false);
+
+    Block& blockdataB(_current.chains[rowB].blocks[blockB]);
+    assert_return(!isNullBlock(blockdataB), false);
+
+    Property& propdata(blockdata.properties[propIndex]);
+    assert_return(!isNullURI(propdata.uri), false);
+    assert_return((propdata.meta.flags & Lv2PropertyIsReadOnly) == 0, false);
+    assert_return(propdata.meta.hwbinding != UINT8_MAX, false);
+
+    Property& propdataB(blockdataB.properties[propIndexB]);
+    assert_return(!isNullURI(propdataB.uri), false);
+    assert_return((propdataB.meta.flags & Lv2PropertyIsReadOnly) == 0, false);
+    assert_return(propdataB.meta.hwbinding == UINT8_MAX, false);
+
+    std::list<PropertyBinding>& bindings(_current.bindings[hwid].properties);
+    for (PropertyBindingIterator it = bindings.begin(), end = bindings.end(); it != end; ++it)
+    {
+        if (it->row != row)
+            continue;
+        if (it->block != block)
+            continue;
+        if (it->meta.propertyIndex != propIndex)
+            continue;
+
+        it->row = rowB;
+        it->block = blockB;
+        it->meta.propertyIndex = propIndexB;
+        it->propertyURI = propdataB.uri;
+
+        propdata.meta.hwbinding = UINT8_MAX;
+        propdataB.meta.hwbinding = hwid;
+
+#if 0
+        // TODO
+        if (bindings.size() + _current.bindings[hwid].properties.size() == 1)
+        {
+            // update binding value to single matching binding
+            _current.bindings[hwid].value = propdataB.value;
+        }
+        else
+        {
+            // update parameter value to match binding macro
+            const float value = unnormalized(propdataB.meta, _current.bindings[hwid].value);
+            setBlockProperty(rowB, blockB, propIndexB, value, SceneModeNone);
+        }
+#endif
+
+        if (_current.bindings[hwid].name == propdata.meta.name)
+            _current.bindings[hwid].name = propdataB.meta.name;
+
+        _current.dirty = true;
+        return true;
+    }
+
+    return false;
 }
 
 // --------------------------------------------------------------------------------------------------------------------

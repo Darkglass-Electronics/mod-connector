@@ -510,6 +510,30 @@ public:
     // rename a binding
     bool renameBinding(uint8_t hwid, const char* name);
 
+    // replace a block binding with another (for enable/disable control)
+    // the binding to be replaced must already exist
+    bool replaceBlockBinding(uint8_t hwid, uint8_t row, uint8_t block, uint8_t rowB, uint8_t blockB);
+
+    // replace a block parameter binding with another
+    // the binding to be replaced must already exist
+    bool replaceBlockParameterBinding(uint8_t hwid,
+                                      uint8_t row,
+                                      uint8_t block,
+                                      uint8_t paramIndex,
+                                      uint8_t rowB,
+                                      uint8_t blockB,
+                                      uint8_t paramIndexB);
+
+    // replace a block property binding with another
+    // the binding to be replaced must already exist
+    bool replaceBlockPropertyBinding(uint8_t hwid,
+                                     uint8_t row,
+                                     uint8_t block,
+                                     uint8_t propIndex,
+                                     uint8_t rowB,
+                                     uint8_t blockB,
+                                     uint8_t propIndexB);
+
     // reorder bindings
     bool reorderBlockBinding(uint8_t hwid, uint8_t dest);
 
