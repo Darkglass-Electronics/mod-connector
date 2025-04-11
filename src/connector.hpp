@@ -657,9 +657,9 @@ protected:
     void hostDisconnectAllBlockOutputs(const Block& blockdata, const HostBlockPair& hbp, bool disconnectSideChains = false);
     void hostDisconnectChainEndpoints(uint8_t row);
 
-    void hostEnsureStereoChain(uint8_t row, uint8_t blockStart, bool recursive = false);
+    void hostEnsureStereoChain(uint8_t preset, uint8_t row, uint8_t blockStart = 0, bool recursive = false);
 
-    void hostSetupSideIO(uint8_t row, uint8_t block, HostBlockPair hbp, const Lv2Plugin* plugin);
+    void hostSetupSideIO(uint8_t preset, uint8_t row, uint8_t block, HostBlockPair hbp, const Lv2Plugin* plugin);
 
     // remove all bindings related to a block
     void hostRemoveAllBlockBindings(uint8_t row, uint8_t block);
@@ -685,6 +685,21 @@ private:
 
     // unload "old" and load current preset, only does host commands
     void hostSwitchPreset(const Current& old);
+
+    // add (active==true) or preload block defined by blockdata to instance_number
+    bool hostLoadInstance(const Block& blockdata, uint16_t instance_number, bool active);
+
+    // set bypass state of block and its pair if exists
+    void hostBypassBlockPair(const HostBlockPair& hbp, bool bypass);
+
+    // remove block instance and its pair if exists
+    void hostRemoveBlockPair(const HostBlockPair& hbp);
+
+    // patch_set for block and its pair if exists
+    void hostPatchSetBlockPair(const HostBlockPair& hbp, const Property& propdata);
+
+    // params_flush for block and its pair if exists
+    void hostParamsFlushBlockPair(const HostBlockPair& hbp, uint8_t reset_value, const std::vector<flushed_param>& params);
 
     // internal feedback handling, for updating parameter values
     void hostFeedbackCallback(const HostFeedbackData& data) override;
