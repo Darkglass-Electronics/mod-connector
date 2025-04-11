@@ -865,9 +865,8 @@ bool HostConnector::preloadPresetFromFile(const uint8_t preset, const char* cons
                 if (isNullBlock(oldpreset.chains[row].blocks[bl]))
                     continue;
 
-                const HostBlockPair hbp = _mapper.remove(preset, row, bl);
-
-                hostRemoveBlockPair(hbp);
+                if (const HostBlockPair hbp = _mapper.remove(preset, row, bl); hbp.id != kMaxHostInstances)
+                    hostRemoveBlockPair(hbp);
             }
         }
     }
@@ -1564,7 +1563,7 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
                         _host.disconnect_all(chain2data.capture[1].c_str());
                 }
 
-                hostEnsureStereoChain(_current.preset, row + 1, 0);
+                hostEnsureStereoChain(_current.preset, row + 1);
             }
 
             hostEnsureStereoChain(_current.preset, row, before);
@@ -1573,7 +1572,7 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
         if (blockdata.meta.numSideOutputs != 0)
         {
             assert(row + 1 < NUM_BLOCK_CHAIN_ROWS);
-            hostEnsureStereoChain(_current.preset, row + 1, 0);
+            hostEnsureStereoChain(_current.preset, row + 1);
         }
     }
     else
@@ -1607,7 +1606,7 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
             if (oldNumSideInputs != 0)
             {
                 assert(row + 1 < NUM_BLOCK_CHAIN_ROWS);
-                hostEnsureStereoChain(_current.preset, row + 1, NUM_BLOCK_CHAIN_ROWS - 1);
+                hostEnsureStereoChain(_current.preset, row + 1);
             }
 
             hostEnsureStereoChain(_current.preset, row, start);
@@ -3283,7 +3282,10 @@ void HostConnector::hostDisconnectBlockAction(const Block& blockdata,
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::hostEnsureStereoChain(const uint8_t preset, const uint8_t row, const uint8_t blockStart, const bool recursive)
+void HostConnector::hostEnsureStereoChain(const uint8_t preset,
+                                          const uint8_t row,
+                                          const uint8_t blockStart,
+                                          const bool recursive)
 {
     mod_log_debug("hostEnsureStereoChain(%u, %u, %u, %s)", preset, row, blockStart, bool2str(recursive));
     assert(row < NUM_BLOCK_CHAIN_ROWS);
@@ -3349,8 +3351,10 @@ void HostConnector::hostEnsureStereoChain(const uint8_t preset, const uint8_t ro
             _host.remove(_mapper.remove_pair(preset, row, bl));
         }
 
-        // disconnect also sidechain outputs in case of outdated connection (will be reconnected hostEnsureStereoChain(..., row + 1, ...))
-        if (active) hostDisconnectAllBlockOutputs(row, bl, true);
+        // disconnect also sidechain outputs in case of outdated connection
+        // (will be reconnected hostEnsureStereoChain(..., row + 1, ...))
+        if (active)
+            hostDisconnectAllBlockOutputs(row, bl, true);
 
         // redo sideIO (if applicable) due to add/remove
         const HostBlockPair hbp = _mapper.get(preset, row, bl);
@@ -3367,12 +3371,12 @@ void HostConnector::hostEnsureStereoChain(const uint8_t preset, const uint8_t ro
     }
 
     // after all required dual mono blocks have been created above, update "sidechain" mono/stereo setup
-    if (sideChainToBeUpdated) {
+    if (sideChainToBeUpdated)
         hostEnsureStereoChain(preset, row + 1, 0, true);
-    }
 
     // ensure stereo / dual mono for possible other rows serving as playback targets
-    if (row > 0 && chain.playbackId[0] != kMaxHostInstances) {
+    if (row > 0 && chain.playbackId[0] != kMaxHostInstances)
+    {
         HostInstanceMapper::BlockAndRow blockRow = _mapper.get_block_with_id(preset, chain.playbackId[0]);
         hostEnsureStereoChain(preset, blockRow.row, blockRow.block, true);
     }
@@ -3380,9 +3384,8 @@ void HostConnector::hostEnsureStereoChain(const uint8_t preset, const uint8_t ro
     // ----------------------------------------------------------------------------------------------------------------
     // part 2: handle connections (if active preset)
 
-    if (!active) {
+    if (! active)
         return;
-    }
 
     std::array<bool, NUM_BLOCKS_PER_PRESET> loaded;
     uint8_t firstBlock = UINT8_MAX;
@@ -3451,13 +3454,14 @@ void HostConnector::hostSetupSideIO(const uint8_t preset,
     const bool active = _current.preset == preset;
     const Block& blockdata(active ? _current.chains[row].blocks[block] : _presets[preset].chains[row].blocks[block]);
     assert(!isNullBlock(blockdata));
-    ChainRow& nextChainRow = active ? _current.chains[row + 1] : _presets[preset].chains[row + 1];
     
     if (blockdata.meta.numSideInputs == 0 && blockdata.meta.numSideOutputs == 0)
         return;
 
     // next row must be available for use if adding side IO
     assert_return(row + 1 < NUM_BLOCK_CHAIN_ROWS,);
+
+    ChainRow& nextChainRow = active ? _current.chains[row + 1] : _presets[preset].chains[row + 1];
 
     if (plugin == nullptr)
         plugin = lv2world.getPluginByURI(blockdata.uri.c_str());
@@ -3610,9 +3614,8 @@ void HostConnector::hostRemoveInstanceForBlock(const uint8_t row, const uint8_t 
     assert(row < NUM_BLOCK_CHAIN_ROWS);
     assert(block < NUM_BLOCKS_PER_PRESET);
 
-    const HostBlockPair hbp = _mapper.remove(_current.preset, row, block);
-
-    hostRemoveBlockPair(hbp);
+    if (const HostBlockPair hbp = _mapper.remove(_current.preset, row, block); hbp.id != kMaxHostInstances)
+        hostRemoveBlockPair(hbp);
 
    #if NUM_BLOCK_CHAIN_ROWS != 1
     if (row == 0)
@@ -4802,7 +4805,7 @@ void HostConnector::hostLoadPreset(const uint8_t preset)
 
             // dealing with connections after this point, only valid if preset is the active one
             if (active)
-                numLoadedPlugins++;
+                ++numLoadedPlugins;
 
             hostSetupSideIO(preset, row, bl, hbp, nullptr);
         }
@@ -4813,7 +4816,7 @@ void HostConnector::hostLoadPreset(const uint8_t preset)
 
     // add necessary dual mono pairs
     // and make connections if active preset
-    hostEnsureStereoChain(preset, 0, 0, false);
+    hostEnsureStereoChain(preset, 0);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -4982,9 +4985,8 @@ void HostConnector::hostSwitchPreset(const Current& prev)
                 // different plugin, unload old one if there is any
                 if (oldloaded[row][bl])
                 {
-                    const HostBlockPair hbp = _mapper.remove(prev.preset, row, bl);
-
-                    hostRemoveBlockPair(hbp);
+                    if (const HostBlockPair hbp = _mapper.remove(prev.preset, row, bl); hbp.id != kMaxHostInstances)
+                        hostRemoveBlockPair(hbp);
                 }
 
                 // nothing else to do if block is empty
@@ -5031,8 +5033,9 @@ void HostConnector::hostSwitchPreset(const Current& prev)
                 hostParamsFlushBlockPair(hbp, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params);
             }
         }
+
         // ensure necessary dual mono blocks are added
-        hostEnsureStereoChain(prev.preset, 0, 0);
+        hostEnsureStereoChain(prev.preset, 0);
     }
 }
 
@@ -5040,6 +5043,11 @@ void HostConnector::hostSwitchPreset(const Current& prev)
 
 bool HostConnector::hostLoadInstance(const Block& blockdata, const uint16_t instance_number, const bool active)
 {
+    assert(instance_number != kMaxHostInstances);
+
+    std::vector<flushed_param> params;
+    params.reserve(MAX_PARAMS_PER_BLOCK);
+
     if (active ? _host.add(blockdata.uri.c_str(), instance_number)
                : _host.preload(blockdata.uri.c_str(), instance_number))
     {
@@ -5053,8 +5061,11 @@ bool HostConnector::hostLoadInstance(const Block& blockdata, const uint16_t inst
             if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual)) != 0)
                 continue;
             if (isNotEqual(paramdata.value, paramdata.meta.def2))
-                _host.param_set(instance_number, paramdata.symbol.c_str(), paramdata.value);
+                params.push_back({ paramdata.symbol.c_str(), paramdata.value });
         }
+
+        if (! params.empty())
+            _host.params_flush(instance_number, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params.size(), params.data());
 
         for (const Property& propdata : blockdata.properties)
         {
@@ -5076,6 +5087,8 @@ bool HostConnector::hostLoadInstance(const Block& blockdata, const uint16_t inst
 
 void HostConnector::hostBypassBlockPair(const HostBlockPair& hbp, const bool bypass)
 {
+    assert(hbp.id != kMaxHostInstances);
+
     _host.bypass(hbp.id, bypass);
 
     if (hbp.pair != kMaxHostInstances)
@@ -5086,8 +5099,9 @@ void HostConnector::hostBypassBlockPair(const HostBlockPair& hbp, const bool byp
 
 void HostConnector::hostRemoveBlockPair(const HostBlockPair& hbp)
 {
-    if (hbp.id != kMaxHostInstances)
-        _host.remove(hbp.id);
+    assert(hbp.id != kMaxHostInstances);
+
+    _host.remove(hbp.id);
 
     if (hbp.pair != kMaxHostInstances)
         _host.remove(hbp.pair);
@@ -5097,6 +5111,8 @@ void HostConnector::hostRemoveBlockPair(const HostBlockPair& hbp)
 
 void HostConnector::hostPatchSetBlockPair(const HostBlockPair& hbp, const Property& propdata)
 {
+    assert(hbp.id != kMaxHostInstances);
+
     _host.patch_set(hbp.id, propdata.uri.c_str(), propdata.value.c_str());
 
     if (hbp.pair != kMaxHostInstances)
@@ -5105,8 +5121,12 @@ void HostConnector::hostPatchSetBlockPair(const HostBlockPair& hbp, const Proper
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::hostParamsFlushBlockPair(const HostBlockPair& hbp, const uint8_t reset_value, const std::vector<flushed_param>& params)
+void HostConnector::hostParamsFlushBlockPair(const HostBlockPair& hbp,
+                                             const uint8_t reset_value,
+                                             const std::vector<flushed_param>& params)
 {
+    assert(hbp.id != kMaxHostInstances);
+
     _host.params_flush(hbp.id, reset_value, params.size(), params.data());
 
     if (hbp.pair != kMaxHostInstances)

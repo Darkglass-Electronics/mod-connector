@@ -657,7 +657,7 @@ protected:
     void hostDisconnectAllBlockOutputs(const Block& blockdata, const HostBlockPair& hbp, bool disconnectSideChains = false);
     void hostDisconnectChainEndpoints(uint8_t row);
 
-    void hostEnsureStereoChain(uint8_t preset, uint8_t row, uint8_t blockStart, bool recursive = false);
+    void hostEnsureStereoChain(uint8_t preset, uint8_t row, uint8_t blockStart = 0, bool recursive = false);
 
     void hostSetupSideIO(uint8_t preset, uint8_t row, uint8_t block, HostBlockPair hbp, const Lv2Plugin* plugin);
 

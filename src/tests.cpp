@@ -8,7 +8,7 @@
 #define SIDEOUTBLOCK "urn:mod-connector:testsideout"
 #define SIDEINBLOCK "urn:mod-connector:testsidein"
 
-#define PRESETFILEPATH "./test-presets/"
+#define PRESETFILEPATH "./test-presets"
 
 #include "connector.hpp"
 #include "utils.hpp"
@@ -38,6 +38,7 @@ constexpr const char* getProcessErrorAsString(QProcess::ProcessError error)
         return "Unkown error";
     }
 }
+
 class HostProcess : public QProcess
 {
     bool closing = false;
@@ -352,8 +353,7 @@ class HostConnectorTests : public QObject
         assert_return(testNoPassthrough(), false);
 
         // save preset state to file
-        std::string presetFileName = format("%s/testSingleMonoChain.json", PRESETFILEPATH);
-        assert_return(connector.saveCurrentPresetToFile(presetFileName.c_str()), false);
+        assert_return(connector.saveCurrentPresetToFile(PRESETFILEPATH "/testSingleMonoChain.json"), false);
 
         // remove plugin from end
         assert_return(connector.replaceBlock(0, 5, nullptr), false);
@@ -408,7 +408,7 @@ class HostConnectorTests : public QObject
 
         // test loading from file
         const std::array<std::string, NUM_PRESETS_PER_BANK> bankPresets = {
-            presetFileName,
+            PRESETFILEPATH "/testSingleMonoChain.json",
             {},
             {},
         };
@@ -550,8 +550,7 @@ class HostConnectorTests : public QObject
         // basic dual mono to stereo OK
 
         // save preset state to file
-        std::string presetFileName = format("%s/testSingleStereoChain.json", PRESETFILEPATH);
-        assert_return(connector.saveCurrentPresetToFile(presetFileName.c_str()), false);
+        assert_return(connector.saveCurrentPresetToFile(PRESETFILEPATH "/testSingleStereoChain.json"), false);
 
         // move mono block from beginning to end
         // chain becomes: stereo - stereo - dual mono - dual mono - stereo - dual mono
@@ -753,7 +752,7 @@ class HostConnectorTests : public QObject
 
         // test loading from file
         const std::array<std::string, NUM_PRESETS_PER_BANK> bankPresets = {
-            presetFileName,
+            PRESETFILEPATH "/testSingleStereoChain.json",
             {},
             {},
         };
@@ -850,8 +849,7 @@ class HostConnectorTests : public QObject
         assert_return(testNoPassthrough(), false);
 
         // save preset state to file
-        std::string presetFileName1 = format("%s/testSideChainBuiltInOrder1.json", PRESETFILEPATH);
-        assert_return(connector.saveCurrentPresetToFile(presetFileName1.c_str()), false);
+        assert_return(connector.saveCurrentPresetToFile(PRESETFILEPATH "/testSideChainBuiltInOrder1.json"), false);
 
         // remove sidein block (undo sidechain ending)
         assert_return(connector.replaceBlock(0, 4, nullptr), false);
@@ -948,8 +946,7 @@ class HostConnectorTests : public QObject
         assert_return(testNoPassthrough(), false);
 
         // save preset state to file
-        std::string presetFileName2 = format("%s/testSideChainBuiltInOrder2.json", PRESETFILEPATH);
-        assert_return(connector.saveCurrentPresetToFile(presetFileName2.c_str()), false);
+        assert_return(connector.saveCurrentPresetToFile(PRESETFILEPATH "/testSideChainBuiltInOrder2.json"), false);
 
         // remove sidein block (undo sidechain ending)
         assert_return(connector.replaceBlock(0, 4, nullptr), false);
@@ -1051,8 +1048,7 @@ class HostConnectorTests : public QObject
         assert_return(testNoPassthrough(), false);
 
         // save preset state to file
-        std::string presetFileName3 = format("%s/testSideChainBuiltInOrder3.json", PRESETFILEPATH);
-        assert_return(connector.saveCurrentPresetToFile(presetFileName3.c_str()), false);
+        assert_return(connector.saveCurrentPresetToFile(PRESETFILEPATH "/testSideChainBuiltInOrder3.json"), false);
 
         // remove sidechain completion
         assert_return(connector.replaceBlock(0, 4, nullptr), false);
@@ -1110,9 +1106,9 @@ class HostConnectorTests : public QObject
         // ***** test loading all previously saved presets from file
 
         const std::array<std::string, NUM_PRESETS_PER_BANK> bankPresets = {
-            presetFileName1,
-            presetFileName2,
-            presetFileName3,
+            PRESETFILEPATH "/testSideChainBuiltInOrder1.json",
+            PRESETFILEPATH "/testSideChainBuiltInOrder2.json",
+            PRESETFILEPATH "/testSideChainBuiltInOrder3.json",
         };
         connector.loadBankFromPresetFiles(bankPresets, 0);
 
@@ -1361,8 +1357,7 @@ class HostConnectorTests : public QObject
         assert_return(testNoPassthrough(), false);
 
         // save preset state to file
-        std::string presetFileName1 = format("%s/testSideChainMoveStereoOnFirstRow1.json", PRESETFILEPATH);
-        assert_return(connector.saveCurrentPresetToFile(presetFileName1.c_str()), false);
+        assert_return(connector.saveCurrentPresetToFile(PRESETFILEPATH "/testSideChainMoveStereoOnFirstRow1.json"), false);
 
         // move stereo block back inside sidechaining blocks on row 0
         // SIDEOUTBLOCK 2 becomes block 1
@@ -1436,7 +1431,7 @@ class HostConnectorTests : public QObject
 
         // test loading from file
         const std::array<std::string, NUM_PRESETS_PER_BANK> bankPresets = {
-            presetFileName1,
+            PRESETFILEPATH "/testSideChainMoveStereoOnFirstRow1.json",
             {},
             {},
         };
@@ -1672,8 +1667,17 @@ public:
         : client(c),
           hostProcess(hostProc)
     {
+        QDir::current().mkdir(PRESETFILEPATH);
+
         mod_log_info("Connecting to host...");
         QTimer::singleShot(100, this, &HostConnectorTests::reconnect);
+    }
+
+    ~HostConnectorTests() override
+    {
+        QDir dir(QDir::current());
+        if (dir.cd(PRESETFILEPATH))
+            dir.removeRecursively();
     }
 };
 
