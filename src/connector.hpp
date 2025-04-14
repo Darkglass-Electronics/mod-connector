@@ -99,7 +99,7 @@ struct HostConnector : Host::FeedbackCallback {
         struct {
             // convenience meta-data, not stored in json state
             uint32_t flags;
-            Lv2Designation designation;
+            uint32_t designation;
             uint8_t hwbinding;
             float def, min, max;
             float def2; // default from plugin ttl, which might not match default preset

@@ -91,7 +91,7 @@ struct Lv2Port {
     std::string name;
     std::string shortname;
     uint32_t flags = 0;
-    Lv2Designation designation = kLv2DesignationNone;
+    uint32_t designation = kLv2DesignationNone;
     float def = 0.f;
     float min = 0.f;
     float max = 1.f;
