@@ -341,7 +341,7 @@ public:
     // set new custom ports to be used as chain capture can playback ports
     bool setJackPorts(const std::array<std::string, 2>& capture, const std::array<std::string, 2>& playback);
 
-    void hostReady(bool monitorAudioLevels = false);
+    void hostReady();
 
     // ----------------------------------------------------------------------------------------------------------------
     // bank handling
@@ -740,8 +740,6 @@ private:
 
     static void allocPreset(Preset& preset);
     static void resetPreset(Preset& preset);
-
-    bool _monitorAudioLevels = false;
 };
 
 using HostBindings = HostConnector::Bindings;
