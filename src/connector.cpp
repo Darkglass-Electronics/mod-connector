@@ -748,16 +748,19 @@ bool HostConnector::setJackPorts(const std::array<std::string, 2>& capture, cons
         hostConnectBlockToChainOutput(0, lastBlock);
     }
 
-    // monitor new ports
-    _host.monitor_audio_levels(capture[0].c_str(), true);
+    if (_monitorAudioLevels) 
+    {
+        // monitor new ports
+        _host.monitor_audio_levels(capture[0].c_str(), true);
 
-    if (capture[0] != capture[1])
-        _host.monitor_audio_levels(capture[1].c_str(), true);
+        if (capture[0] != capture[1])
+            _host.monitor_audio_levels(capture[1].c_str(), true);
 
-    _host.monitor_audio_levels(JACK_PLAYBACK_MONITOR_PORT_1, true);
+        _host.monitor_audio_levels(JACK_PLAYBACK_MONITOR_PORT_1, true);
 
-    if constexprstr (std::strcmp(JACK_PLAYBACK_MONITOR_PORT_1, JACK_PLAYBACK_MONITOR_PORT_2) != 0)
-        _host.monitor_audio_levels(JACK_PLAYBACK_MONITOR_PORT_2, true);
+        if constexprstr (std::strcmp(JACK_PLAYBACK_MONITOR_PORT_1, JACK_PLAYBACK_MONITOR_PORT_2) != 0)
+            _host.monitor_audio_levels(JACK_PLAYBACK_MONITOR_PORT_2, true);       
+    }
 
     return true;
 }
@@ -5500,8 +5503,13 @@ void HostConnector::hostFeedbackCallback(const HostFeedbackData& data)
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::hostReady()
+void HostConnector::hostReady(const bool monitorAudioLevels)
 {
+    _monitorAudioLevels = monitorAudioLevels;
+
+    if (!monitorAudioLevels) 
+        return;
+
     ChainRow& chaindata = _current.chains[0];
 
     const Host::NonBlockingScope hnbs(_host);
