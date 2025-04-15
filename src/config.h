@@ -48,6 +48,10 @@
 #define JACK_PLAYBACK_PORT_2 "mod-monitor:in_2"
 #endif
 
+#ifndef MONITOR_AUDIO_LEVELS
+#define MONITOR_AUDIO_LEVELS 0
+#endif
+
 #ifndef JACK_PLAYBACK_MONITOR_PORT_1
 #define JACK_PLAYBACK_MONITOR_PORT_1 "mod-monitor:out_1"
 #endif

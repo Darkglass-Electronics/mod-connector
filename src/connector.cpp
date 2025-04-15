@@ -717,6 +717,7 @@ bool HostConnector::setJackPorts(const std::array<std::string, 2>& capture, cons
         hostDisconnectAllBlockOutputs(0, lastBlock);
     }
 
+#if MONITOR_AUDIO_LEVELS
     // unmonitor old ports
     if constexprstr (std::strcmp(JACK_PLAYBACK_MONITOR_PORT_1, JACK_PLAYBACK_MONITOR_PORT_2) != 0)
         _host.monitor_audio_levels(JACK_PLAYBACK_MONITOR_PORT_2, false);
@@ -727,6 +728,7 @@ bool HostConnector::setJackPorts(const std::array<std::string, 2>& capture, cons
         _host.monitor_audio_levels(chaindata.capture[1].c_str(), false);
 
     _host.monitor_audio_levels(chaindata.capture[0].c_str(), false);
+#endif
 
     // set new ports
     chaindata.capture = capture;
@@ -748,6 +750,7 @@ bool HostConnector::setJackPorts(const std::array<std::string, 2>& capture, cons
         hostConnectBlockToChainOutput(0, lastBlock);
     }
 
+#if MONITOR_AUDIO_LEVELS
     // monitor new ports
     _host.monitor_audio_levels(capture[0].c_str(), true);
 
@@ -757,7 +760,8 @@ bool HostConnector::setJackPorts(const std::array<std::string, 2>& capture, cons
     _host.monitor_audio_levels(JACK_PLAYBACK_MONITOR_PORT_1, true);
 
     if constexprstr (std::strcmp(JACK_PLAYBACK_MONITOR_PORT_1, JACK_PLAYBACK_MONITOR_PORT_2) != 0)
-        _host.monitor_audio_levels(JACK_PLAYBACK_MONITOR_PORT_2, true);
+        _host.monitor_audio_levels(JACK_PLAYBACK_MONITOR_PORT_2, true);       
+#endif
 
     return true;
 }
@@ -5502,6 +5506,7 @@ void HostConnector::hostFeedbackCallback(const HostFeedbackData& data)
 
 void HostConnector::hostReady()
 {
+#if MONITOR_AUDIO_LEVELS
     ChainRow& chaindata = _current.chains[0];
 
     const Host::NonBlockingScope hnbs(_host);
@@ -5515,6 +5520,7 @@ void HostConnector::hostReady()
 
     if constexprstr (std::strcmp(JACK_PLAYBACK_MONITOR_PORT_1, JACK_PLAYBACK_MONITOR_PORT_2) != 0)
         _host.monitor_audio_levels(JACK_PLAYBACK_MONITOR_PORT_2, true);
+#endif
 }
 
 // --------------------------------------------------------------------------------------------------------------------
