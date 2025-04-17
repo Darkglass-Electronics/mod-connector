@@ -2267,6 +2267,38 @@ bool HostConnector::addBlockPropertyBinding(const uint8_t hwid,
 
 // --------------------------------------------------------------------------------------------------------------------
 
+bool HostConnector::editBlockBinding(const uint8_t hwid, const uint8_t row, const uint8_t block, const bool inverted)
+{
+    mod_log_debug("editBlockBinding(%u, %u, %u, %s)", hwid, row, block, bool2str(inverted));
+    assert(hwid < NUM_BINDING_ACTUATORS);
+    assert(row < NUM_BLOCK_CHAIN_ROWS);
+    assert(block < NUM_BLOCKS_PER_PRESET);
+
+    Block& blockdata(_current.chains[row].blocks[block]);
+    assert_return(!isNullBlock(blockdata), false);
+    assert_return(blockdata.meta.enable.hwbinding != UINT8_MAX, false);
+
+    std::list<ParameterBinding>& bindings(_current.bindings[hwid].parameters);
+    for (ParameterBindingIterator it = bindings.begin(), end = bindings.end(); it != end; ++it)
+    {
+        if (it->row != row)
+            continue;
+        if (it->block != block)
+            continue;
+        if (it->parameterSymbol != ":bypass")
+            continue;
+
+        it->min = inverted ? 1.f : 0.f;
+        it->max = inverted ? 0.f : 1.f;
+        _current.dirty = true;
+        return true;
+    }
+
+    return false;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 bool HostConnector::editBlockParameterBinding(const uint8_t hwid,
                                               const uint8_t row,
                                               const uint8_t block,
