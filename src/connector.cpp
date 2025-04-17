@@ -5187,7 +5187,7 @@ void HostConnector::hostSwitchPreset(const Current& prev)
 
                     for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
                     {
-                        const Parameter& defparamdata(prevblockdata.parameters[p]);
+                        const Parameter& defparamdata(defblockdata.parameters[p]);
                         const Parameter& oldparamdata(prevblockdata.parameters[p]);
 
                         if (isNullURI(defparamdata.symbol))
