@@ -261,20 +261,30 @@ static constexpr const char* SceneMode2Str(const HostSceneMode sceneMode)
 
 // --------------------------------------------------------------------------------------------------------------------
 
+static inline constexpr float normalized(float value, float min, float max)
+{
+    return value <= min ? 0.f
+        : value >= max ? 1.f
+        : (value - min) / (max - min);
+}
+
+static inline constexpr float unnormalized(float value, float min, float max)
+{
+    return value <= 0.f ? min
+        : value >= 1.f ? max
+        : min + (max - value) * (max - min);
+}
+
 template <class Meta>
 static inline constexpr float normalized(const Meta& meta, float value)
 {
-    return value <= meta.min ? 0.f
-        : value >= meta.max ? 1.f
-        : (value - meta.min) / (meta.max - meta.min);
+    return normalized(value, meta.min, meta.max);
 }
 
 template <class Meta>
 static inline constexpr float unnormalized(const Meta& meta, float value)
 {
-    return value <= 0.f ? meta.min
-        : value >= 1.f ? meta.max
-        : meta.min + (meta.max - value) * (meta.max - meta.min);
+    return unnormalized(value, meta.min, meta.max);
 }
 
 static bool shouldBlockBeStereo(const HostConnector::ChainRow& chaindata, const uint8_t block)
@@ -1176,7 +1186,13 @@ bool HostConnector::enableBlock(const uint8_t row, const uint8_t block, const bo
         Bindings& bindings(_current.bindings[blockdata.meta.enable.hwbinding]);
         assert(!bindings.parameters.empty());
 
-        bindings.value = enable ? 1.f : 0.f;
+        ParameterBinding& binding = bindings.parameters.front();
+
+        if (bindings.parameters.size() == 1 ||
+            (binding.row == row && binding.block == block && binding.parameterSymbol == ":bypass"))
+        {
+            bindings.value = enable ? binding.max : binding.min;
+        }
     }
 
     blockdata.enabled = enable;
@@ -2940,10 +2956,16 @@ void HostConnector::setBlockParameter(const uint8_t row,
         Bindings& bindings(_current.bindings[paramdata.meta.hwbinding]);
         assert(!bindings.parameters.empty());
 
-        if (bindings.parameters.size() == 1)
-            bindings.value = value;
-        else
-            bindings.value = normalized(paramdata.meta, value);
+        ParameterBinding& binding = bindings.parameters.front();
+
+        if (bindings.parameters.size() == 1 ||
+            (binding.row == row && binding.block == block && binding.parameterSymbol == paramdata.symbol))
+        {
+            if (binding.min < binding.max)
+                bindings.value = normalized(value, binding.min, binding.max);
+            else
+                bindings.value = 1.f - normalized(value, binding.max, binding.min);
+        }
     }
 
     paramdata.value = value;
