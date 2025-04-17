@@ -3566,27 +3566,25 @@ void HostConnector::hostEnsureStereoChain(const uint8_t preset,
 
         previousPluginStereoOut = blockdata.meta.numOutputs == 2 || newDualmono;
 
-        if (oldDualmono == newDualmono)
-            continue;
-
-        // changed = true;
-
-        if (newDualmono)
+        if (oldDualmono != newDualmono)
         {
-            const uint16_t pair = _mapper.add_pair(preset, row, bl);
-
-            if (!hostLoadInstance(blockdata, pair, active))
+            if (newDualmono)
             {
-                // adding pair failed
-                // -> stereo chain will be summed to mono from here on
-                _host.remove(_mapper.remove_pair(preset, row, bl));
-                newDualmono = false;
-                continue;
+                const uint16_t pair = _mapper.add_pair(preset, row, bl);
+
+                if (!hostLoadInstance(blockdata, pair, active))
+                {
+                    // adding pair failed
+                    // -> stereo chain will be summed to mono from here on
+                    _host.remove(_mapper.remove_pair(preset, row, bl));
+                    newDualmono = false;
+                    continue;
+                }
             }
-        }
-        else
-        {
-            _host.remove(_mapper.remove_pair(preset, row, bl));
+            else
+            {
+                _host.remove(_mapper.remove_pair(preset, row, bl));
+            }
         }
 
         // disconnect also sidechain outputs in case of outdated connection
@@ -3601,7 +3599,7 @@ void HostConnector::hostEnsureStereoChain(const uint8_t preset,
         // NOTE: sidechain update not needed if mono -> dual mono update of sidechain playback target block
         // was triggered from sidechain (recursive == true)
         if ((blockdata.meta.numSideOutputs != 0) ||
-            (blockdata.meta.numSideInputs != 0 && newDualmono && !oldDualmono && !recursive))
+            (blockdata.meta.numSideInputs != 0 && !recursive))
         {
             assert_continue(row + 1 < NUM_BLOCK_CHAIN_ROWS);
             sideChainToBeUpdated = true;
@@ -5529,24 +5527,51 @@ void HostConnector::enableAudioProcessing(const bool enable)
 {
     if (enable)
     {
-        // send reset to wipe memories / buffers of blocks 
+        // activate all active plugins
         for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
         {
             for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
             {
-                std::vector<flushed_param> params;
+                if (isNullBlock(_current.chains[row].blocks[bl]))
+                    continue;
 
                 const HostBlockPair hbp = _mapper.get(_current.preset, row, bl);
 
-                if (hbp.id != kMaxHostInstances) 
-                    hostParamsFlushBlockPair(hbp, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params);
+                if (hbp.id != kMaxHostInstances)
+                    _host.activate(hbp.id, true);
+
+                if (hbp.pair != kMaxHostInstances)
+                    _host.activate(hbp.pair, true);
             }
-        }
+        } 
+
+        // make connections
+        hostEnsureStereoChain(_current.preset, 0);
+
         _host.feature_enable(Host::kFeatureProcessing, Host::kProcessingOnWithFadeIn);
     }
     else 
     {
-        _host.feature_enable(Host::kFeatureProcessing, Host::kProcessingOffWithFadeOut);   
+        // fade out + processing off
+        _host.feature_enable(Host::kFeatureProcessing, Host::kProcessingOffWithFadeOut);  
+        
+        // deactivate all active plugins
+        for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
+        {
+            for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
+            {
+                if (isNullBlock(_current.chains[row].blocks[bl]))
+                    continue;
+
+                const HostBlockPair hbp = _mapper.get(_current.preset, row, bl);
+
+                if (hbp.id != kMaxHostInstances)
+                    _host.activate(hbp.id, false);
+
+                if (hbp.pair != kMaxHostInstances)
+                    _host.activate(hbp.pair, false);
+            }
+        } 
     }
 }
 
