@@ -422,6 +422,17 @@ class HostConnectorTests : public QObject
         assert_return(checkOnly2Connections(blockPortOut1(0, 5), JACK_PLAYBACK_PORT_1, JACK_PLAYBACK_PORT_2), false);
         assert_return(testNoPassthrough(), false);
 
+        // disable and re-enable processing
+        connector.enableAudioProcessing(false);
+        connector.enableAudioProcessing(true);
+        // check connections are the same again
+        assert_return(checkOnlyConnection(blockPortIn1(0, 1), JACK_CAPTURE_PORT_1), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 1), blockPortIn1(0, 2)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 2), blockPortIn1(0, 4)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 4), blockPortIn1(0, 5)), false);
+        assert_return(checkOnly2Connections(blockPortOut1(0, 5), JACK_PLAYBACK_PORT_1, JACK_PLAYBACK_PORT_2), false);
+        assert_return(testNoPassthrough(), false);
+
         // load empty bank
         connector.loadBankFromPresetFiles(bankPresetsEmpty, 0);
 
@@ -759,6 +770,27 @@ class HostConnectorTests : public QObject
         connector.loadBankFromPresetFiles(bankPresets, 0);
 
         // check connections are the same as before saving the file
+        assert_return(checkOnlyConnection(blockPortIn1(0, 0), JACK_CAPTURE_PORT_1), false);
+        assert_return(checkOnly2Connections(blockPortOut1(0, 0), blockPortIn1(0, 1), blockPortIn2(0, 1)), false);
+        assert_return(checkOnlyConnection(blockPortIn1(0, 1), blockPortOut1(0, 0)), false);
+        assert_return(checkOnlyConnection(blockPortIn2(0, 1), blockPortOut1(0, 0)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 1), blockPortIn1(0, 2)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut2(0, 1), blockPortIn2(0, 2)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 2), blockPortIn1(0, 3)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut2(0, 2), blockPairPortIn1(0, 3)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 3), blockPortIn1(0, 4)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPairPortOut1(0, 3), blockPairPortIn1(0, 4)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 4), blockPortIn1(0, 5)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPairPortOut1(0, 4), blockPortIn2(0, 5)), false);
+        assert_return(checkOnlyConnection(blockPortOut1(0, 5), JACK_PLAYBACK_PORT_1), false);
+        assert_return(checkOnlyConnection(blockPortOut2(0, 5), JACK_PLAYBACK_PORT_2), false);
+        assert_return(testNoPassthrough(), false);
+
+        // disable and re-enable processing
+        connector.enableAudioProcessing(false);
+        connector.enableAudioProcessing(true);
+
+        // check connections are the same again
         assert_return(checkOnlyConnection(blockPortIn1(0, 0), JACK_CAPTURE_PORT_1), false);
         assert_return(checkOnly2Connections(blockPortOut1(0, 0), blockPortIn1(0, 1), blockPortIn2(0, 1)), false);
         assert_return(checkOnlyConnection(blockPortIn1(0, 1), blockPortOut1(0, 0)), false);
@@ -1129,6 +1161,28 @@ class HostConnectorTests : public QObject
         assert_return(checkOnlyConnectionBothWays(blockPortOut2(1, 2), blockPairPortIn2(0, 4)), false);
         assert_return(testNoPassthrough(), false);
 
+        // disable and re-enable processing
+        connector.enableAudioProcessing(false);
+        connector.enableAudioProcessing(true);
+
+        // check connections again
+        // row 0 connections
+        assert_return(checkOnlyConnection(blockPortIn1(0, 1), JACK_CAPTURE_PORT_1), false);
+        // below command FAILING!!
+        assert_return(checkOnly2Connections(blockPortOut1(0, 1), blockPortIn1(0, 4), blockPairPortIn1(0, 4)), false);
+        assert_return(checkOnlyConnection(blockPortIn1(0, 4), blockPortOut1(0, 1)), false);
+        assert_return(checkOnlyConnection(blockPairPortIn1(0, 4), blockPortOut1(0, 1)), false);
+        assert_return(checkOnlyConnection(blockPortOut1(0, 4), JACK_PLAYBACK_PORT_1), false);
+        assert_return(checkOnlyConnection(blockPairPortOut1(0, 4), JACK_PLAYBACK_PORT_2), false);
+        // row 1 connections
+        assert_return(checkOnly2Connections(blockPortOut2(0, 1), blockPortIn1(1, 2), blockPortIn2(1, 2)), false);
+        assert_return(checkOnlyConnection(blockPortIn1(1, 2), blockPortOut2(0, 1)), false);
+        assert_return(checkOnlyConnection(blockPortIn2(1, 2), blockPortOut2(0, 1)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(1, 2), blockPortIn2(0, 4)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut2(1, 2), blockPairPortIn2(0, 4)), false);
+        assert_return(testNoPassthrough(), false);
+
+
         // file 2: switch to preset
         assert_return(connector.switchPreset(1), false);
         // file 2: check connections are the same as before saving the file
@@ -1146,6 +1200,27 @@ class HostConnectorTests : public QObject
         assert_return(checkOnlyConnection(blockPortIn2(0, 4), blockPortOut2(0, 1)), false);
         assert_return(checkOnlyConnection(blockPairPortIn2(0, 4), blockPortOut2(0, 1)), false);
         assert_return(testNoPassthrough(), false);
+
+        // disable and re-enable processing
+        connector.enableAudioProcessing(false);
+        connector.enableAudioProcessing(true);
+
+        // check connections again
+        // row 0 connections
+        assert_return(checkOnlyConnection(blockPortIn1(0, 1), JACK_CAPTURE_PORT_1), false);
+        assert_return(checkOnly2Connections(blockPortOut1(0, 1), blockPortIn1(0, 2), blockPortIn2(0, 2)), false);
+        assert_return(checkOnlyConnection(blockPortIn1(0, 2), blockPortOut1(0, 1)), false);
+        assert_return(checkOnlyConnection(blockPortIn2(0, 2), blockPortOut1(0, 1)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 2), blockPortIn1(0, 4)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut2(0, 2), blockPairPortIn1(0, 4)), false);
+        assert_return(checkOnlyConnection(blockPortOut1(0, 4), JACK_PLAYBACK_PORT_1), false);
+        assert_return(checkOnlyConnection(blockPairPortOut1(0, 4), JACK_PLAYBACK_PORT_2), false);
+        // row 1 connections
+        assert_return(checkOnly2Connections(blockPortOut2(0, 1), blockPortIn2(0, 4), blockPairPortIn2(0, 4)), false);
+        assert_return(checkOnlyConnection(blockPortIn2(0, 4), blockPortOut2(0, 1)), false);
+        assert_return(checkOnlyConnection(blockPairPortIn2(0, 4), blockPortOut2(0, 1)), false);
+        assert_return(testNoPassthrough(), false);
+
 
         // file 3: switch to preset
         assert_return(connector.switchPreset(2), false);
@@ -1166,6 +1241,29 @@ class HostConnectorTests : public QObject
         assert_return(checkOnlyConnectionBothWays(blockPortOut1(1, 2), blockPortIn2(0, 4)), false);
         assert_return(checkOnlyConnectionBothWays(blockPortOut2(1, 2), blockPairPortIn2(0, 4)), false);
         assert_return(testNoPassthrough(), false);
+
+        // disable and re-enable processing
+        connector.enableAudioProcessing(false);
+        connector.enableAudioProcessing(true);
+
+        // check connections again
+        // row 0 connections
+        assert_return(checkOnlyConnection(blockPortIn1(0, 1), JACK_CAPTURE_PORT_1), false);
+        assert_return(checkOnly2Connections(blockPortOut1(0, 1), blockPortIn1(0, 2), blockPortIn2(0, 2)), false);
+        assert_return(checkOnlyConnection(blockPortIn1(0, 2), blockPortOut1(0, 1)), false);
+        assert_return(checkOnlyConnection(blockPortIn2(0, 2), blockPortOut1(0, 1)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 2), blockPortIn1(0, 4)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut2(0, 2), blockPairPortIn1(0, 4)), false);
+        assert_return(checkOnlyConnection(blockPortOut1(0, 4), JACK_PLAYBACK_PORT_1), false);
+        assert_return(checkOnlyConnection(blockPairPortOut1(0, 4), JACK_PLAYBACK_PORT_2), false);
+        // row 1 connections
+        assert_return(checkOnly2Connections(blockPortOut2(0, 1), blockPortIn1(1, 2), blockPortIn2(1, 2)), false);
+        assert_return(checkOnlyConnection(blockPortIn1(1, 2), blockPortOut2(0, 1)), false);
+        assert_return(checkOnlyConnection(blockPortIn2(1, 2), blockPortOut2(0, 1)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(1, 2), blockPortIn2(0, 4)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut2(1, 2), blockPairPortIn2(0, 4)), false);
+        assert_return(testNoPassthrough(), false);
+
 
         // load empty bank
         connector.loadBankFromPresetFiles(bankPresetsEmpty, 0);
@@ -1438,6 +1536,25 @@ class HostConnectorTests : public QObject
         connector.loadBankFromPresetFiles(bankPresets, 0);
 
         // file 1: check connections are the same as before saving the file
+        // row 0 connections
+        assert_return(checkOnlyConnection(blockPortIn1(0, 0), JACK_CAPTURE_PORT_1), false);
+        assert_return(checkOnlyConnection(blockPortIn2(0, 0), JACK_CAPTURE_PORT_2), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 0), blockPortIn1(0, 2)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut2(0, 0), blockPairPortIn1(0, 2)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 2), blockPortIn1(0, 5)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPairPortOut1(0, 2), blockPairPortIn1(0, 5)), false);
+        assert_return(checkOnlyConnection(blockPortOut1(0, 5), JACK_PLAYBACK_PORT_1), false);
+        assert_return(checkOnlyConnection(blockPairPortOut1(0, 5), JACK_PLAYBACK_PORT_2), false);
+        // row 1 connections
+        assert_return(checkOnlyConnectionBothWays(blockPortOut2(0, 2), blockPortIn2(0, 5)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPairPortOut2(0, 2), blockPairPortIn2(0, 5)), false);
+        assert_return(testNoPassthrough(), false);
+
+        // disable and re-enable processing
+        connector.enableAudioProcessing(false);
+        connector.enableAudioProcessing(true);
+
+        // check connections again
         // row 0 connections
         assert_return(checkOnlyConnection(blockPortIn1(0, 0), JACK_CAPTURE_PORT_1), false);
         assert_return(checkOnlyConnection(blockPortIn2(0, 0), JACK_CAPTURE_PORT_2), false);
