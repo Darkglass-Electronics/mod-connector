@@ -5525,6 +5525,33 @@ void HostConnector::hostReady()
 
 // --------------------------------------------------------------------------------------------------------------------
 
+void HostConnector::enableAudioProcessing(const bool enable)
+{
+    if (enable)
+    {
+        // send reset to wipe memories / buffers of blocks 
+        for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
+        {
+            for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
+            {
+                std::vector<flushed_param> params;
+
+                const HostBlockPair hbp = _mapper.get(_current.preset, row, bl);
+
+                if (hbp.id != kMaxHostInstances) 
+                    hostParamsFlushBlockPair(hbp, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params);
+            }
+        }
+        _host.feature_enable(Host::kFeatureProcessing, Host::kProcessingOnWithFadeIn);
+    }
+    else 
+    {
+        _host.feature_enable(Host::kFeatureProcessing, Host::kProcessingOffWithFadeOut);   
+    }
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 void HostConnector::initBlock(HostConnector::Block& blockdata,
                               const Lv2Plugin* const plugin,
                               const uint8_t numInputs,

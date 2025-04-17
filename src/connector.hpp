@@ -343,6 +343,10 @@ public:
 
     void hostReady();
 
+    // turn audio processing on / off (with fade in / fade out)
+    // many other functions do this within preset handling, this is for special cases
+    void enableAudioProcessing(bool enable);
+
     // ----------------------------------------------------------------------------------------------------------------
     // bank handling
 
