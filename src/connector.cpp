@@ -261,20 +261,30 @@ static constexpr const char* SceneMode2Str(const HostSceneMode sceneMode)
 
 // --------------------------------------------------------------------------------------------------------------------
 
+static inline constexpr float normalized(float value, float min, float max)
+{
+    return value <= min ? 0.f
+        : value >= max ? 1.f
+        : (value - min) / (max - min);
+}
+
+static inline constexpr float unnormalized(float value, float min, float max)
+{
+    return value <= 0.f ? min
+        : value >= 1.f ? max
+        : min + (max - value) * (max - min);
+}
+
 template <class Meta>
 static inline constexpr float normalized(const Meta& meta, float value)
 {
-    return value <= meta.min ? 0.f
-        : value >= meta.max ? 1.f
-        : (value - meta.min) / (meta.max - meta.min);
+    return normalized(value, meta.min, meta.max);
 }
 
 template <class Meta>
 static inline constexpr float unnormalized(const Meta& meta, float value)
 {
-    return value <= 0.f ? meta.min
-        : value >= 1.f ? meta.max
-        : meta.min + (meta.max - value) * (meta.max - meta.min);
+    return unnormalized(value, meta.min, meta.max);
 }
 
 static bool shouldBlockBeStereo(const HostConnector::ChainRow& chaindata, const uint8_t block)
@@ -1176,7 +1186,13 @@ bool HostConnector::enableBlock(const uint8_t row, const uint8_t block, const bo
         Bindings& bindings(_current.bindings[blockdata.meta.enable.hwbinding]);
         assert(!bindings.parameters.empty());
 
-        bindings.value = enable ? 1.f : 0.f;
+        ParameterBinding& binding = bindings.parameters.front();
+
+        if (bindings.parameters.size() == 1 ||
+            (binding.row == row && binding.block == block && binding.parameterSymbol == ":bypass"))
+        {
+            bindings.value = enable ? binding.max : binding.min;
+        }
     }
 
     blockdata.enabled = enable;
@@ -2191,7 +2207,13 @@ bool HostConnector::addBlockParameterBinding(const uint8_t hwid,
         _current.bindings[hwid].value = paramdata.value;
 
         if (_current.bindings[hwid].properties.empty())
+        {
+           #ifdef _DARKGLASS_DEVICE_PABLITO
+            _current.bindings[hwid].name = blockdata.meta.abbreviation + " " + paramdata.meta.name;
+           #else
             _current.bindings[hwid].name = paramdata.meta.name;
+           #endif
+        }
     }
     else if (numBindings + _current.bindings[hwid].properties.size() == 1)
     {
@@ -2267,6 +2289,38 @@ bool HostConnector::addBlockPropertyBinding(const uint8_t hwid,
 
 // --------------------------------------------------------------------------------------------------------------------
 
+bool HostConnector::editBlockBinding(const uint8_t hwid, const uint8_t row, const uint8_t block, const bool inverted)
+{
+    mod_log_debug("editBlockBinding(%u, %u, %u, %s)", hwid, row, block, bool2str(inverted));
+    assert(hwid < NUM_BINDING_ACTUATORS);
+    assert(row < NUM_BLOCK_CHAIN_ROWS);
+    assert(block < NUM_BLOCKS_PER_PRESET);
+
+    Block& blockdata(_current.chains[row].blocks[block]);
+    assert_return(!isNullBlock(blockdata), false);
+    assert_return(blockdata.meta.enable.hwbinding != UINT8_MAX, false);
+
+    std::list<ParameterBinding>& bindings(_current.bindings[hwid].parameters);
+    for (ParameterBindingIterator it = bindings.begin(), end = bindings.end(); it != end; ++it)
+    {
+        if (it->row != row)
+            continue;
+        if (it->block != block)
+            continue;
+        if (it->parameterSymbol != ":bypass")
+            continue;
+
+        it->min = inverted ? 1.f : 0.f;
+        it->max = inverted ? 0.f : 1.f;
+        _current.dirty = true;
+        return true;
+    }
+
+    return false;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 bool HostConnector::editBlockParameterBinding(const uint8_t hwid,
                                               const uint8_t row,
                                               const uint8_t block,
@@ -2294,6 +2348,8 @@ bool HostConnector::editBlockParameterBinding(const uint8_t hwid,
         if (it->row != row)
             continue;
         if (it->block != block)
+            continue;
+        if (it->parameterSymbol == ":bypass")
             continue;
         if (it->meta.parameterIndex != paramIndex)
             continue;
@@ -2425,6 +2481,8 @@ bool HostConnector::removeBlockParameterBinding(const uint8_t hwid,
         if (it->row != row)
             continue;
         if (it->block != block)
+            continue;
+        if (it->parameterSymbol == ":bypass")
             continue;
         if (it->meta.parameterIndex != paramIndex)
             continue;
@@ -2908,10 +2966,16 @@ void HostConnector::setBlockParameter(const uint8_t row,
         Bindings& bindings(_current.bindings[paramdata.meta.hwbinding]);
         assert(!bindings.parameters.empty());
 
-        if (bindings.parameters.size() == 1)
-            bindings.value = value;
-        else
-            bindings.value = normalized(paramdata.meta, value);
+        ParameterBinding& binding = bindings.parameters.front();
+
+        if (bindings.parameters.size() == 1 ||
+            (binding.row == row && binding.block == block && binding.parameterSymbol == paramdata.symbol))
+        {
+            if (binding.min < binding.max)
+                bindings.value = normalized(value, binding.min, binding.max);
+            else
+                bindings.value = 1.f - normalized(value, binding.max, binding.min);
+        }
     }
 
     paramdata.value = value;

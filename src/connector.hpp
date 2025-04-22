@@ -491,7 +491,10 @@ public:
     // add a block property binding
     bool addBlockPropertyBinding(uint8_t hwid, uint8_t row, uint8_t block, uint8_t propIndex);
 
-    // edit a block parameter binding
+    // edit a block parameter binding (change normal or inverted operation)
+    bool editBlockBinding(uint8_t hwid, uint8_t row, uint8_t block, bool inverted);
+
+    // edit a block parameter binding (change min and max range)
     bool editBlockParameterBinding(uint8_t hwid,
                                    uint8_t row,
                                    uint8_t block,
