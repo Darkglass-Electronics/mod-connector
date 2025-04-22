@@ -2349,6 +2349,8 @@ bool HostConnector::editBlockParameterBinding(const uint8_t hwid,
             continue;
         if (it->block != block)
             continue;
+        if (it->parameterSymbol == ":bypass")
+            continue;
         if (it->meta.parameterIndex != paramIndex)
             continue;
 
@@ -2479,6 +2481,8 @@ bool HostConnector::removeBlockParameterBinding(const uint8_t hwid,
         if (it->row != row)
             continue;
         if (it->block != block)
+            continue;
+        if (it->parameterSymbol == ":bypass")
             continue;
         if (it->meta.parameterIndex != paramIndex)
             continue;
