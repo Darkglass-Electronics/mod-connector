@@ -2207,7 +2207,13 @@ bool HostConnector::addBlockParameterBinding(const uint8_t hwid,
         _current.bindings[hwid].value = paramdata.value;
 
         if (_current.bindings[hwid].properties.empty())
+        {
+           #ifdef _DARKGLASS_DEVICE_PABLITO
+            _current.bindings[hwid].name = blockdata.meta.abbreviation + " " + paramdata.meta.name;
+           #else
             _current.bindings[hwid].name = paramdata.meta.name;
+           #endif
+        }
     }
     else if (numBindings + _current.bindings[hwid].properties.size() == 1)
     {
