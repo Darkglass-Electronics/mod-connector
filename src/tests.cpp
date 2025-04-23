@@ -844,6 +844,9 @@ class HostConnectorTests : public QObject
         assert_return(checkOnlyConnectionBothWays(blockPortOut1(1, 2), blockPortIn2(0, 4)), false);
         assert_return(testNoPassthrough(), false);
 
+        // save preset state to file
+        assert_return(connector.saveCurrentPresetToFile(PRESETFILEPATH "/testSideChainBuiltInOrder1.json"), false);
+
         // remove sidein block (undo sidechain ending)
         assert_return(connector.replaceBlock(0, 4, nullptr), false);
         assert_return(checkOnlyConnection(blockPortIn1(0, 1), JACK_CAPTURE_PORT_1), false);
@@ -881,7 +884,7 @@ class HostConnectorTests : public QObject
         assert_return(testNoPassthrough(), false);
 
         // save preset state to file
-        assert_return(connector.saveCurrentPresetToFile(PRESETFILEPATH "/testSideChainBuiltInOrder1.json"), false);
+        assert_return(connector.saveCurrentPresetToFile(PRESETFILEPATH "/testSideChainBuiltInOrder2.json"), false);
 
         // remove sidein block (undo sidechain ending)
         assert_return(connector.replaceBlock(0, 4, nullptr), false);
@@ -978,7 +981,7 @@ class HostConnectorTests : public QObject
         assert_return(testNoPassthrough(), false);
 
         // save preset state to file
-        assert_return(connector.saveCurrentPresetToFile(PRESETFILEPATH "/testSideChainBuiltInOrder2.json"), false);
+        assert_return(connector.saveCurrentPresetToFile(PRESETFILEPATH "/testSideChainBuiltInOrder3.json"), false);
 
         // remove sidein block (undo sidechain ending)
         assert_return(connector.replaceBlock(0, 4, nullptr), false);
@@ -1080,7 +1083,7 @@ class HostConnectorTests : public QObject
         assert_return(testNoPassthrough(), false);
 
         // save preset state to file
-        assert_return(connector.saveCurrentPresetToFile(PRESETFILEPATH "/testSideChainBuiltInOrder3.json"), false);
+        assert_return(connector.saveCurrentPresetToFile(PRESETFILEPATH "/testSideChainBuiltInOrder4.json"), false);
 
         // remove sidechain completion
         assert_return(connector.replaceBlock(0, 4, nullptr), false);
@@ -1137,49 +1140,36 @@ class HostConnectorTests : public QObject
 
         // ***** test loading all previously saved presets from file
 
-        const std::array<std::string, NUM_PRESETS_PER_BANK> bankPresets = {
+        const std::array<std::string, NUM_PRESETS_PER_BANK> bankPresets1 = {
             PRESETFILEPATH "/testSideChainBuiltInOrder1.json",
             PRESETFILEPATH "/testSideChainBuiltInOrder2.json",
             PRESETFILEPATH "/testSideChainBuiltInOrder3.json",
         };
-        connector.loadBankFromPresetFiles(bankPresets, 0);
+        // load bank and first preset on it
+        connector.loadBankFromPresetFiles(bankPresets1, 0);
 
         // file 1: check connections are the same as before saving the file
         // row 0 connections
         assert_return(checkOnlyConnection(blockPortIn1(0, 1), JACK_CAPTURE_PORT_1), false);
-        // below command FAILING!!
-        assert_return(checkOnly2Connections(blockPortOut1(0, 1), blockPortIn1(0, 4), blockPairPortIn1(0, 4)), false);
-        assert_return(checkOnlyConnection(blockPortIn1(0, 4), blockPortOut1(0, 1)), false);
-        assert_return(checkOnlyConnection(blockPairPortIn1(0, 4), blockPortOut1(0, 1)), false);
-        assert_return(checkOnlyConnection(blockPortOut1(0, 4), JACK_PLAYBACK_PORT_1), false);
-        assert_return(checkOnlyConnection(blockPairPortOut1(0, 4), JACK_PLAYBACK_PORT_2), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 1), blockPortIn1(0, 4)), false);
+        assert_return(checkOnly2Connections(blockPortOut1(0, 4), JACK_PLAYBACK_PORT_1, JACK_PLAYBACK_PORT_2), false);
         // row 1 connections
-        assert_return(checkOnly2Connections(blockPortOut2(0, 1), blockPortIn1(1, 2), blockPortIn2(1, 2)), false);
-        assert_return(checkOnlyConnection(blockPortIn1(1, 2), blockPortOut2(0, 1)), false);
-        assert_return(checkOnlyConnection(blockPortIn2(1, 2), blockPortOut2(0, 1)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut2(0, 1), blockPortIn1(1, 2)), false);
         assert_return(checkOnlyConnectionBothWays(blockPortOut1(1, 2), blockPortIn2(0, 4)), false);
-        assert_return(checkOnlyConnectionBothWays(blockPortOut2(1, 2), blockPairPortIn2(0, 4)), false);
         assert_return(testNoPassthrough(), false);
 
         // disable and re-enable processing
         connector.enableAudioProcessing(false);
         connector.enableAudioProcessing(true);
 
-        // check connections again
+        // file 1: check connections again
         // row 0 connections
         assert_return(checkOnlyConnection(blockPortIn1(0, 1), JACK_CAPTURE_PORT_1), false);
-        // below command FAILING!!
-        assert_return(checkOnly2Connections(blockPortOut1(0, 1), blockPortIn1(0, 4), blockPairPortIn1(0, 4)), false);
-        assert_return(checkOnlyConnection(blockPortIn1(0, 4), blockPortOut1(0, 1)), false);
-        assert_return(checkOnlyConnection(blockPairPortIn1(0, 4), blockPortOut1(0, 1)), false);
-        assert_return(checkOnlyConnection(blockPortOut1(0, 4), JACK_PLAYBACK_PORT_1), false);
-        assert_return(checkOnlyConnection(blockPairPortOut1(0, 4), JACK_PLAYBACK_PORT_2), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(0, 1), blockPortIn1(0, 4)), false);
+        assert_return(checkOnly2Connections(blockPortOut1(0, 4), JACK_PLAYBACK_PORT_1, JACK_PLAYBACK_PORT_2), false);
         // row 1 connections
-        assert_return(checkOnly2Connections(blockPortOut2(0, 1), blockPortIn1(1, 2), blockPortIn2(1, 2)), false);
-        assert_return(checkOnlyConnection(blockPortIn1(1, 2), blockPortOut2(0, 1)), false);
-        assert_return(checkOnlyConnection(blockPortIn2(1, 2), blockPortOut2(0, 1)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut2(0, 1), blockPortIn1(1, 2)), false);
         assert_return(checkOnlyConnectionBothWays(blockPortOut1(1, 2), blockPortIn2(0, 4)), false);
-        assert_return(checkOnlyConnectionBothWays(blockPortOut2(1, 2), blockPairPortIn2(0, 4)), false);
         assert_return(testNoPassthrough(), false);
 
 
@@ -1188,6 +1178,45 @@ class HostConnectorTests : public QObject
         // file 2: check connections are the same as before saving the file
         // row 0 connections
         assert_return(checkOnlyConnection(blockPortIn1(0, 1), JACK_CAPTURE_PORT_1), false);
+        assert_return(checkOnly2Connections(blockPortOut1(0, 1), blockPortIn1(0, 4), blockPairPortIn1(0, 4)), false);
+        assert_return(checkOnlyConnection(blockPortIn1(0, 4), blockPortOut1(0, 1)), false);
+        assert_return(checkOnlyConnection(blockPairPortIn1(0, 4), blockPortOut1(0, 1)), false);
+        assert_return(checkOnlyConnection(blockPortOut1(0, 4), JACK_PLAYBACK_PORT_1), false);
+        assert_return(checkOnlyConnection(blockPairPortOut1(0, 4), JACK_PLAYBACK_PORT_2), false);
+        // row 1 connections
+        assert_return(checkOnly2Connections(blockPortOut2(0, 1), blockPortIn1(1, 2), blockPortIn2(1, 2)), false);
+        assert_return(checkOnlyConnection(blockPortIn1(1, 2), blockPortOut2(0, 1)), false);
+        assert_return(checkOnlyConnection(blockPortIn2(1, 2), blockPortOut2(0, 1)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(1, 2), blockPortIn2(0, 4)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut2(1, 2), blockPairPortIn2(0, 4)), false);
+        assert_return(testNoPassthrough(), false);
+
+        // disable and re-enable processing
+        connector.enableAudioProcessing(false);
+        connector.enableAudioProcessing(true);
+
+        // check connections again
+        // row 0 connections
+        assert_return(checkOnlyConnection(blockPortIn1(0, 1), JACK_CAPTURE_PORT_1), false);
+        assert_return(checkOnly2Connections(blockPortOut1(0, 1), blockPortIn1(0, 4), blockPairPortIn1(0, 4)), false);
+        assert_return(checkOnlyConnection(blockPortIn1(0, 4), blockPortOut1(0, 1)), false);
+        assert_return(checkOnlyConnection(blockPairPortIn1(0, 4), blockPortOut1(0, 1)), false);
+        assert_return(checkOnlyConnection(blockPortOut1(0, 4), JACK_PLAYBACK_PORT_1), false);
+        assert_return(checkOnlyConnection(blockPairPortOut1(0, 4), JACK_PLAYBACK_PORT_2), false);
+        // row 1 connections
+        assert_return(checkOnly2Connections(blockPortOut2(0, 1), blockPortIn1(1, 2), blockPortIn2(1, 2)), false);
+        assert_return(checkOnlyConnection(blockPortIn1(1, 2), blockPortOut2(0, 1)), false);
+        assert_return(checkOnlyConnection(blockPortIn2(1, 2), blockPortOut2(0, 1)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut1(1, 2), blockPortIn2(0, 4)), false);
+        assert_return(checkOnlyConnectionBothWays(blockPortOut2(1, 2), blockPairPortIn2(0, 4)), false);
+        assert_return(testNoPassthrough(), false);
+
+
+        // file 3: switch to preset
+        assert_return(connector.switchPreset(2), false);
+        // file 3: check connections are the same as before saving the file
+        // row 0 connections
+        assert_return(checkOnlyConnection(blockPortIn1(0, 1), JACK_CAPTURE_PORT_1), false);
         assert_return(checkOnly2Connections(blockPortOut1(0, 1), blockPortIn1(0, 2), blockPortIn2(0, 2)), false);
         assert_return(checkOnlyConnection(blockPortIn1(0, 2), blockPortOut1(0, 1)), false);
         assert_return(checkOnlyConnection(blockPortIn2(0, 2), blockPortOut1(0, 1)), false);
@@ -1222,9 +1251,15 @@ class HostConnectorTests : public QObject
         assert_return(testNoPassthrough(), false);
 
 
-        // file 3: switch to preset
-        assert_return(connector.switchPreset(2), false);
-        // file 3: check connections are the same as before saving the file
+        const std::array<std::string, NUM_PRESETS_PER_BANK> bankPresets2 = {
+            PRESETFILEPATH "/testSideChainBuiltInOrder4.json",
+            {},
+            {},
+        };
+        // load bank and first preset on it
+        connector.loadBankFromPresetFiles(bankPresets2, 0);
+
+        // file 4: check connections are the same as before saving the file
         // row 0 connections
         assert_return(checkOnlyConnection(blockPortIn1(0, 1), JACK_CAPTURE_PORT_1), false);
         assert_return(checkOnly2Connections(blockPortOut1(0, 1), blockPortIn1(0, 2), blockPortIn2(0, 2)), false);
