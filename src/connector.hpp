@@ -190,7 +190,7 @@ struct HostConnector : Host::FeedbackCallback {
         std::string name;
         std::list<ParameterBinding> parameters;
         std::list<PropertyBinding> properties;
-        double value; // NOTE normalized 0-1 if multiple, matching value if single
+        double value; // NOTE normalized 0-1, updated automatically if single binding
     };
 
     struct ChainRow {

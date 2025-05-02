@@ -1075,7 +1075,8 @@ void HostConnector::clearCurrentPreset()
 
     for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
     {
-        _current.bindings[hwid].value = 0.f;
+        _current.bindings[hwid].value = 0.0;
+        _current.bindings[hwid].name.clear();
         _current.bindings[hwid].parameters.clear();
         _current.bindings[hwid].properties.clear();
     }
@@ -2170,7 +2171,6 @@ bool HostConnector::addBlockBinding(const uint8_t hwid, const uint8_t row, const
     else if (numBindings + _current.bindings[hwid].properties.size() == 1)
     {
         _current.bindings[hwid].name = getNextMacroBindingName(_current);
-        _current.bindings[hwid].value = blockdata.enabled ? 1.f : 0.f;
     }
 
     _current.bindings[hwid].parameters.push_back({ row, block, 0.f, 1.f, ":bypass", { 0 } });
@@ -2204,7 +2204,7 @@ bool HostConnector::addBlockParameterBinding(const uint8_t hwid,
     const size_t numBindings = _current.bindings[hwid].parameters.size();
     if (numBindings == 0)
     {
-        _current.bindings[hwid].value = paramdata.value;
+        _current.bindings[hwid].value = normalized(paramdata.meta, paramdata.value);
 
         if (_current.bindings[hwid].properties.empty())
         {
@@ -2218,7 +2218,6 @@ bool HostConnector::addBlockParameterBinding(const uint8_t hwid,
     else if (numBindings + _current.bindings[hwid].properties.size() == 1)
     {
         _current.bindings[hwid].name = getNextMacroBindingName(_current);
-        _current.bindings[hwid].value = normalized(paramdata.meta, paramdata.value);
     }
 
     _current.bindings[hwid].parameters.push_back({
@@ -2279,7 +2278,6 @@ bool HostConnector::addBlockPropertyBinding(const uint8_t hwid,
     else if (numBindings + _current.bindings[hwid].parameters.size() == 1)
     {
         _current.bindings[hwid].name = getNextMacroBindingName(_current);
-        _current.bindings[hwid].value = 0.0; // TODO
     }
 
     _current.bindings[hwid].properties.push_back({ row, block, propdata.uri, { propIndex } });
@@ -2686,7 +2684,7 @@ bool HostConnector::replaceBlockParameterBinding(const uint8_t hwid,
         if (bindings.size() + _current.bindings[hwid].properties.size() == 1)
         {
             // update binding value to single matching binding
-            _current.bindings[hwid].value = paramdataB.value;
+            _current.bindings[hwid].value = normalized(paramdataB.meta, paramdataB.value);
         }
         else
         {
@@ -3867,7 +3865,7 @@ void HostConnector::hostRemoveAllBlockBindings(const uint8_t row, const uint8_t 
 
     for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
     {
-        _current.bindings[hwid].value = 0.f;
+        _current.bindings[hwid].value = 0.0;
 
         std::list<ParameterBinding>& bindings(_current.bindings[hwid].parameters);
 
@@ -3887,7 +3885,7 @@ void HostConnector::hostRemoveAllBlockBindings(const uint8_t row, const uint8_t 
 
     for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
     {
-        _current.bindings[hwid].value = 0.f;
+        _current.bindings[hwid].value = 0.0;
 
         std::list<PropertyBinding>& bindings(_current.bindings[hwid].properties);
 
@@ -4688,24 +4686,21 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann_json& json
 
             if (jbindings.contains("value"))
             {
-                // TODO
-                const double jvalue = jbindings["value"].get<double>();
-                if (bindings.parameters.size() == 1)
-                {
-                    const ParameterBinding& binding = bindings.parameters.front();
-                    const Block& blockdata = presetdata.chains[binding.row].blocks[binding.block];
-                    const Parameter& paramdata = blockdata.parameters[binding.meta.parameterIndex];
-                    bindings.value = std::max(paramdata.meta.min, std::min(paramdata.meta.max, static_cast<float>(jvalue)));
+                double jvalue;
+
+                try {
+                    jvalue = jbindings["value"].get<double>();
+                } catch (...) {
+                    mod_log_warn("jsonPresetLoad(): binding contains invalid value");
+                    continue;
                 }
-                else
-                {
-                    bindings.value = std::max(0.0, std::min(1.0, jvalue));
-                }
+
+                bindings.value = std::max(0.0, std::min(1.0, jvalue));
             }
             else
             {
                 mod_log_info("jsonPresetLoad(): bindings is missing value");
-                bindings.value = 0;
+                bindings.value = 0.0;
             }
         }
     }
@@ -4718,7 +4713,7 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann_json& json
             presetdata.bindings[hwid].name.clear();
             presetdata.bindings[hwid].parameters.clear();
             presetdata.bindings[hwid].properties.clear();
-            presetdata.bindings[hwid].value = 0;
+            presetdata.bindings[hwid].value = 0.0;
         }
     }
 
