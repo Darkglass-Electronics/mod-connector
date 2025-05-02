@@ -261,30 +261,32 @@ static constexpr const char* SceneMode2Str(const HostSceneMode sceneMode)
 
 // --------------------------------------------------------------------------------------------------------------------
 
-static inline constexpr float normalized(float value, float min, float max)
+template <typename T>
+static inline constexpr T normalized(T value, T min, T max)
 {
-    return value <= min ? 0.f
-        : value >= max ? 1.f
+    return value <= min ? static_cast<T>(0)
+        : value >= max ? static_cast<T>(1)
         : (value - min) / (max - min);
 }
 
-static inline constexpr float unnormalized(float value, float min, float max)
+template <typename T>
+static inline constexpr T unnormalized(T value, T min, T max)
 {
-    return value <= 0.f ? min
-        : value >= 1.f ? max
+    return value <= static_cast<T>(0) ? min
+        : value >= static_cast<T>(1) ? max
         : min + (max - value) * (max - min);
 }
 
-template <class Meta>
-static inline constexpr float normalized(const Meta& meta, float value)
+template <class Meta, typename T>
+static inline constexpr T normalized(const Meta& meta, T value)
 {
-    return normalized(value, meta.min, meta.max);
+    return normalized<T>(value, meta.min, meta.max);
 }
 
-template <class Meta>
-static inline constexpr float unnormalized(const Meta& meta, float value)
+template <class Meta, typename T>
+static inline constexpr T unnormalized(const Meta& meta, T value)
 {
-    return unnormalized(value, meta.min, meta.max);
+    return unnormalized<T>(value, meta.min, meta.max);
 }
 
 static bool shouldBlockBeStereo(const HostConnector::ChainRow& chaindata, const uint8_t block)
@@ -2866,6 +2868,65 @@ bool HostConnector::reorderBlockBinding(const uint8_t hwid, const uint8_t dest)
 
     _current.dirty = true;
     return true;
+}
+
+void HostConnector::setBindingValue(uint8_t hwid, double value)
+{
+    mod_log_debug("setBindingValue(%u, %f)", hwid, value);
+    assert(hwid < NUM_BINDING_ACTUATORS);
+
+    Bindings& bindings(_current.bindings[hwid]);
+    bindings.value = value;
+
+    if (const std::list<ParameterBinding>& parambindings(bindings.parameters); parambindings.empty())
+    {
+        for (ParameterBindingIteratorConst it = parambindings.cbegin(), end = parambindings.cend(); it != end; ++it)
+        {
+            const uint8_t row = it->row;
+            const uint8_t block = it->block;
+            float min = it->min;
+            float max = it->max;
+
+            if (it->parameterSymbol == ":bypass")
+            {
+                const bool enabled = min > max ? value >= 0.5 : value < 0.5;
+                enableBlock(row, block, enabled, SceneModeNone);
+            }
+            else
+            {
+                const uint8_t paramIndex = it->meta.parameterIndex;
+                const uint32_t paramFlags = _current.chains[row].blocks[block].parameters[paramIndex].meta.flags;
+                float paramValue;
+
+                if ((paramFlags & Lv2ParameterToggled) != 0)
+                {
+                    paramValue = value >= 0.5 ? max : min;
+                }
+                else
+                {
+                    if (min > max)
+                        std::swap(min, max);
+
+                    paramValue = unnormalized<double>(value, min, max);
+
+                    if ((paramFlags & Lv2ParameterInteger) != 0)
+                        paramValue = std::rint(paramValue);
+                }
+
+                setBlockParameter(row, block, paramIndex, paramValue, SceneModeNone);
+            }
+        }
+    }
+
+    // TODO
+    /*
+    if (const std::list<PropertyBinding>& propbindings(bindings.properties); propbindings.empty())
+    {
+        for (PropertyBindingIteratorConst it = propbindings.cbegin(), end = propbindings.cend(); it != end; ++it)
+        {
+        }
+    }
+    */
 }
 
 // --------------------------------------------------------------------------------------------------------------------

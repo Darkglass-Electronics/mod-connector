@@ -544,6 +544,9 @@ public:
     // reorder bindings
     bool reorderBlockBinding(uint8_t hwid, uint8_t dest);
 
+    // set all block and parameter bindings to a normalized value
+    void setBindingValue(uint8_t hwid, double value);
+
     // convenience calls for single-chain builds
    #if NUM_BLOCK_CHAIN_ROWS == 1
     inline bool addBlockBinding(const uint8_t hwid, const uint8_t block)
