@@ -2878,7 +2878,7 @@ void HostConnector::setBindingValue(uint8_t hwid, double value)
     Bindings& bindings(_current.bindings[hwid]);
     bindings.value = value;
 
-    if (const std::list<ParameterBinding>& parambindings(bindings.parameters); parambindings.empty())
+    if (const std::list<ParameterBinding>& parambindings(bindings.parameters); ! parambindings.empty())
     {
         for (ParameterBindingIteratorConst it = parambindings.cbegin(), end = parambindings.cend(); it != end; ++it)
         {
@@ -2920,7 +2920,7 @@ void HostConnector::setBindingValue(uint8_t hwid, double value)
 
     // TODO
     /*
-    if (const std::list<PropertyBinding>& propbindings(bindings.properties); propbindings.empty())
+    if (const std::list<PropertyBinding>& propbindings(bindings.properties); ! propbindings.empty())
     {
         for (PropertyBindingIteratorConst it = propbindings.cbegin(), end = propbindings.cend(); it != end; ++it)
         {
