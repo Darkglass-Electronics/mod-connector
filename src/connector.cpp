@@ -274,7 +274,7 @@ static inline constexpr T unnormalized(T value, T min, T max)
 {
     return value <= static_cast<T>(0) ? min
         : value >= static_cast<T>(1) ? max
-        : min + (max - value) * (max - min);
+        : min + value * (max - min);
 }
 
 template <class Meta, typename T>
@@ -2889,7 +2889,7 @@ void HostConnector::setBindingValue(uint8_t hwid, double value)
 
             if (it->parameterSymbol == ":bypass")
             {
-                const bool enabled = min > max ? value >= 0.5 : value < 0.5;
+                const bool enabled = min > max ? value < 0.5 : value >= 0.5;
                 enableBlock(row, block, enabled, SceneModeNone);
             }
             else
@@ -2904,10 +2904,18 @@ void HostConnector::setBindingValue(uint8_t hwid, double value)
                 }
                 else
                 {
+                    double bvalue;
                     if (min > max)
+                    {
+                        bvalue = 1.0 - value;
                         std::swap(min, max);
+                    }
+                    else
+                    {
+                        bvalue = value;
+                    }
 
-                    paramValue = unnormalized<double>(value, min, max);
+                    paramValue = unnormalized<double>(bvalue, min, max);
 
                     if ((paramFlags & Lv2ParameterInteger) != 0)
                         paramValue = std::rint(paramValue);
