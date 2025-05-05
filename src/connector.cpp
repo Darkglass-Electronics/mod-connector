@@ -1191,7 +1191,7 @@ bool HostConnector::enableBlock(const uint8_t row, const uint8_t block, const bo
 
         ParameterBinding& binding = bindings.parameters.front();
 
-        if (bindings.parameters.size() == 1 ||
+        if (bindings.parameters.size() == 1 && bindings.properties.empty() &&
             (binding.row == row && binding.block == block && binding.parameterSymbol == ":bypass"))
         {
             bindings.value = enable ? binding.max : binding.min;
@@ -3027,7 +3027,7 @@ void HostConnector::setBlockParameter(const uint8_t row,
 
         ParameterBinding& binding = bindings.parameters.front();
 
-        if (bindings.parameters.size() == 1 ||
+        if (bindings.parameters.size() == 1 && bindings.properties.empty() &&
             (binding.row == row && binding.block == block && binding.parameterSymbol == paramdata.symbol))
         {
             if (binding.min < binding.max)
@@ -3268,8 +3268,14 @@ void HostConnector::setBlockProperty(const uint8_t row,
         Bindings& bindings(_current.bindings[propdata.meta.hwbinding]);
         assert(!bindings.properties.empty());
 
-        // TODO
-        // bindings.value = normalized(propdata.meta, value);
+        PropertyBinding& binding = bindings.properties.front();
+
+        if (bindings.properties.size() == 1 && bindings.parameters.empty() &&
+            (binding.row == row && binding.block == block && binding.propertyURI == propdata.uri))
+        {
+            // TODO
+            // bindings.value = normalized(propdata.meta, value);
+        }
     }
 
     propdata.value = value;
