@@ -1838,25 +1838,6 @@ bool HostConnector::swapBlockRow(const uint8_t row,
         // step 3: swap data
         std::swap(_current.chains[row].blocks[block], _current.chains[emptyRow].blocks[emptyBlock]);
 
-        for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
-        {
-            for (ParameterBinding& bindingdata : _current.bindings[hwid].parameters)
-            {
-                if (bindingdata.row == row)
-                    bindingdata.row = emptyRow;
-                else if (bindingdata.row == emptyRow)
-                    bindingdata.row = row;
-            }
-
-            for (PropertyBinding& bindingdata : _current.bindings[hwid].properties)
-            {
-                if (bindingdata.row == row)
-                    bindingdata.row = emptyRow;
-                else if (bindingdata.row == emptyRow)
-                    bindingdata.row = row;
-            }
-        }
-
         _mapper.swapBlocks(_current.preset, row, block, emptyRow, emptyBlock);
 
         for (Bindings& bindings : _current.bindings)
