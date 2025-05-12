@@ -79,6 +79,7 @@ struct Host {
                 kFeedbackParameterSet,
                 kFeedbackPatchSet,
                 kFeedbackOutputMonitor,
+                kFeedbackMidiControlChange,
                 kFeedbackMidiProgramChange,
                 kFeedbackMidiMapped,
                 kFeedbackTransport,
@@ -107,8 +108,13 @@ struct Host {
                     HostPatchData data;
                 } patchSet;
                 struct {
-                    int8_t program;
                     int8_t channel;
+                    int8_t control;
+                    int16_t value;
+                } midiControlChange;
+                struct {
+                    int8_t channel;
+                    int8_t program;
                 } midiProgramChange;
                 struct {
                     int effect_id;
@@ -272,6 +278,11 @@ struct Host {
      * monitor audio levels for a specific jack port (on the feedback port)
      */
     bool monitor_audio_levels(const char *source_port_name, bool enable);
+
+    /**
+     * listen to MIDI control change messages (on the feedback port)
+     */
+    bool monitor_midi_control(uint8_t midi_channel, bool enable);
 
     /**
      * listen to MIDI program change messages (on the feedback port)
