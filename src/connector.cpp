@@ -4558,7 +4558,7 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann_json& json
                                     break;
                                 }
                                 try {
-                                    max = jbindingparam["block"].get<double>();
+                                    max = jbindingparam["max"].get<double>();
                                 } catch (...) {
                                     mod_log_warn("jsonPresetLoad(): binding contains invalid max");
                                     break;
