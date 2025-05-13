@@ -5692,6 +5692,13 @@ void HostConnector::enableAudioProcessing(const bool enable)
 
 // --------------------------------------------------------------------------------------------------------------------
 
+void HostConnector::setDirty(const bool dirty)
+{
+    _current.dirty = dirty;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 void HostConnector::initBlock(HostConnector::Block& blockdata,
                               const Lv2Plugin* const plugin,
                               const uint8_t numInputs,

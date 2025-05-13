@@ -347,6 +347,9 @@ public:
     // many other functions do this within preset handling, this is for special cases
     void enableAudioProcessing(bool enable);
 
+    // set current preset dirty state
+    void setDirty(bool dirty = true);
+
     // ----------------------------------------------------------------------------------------------------------------
     // bank handling
 
