@@ -3698,6 +3698,10 @@ void HostConnector::hostEnsureStereoChain(const uint8_t preset,
                     newDualmono = false;
                     continue;
                 }
+
+                // reset original block instance so the pair of blocks are in sync
+                const HostBlockPair hbp = _mapper.get(preset, row, bl);
+                _host.params_flush(hbp.id, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, 0, nullptr);
             }
             else
             {
