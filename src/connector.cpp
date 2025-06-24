@@ -18,6 +18,10 @@
 #include <unistd.h>
 #endif
 
+#ifdef __linux__
+#include <fcntl.h>
+#endif
+
 // Possible values for LV2_KXSTUDIO_PROPERTIES__Reset
 typedef enum {
     LV2_KXSTUDIO_PROPERTIES_RESET_NONE = 0, // No reset
@@ -101,8 +105,23 @@ static std::array<unsigned char, UUID_SIZE> generateUUID()
 {
     std::array<unsigned char, UUID_SIZE> uuid;
 
-    for (int i = 0; i < UUID_SIZE / 2; ++i)
-        *reinterpret_cast<uint16_t*>(uuid.data() + i * 2) = rand();
+   #ifdef __linux__
+    bool devok = false;
+
+    if (const int fd = open("/dev/random", O_NONBLOCK); fd > 0)
+    {
+        if (read(fd, uuid.data(), UUID_SIZE) == UUID_SIZE)
+            devok = true;
+
+        close(fd);
+    }
+
+    if (! devok)
+   #endif
+    {
+        for (int i = 0; i < UUID_SIZE / 2; ++i)
+            *reinterpret_cast<uint16_t*>(uuid.data() + i * 2) = rand();
+    }
 
     // make it standards compliant
     uuid[6] = 0x40 | (uuid[6] & 0x0f);
