@@ -751,7 +751,7 @@ private:
                    std::unordered_map<std::string, uint8_t>* paramToIndexMapOpt = nullptr,
                    std::unordered_map<std::string, uint8_t>* propToIndexMapOpt = nullptr) const;
 
-    static void allocPreset(Preset& preset);
+    void allocPreset(Preset& preset, bool init = true);
     static void resetPreset(Preset& preset);
 };
 

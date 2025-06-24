@@ -886,7 +886,7 @@ bool HostConnector::preloadPresetFromFile(const uint8_t preset, const char* cons
 
     // load preset data
     Preset presetdata;
-    allocPreset(presetdata);
+    allocPreset(presetdata, false);
 
     if (loaded)
         jsonPresetLoad(presetdata, j);
@@ -5938,12 +5938,20 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::allocPreset(Preset& preset)
+void HostConnector::allocPreset(Preset& preset, const bool init)
 {
-    preset.chains[0].capture[0] = JACK_CAPTURE_PORT_1;
-    preset.chains[0].capture[1] = JACK_CAPTURE_PORT_2;
-    preset.chains[0].playback[0] = JACK_PLAYBACK_PORT_1;
-    preset.chains[0].playback[1] = JACK_PLAYBACK_PORT_2;
+    if (init)
+    {
+        preset.chains[0].capture[0] = JACK_CAPTURE_PORT_1;
+        preset.chains[0].capture[1] = JACK_CAPTURE_PORT_2;
+        preset.chains[0].playback[0] = JACK_PLAYBACK_PORT_1;
+        preset.chains[0].playback[1] = JACK_PLAYBACK_PORT_2;
+    }
+    else
+    {
+        preset.chains[0].capture = _current.chains[0].capture;
+        preset.chains[0].playback = _current.chains[0].playback;
+    }
 
     for (ChainRow& chain : preset.chains)
     {
