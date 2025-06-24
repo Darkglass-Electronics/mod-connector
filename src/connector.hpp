@@ -4,6 +4,7 @@
 #pragma once
 
 #include "host.hpp"
+#include "json_fwd.hpp"
 #include "instance_mapper.hpp"
 #include "lv2.hpp"
 
@@ -710,12 +711,10 @@ private:
     void hostDisconnectBlockAction(const Block& blockdata, const HostBlockPair& hbp, bool outputs, bool disconnectSideChains);
 
     // loads preset data, does not trigger host commands
-    template<class nlohmann_json>
-    void jsonPresetLoad(Preset& presetdata, const nlohmann_json& json) const;
+    void jsonPresetLoad(Preset& presetdata, const nlohmann::json& json) const;
 
     // saves preset data, also no host commands
-    template<class nlohmann_json>
-    void jsonPresetSave(const Preset& presetdata, nlohmann_json& json) const;
+    void jsonPresetSave(const Preset& presetdata, nlohmann::json& json) const;
 
     // load preset data from the current bank, only does host commands
     void hostLoadPreset(uint8_t preset);

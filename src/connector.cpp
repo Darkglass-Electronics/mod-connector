@@ -4017,11 +4017,8 @@ void HostConnector::hostRemoveInstanceForBlock(const uint8_t row, const uint8_t 
 
 // --------------------------------------------------------------------------------------------------------------------
 
-template<class nlohmann_json>
-void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann_json& json) const
+void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpreset) const
 {
-    const nlohmann::json& jpreset = static_cast<const nlohmann::json&>(json);
-
     // ----------------------------------------------------------------------------------------------------------------
     // background
 
@@ -4892,11 +4889,8 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann_json& json
 
 // --------------------------------------------------------------------------------------------------------------------
 
-template<class nlohmann_json>
-void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann_json& json) const
+void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann::json& jpreset) const
 {
-    nlohmann::json& jpreset = static_cast<nlohmann::json&>(json);
-
     jpreset = nlohmann::json::object({
         { "bindings", nlohmann::json::object({}) },
         { "chains", nlohmann::json::object({}) },
