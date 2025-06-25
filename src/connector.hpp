@@ -125,6 +125,16 @@ struct HostConnector : Host::FeedbackCallback {
         } meta;
     };
 
+    struct QuickPotBinding {
+        float min;
+        float max;
+        std::string parameterSymbol;
+        struct {
+            // convenience meta-data, not stored in json state
+            uint8_t parameterIndex;
+        } meta;
+    };
+
     enum SceneMode {
         // only update value, do not activate any scenes
         SceneModeNone,
@@ -142,7 +152,6 @@ struct HostConnector : Host::FeedbackCallback {
 
     struct Block {
         bool enabled;
-        std::string quickPotSymbol;
         std::string uri;
         struct {
             // convenience meta-data, not stored in json state
@@ -150,7 +159,6 @@ struct HostConnector : Host::FeedbackCallback {
                 bool hasScenes;
                 uint8_t hwbinding;
             } enable;
-            uint8_t quickPotIndex;
             uint8_t numParametersInScenes;
             uint8_t numPropertiesInScenes;
             uint8_t numInputs;
@@ -162,6 +170,7 @@ struct HostConnector : Host::FeedbackCallback {
         } meta;
         std::vector<Parameter> parameters;
         std::vector<Property> properties;
+        std::vector<QuickPotBinding> quickPotBindings;
         std::array<SceneValues, NUM_SCENES_PER_PRESET> sceneValues;
     };
 
@@ -760,6 +769,7 @@ using HostParameter = HostConnector::Parameter;
 using HostParameterBinding = HostConnector::ParameterBinding;
 using HostProperty = HostConnector::Property;
 using HostPropertyBinding = HostConnector::PropertyBinding;
+using HostQuickPotBinding = HostConnector::QuickPotBinding;
 using HostSceneMode = HostConnector::SceneMode;
 using HostCallbackData = HostConnector::Callback::Data;
 using HostNonBlockingScope = HostConnector::NonBlockingScope;

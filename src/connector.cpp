@@ -219,10 +219,9 @@ static void resetBlock(HostConnector::Block& blockdata)
 {
     blockdata.enabled = false;
     blockdata.uri.clear();
-    blockdata.quickPotSymbol.clear();
+    blockdata.quickPotBindings.clear();
     blockdata.meta.enable.hasScenes = false;
     blockdata.meta.enable.hwbinding = UINT8_MAX;
-    blockdata.meta.quickPotIndex = 0;
     blockdata.meta.numParametersInScenes = 0;
     blockdata.meta.numPropertiesInScenes = 0;
     blockdata.meta.numInputs = 0;
@@ -513,13 +512,23 @@ void HostConnector::printStateForDebug(const bool withBlocks, const bool withPar
 
             if (withBlocks)
             {
-                fprintf(stderr, "\t\tQuick Pot: '%s' | %u\n", blockdata.quickPotSymbol.c_str(), blockdata.meta.quickPotIndex);
                 fprintf(stderr, "\t\tnumParametersInScenes: %u\n", blockdata.meta.numParametersInScenes);
                 fprintf(stderr, "\t\tnumPropertiesInScenes: %u\n", blockdata.meta.numPropertiesInScenes);
                 fprintf(stderr, "\t\tnumInputs: %u\n", blockdata.meta.numInputs);
                 fprintf(stderr, "\t\tnumOutputs: %u\n", blockdata.meta.numOutputs);
                 fprintf(stderr, "\t\tnumSideInputs: %u\n", blockdata.meta.numSideInputs);
                 fprintf(stderr, "\t\tnumSideOutputs: %u\n", blockdata.meta.numSideOutputs);
+                fprintf(stderr, "\t\tQuick Pot Bindings:\n");
+
+                for (const QuickPotBinding& binding : blockdata.quickPotBindings)
+                {
+                    fprintf(stderr, "\t\t\tParameter %u: '%s' | '%s' | Minimum: %f, Maximum: %f\n",
+                            binding.meta.parameterIndex,
+                            binding.parameterSymbol.c_str(),
+                            blockdata.parameters[binding.meta.parameterIndex].meta.name.c_str(),
+                            binding.min,
+                            binding.max);
+                }
             }
 
             for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK && withParams; ++p)
@@ -1689,10 +1698,9 @@ bool HostConnector::replaceBlockWhileKeepingCurrentData(const uint8_t row, const
     {
         Block& blockdata = _current.chains[row].blocks[block];
         blockdata.enabled = blockcopy.enabled;
-        blockdata.quickPotSymbol = blockcopy.quickPotSymbol;
+        blockdata.quickPotBindings = blockcopy.quickPotBindings;
         blockdata.meta.enable.hasScenes = blockcopy.meta.enable.hasScenes;
         blockdata.meta.enable.hwbinding = blockcopy.meta.enable.hwbinding;
-        blockdata.meta.quickPotIndex = blockcopy.meta.quickPotIndex;
         blockdata.meta.numParametersInScenes = blockcopy.meta.numParametersInScenes;
         blockdata.meta.numPropertiesInScenes = blockcopy.meta.numPropertiesInScenes;
         blockdata.parameters = blockcopy.parameters;
@@ -1794,9 +1802,13 @@ bool HostConnector::saveBlockStateAsDefault(const uint8_t row, const uint8_t blo
         return false;
 
     // save any extra details in separate file
-    nlohmann::json j;
-    j["quickpot"] = blockdata.quickPotSymbol;
-    safeJsonSave(j, defdir + "/defaults.json");
+    if (! blockdata.quickPotBindings.empty())
+    {
+        nlohmann::json j;
+        // TODO rework function for full management
+        j["quickpot"] = blockdata.quickPotBindings.front().parameterSymbol;
+        safeJsonSave(j, defdir + "/defaults.json");
+    }
 
     return true;
 }
@@ -3069,8 +3081,8 @@ void HostConnector::setBlockQuickPot(const uint8_t row, const uint8_t block, con
     assert_return(!isNullURI(paramdata.symbol),);
     assert_return((paramdata.meta.flags & Lv2PortIsOutput) == 0,);
 
-    blockdata.quickPotSymbol = paramdata.symbol;
-    blockdata.meta.quickPotIndex = paramIndex;
+    // TODO rework function for full management
+    blockdata.quickPotBindings = { { paramdata.meta.min, paramdata.meta.max, paramdata.symbol, { paramIndex }, } };
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -4175,8 +4187,12 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
                     {
                         if (const auto it = paramToIndexMap.find(quickpot); it != paramToIndexMap.end())
                         {
-                            blockdata.quickPotSymbol = quickpot;
-                            blockdata.meta.quickPotIndex = it->second;
+                            // TODO rework function for full management
+                            const uint8_t paramIndex = it->second;
+                            const Parameter& paramdata = blockdata.parameters[paramIndex];
+                            blockdata.quickPotBindings = {
+                                { paramdata.meta.min, paramdata.meta.max, quickpot, { paramIndex }, }
+                            };
                         }
                     }
                 }
@@ -4186,7 +4202,7 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
 
                 if (jblock.contains("parameters"))
                 {
-                    auto& jparams = jblock["parameters"];
+                    const auto& jparams = jblock["parameters"];
                     for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
                     {
                         const std::string jparamid = std::to_string(p + 1);
@@ -4194,7 +4210,7 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
                         if (! jparams.contains(jparamid))
                             break;
 
-                        auto& jparam = jparams[jparamid];
+                        const auto& jparam = jparams[jparamid];
                         if (! (jparam.contains("symbol") && jparam.contains("value")))
                         {
                             mod_log_info("jsonPresetLoad(): parameter %u is missing symbol and/or value", p);
@@ -4228,7 +4244,7 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
 
                 if (jblock.contains("properties"))
                 {
-                    auto& jprops = jblock["properties"];
+                    const auto& jprops = jblock["properties"];
                     for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
                     {
                         const std::string jpropid = std::to_string(p + 1);
@@ -4236,7 +4252,7 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
                         if (! jprops.contains(jpropid))
                             break;
 
-                        auto& jprop = jprops[jpropid];
+                        const auto& jprop = jprops[jpropid];
                         if (! (jprop.contains("uri") && jprop.contains("value")))
                         {
                             mod_log_info("jsonPresetLoad(): property %u is missing uri and/or value", p);
@@ -4998,7 +5014,8 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann::json& jpr
                     { "enabled", blockdata.enabled },
                     { "parameters", nlohmann::json::object({}) },
                     { "properties", nlohmann::json::object({}) },
-                    { "quickpot", blockdata.quickPotSymbol },
+                    // TODO rework function for full management
+                    { "quickpot", blockdata.quickPotBindings.front().parameterSymbol },
                     { "scenes", nlohmann::json::object({}) },
                     { "uri", blockdata.uri },
                 });
@@ -5729,11 +5746,10 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
 
     blockdata.enabled = true;
     blockdata.uri = plugin->uri;
-    blockdata.quickPotSymbol.clear();
+    blockdata.quickPotBindings.clear();
 
     blockdata.meta.enable.hasScenes = false;
     blockdata.meta.enable.hwbinding = UINT8_MAX;
-    blockdata.meta.quickPotIndex = 0;
     blockdata.meta.numParametersInScenes = 0;
     blockdata.meta.numPropertiesInScenes = 0;
     blockdata.meta.numInputs = numInputs;
@@ -5770,8 +5786,10 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
             // skip parameter
             return;
         case kLv2DesignationQuickPot:
-            blockdata.quickPotSymbol = port.symbol;
-            blockdata.meta.quickPotIndex = numParams;
+            // TODO rework function for full management
+            blockdata.quickPotBindings = {
+                { port.min, port.max, port.symbol, { numParams } }
+            };
             break;
         }
 
@@ -5850,14 +5868,17 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
             break;
     }
 
-    if (blockdata.quickPotSymbol.empty() && numParams != 0)
+    if (blockdata.quickPotBindings.empty() && numParams != 0)
     {
         for (uint8_t p = 0; p < numParams; ++p)
         {
-            if ((blockdata.parameters[p].meta.flags & Lv2ParameterNotInQuickPot) != 0)
+            const Parameter& paramdata = blockdata.parameters[p];
+            if ((paramdata.meta.flags & Lv2ParameterNotInQuickPot) != 0)
                 continue;
-            blockdata.quickPotSymbol = blockdata.parameters[p].symbol;
-            blockdata.meta.quickPotIndex = p;
+            // TODO rework function for full management
+            blockdata.quickPotBindings = {
+                { paramdata.meta.min, paramdata.meta.max, paramdata.symbol, { p } }
+            };
             break;
         }
     }
@@ -5921,10 +5942,13 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
 
     for (uint8_t p = 0; p < numParams; ++p)
     {
-        if (blockdata.parameters[p].symbol == jquickpot)
+        const Parameter& paramdata = blockdata.parameters[p];
+        if (paramdata.symbol == jquickpot)
         {
-            blockdata.quickPotSymbol = jquickpot;
-            blockdata.meta.quickPotIndex = p;
+            // TODO rework function for full management
+            blockdata.quickPotBindings = {
+                { paramdata.meta.min, paramdata.meta.max, jquickpot, { p } }
+            };
             break;
         }
     }
