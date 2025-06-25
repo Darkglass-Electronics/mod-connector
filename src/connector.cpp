@@ -4150,7 +4150,7 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
 
                 std::unordered_map<std::string, uint8_t> paramToIndexMap, propToIndexMap;
                 initBlock(blockdata, plugin, numInputs, numOutputs, numSideInputs, numSideOutputs,
-                        &paramToIndexMap, &propToIndexMap);
+                          &paramToIndexMap, &propToIndexMap);
 
                 // ----------------------------------------------------------------------------------------------------
                 // enabled
@@ -4175,24 +4175,88 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
 
                 if (jblock.contains("quickpot"))
                 {
-                    std::string quickpot;
+                    const auto& jquickpot = jblock["quickpot"];
 
-                    try {
-                        quickpot = jblock["quickpot"].get<std::string>();
-                    } catch (...) {
-                        mod_log_warn("jsonPresetLoad(): block %u contains invalid quickpot", bl + 1);
-                    }
-
-                    if (!quickpot.empty())
+                    if (jquickpot.is_array())
                     {
-                        if (const auto it = paramToIndexMap.find(quickpot); it != paramToIndexMap.end())
+                        // new method, QuickPotBinding array
+                        blockdata.quickPotBindings.clear();
+
+                        std::string symbol;
+                        double min, max;
+
+                        for (const auto& jbinding : jquickpot)
                         {
-                            // TODO rework function for full management
-                            const uint8_t paramIndex = it->second;
-                            const Parameter& paramdata = blockdata.parameters[paramIndex];
-                            blockdata.quickPotBindings = {
-                                { paramdata.meta.min, paramdata.meta.max, quickpot, { paramIndex }, }
-                            };
+                            bool missing = false;
+                            if (! jbinding.contains("min"))
+                            {
+                                mod_log_info("jsonPresetLoad(): quickpot binding is missing min");
+                                missing = true;
+                            }
+                            if (! jbinding.contains("max"))
+                            {
+                                mod_log_info("jsonPresetLoad(): quickpot binding is missing max");
+                                missing = true;
+                            }
+                            if (! jbinding.contains("symbol"))
+                            {
+                                mod_log_info("jsonPresetLoad(): quickpot binding is missing symbol");
+                                missing = true;
+                            }
+                            if (missing)
+                                continue;
+
+                            try {
+                                min = jbinding["min"].get<double>();
+                            } catch (...) {
+                                mod_log_warn("jsonPresetLoad(): quickpot binding contains invalid min");
+                                continue;
+                            }
+                            try {
+                                max = jbinding["max"].get<double>();
+                            } catch (...) {
+                                mod_log_warn("jsonPresetLoad(): quickpot binding contains invalid max");
+                                continue;
+                            }
+                            try {
+                                symbol = jbinding["symbol"].get<std::string>();
+                            } catch (...) {
+                                mod_log_warn("jsonPresetLoad(): quickpot binding contains invalid symbol");
+                                continue;
+                            }
+
+                            if (paramToIndexMap.find(symbol) == paramToIndexMap.end())
+                            {
+                                mod_log_info("jsonPresetLoad(): quickpot binding with '%s' symbol does not exist", symbol.c_str());
+                                continue;
+                            }
+
+                            blockdata.quickPotBindings.push_back({
+                                static_cast<float>(min), static_cast<float>(max), symbol, { paramToIndexMap[symbol] }
+                            });
+                        }
+                    }
+                    else
+                    {
+                        // backwards-compat, single quickpot as parameter symbol string
+                        std::string quickpot;
+
+                        try {
+                            quickpot = jquickpot.get<std::string>();
+                        } catch (...) {
+                            mod_log_warn("jsonPresetLoad(): block %u contains invalid quickpot", bl + 1);
+                        }
+
+                        if (!quickpot.empty())
+                        {
+                            if (const auto it = paramToIndexMap.find(quickpot); it != paramToIndexMap.end())
+                            {
+                                const uint8_t paramIndex = it->second;
+                                const Parameter& paramdata = blockdata.parameters[paramIndex];
+                                blockdata.quickPotBindings = {
+                                    { paramdata.meta.min, paramdata.meta.max, quickpot, { paramIndex }, }
+                                };
+                            }
                         }
                     }
                 }
@@ -5014,12 +5078,10 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann::json& jpr
                     { "enabled", blockdata.enabled },
                     { "parameters", nlohmann::json::object({}) },
                     { "properties", nlohmann::json::object({}) },
-                    // TODO rework function for full management
-                    { "quickpot", blockdata.quickPotBindings.front().parameterSymbol },
+                    { "quickpot", nlohmann::json::array() },
                     { "scenes", nlohmann::json::object({}) },
                     { "uri", blockdata.uri },
                 });
-
                 {
                     auto& jparams = jblock["parameters"];
 
@@ -5059,6 +5121,19 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann::json& jpr
                             { "name", propdata.meta.name },
                             { "value", propdata.value },
                         });
+                    }
+                }
+
+                {
+                    auto& jquickpot = jblock["quickpot"];
+
+                    for (const QuickPotBinding& binding : blockdata.quickPotBindings)
+                    {
+                        jquickpot.push_back(nlohmann::json::object({
+                            { "min", binding.min },
+                            { "max", binding.max },
+                            { "symbol", binding.parameterSymbol },
+                        }));
                     }
                 }
 
