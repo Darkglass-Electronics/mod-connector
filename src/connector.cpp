@@ -2061,8 +2061,20 @@ bool HostConnector::switchScene(const uint8_t scene)
     std::vector<flushed_param> params;
     params.reserve(MAX_PARAMS_PER_BLOCK);
 
+    // preset was clean, indicate partially dirty state (only scene changed)
+    if (_current.dirty == 0)
+    {
+        _current.dirty = -1 - _current.scene;
+    }
+    // preset is partially dirty (only scene changed)
+    else if (_current.dirty < 0)
+    {
+        // unset dirty state if changing back to preset saved scene
+        if (_current.dirty == -1 - scene)
+            _current.dirty = false;
+    }
+
     _current.scene = scene;
-    _current.dirty = true;
 
     const Host::NonBlockingScope hnbs(_host);
 

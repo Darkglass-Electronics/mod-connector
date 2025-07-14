@@ -222,7 +222,7 @@ struct HostConnector : Host::FeedbackCallback {
     struct Current : Preset {
         uint8_t preset = 0;
         uint8_t numLoadedPlugins = 0;
-        bool dirty = false;
+        int dirty = 0; // 0|false for clean, 1|true for dirty, < 0 for scene only change (also dirty)
 
        #if NUM_BLOCK_CHAIN_ROWS != 1
         [[nodiscard]] inline const Block& block(const uint8_t row, const uint8_t block) const noexcept
