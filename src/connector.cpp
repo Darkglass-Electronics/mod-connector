@@ -5640,7 +5640,7 @@ void HostConnector::hostFeedbackCallback(const HostFeedbackData& data)
         assert(data.midiControlChange.control >= 0);
         assert(data.midiControlChange.value >= 0);
 
-        cdata.type = HostCallbackData::kMidiProgramChange;
+        cdata.type = HostCallbackData::kMidiControlChange;
         cdata.midiControlChange.channel = data.midiControlChange.channel;
         cdata.midiControlChange.control = data.midiControlChange.control;
         cdata.midiControlChange.value = data.midiControlChange.value;

@@ -1074,7 +1074,7 @@ struct Host::Impl
         }
         else
         {
-            mod_log_warn("unknown feedback messge '%s'\n", buffer);
+            mod_log_warn("unknown feedback message '%s'\n", buffer);
         }
 
         if (stackbuffer != buffer)
