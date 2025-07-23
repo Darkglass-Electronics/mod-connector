@@ -60,6 +60,32 @@
 #define MOD__CVPort LILV_NS_MOD "CVPort"
 
 // --------------------------------------------------------------------------------------------------------------------
+// compatibility functions
+
+#ifdef _WIN32
+#include <io.h>
+
+static char* realpath(const char* const name, char* const resolved)
+{
+    if (name == nullptr)
+        return nullptr;
+
+    if (_access(name, 4) != 0)
+        return nullptr;
+
+    char* retname = nullptr;
+
+    if ((retname = resolved) == nullptr)
+        retname = static_cast<char*>(malloc(PATH_MAX + 2));
+
+    if (retname == nullptr)
+        return nullptr;
+
+    return _fullpath(retname, name, PATH_MAX);
+}
+#endif
+
+// --------------------------------------------------------------------------------------------------------------------
 // proper lilv_file_uri_parse function that returns absolute paths
 
 static char* lilv_file_abspath(const char* const path)

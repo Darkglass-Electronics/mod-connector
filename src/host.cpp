@@ -276,7 +276,7 @@ struct Host::Impl
 
         /* set non-blocking mode on feedback port, so we can poke to see if there are any messages */
        #ifdef _WIN32
-        const unsigned long nonblocking = 1;
+        unsigned long nonblocking = 1;
         ::ioctlsocket(sockets.feedback, FIONBIO, &nonblocking);
        #else
         const int socketflags = ::fcntl(sockets.feedback, F_GETFL);
@@ -608,7 +608,7 @@ struct Host::Impl
 
         // set blocking mode, so we block-wait until message is fully delivered
        #ifdef _WIN32
-        const unsigned long blocking = 0;
+        unsigned long blocking = 0;
         ::ioctlsocket(sockets.feedback, FIONBIO, &blocking);
        #else
         const int socketflags = ::fcntl(sockets.feedback, F_GETFL);
@@ -664,7 +664,7 @@ struct Host::Impl
 
         // set non-blocking mode again
        #ifdef _WIN32
-        const unsigned long nonblocking = 1;
+        unsigned long nonblocking = 1;
         ::ioctlsocket(sockets.feedback, FIONBIO, &nonblocking);
        #else
         ::fcntl(sockets.feedback, F_SETFL, socketflags | O_NONBLOCK);

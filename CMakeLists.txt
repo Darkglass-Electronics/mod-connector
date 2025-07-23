@@ -86,6 +86,7 @@ if(PROJECT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR AND NOT MOD_CONNECTOR_LIB_TEST)
       Qt::Core
       Qt::Network
       Qt::WebSockets
+      $<$<BOOL:${WIN32}>:ws2_32>
   )
 
   target_sources(mod-connector
@@ -151,6 +152,7 @@ else()
     INTERFACE
       PkgConfig::lilv
       PkgConfig::lv2
+      $<$<BOOL:${WIN32}>:ws2_32>
   )
 
   target_sources(mod-connector
