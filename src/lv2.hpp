@@ -157,6 +157,10 @@ struct Lv2World {
     */
     [[nodiscard]] const Lv2Port& getPluginPort(const char* uri, const char* symbol) const;
 
+   /* check if a plugin is available
+    */
+    [[nodiscard]] bool isPluginAvailable(const char* uri) const;
+
    /* load a plugin state from disk and return a symbol -> value map
     */
     [[nodiscard]] std::unordered_map<std::string, float> loadPluginState(const char* path) const;

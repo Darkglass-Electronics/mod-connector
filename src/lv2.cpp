@@ -775,6 +775,14 @@ struct Lv2World::Impl
         return fallback;
     }
 
+    bool isPluginAvailable(const char* const uri) const
+    {
+        assert(uri != nullptr);
+        assert(*uri != '\0');
+
+        return pluginscache.find(uri) != pluginscache.end();
+    }
+
     std::unordered_map<std::string, float> loadPluginState(const char* const path)
     {
         LV2_URID_Map uridMap = { this, _mapfn };
@@ -914,6 +922,11 @@ const Lv2Plugin* Lv2World::getPluginByURI(const char* const uri) const
 const Lv2Port& Lv2World::getPluginPort(const char* const uri, const char* const symbol) const
 {
     return impl->getPluginPort(uri, symbol);
+}
+
+bool Lv2World::isPluginAvailable(const char* const uri) const
+{
+    return impl->isPluginAvailable(uri);
 }
 
 std::unordered_map<std::string, float> Lv2World::loadPluginState(const char* const path) const
