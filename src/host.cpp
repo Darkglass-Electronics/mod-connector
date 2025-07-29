@@ -210,6 +210,9 @@ struct Host::Impl
             return true;
         }
 
+       #ifdef MOD_DEVICE_HOST_PORT
+        static constexpr const int port = MOD_DEVICE_HOST_PORT;
+       #else
         int port;
         if (const char* const portEnv = std::getenv("MOD_DEVICE_HOST_PORT"))
         {
@@ -225,6 +228,7 @@ struct Host::Impl
         {
             port = 5555;
         }
+       #endif
 
         if ((sockets.out = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET)
         {
