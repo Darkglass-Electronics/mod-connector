@@ -587,10 +587,12 @@ void HostConnector::printStateForDebug(const bool withBlocks, const bool withPar
 
         for (const ParameterBinding& bindingdata : _current.bindings[hwid].parameters)
         {
-            fprintf(stderr, "\t\t- Block %u, Parameter '%s' | %u\n",
+            fprintf(stderr, "\t\t- Block %u, Parameter %u/'%s', min: %f, max: %f\n",
                     bindingdata.block,
+                    bindingdata.meta.parameterIndex,
                     bindingdata.parameterSymbol.c_str(),
-                    bindingdata.meta.parameterIndex);
+                    bindingdata.min,
+                    bindingdata.max);
         }
 
         for (const PropertyBinding& bindingdata : _current.bindings[hwid].properties)
@@ -4608,8 +4610,8 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
                             parameters.push_back({
                                 .row = static_cast<uint8_t>(row - 1),
                                 .block = static_cast<uint8_t>(block - 1),
-                                .min = 0.f,
-                                .max = 1.f,
+                                .min = hasRanges ? min : 0.f,
+                                .max = hasRanges ? max : 1.f,
                                 .parameterSymbol = ":bypass",
                                 .meta = {
                                     .parameterIndex = 0,
