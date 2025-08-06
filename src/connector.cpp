@@ -3206,6 +3206,66 @@ void HostConnector::connectTool2Tool(const uint8_t toolAIndex,
 
 // --------------------------------------------------------------------------------------------------------------------
 
+void HostConnector::connectBlock2Tool(uint8_t row, uint8_t block, uint8_t toolIndex, const char* toolInSymbolL, const char* toolInSymbolR)
+{
+    mod_log_debug("connectBlock2Tool(%u, %u, %u, \"%s\", \"%s\")", row, block, toolIndex, toolInSymbolL, toolInSymbolR);
+    assert(row < NUM_BLOCK_CHAIN_ROWS);
+    assert(block < NUM_BLOCKS_PER_PRESET);
+    assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
+    assert(toolInSymbolL != nullptr && *toolInSymbolL != '\0');
+
+    bool toolStereoIn = toolInSymbolR != nullptr && *toolInSymbolR != '\0';
+
+    Block& blockdata(_current.chains[row].blocks[block]);
+
+    const Lv2Plugin* const plugin = lv2world.getPluginByURI(blockdata.uri.c_str());
+    assert_return(plugin != nullptr,);
+
+    const HostBlockPair hbp = _mapper.get(_current.preset, row, block);
+    assert_return(hbp.id != kMaxHostInstances,);
+
+    std::string origin, target;
+
+    // collect audio ports from block
+    std::vector<std::string> ports;
+    ports.reserve(2);
+
+    constexpr uint32_t testFlags = Lv2PortIsAudio|Lv2PortIsOutput|Lv2PortIsSidechain;
+    for (const Lv2Port& port : plugin->ports)
+    {
+        if ((port.flags & testFlags) != (Lv2PortIsAudio|Lv2PortIsOutput))
+            continue;
+
+        ports.push_back(format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbp.id, port.symbol.c_str()));
+
+        if (hbp.pair != kMaxHostInstances)
+        {
+            ports.push_back(format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbp.pair, port.symbol.c_str()));
+            break;
+        }
+    }
+
+    assert(!ports.empty());
+
+    // connect mono
+    _host.connect(ports[0].c_str(), format("effect_%d:%s", MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, toolInSymbolL).c_str());
+
+    if (ports.size() == 2)
+    {
+        if (toolStereoIn)
+            // stereo
+            _host.connect(ports[1].c_str(), format("effect_%d:%s", MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, toolInSymbolR).c_str());
+        else 
+            // stereo to mono
+            _host.connect(ports[1].c_str(), format("effect_%d:%s", MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, toolInSymbolL).c_str());
+    }
+    else if (ports.size() == 1 && toolStereoIn) 
+        // mono to both stereo inputs
+        _host.connect(ports[0].c_str(), format("effect_%d:%s", MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, toolInSymbolR).c_str());
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 void HostConnector::setToolParameter(const uint8_t toolIndex, const char* const symbol, const float value)
 {
     mod_log_debug("setToolParameter(%u, \"%s\", %f)", toolIndex, symbol, value);

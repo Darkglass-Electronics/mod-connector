@@ -632,6 +632,9 @@ public:
     // connect a tool audio output port to another tool's input port
     void connectTool2Tool(uint8_t toolAIndex, const char* toolAOutSymbol, uint8_t toolBIndex, const char* toolBInSymbol);
 
+    // connect a block output port to a tool input port
+    void connectBlock2Tool(uint8_t row, uint8_t block, uint8_t toolIndex, const char* toolInSymbolL, const char* toolInSymbolR = nullptr);
+
     // set a block parameter value
     // NOTE value must already be sanitized!
     void setToolParameter(uint8_t toolIndex, const char* symbol, float value);
