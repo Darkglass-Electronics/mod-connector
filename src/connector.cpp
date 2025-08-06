@@ -437,6 +437,13 @@ const std::string& HostConnector::getLastError() const
 
 // --------------------------------------------------------------------------------------------------------------------
 
+bool HostConnector::monitorMidiControl(const uint8_t midiChannel, const bool enable)
+{
+    return _host.monitor_midi_control(midiChannel, enable);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 bool HostConnector::monitorMidiProgram(const uint8_t midiChannel, const bool enable)
 {
     return _host.monitor_midi_program(midiChannel, enable);
@@ -5629,14 +5636,26 @@ void HostConnector::hostFeedbackCallback(const HostFeedbackData& data)
         }
         break;
 
+    case HostFeedbackData::kFeedbackMidiControlChange:
+        assert(data.midiControlChange.channel >= 0);
+        assert(data.midiControlChange.channel < 16);
+        assert(data.midiControlChange.control >= 0);
+        assert(data.midiControlChange.value >= 0);
+
+        cdata.type = HostCallbackData::kMidiControlChange;
+        cdata.midiControlChange.channel = data.midiControlChange.channel;
+        cdata.midiControlChange.control = data.midiControlChange.control;
+        cdata.midiControlChange.value = data.midiControlChange.value;
+        break;
+
     case HostFeedbackData::kFeedbackMidiProgramChange:
-        assert(data.midiProgramChange.program >= 0);
         assert(data.midiProgramChange.channel >= 0);
         assert(data.midiProgramChange.channel < 16);
+        assert(data.midiProgramChange.program >= 0);
 
         cdata.type = HostCallbackData::kMidiProgramChange;
-        cdata.midiProgramChange.program = data.midiProgramChange.program;
         cdata.midiProgramChange.channel = data.midiProgramChange.channel;
+        cdata.midiProgramChange.program = data.midiProgramChange.program;
         break;
 
     default:

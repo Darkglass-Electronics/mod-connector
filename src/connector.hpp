@@ -34,6 +34,7 @@ struct HostConnector : Host::FeedbackCallback {
                 kToolParameterSet,
                 kToolPatchSet,
                 // TODO rename Patch to Property
+                kMidiControlChange,
                 kMidiProgramChange,
             } type;
             union {
@@ -82,10 +83,16 @@ struct HostConnector : Host::FeedbackCallback {
                     char type;
                     HostPatchData data;
                 } toolPatchSet;
+                // kMidiControlChange
+                struct {
+                    uint8_t channel;
+                    uint8_t control;
+                    uint16_t value;
+                } midiControlChange;
                 // kMidiProgramChange
                 struct {
-                    uint8_t program;
                     uint8_t channel;
+                    uint8_t program;
                 } midiProgramChange;
             };
         };
@@ -280,6 +287,9 @@ public:
 
     // get last error from host in case something failed
     [[nodiscard]] const std::string& getLastError() const;
+
+    // listen to MIDI control change messages
+    bool monitorMidiControl(uint8_t midiChannel, bool enable);
 
     // listen to MIDI program change messages
     bool monitorMidiProgram(uint8_t midiChannel, bool enable);
