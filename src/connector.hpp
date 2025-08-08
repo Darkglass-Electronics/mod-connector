@@ -227,6 +227,7 @@ struct HostConnector : Host::FeedbackCallback {
     };
 
     struct Current : Preset {
+        uint8_t defaultScene = 0;
         uint8_t preset = 0;
         uint8_t numLoadedPlugins = 0;
         int dirty = 0; // 0|false for clean, 1|true for dirty, < 0 for scene only change (also dirty)
