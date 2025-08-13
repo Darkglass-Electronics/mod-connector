@@ -3231,6 +3231,34 @@ void HostConnector::connectTool2Tool(const uint8_t toolAIndex,
 
 // --------------------------------------------------------------------------------------------------------------------
 
+void HostConnector::mapToolParameterToMIDICC(const uint8_t toolIndex,
+                                             const char* const symbol,
+                                             const uint8_t channel,
+                                             const uint8_t cc,
+                                             const float minimum,
+                                             const float maximum)
+{
+    mod_log_debug("mapToolParameterToMIDICC(%u, \"%s\", %u, %u, %f, %f)",
+                  toolIndex, symbol, channel, cc, minimum, maximum);
+    assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
+    assert(symbol != nullptr && *symbol != '\0');
+
+    _host.midi_map(MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, symbol, channel, cc, 0.f, 1.f);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::unmapToolParameterFromMIDICC(uint8_t toolIndex, const char* symbol)
+{
+    mod_log_debug("unmapToolParameterFromMIDICC(%u, \"%s\")", toolIndex, symbol);
+    assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
+    assert(symbol != nullptr && *symbol != '\0');
+
+    _host.midi_unmap(MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, symbol);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 void HostConnector::setToolParameter(const uint8_t toolIndex, const char* const symbol, const float value)
 {
     mod_log_debug("setToolParameter(%u, \"%s\", %f)", toolIndex, symbol, value);

@@ -643,6 +643,17 @@ public:
     // connect a tool audio output port to another tool's input port
     void connectTool2Tool(uint8_t toolAIndex, const char* toolAOutSymbol, uint8_t toolBIndex, const char* toolBInSymbol);
 
+    // map a tool parameter to a specific MIDI CC
+    void mapToolParameterToMIDICC(uint8_t toolIndex,
+                                  const char* symbol,
+                                  uint8_t channel,
+                                  uint8_t cc,
+                                  float minimum = 0.f,
+                                  float maximum = 1.f);
+
+    // unmap a tool parameter from MIDI CC
+    void unmapToolParameterFromMIDICC(uint8_t toolIndex, const char* symbol);
+
     // set a block parameter value
     // NOTE value must already be sanitized!
     void setToolParameter(uint8_t toolIndex, const char* symbol, float value);
