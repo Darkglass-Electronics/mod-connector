@@ -437,6 +437,13 @@ const std::string& HostConnector::getLastError() const
 
 // --------------------------------------------------------------------------------------------------------------------
 
+bool HostConnector::monitorMidiControl(const uint8_t midiChannel, const bool enable)
+{
+    return _host.monitor_midi_control(midiChannel, enable);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 bool HostConnector::monitorMidiProgram(const uint8_t midiChannel, const bool enable)
 {
     return _host.monitor_midi_program(midiChannel, enable);
@@ -823,6 +830,7 @@ void HostConnector::loadBankFromPresetFiles(const std::array<std::string, NUM_PR
     // create current preset data from selected initial preset
     static_cast<Preset&>(_current) = _presets[initialPresetToLoad];
     _current.preset = initialPresetToLoad;
+    _current.defaultScene = _current.scene;
 
     const Host::NonBlockingScope hnbs(_host);
     hostClearAndLoadCurrentBank();
@@ -863,6 +871,7 @@ bool HostConnector::loadCurrentPresetFromFile(const char* const filename, const 
     else
         resetPreset(_current);
 
+    _current.defaultScene = _current.scene;
     _current.filename = filename;
 
     // switch old preset with new one
@@ -958,6 +967,7 @@ bool HostConnector::saveCurrentPresetToFile(const char* const filename)
     sync();
    #endif
 
+    _current.defaultScene = _current.scene;
     _current.filename = filename;
     return true;
 }
@@ -1027,6 +1037,7 @@ bool HostConnector::reorderPresets(const uint8_t orig, const uint8_t dest)
     assert(_current.preset < NUM_PRESETS_PER_BANK);
     assert(_current.preset < NUM_PRESETS_PER_BANK);
 
+    _current.defaultScene = _presets[_current.preset].scene;
     _current.filename = _presets[_current.preset].filename;
     return true;
 }
@@ -1051,11 +1062,13 @@ void HostConnector::swapPresets(const uint8_t presetA, const uint8_t presetB)
     if (_current.preset == presetA)
     {
         _current.preset = presetB;
+        _current.defaultScene = _presets[presetB].scene;
         _current.filename = _presets[presetB].filename;
     }
     else if (_current.preset == presetB)
     {
         _current.preset = presetA;
+        _current.defaultScene = _presets[presetA].scene;
         _current.filename = _presets[presetA].filename;
     }
 }
@@ -1104,7 +1117,7 @@ void HostConnector::clearCurrentPreset()
         _current.bindings[hwid].properties.clear();
     }
 
-    _current.scene = 0;
+    _current.scene = _current.defaultScene = 0;
     _current.numLoadedPlugins = 0;
     _current.dirty = true;
 
@@ -1912,6 +1925,7 @@ bool HostConnector::switchPreset(const uint8_t preset)
     // copy new preset to current data
     static_cast<Preset&>(_current) = _presets[preset];
     _current.preset = preset;
+    _current.defaultScene = _current.scene;
 
     // switch old preset with new one
     hostSwitchPreset(old);
@@ -1995,25 +2009,30 @@ bool HostConnector::reorderScenes(const uint8_t orig, const uint8_t dest)
             swapScenes(i, i + 1);
     }
 
+    uint8_t scene = _current.scene;
+
     // current scene matches orig, moving it to dest
-    if (_current.scene == orig)
-        _current.scene = dest;
+    if (scene == orig)
+        scene = dest;
 
     // current scene matches dest, moving it by +1 or -1 accordingly
-    else if (_current.scene == dest)
-        _current.scene += orig > dest ? 1 : -1;
+    else if (scene == dest)
+        scene += orig > dest ? 1 : -1;
 
     // current scene > dest, moving +1
-    else if (_current.scene > dest)
-        ++_current.scene;
+    else if (scene > dest)
+        ++scene;
 
     // current scene < dest, moving -1
     else
-        --_current.scene;
+        --scene;
 
-    assert(_current.scene < NUM_SCENES_PER_PRESET);
-    assert(_current.scene < NUM_SCENES_PER_PRESET);
+    assert(scene < NUM_SCENES_PER_PRESET);
 
+    if (_current.defaultScene == _current.scene)
+        _current.defaultScene = scene;
+
+    _current.scene = scene;
     return true;
 }
 
@@ -2047,6 +2066,12 @@ void HostConnector::swapScenes(const uint8_t sceneA, const uint8_t sceneB)
         _current.scene = sceneB;
     else if (_current.scene == sceneB)
         _current.scene = sceneA;
+
+    // adjust data for default scene, if matching
+    if (_current.defaultScene == sceneA)
+        _current.defaultScene = sceneB;
+    else if (_current.defaultScene == sceneB)
+        _current.defaultScene = sceneA;
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -3260,6 +3285,34 @@ void HostConnector::connectBlock2Tool(uint8_t row, uint8_t block, uint8_t toolIn
     else if (ports.size() == 1 && toolStereoIn) 
         // mono to both stereo inputs
         _host.connect(ports[0].c_str(), format(MOD_HOST_EFFECT_PREFIX "%d:%s", MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, toolInSymbolR).c_str());
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::mapToolParameterToMIDICC(const uint8_t toolIndex,
+                                             const char* const symbol,
+                                             const uint8_t channel,
+                                             const uint8_t cc,
+                                             const float minimum,
+                                             const float maximum)
+{
+    mod_log_debug("mapToolParameterToMIDICC(%u, \"%s\", %u, %u, %f, %f)",
+                  toolIndex, symbol, channel, cc, minimum, maximum);
+    assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
+    assert(symbol != nullptr && *symbol != '\0');
+
+    _host.midi_map(MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, symbol, channel, cc, 0.f, 1.f);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::unmapToolParameterFromMIDICC(uint8_t toolIndex, const char* symbol)
+{
+    mod_log_debug("unmapToolParameterFromMIDICC(%u, \"%s\")", toolIndex, symbol);
+    assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
+    assert(symbol != nullptr && *symbol != '\0');
+
+    _host.midi_unmap(MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, symbol);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -5687,14 +5740,26 @@ void HostConnector::hostFeedbackCallback(const HostFeedbackData& data)
         }
         break;
 
+    case HostFeedbackData::kFeedbackMidiControlChange:
+        assert(data.midiControlChange.channel >= 0);
+        assert(data.midiControlChange.channel < 16);
+        assert(data.midiControlChange.control >= 0);
+        assert(data.midiControlChange.value >= 0);
+
+        cdata.type = HostCallbackData::kMidiControlChange;
+        cdata.midiControlChange.channel = data.midiControlChange.channel;
+        cdata.midiControlChange.control = data.midiControlChange.control;
+        cdata.midiControlChange.value = data.midiControlChange.value;
+        break;
+
     case HostFeedbackData::kFeedbackMidiProgramChange:
-        assert(data.midiProgramChange.program >= 0);
         assert(data.midiProgramChange.channel >= 0);
         assert(data.midiProgramChange.channel < 16);
+        assert(data.midiProgramChange.program >= 0);
 
         cdata.type = HostCallbackData::kMidiProgramChange;
-        cdata.midiProgramChange.program = data.midiProgramChange.program;
         cdata.midiProgramChange.channel = data.midiProgramChange.channel;
+        cdata.midiProgramChange.program = data.midiProgramChange.program;
         break;
 
     default:

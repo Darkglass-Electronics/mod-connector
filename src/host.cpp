@@ -933,6 +933,32 @@ struct Host::Impl
 
             callback->hostFeedbackCallback(d);
         }
+        else if (std::strncmp(buffer, "midi_control_change ", 20) == 0)
+        {
+            assert(read > 22);
+            HostFeedbackData d = { HostFeedbackData::kFeedbackMidiControlChange, {} };
+
+            char* msgbuffer;
+            char* sep = buffer + 20;
+
+            // 1st arg: int channel
+            msgbuffer = sep;
+            sep = std::strchr(sep, ' ');
+            *sep++ = '\0';
+            d.midiControlChange.channel = std::atoi(msgbuffer);
+
+            // 2nd arg: int control
+            msgbuffer = sep;
+            sep = std::strchr(sep, ' ');
+            *sep++ = '\0';
+            d.midiControlChange.control = std::atoi(msgbuffer);
+
+            // 3rd arg: int value
+            msgbuffer = sep;
+            d.midiControlChange.value = std::atoi(msgbuffer);
+
+            callback->hostFeedbackCallback(d);
+        }
         else if (std::strncmp(buffer, "midi_program_change ", 20) == 0)
         {
             assert(read > 22);
@@ -1052,7 +1078,7 @@ struct Host::Impl
         }
         else
         {
-            mod_log_warn("unknown feedback messge '%s'\n", buffer);
+            mod_log_warn("unknown feedback message '%s'\n", buffer);
         }
 
         if (stackbuffer != buffer)
@@ -1448,6 +1474,13 @@ bool Host::monitor_audio_levels(const char* const source_port_name, bool enable)
     VALIDATE_JACK_PORT(source_port_name)
 
     return impl->writeMessageAndWait(format("monitor_audio_levels %s %d", source_port_name, enable ? 1 : 0));
+}
+
+bool Host::monitor_midi_control(const uint8_t midi_channel, const bool enable)
+{
+    VALIDATE_MIDI_CHANNEL(midi_channel)
+
+    return impl->writeMessageAndWait(format("monitor_midi_control %d %d", midi_channel, enable ? 1 : 0));
 }
 
 bool Host::monitor_midi_program(const uint8_t midi_channel, const bool enable)

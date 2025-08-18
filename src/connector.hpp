@@ -34,6 +34,7 @@ struct HostConnector : Host::FeedbackCallback {
                 kToolParameterSet,
                 kToolPatchSet,
                 // TODO rename Patch to Property
+                kMidiControlChange,
                 kMidiProgramChange,
             } type;
             union {
@@ -82,10 +83,16 @@ struct HostConnector : Host::FeedbackCallback {
                     char type;
                     HostPatchData data;
                 } toolPatchSet;
+                // kMidiControlChange
+                struct {
+                    uint8_t channel;
+                    uint8_t control;
+                    uint16_t value;
+                } midiControlChange;
                 // kMidiProgramChange
                 struct {
-                    uint8_t program;
                     uint8_t channel;
+                    uint8_t program;
                 } midiProgramChange;
             };
         };
@@ -220,6 +227,7 @@ struct HostConnector : Host::FeedbackCallback {
     };
 
     struct Current : Preset {
+        uint8_t defaultScene = 0;
         uint8_t preset = 0;
         uint8_t numLoadedPlugins = 0;
         int dirty = 0; // 0|false for clean, 1|true for dirty, < 0 for scene only change (also dirty)
@@ -280,6 +288,9 @@ public:
 
     // get last error from host in case something failed
     [[nodiscard]] const std::string& getLastError() const;
+
+    // listen to MIDI control change messages
+    bool monitorMidiControl(uint8_t midiChannel, bool enable);
 
     // listen to MIDI program change messages
     bool monitorMidiProgram(uint8_t midiChannel, bool enable);
@@ -634,6 +645,17 @@ public:
 
     // connect a block output port to a tool input port
     void connectBlock2Tool(uint8_t row, uint8_t block, uint8_t toolIndex, const char* toolInSymbolL, const char* toolInSymbolR = nullptr);
+
+    // map a tool parameter to a specific MIDI CC
+    void mapToolParameterToMIDICC(uint8_t toolIndex,
+                                  const char* symbol,
+                                  uint8_t channel,
+                                  uint8_t cc,
+                                  float minimum = 0.f,
+                                  float maximum = 1.f);
+
+    // unmap a tool parameter from MIDI CC
+    void unmapToolParameterFromMIDICC(uint8_t toolIndex, const char* symbol);
 
     // set a block parameter value
     // NOTE value must already be sanitized!
