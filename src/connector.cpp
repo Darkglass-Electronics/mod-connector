@@ -452,9 +452,9 @@ std::string HostConnector::getBlockId(const uint8_t row, const uint8_t block) co
         return {};
 
     if (hbp.pair == kMaxHostInstances)
-        return format("effect_%u", hbp.id);
+        return format(MOD_HOST_EFFECT_PREFIX "%u", hbp.id);
 
-    return format("effect_%u + effect_%u", hbp.id, hbp.pair);
+    return format(MOD_HOST_EFFECT_PREFIX "%u + " MOD_HOST_EFFECT_PREFIX "%u", hbp.id, hbp.pair);
 }
 
 std::string HostConnector::getBlockIdNoPair(const uint8_t row, const uint8_t block) const
@@ -464,7 +464,7 @@ std::string HostConnector::getBlockIdNoPair(const uint8_t row, const uint8_t blo
     if (hbp.id == kMaxHostInstances)
         return {};
 
-    return format("effect_%u", hbp.id);
+    return format(MOD_HOST_EFFECT_PREFIX "%u", hbp.id);
 }
 
 std::string HostConnector::getBlockIdPairOnly(const uint8_t row, const uint8_t block) const
@@ -474,7 +474,7 @@ std::string HostConnector::getBlockIdPairOnly(const uint8_t row, const uint8_t b
     if (hbp.pair == kMaxHostInstances)
         return {};
 
-    return format("effect_%u", hbp.pair);
+    return format(MOD_HOST_EFFECT_PREFIX "%u", hbp.pair);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -3200,8 +3200,8 @@ void HostConnector::connectTool2Tool(const uint8_t toolAIndex,
     assert(toolAOutSymbol != nullptr && *toolAOutSymbol != '\0');
     assert(toolBInSymbol != nullptr && *toolBInSymbol != '\0');
 
-    _host.connect(format("effect_%d:%s", MAX_MOD_HOST_PLUGIN_INSTANCES + toolAIndex, toolAOutSymbol).c_str(), 
-                  format("effect_%d:%s", MAX_MOD_HOST_PLUGIN_INSTANCES + toolBIndex, toolBInSymbol).c_str());
+    _host.connect(format(MOD_HOST_EFFECT_PREFIX "%d:%s", MAX_MOD_HOST_PLUGIN_INSTANCES + toolAIndex, toolAOutSymbol).c_str(), 
+                  format(MOD_HOST_EFFECT_PREFIX "%d:%s", MAX_MOD_HOST_PLUGIN_INSTANCES + toolBIndex, toolBInSymbol).c_str());
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -3223,8 +3223,6 @@ void HostConnector::connectBlock2Tool(uint8_t row, uint8_t block, uint8_t toolIn
 
     const HostBlockPair hbp = _mapper.get(_current.preset, row, block);
     assert_return(hbp.id != kMaxHostInstances,);
-
-    std::string origin, target;
 
     // collect audio ports from block
     std::vector<std::string> ports;
@@ -3248,20 +3246,20 @@ void HostConnector::connectBlock2Tool(uint8_t row, uint8_t block, uint8_t toolIn
     assert(!ports.empty());
 
     // connect mono
-    _host.connect(ports[0].c_str(), format("effect_%d:%s", MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, toolInSymbolL).c_str());
+    _host.connect(ports[0].c_str(), format(MOD_HOST_EFFECT_PREFIX "%d:%s", MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, toolInSymbolL).c_str());
 
     if (ports.size() == 2)
     {
         if (toolStereoIn)
             // stereo
-            _host.connect(ports[1].c_str(), format("effect_%d:%s", MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, toolInSymbolR).c_str());
+            _host.connect(ports[1].c_str(), format(MOD_HOST_EFFECT_PREFIX "%d:%s", MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, toolInSymbolR).c_str());
         else 
             // stereo to mono
-            _host.connect(ports[1].c_str(), format("effect_%d:%s", MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, toolInSymbolL).c_str());
+            _host.connect(ports[1].c_str(), format(MOD_HOST_EFFECT_PREFIX "%d:%s", MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, toolInSymbolL).c_str());
     }
     else if (ports.size() == 1 && toolStereoIn) 
         // mono to both stereo inputs
-        _host.connect(ports[0].c_str(), format("effect_%d:%s", MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, toolInSymbolR).c_str());
+        _host.connect(ports[0].c_str(), format(MOD_HOST_EFFECT_PREFIX "%d:%s", MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, toolInSymbolR).c_str());
 }
 
 // --------------------------------------------------------------------------------------------------------------------
