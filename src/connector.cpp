@@ -273,6 +273,8 @@ static constexpr const char* SceneMode2Str(const HostSceneMode sceneMode)
         return "SceneModeActivate";
     case HostConnector::SceneModeClear:
         return "SceneModeClear";
+    case HostConnector::SceneModeUpdate:
+        return "SceneModeUpdate";
     }
 
     return "";
@@ -1189,7 +1191,6 @@ bool HostConnector::enableBlock(const uint8_t row, const uint8_t block, const bo
     switch (sceneMode)
     {
     case SceneModeNone:
-        blockdata.sceneValues[_current.scene].enabled = enable;
         break;
 
     case SceneModeActivate:
@@ -1215,6 +1216,10 @@ bool HostConnector::enableBlock(const uint8_t row, const uint8_t block, const bo
             --blockdata.meta.numParametersInScenes;
             blockdata.meta.enable.hasScenes = false;
         }
+        break;
+
+    case SceneModeUpdate:
+        blockdata.sceneValues[_current.scene].enabled = enable;
         break;
     }
 
@@ -2650,7 +2655,7 @@ bool HostConnector::replaceBlockBinding(const uint8_t hwid,
         else
         {
             // update block to match binding macro
-            enableBlock(rowB, blockB, _current.bindings[hwid].value > 0.5f, SceneModeNone);
+            enableBlock(rowB, blockB, _current.bindings[hwid].value > 0.5f, SceneModeUpdate);
         }
 
         _current.dirty = true;
@@ -2731,7 +2736,7 @@ bool HostConnector::replaceBlockParameterBinding(const uint8_t hwid,
         {
             // update parameter value to match binding macro
             const float value = unnormalized(paramdataB.meta, _current.bindings[hwid].value);
-            setBlockParameter(rowB, blockB, paramIndexB, value, SceneModeNone);
+            setBlockParameter(rowB, blockB, paramIndexB, value, SceneModeUpdate);
         }
 
         _current.dirty = true;
@@ -2809,7 +2814,7 @@ bool HostConnector::replaceBlockPropertyBinding(const uint8_t hwid,
         {
             // update parameter value to match binding macro
             const float value = unnormalized(propdataB.meta, _current.bindings[hwid].value);
-            setBlockProperty(rowB, blockB, propIndexB, value, SceneModeNone);
+            setBlockProperty(rowB, blockB, propIndexB, value, SceneModeUpdate);
         }
 #endif
 
@@ -2909,9 +2914,9 @@ bool HostConnector::reorderBlockBinding(const uint8_t hwid, const uint8_t dest)
     return true;
 }
 
-void HostConnector::setBindingValue(uint8_t hwid, double value)
+void HostConnector::setBindingValue(const uint8_t hwid, const double value, const SceneMode sceneMode)
 {
-    mod_log_debug("setBindingValue(%u, %f)", hwid, value);
+    mod_log_debug("setBindingValue(%u, %f, %s)", hwid, value, SceneMode2Str(sceneMode));
     assert(hwid < NUM_BINDING_ACTUATORS);
 
     Bindings& bindings(_current.bindings[hwid]);
@@ -2929,7 +2934,7 @@ void HostConnector::setBindingValue(uint8_t hwid, double value)
             if (it->parameterSymbol == ":bypass")
             {
                 const bool enabled = min > max ? value < 0.5 : value >= 0.5;
-                enableBlock(row, block, enabled, SceneModeNone);
+                enableBlock(row, block, enabled, sceneMode);
             }
             else
             {
@@ -2960,7 +2965,7 @@ void HostConnector::setBindingValue(uint8_t hwid, double value)
                         paramValue = std::rint(paramValue);
                 }
 
-                setBlockParameter(row, block, paramIndex, paramValue, SceneModeNone);
+                setBlockParameter(row, block, paramIndex, paramValue, sceneMode);
             }
         }
     }
@@ -3038,7 +3043,6 @@ void HostConnector::setBlockParameter(const uint8_t row,
     switch (sceneMode)
     {
     case SceneModeNone:
-        blockdata.sceneValues[_current.scene].parameters[paramIndex] = value;
         break;
 
     case SceneModeActivate:
@@ -3064,6 +3068,10 @@ void HostConnector::setBlockParameter(const uint8_t row,
             --blockdata.meta.numParametersInScenes;
             paramdata.meta.flags &= ~Lv2ParameterInScene;
         }
+        break;
+
+    case SceneModeUpdate:
+        blockdata.sceneValues[_current.scene].parameters[paramIndex] = value;
         break;
     }
 
@@ -3309,7 +3317,6 @@ void HostConnector::setBlockProperty(const uint8_t row,
     switch (sceneMode)
     {
     case SceneModeNone:
-        blockdata.sceneValues[_current.scene].properties[propIndex] = value;
         break;
 
     case SceneModeActivate:
@@ -3335,6 +3342,10 @@ void HostConnector::setBlockProperty(const uint8_t row,
             --blockdata.meta.numPropertiesInScenes;
             propdata.meta.flags &= ~Lv2ParameterInScene;
         }
+        break;
+
+    case SceneModeUpdate:
+        blockdata.sceneValues[_current.scene].properties[propIndex] = value;
         break;
     }
 

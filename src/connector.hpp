@@ -133,12 +133,14 @@ struct HostConnector : Host::FeedbackCallback {
     };
 
     enum SceneMode {
-        // only update value, do not activate any scenes
+        // do nothing regarding scenes
         SceneModeNone,
         // enable scenes if not active yet
         SceneModeActivate,
         // sync all parameter values in a scene, same as clearing it
         SceneModeClear,
+        // only update value, do not activate any scenes
+        SceneModeUpdate,
     };
 
     struct SceneValues {
@@ -560,7 +562,7 @@ public:
     bool reorderBlockBinding(uint8_t hwid, uint8_t dest);
 
     // set all block and parameter bindings to a normalized value
-    void setBindingValue(uint8_t hwid, double value);
+    void setBindingValue(uint8_t hwid, double value, SceneMode sceneMode);
 
     // convenience calls for single-chain builds
    #if NUM_BLOCK_CHAIN_ROWS == 1
