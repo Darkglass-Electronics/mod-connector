@@ -3251,7 +3251,7 @@ void HostConnector::mapToolParameterToMIDICC(const uint8_t toolIndex,
     assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
     assert(symbol != nullptr && *symbol != '\0');
 
-    _host.midi_map(MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, symbol, channel, cc, 0.f, 1.f);
+    _host.midi_map(MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, symbol, channel, cc, minimum, maximum);
 }
 
 // --------------------------------------------------------------------------------------------------------------------

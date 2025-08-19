@@ -650,8 +650,8 @@ public:
                                   const char* symbol,
                                   uint8_t channel,
                                   uint8_t cc,
-                                  float minimum = 0.f,
-                                  float maximum = 1.f);
+                                  float minimum,
+                                  float maximum);
 
     // unmap a tool parameter from MIDI CC
     void unmapToolParameterFromMIDICC(uint8_t toolIndex, const char* symbol);
