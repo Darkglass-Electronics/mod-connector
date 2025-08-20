@@ -1391,6 +1391,9 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
 
     Block& blockdata(chaindata.blocks[block]);
 
+    std::vector<flushed_param> params;
+    params.reserve(MAX_PARAMS_PER_BLOCK);
+
     // do not change blocks if attempting to replace plugin with itself
     if ((isNullURI(uri) && isNullURI(blockdata.uri)) || (uri != nullptr && blockdata.uri == uri))
     {
@@ -1399,9 +1402,6 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
         // reset plugin to defaults
         if (!isNullURI(uri))
         {
-            std::vector<flushed_param> params;
-            params.reserve(MAX_PARAMS_PER_BLOCK);
-
             const HostBlockPair hbp = _mapper.get(_current.preset, row, block);
             assert_return(hbp.id != kMaxHostInstances, false);
 
@@ -1420,7 +1420,7 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
 
                 paramdata.meta.flags &= ~Lv2ParameterInScene;
 
-                if (isNotEqual(paramdata.value, paramdata.meta.def))
+                if (isNotEqual(paramdata.value, paramdata.meta.def2))
                 {
                     paramdata.value = paramdata.meta.def;
                     params.push_back({ paramdata.symbol.c_str(), paramdata.meta.def });
@@ -1438,7 +1438,8 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
                 hostBypassBlockPair(hbp, false);
             }
 
-            hostParamsFlushBlockPair(hbp, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params);
+            if (! params.empty())
+                hostParamsFlushBlockPair(hbp, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params);
 
             for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
             {
@@ -1531,6 +1532,25 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
         {
             ++_current.numLoadedPlugins;
             initBlock(blockdata, plugin, numInputs, numOutputs, numSideInputs, numSideOutputs);
+
+            for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+            {
+                Parameter& paramdata(blockdata.parameters[p]);
+                if (isNullURI(paramdata.symbol))
+                    break;
+                if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual)) != 0)
+                    continue;
+
+                if (isNotEqual(paramdata.value, paramdata.meta.def2))
+                {
+                    paramdata.value = paramdata.meta.def;
+                    params.push_back({ paramdata.symbol.c_str(), paramdata.meta.def });
+                }
+            }
+
+            if (! params.empty())
+                hostParamsFlushBlockPair(hbp, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params);
+
             hostSetupSideIO(_current.preset, row, block, hbp, plugin);
         }
         else
