@@ -594,6 +594,11 @@ public:
     // NOTE value must already be sanitized!
     void setBlockParameter(uint8_t row, uint8_t block, uint8_t paramIndex, float value, SceneMode sceneMode);
 
+    // set a block parameter value directly based on port symbol
+    // warning: does not update cached values in _current.block if parameter is included there
+    // nor does it handle scenes or bindings
+    void setBlockParameter(uint8_t row, uint8_t block, const char* symbol, float value);
+
     // set a block quickpot
     void setBlockQuickPot(uint8_t row, uint8_t block, uint8_t paramIndex);
 
