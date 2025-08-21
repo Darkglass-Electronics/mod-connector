@@ -3131,9 +3131,6 @@ void HostConnector::setBlockParameter(uint8_t row, uint8_t block, const char* sy
     assert(block < NUM_BLOCKS_PER_PRESET);
     assert(symbol != nullptr && *symbol != '\0');
 
-    Block& blockdata(_current.chains[row].blocks[block]);
-    assert_return(!isNullBlock(blockdata),);
-
     const HostBlockPair hbp = _mapper.get(_current.preset, row, block);
     assert_return(hbp.id != kMaxHostInstances,);
     
