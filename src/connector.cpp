@@ -3120,6 +3120,26 @@ void HostConnector::setBlockParameter(const uint8_t row,
         _host.param_set(hbp.pair, paramdata.symbol.c_str(), value);
 }
 
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::setBlockParameter(uint8_t row, uint8_t block, const char* symbol, float value)
+{
+    mod_log_debug("setBlockParameter(%u, %u, %s, %f)",
+                  row, block, symbol, value);
+    assert(row < NUM_BLOCK_CHAIN_ROWS);
+    assert(block < NUM_BLOCKS_PER_PRESET);
+    assert(symbol != nullptr && *symbol != '\0');
+
+    const HostBlockPair hbp = _mapper.get(_current.preset, row, block);
+    assert_return(hbp.id != kMaxHostInstances,);
+    
+    _host.param_set(hbp.id, symbol, value);
+
+    if (hbp.pair != kMaxHostInstances)
+        _host.param_set(hbp.pair, symbol, value);
+}
+
 // --------------------------------------------------------------------------------------------------------------------
 
 void HostConnector::setBlockQuickPot(const uint8_t row, const uint8_t block, const uint8_t paramIndex)
