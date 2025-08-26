@@ -17,8 +17,14 @@
 enum ExtraLv2Flags {
     Lv2ParameterVirtual = 1 << 10,
     Lv2ParameterInScene = 1 << 11,
-    Lv2ParameterNotInQuickPot = 1 << 12,
+    Lv2ParameterInSceneTemporarily = 1 << 12,
+    Lv2ParameterNotInQuickPot = 1 << 13,
 };
+
+static inline constexpr bool hasScenes(uint32_t flags)
+{
+    return (flags & (Lv2ParameterInScene|Lv2ParameterInSceneTemporarily)) != 0;
+}
 
 // --------------------------------------------------------------------------------------------------------------------
 
@@ -110,7 +116,8 @@ struct HostConnector : Host::FeedbackCallback {
             uint32_t designation;
             uint8_t hwbinding;
             float def, min, max;
-            float def2; // default from plugin ttl, which might not match default preset
+            float def2; // default from plugin ttl, which might not match initial state (default preset override)
+            float lastSavedValue; // what is saved on the preset, or initial state
             std::string name;
             std::string shortname;
             std::string unit;
@@ -126,6 +133,7 @@ struct HostConnector : Host::FeedbackCallback {
             uint32_t flags;
             uint8_t hwbinding;
             float def, min, max; // used for Lv2PropertyIsParameter
+            std::string lastSavedValue; // what is saved on the preset, or initial state
             std::string defpath; // used for Lv2PropertyIsPath
             std::string name;
             std::string shortname;
@@ -137,6 +145,9 @@ struct HostConnector : Host::FeedbackCallback {
         SceneModeNone,
         // enable scenes if not active yet
         SceneModeActivate,
+        // enable scenes if not active yet, but only temporarily
+        // scene value is discarded if preset is not saved
+        SceneModeActivateTemporarily,
         // sync all parameter values in a scene, same as clearing it
         SceneModeClear,
         // only update value, do not activate any scenes
@@ -157,6 +168,8 @@ struct HostConnector : Host::FeedbackCallback {
             // convenience meta-data, not stored in json state
             struct {
                 bool hasScenes;
+                bool hasScenesTemporarily;
+                bool lastSavedValue;
                 uint8_t hwbinding;
             } enable;
             uint8_t quickPotIndex;
