@@ -2264,14 +2264,12 @@ bool HostConnector::switchScene(const uint8_t scene)
                         paramdata.value = paramdata.meta.lastSavedValue;
                     }
                     params.push_back({ paramdata.symbol.c_str(), paramdata.value });
-                    mod_log_warn("Lv2ParameterInSceneTemporarily %u %f", p, paramdata.value);
                 }
                 // scenes are in use, change value
                 else if ((paramdata.meta.flags & Lv2ParameterInScene) != 0)
                 {
                     paramdata.value = paramdata.meta.lastSavedValue = sceneValues.parameters[p];
                     params.push_back({ paramdata.symbol.c_str(), paramdata.value });
-                    mod_log_warn("Lv2ParameterInScene %u %f", p, paramdata.value);
                 }
             }
 
