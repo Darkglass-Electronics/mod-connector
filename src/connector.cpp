@@ -979,7 +979,7 @@ bool HostConnector::saveCurrentPresetToFile(const char* const filename)
                 if (isNullBlock(blockdata))
                     continue;
 
-                if (blockdata.meta.enable.tempSceneState == HostConnector::kTemporarySceneClear)
+                if (! blockdata.meta.enable.hasScenes)
                 {
                     for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
                     {
@@ -992,14 +992,14 @@ bool HostConnector::saveCurrentPresetToFile(const char* const filename)
                     blockdata.sceneValues[scene].enabled = blockdata.enabled;
                     blockdata.lastSavedSceneValues[scene].enabled = blockdata.enabled;
                 }
-                blockdata.meta.enable.tempSceneState = HostConnector::kTemporarySceneNone;
+                blockdata.meta.enable.tempSceneState = kTemporarySceneNone;
 
                 for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
                 {
                     Parameter& paramdata(blockdata.parameters[p]);
                     if (isNullURI(paramdata.symbol))
                         break;
-                    if (paramdata.meta.tempSceneState == HostConnector::kTemporarySceneClear)
+                    if ((paramdata.meta.flags & Lv2ParameterInScene) == 0)
                     {
                         for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
                         {
@@ -1012,7 +1012,7 @@ bool HostConnector::saveCurrentPresetToFile(const char* const filename)
                         blockdata.sceneValues[scene].parameters[p] = paramdata.value;
                         blockdata.lastSavedSceneValues[scene].parameters[p] = paramdata.value;
                     }
-                    paramdata.meta.tempSceneState = HostConnector::kTemporarySceneNone;
+                    paramdata.meta.tempSceneState = kTemporarySceneNone;
                 }
 
                 for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
@@ -1020,7 +1020,7 @@ bool HostConnector::saveCurrentPresetToFile(const char* const filename)
                     Property& propdata(blockdata.properties[p]);
                     if (isNullURI(propdata.uri))
                         break;
-                    if (propdata.meta.tempSceneState == HostConnector::kTemporarySceneClear)
+                    if ((propdata.meta.flags & Lv2ParameterInScene) == 0)
                     {
                         for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
                         {
@@ -1033,7 +1033,7 @@ bool HostConnector::saveCurrentPresetToFile(const char* const filename)
                         blockdata.sceneValues[scene].properties[p] = propdata.value;
                         blockdata.lastSavedSceneValues[scene].properties[p] = propdata.value;
                     }
-                    propdata.meta.tempSceneState = HostConnector::kTemporarySceneNone;
+                    propdata.meta.tempSceneState = kTemporarySceneNone;
                 }
             }
         }
@@ -1331,8 +1331,8 @@ bool HostConnector::enableBlock(const uint8_t row, const uint8_t block, const bo
 
             assert(blockdata.meta.enable.tempSceneState != kTemporarySceneClear);
             blockdata.meta.enable.tempSceneState = blockdata.meta.enable.tempSceneState == kTemporarySceneNone
-                                                    ? kTemporarySceneClear
-                                                    : kTemporarySceneNone;
+                                                 ? kTemporarySceneClear
+                                                 : kTemporarySceneNone;
         }
         for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
             blockdata.sceneValues[s].enabled = enable;
