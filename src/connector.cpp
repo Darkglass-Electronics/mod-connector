@@ -2261,9 +2261,6 @@ bool HostConnector::switchScene(const uint8_t scene)
         return false;
 
     // preallocating some data
-    bool enabled;
-    float fvalue;
-    std::string svalue;
     std::vector<flushed_param> params;
     params.reserve(MAX_PARAMS_PER_BLOCK);
 
@@ -2325,10 +2322,8 @@ bool HostConnector::switchScene(const uint8_t scene)
                 break;
             }
 
-            enabled = blockdata.meta.enable.hasScenes ? sceneValues.enabled : blockdata.enabled;
-
             // bypass/disable first if relevant
-            if (blockdata.enabled != enabled && !enabled)
+            if (blockdata.enabled != sceneValues.enabled && !sceneValues.enabled)
             {
                 blockdata.enabled = false;
                 hostBypassBlockPair(hbp, true);
@@ -2363,11 +2358,10 @@ bool HostConnector::switchScene(const uint8_t scene)
                     break;
                 }
 
-                fvalue = sceneValues.parameters[p];
-                if (isNotEqual(paramdata.value, fvalue))
+                if (isNotEqual(paramdata.value, sceneValues.parameters[p]))
                 {
-                    paramdata.value = fvalue;
-                    params.push_back({ paramdata.symbol.c_str(), fvalue });
+                    paramdata.value = sceneValues.parameters[p];
+                    params.push_back({ paramdata.symbol.c_str(), paramdata.value });
                 }
             }
 
@@ -2400,9 +2394,9 @@ bool HostConnector::switchScene(const uint8_t scene)
                     break;
                 }
 
-                if (propdata.value != svalue)
+                if (propdata.value != sceneValues.properties[p])
                 {
-                    propdata.value = svalue;
+                    propdata.value = sceneValues.properties[p];
                     hostPatchSetBlockPair(hbp, propdata);
                 }
             }
@@ -2410,7 +2404,7 @@ bool HostConnector::switchScene(const uint8_t scene)
             hostParamsFlushBlockPair(hbp, LV2_KXSTUDIO_PROPERTIES_RESET_NONE, params);
 
             // unbypass/enable last if relevant
-            if (blockdata.enabled != enabled && enabled)
+            if (blockdata.enabled != sceneValues.enabled && sceneValues.enabled)
             {
                 blockdata.enabled = true;
                 hostBypassBlockPair(hbp, false);
