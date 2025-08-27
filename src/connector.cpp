@@ -979,18 +979,40 @@ bool HostConnector::saveCurrentPresetToFile(const char* const filename)
                 if (isNullBlock(blockdata))
                     continue;
 
+                if (blockdata.meta.enable.tempSceneState == HostConnector::kTemporarySceneClear)
+                {
+                    for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
+                    {
+                        blockdata.sceneValues[s].enabled = blockdata.enabled;
+                        blockdata.lastSavedSceneValues[s].enabled = blockdata.enabled;
+                    }
+                }
+                else
+                {
+                    blockdata.sceneValues[scene].enabled = blockdata.enabled;
+                    blockdata.lastSavedSceneValues[scene].enabled = blockdata.enabled;
+                }
                 blockdata.meta.enable.tempSceneState = HostConnector::kTemporarySceneNone;
-                blockdata.sceneValues[scene].enabled = blockdata.enabled;
-                blockdata.lastSavedSceneValues[scene].enabled = blockdata.enabled;
 
                 for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
                 {
                     Parameter& paramdata(blockdata.parameters[p]);
                     if (isNullURI(paramdata.symbol))
                         break;
+                    if (paramdata.meta.tempSceneState == HostConnector::kTemporarySceneClear)
+                    {
+                        for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
+                        {
+                            blockdata.sceneValues[s].parameters[p] = paramdata.value;
+                            blockdata.lastSavedSceneValues[s].parameters[p] = paramdata.value;
+                        }
+                    }
+                    else
+                    {
+                        blockdata.sceneValues[scene].parameters[p] = paramdata.value;
+                        blockdata.lastSavedSceneValues[scene].parameters[p] = paramdata.value;
+                    }
                     paramdata.meta.tempSceneState = HostConnector::kTemporarySceneNone;
-                    blockdata.sceneValues[scene].parameters[p] = paramdata.value;
-                    blockdata.lastSavedSceneValues[scene].parameters[p] = paramdata.value;
                 }
 
                 for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
@@ -998,9 +1020,20 @@ bool HostConnector::saveCurrentPresetToFile(const char* const filename)
                     Property& propdata(blockdata.properties[p]);
                     if (isNullURI(propdata.uri))
                         break;
+                    if (propdata.meta.tempSceneState == HostConnector::kTemporarySceneClear)
+                    {
+                        for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
+                        {
+                            blockdata.sceneValues[s].properties[p] = propdata.value;
+                            blockdata.lastSavedSceneValues[s].properties[p] = propdata.value;
+                        }
+                    }
+                    else
+                    {
+                        blockdata.sceneValues[scene].properties[p] = propdata.value;
+                        blockdata.lastSavedSceneValues[scene].properties[p] = propdata.value;
+                    }
                     propdata.meta.tempSceneState = HostConnector::kTemporarySceneNone;
-                    blockdata.sceneValues[scene].properties[p] = propdata.value;
-                    blockdata.lastSavedSceneValues[scene].properties[p] = propdata.value;
                 }
             }
         }
@@ -1278,20 +1311,31 @@ bool HostConnector::enableBlock(const uint8_t row, const uint8_t block, const bo
         break;
 
     case SceneModeClear:
+        if (blockdata.meta.enable.hasScenes)
+        {
+            --blockdata.meta.numParametersInScenes;
+            blockdata.meta.enable.hasScenes = false;
+        }
+        for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
+        {
+            blockdata.sceneValues[s].enabled = enable;
+            blockdata.lastSavedSceneValues[s].enabled = enable;
+        }
+        break;
+
     case SceneModeClearTemporarily:
         if (blockdata.meta.enable.hasScenes)
         {
             --blockdata.meta.numParametersInScenes;
             blockdata.meta.enable.hasScenes = false;
 
-            if (sceneMode == SceneModeClearTemporarily)
-            {
-                assert(blockdata.meta.enable.tempSceneState != kTemporarySceneClear);
-                blockdata.meta.enable.tempSceneState = blockdata.meta.enable.tempSceneState == kTemporarySceneNone
-                                                     ? kTemporarySceneClear
-                                                     : kTemporarySceneNone;
-            }
+            assert(blockdata.meta.enable.tempSceneState != kTemporarySceneClear);
+            blockdata.meta.enable.tempSceneState = blockdata.meta.enable.tempSceneState == kTemporarySceneNone
+                                                    ? kTemporarySceneClear
+                                                    : kTemporarySceneNone;
         }
+        for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
+            blockdata.sceneValues[s].enabled = enable;
         break;
 
     case SceneModeUpdate:
@@ -3285,20 +3329,31 @@ void HostConnector::setBlockParameter(const uint8_t row,
         break;
 
     case SceneModeClear:
+        if ((paramdata.meta.flags & Lv2ParameterInScene) != 0)
+        {
+            --blockdata.meta.numParametersInScenes;
+            paramdata.meta.flags &= ~Lv2ParameterInScene;
+        }
+        for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
+        {
+            blockdata.sceneValues[s].parameters[paramIndex] = value;
+            blockdata.lastSavedSceneValues[s].parameters[paramIndex] = value;
+        }
+        break;
+
     case SceneModeClearTemporarily:
         if ((paramdata.meta.flags & Lv2ParameterInScene) != 0)
         {
             --blockdata.meta.numParametersInScenes;
             paramdata.meta.flags &= ~Lv2ParameterInScene;
 
-            if (sceneMode == SceneModeClearTemporarily)
-            {
-                assert(paramdata.meta.tempSceneState != kTemporarySceneClear);
-                paramdata.meta.tempSceneState = paramdata.meta.tempSceneState == kTemporarySceneNone
-                                              ? kTemporarySceneClear
-                                              : kTemporarySceneNone;
-            }
+            assert(paramdata.meta.tempSceneState != kTemporarySceneClear);
+            paramdata.meta.tempSceneState = paramdata.meta.tempSceneState == kTemporarySceneNone
+                                          ? kTemporarySceneClear
+                                          : kTemporarySceneNone;
         }
+        for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
+            blockdata.sceneValues[s].parameters[paramIndex] = value;
         break;
 
     case SceneModeUpdate:
@@ -3646,20 +3701,31 @@ void HostConnector::setBlockProperty(const uint8_t row,
         break;
 
     case SceneModeClear:
+        if ((propdata.meta.flags & Lv2ParameterInScene) != 0)
+        {
+            --blockdata.meta.numPropertiesInScenes;
+            propdata.meta.flags &= ~Lv2ParameterInScene;
+        }
+        for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
+        {
+            blockdata.sceneValues[s].properties[propIndex] = value;
+            blockdata.lastSavedSceneValues[s].properties[propIndex] = value;
+        }
+        break;
+
     case SceneModeClearTemporarily:
         if ((propdata.meta.flags & Lv2ParameterInScene) != 0)
         {
             --blockdata.meta.numPropertiesInScenes;
             propdata.meta.flags &= ~Lv2ParameterInScene;
 
-            if (sceneMode == SceneModeClearTemporarily)
-            {
-                assert(propdata.meta.tempSceneState != kTemporarySceneClear);
-                propdata.meta.tempSceneState = propdata.meta.tempSceneState == kTemporarySceneNone
-                                             ? kTemporarySceneClear
-                                             : kTemporarySceneNone;
-            }
+            assert(propdata.meta.tempSceneState != kTemporarySceneClear);
+            propdata.meta.tempSceneState = propdata.meta.tempSceneState == kTemporarySceneNone
+                                         ? kTemporarySceneClear
+                                         : kTemporarySceneNone;
         }
+        for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
+            blockdata.sceneValues[s].properties[propIndex] = value;
         break;
 
     case SceneModeUpdate:
