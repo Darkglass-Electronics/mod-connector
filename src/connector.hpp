@@ -17,14 +17,8 @@
 enum ExtraLv2Flags {
     Lv2ParameterVirtual = 1 << 10,
     Lv2ParameterInScene = 1 << 11,
-    Lv2ParameterInSceneTemporarily = 1 << 12,
-    Lv2ParameterNotInQuickPot = 1 << 13,
+    Lv2ParameterNotInQuickPot = 1 << 12,
 };
-
-static inline constexpr bool hasScenes(uint32_t flags)
-{
-    return (flags & (Lv2ParameterInScene|Lv2ParameterInSceneTemporarily)) != 0;
-}
 
 // --------------------------------------------------------------------------------------------------------------------
 
@@ -107,6 +101,12 @@ struct HostConnector : Host::FeedbackCallback {
         virtual void hostConnectorCallback(const Data& data) = 0;
     };
 
+    enum TemporarySceneState : uint8_t {
+        kTemporarySceneNone = 0,
+        kTemporarySceneActivate,
+        kTemporarySceneClear,
+    };
+
     struct Parameter {
         std::string symbol;
         float value;
@@ -115,9 +115,9 @@ struct HostConnector : Host::FeedbackCallback {
             uint32_t flags;
             uint32_t designation;
             uint8_t hwbinding;
+            TemporarySceneState tempSceneState;
             float def, min, max;
             float def2; // default from plugin ttl, which might not match initial state (default preset override)
-            float lastSavedValue; // what is saved on the preset, or initial state
             std::string name;
             std::string shortname;
             std::string unit;
@@ -132,8 +132,8 @@ struct HostConnector : Host::FeedbackCallback {
             // convenience meta-data, not stored in json state
             uint32_t flags;
             uint8_t hwbinding;
+            TemporarySceneState tempSceneState;
             float def, min, max; // used for Lv2PropertyIsParameter
-            std::string lastSavedValue; // what is saved on the preset, or initial state
             std::string defpath; // used for Lv2PropertyIsPath
             std::string name;
             std::string shortname;
@@ -141,17 +141,18 @@ struct HostConnector : Host::FeedbackCallback {
     };
 
     enum SceneMode {
-        // do nothing regarding scenes
-        SceneModeNone,
         // enable scenes if not active yet
         SceneModeActivate,
-        // enable scenes if not active yet, but only temporarily
-        // scene value is discarded if preset is not saved
-        SceneModeActivateTemporarily,
         // sync all parameter values in a scene, same as clearing it
         SceneModeClear,
         // only update value, do not activate any scenes
         SceneModeUpdate,
+        // enable scenes if not active yet, but only temporarily
+        // scene value is discarded if preset is not saved
+        SceneModeActivateTemporarily,
+        // sync all parameter values in a scene, same as clearing it, but only temporarily
+        // scene value is "uncleared" if preset is not saved
+        SceneModeClearTemporarily,
     };
 
     struct SceneValues {
@@ -168,9 +169,8 @@ struct HostConnector : Host::FeedbackCallback {
             // convenience meta-data, not stored in json state
             struct {
                 bool hasScenes;
-                bool hasScenesTemporarily;
-                bool lastSavedValue;
                 uint8_t hwbinding;
+                TemporarySceneState tempSceneState;
             } enable;
             uint8_t quickPotIndex;
             uint8_t numParametersInScenes;
@@ -185,6 +185,7 @@ struct HostConnector : Host::FeedbackCallback {
         std::vector<Parameter> parameters;
         std::vector<Property> properties;
         std::array<SceneValues, NUM_SCENES_PER_PRESET> sceneValues;
+        std::array<SceneValues, NUM_SCENES_PER_PRESET> lastSavedSceneValues;
     };
 
     struct ParameterBinding {
@@ -605,7 +606,11 @@ public:
 
     // set a block parameter value
     // NOTE value must already be sanitized!
-    void setBlockParameter(uint8_t row, uint8_t block, uint8_t paramIndex, float value, SceneMode sceneMode);
+    void setBlockParameter(uint8_t row,
+                           uint8_t block,
+                           uint8_t paramIndex,
+                           float value,
+                           SceneMode sceneMode = SceneModeClear);
 
     // set a block quickpot
     void setBlockQuickPot(uint8_t row, uint8_t block, uint8_t paramIndex);
@@ -685,7 +690,11 @@ public:
     // WIP details below this point
 
     // set a block property
-    void setBlockProperty(uint8_t row, uint8_t block, uint8_t propIndex, const char* value, SceneMode sceneMode);
+    void setBlockProperty(uint8_t row,
+                          uint8_t block,
+                          uint8_t propIndex,
+                          const char* value,
+                          SceneMode sceneMode = SceneModeClear);
 
     // convenience calls for single-chain builds
    #if NUM_BLOCK_CHAIN_ROWS == 1
@@ -804,5 +813,22 @@ using HostSceneMode = HostConnector::SceneMode;
 using HostCallbackData = HostConnector::Callback::Data;
 using HostNonBlockingScope = HostConnector::NonBlockingScope;
 using HostNonBlockingScopeWithAudioFades = HostConnector::NonBlockingScopeWithAudioFades;
+
+// --------------------------------------------------------------------------------------------------------------------
+
+static inline constexpr bool hasScenes(const HostParameter& param)
+{
+    return (param.meta.flags & Lv2ParameterInScene) != 0;
+}
+
+static inline constexpr bool hasScenes(const HostProperty& prop)
+{
+    return (prop.meta.flags & Lv2ParameterInScene) != 0;
+}
+
+static inline constexpr bool hasScenes(const HostBlock& block)
+{
+    return block.meta.enable.hasScenes;
+}
 
 // --------------------------------------------------------------------------------------------------------------------
