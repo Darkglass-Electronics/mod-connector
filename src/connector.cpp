@@ -2275,7 +2275,7 @@ bool HostConnector::addBlockParameterBinding(const uint8_t hwid,
         if (_current.bindings[hwid].properties.empty())
         {
            #ifdef _DARKGLASS_DEVICE_PABLITO
-            _current.bindings[hwid].name = blockdata.meta.abbreviation + " " + paramdata.meta.name;
+            _current.bindings[hwid].name = blockdata.meta.abbreviation + " " + (!paramdata.meta.shortname.empty() ? paramdata.meta.shortname : paramdata.meta.name);
            #else
             _current.bindings[hwid].name = paramdata.meta.name;
            #endif
