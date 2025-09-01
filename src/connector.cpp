@@ -1282,8 +1282,10 @@ bool HostConnector::enableBlock(const uint8_t row, const uint8_t block, const bo
                 if (_current.scene == scene)
                     continue;
                 blockdata.sceneValues[scene].enabled = blockdata.enabled;
+                blockdata.lastSavedSceneValues[scene].enabled = blockdata.enabled;
             }
         }
+        // set new value for current scene
         blockdata.sceneValues[_current.scene].enabled = enable;
         blockdata.lastSavedSceneValues[_current.scene].enabled = enable;
         break;
@@ -1307,6 +1309,7 @@ bool HostConnector::enableBlock(const uint8_t row, const uint8_t block, const bo
                                                     ? kTemporarySceneActivate
                                                     : kTemporarySceneNone;
         }
+        // set new value for current scene
         blockdata.sceneValues[_current.scene].enabled = enable;
         break;
 
@@ -3294,8 +3297,10 @@ void HostConnector::setBlockParameter(const uint8_t row,
                 if (_current.scene == scene)
                     continue;
                 blockdata.sceneValues[scene].parameters[paramIndex] = paramdata.value;
+                blockdata.lastSavedSceneValues[scene].parameters[paramIndex] = paramdata.value;
             }
         }
+        // set new value for current scene
         blockdata.sceneValues[_current.scene].parameters[paramIndex] = value;
         blockdata.lastSavedSceneValues[_current.scene].parameters[paramIndex] = value;
         break;
@@ -3319,6 +3324,7 @@ void HostConnector::setBlockParameter(const uint8_t row,
                                             ? kTemporarySceneActivate
                                             : kTemporarySceneNone;
         }
+        // set new value for current scene
         blockdata.sceneValues[_current.scene].parameters[paramIndex] = value;
         break;
 
@@ -3666,8 +3672,10 @@ void HostConnector::setBlockProperty(const uint8_t row,
                 if (_current.scene == scene)
                     continue;
                 blockdata.sceneValues[scene].properties[propIndex] = propdata.value;
+                blockdata.lastSavedSceneValues[scene].properties[propIndex] = propdata.value;
             }
         }
+        // set new value for current scene
         blockdata.sceneValues[_current.scene].properties[propIndex] = value;
         blockdata.lastSavedSceneValues[_current.scene].properties[propIndex] = value;
         break;
@@ -3691,6 +3699,7 @@ void HostConnector::setBlockProperty(const uint8_t row,
                                          ? kTemporarySceneActivate
                                          : kTemporarySceneNone;
         }
+        // set new value for current scene
         blockdata.sceneValues[_current.scene].properties[propIndex] = value;
         break;
 
