@@ -4603,7 +4603,7 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
 
                 std::unordered_map<std::string, uint8_t> paramToIndexMap, propToIndexMap;
                 initBlock(blockdata, plugin, numInputs, numOutputs, numSideInputs, numSideOutputs,
-                        &paramToIndexMap, &propToIndexMap);
+                          &paramToIndexMap, &propToIndexMap);
 
                 // ----------------------------------------------------------------------------------------------------
                 // enabled
@@ -6356,72 +6356,101 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
     }
 
     for (uint8_t p = numParams; p < MAX_PARAMS_PER_BLOCK; ++p)
+    {
         resetParameter(blockdata.parameters[p]);
+        for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
+        {
+            blockdata.sceneValues[s].parameters[p] = 0.f;
+            blockdata.lastSavedSceneValues[s].parameters[p] = 0.f;
+        }
+    }
 
     for (uint8_t p = numProps; p < MAX_PARAMS_PER_BLOCK; ++p)
+    {
         resetProperty(blockdata.properties[p]);
+        for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
+        {
+            blockdata.sceneValues[s].properties[p].clear();
+            blockdata.lastSavedSceneValues[s].properties[p].clear();
+        }
+    }
 
     for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
     {
-        blockdata.sceneValues[s].enabled = false;
-        blockdata.lastSavedSceneValues[s].enabled = false;
+        blockdata.sceneValues[s].enabled = true;
+        blockdata.lastSavedSceneValues[s].enabled = true;
     }
 
     // override defaults from user
     const std::string defdir = getDefaultPluginBundleForBlock(blockdata);
 
-    if (! std::filesystem::exists(defdir))
-        return;
-
-    const std::unordered_map<std::string, float> statemap
-        = lv2world.loadPluginState((defdir + "/default.ttl").c_str());
-
-    for (const auto& state : statemap)
+    if (std::filesystem::exists(defdir))
     {
-        const std::string symbol = state.first;
-        const float value = state.second;
+        const std::unordered_map<std::string, float> statemap
+            = lv2world.loadPluginState((defdir + "/default.ttl").c_str());
 
-        if (paramToIndexMap.find(symbol) == paramToIndexMap.end())
+        for (const auto& state : statemap)
         {
-            mod_log_warn("initBlock(): state param with '%s' symbol does not exist in plugin", symbol.c_str());
-            continue;
+            const std::string symbol = state.first;
+            const float value = state.second;
+
+            if (paramToIndexMap.find(symbol) == paramToIndexMap.end())
+            {
+                mod_log_warn("initBlock(): state param with '%s' symbol does not exist in plugin", symbol.c_str());
+                continue;
+            }
+
+            const uint8_t paramIndex = paramToIndexMap[symbol];
+            Parameter& paramdata = blockdata.parameters[paramIndex];
+
+            if (isNullURI(paramdata.symbol))
+                continue;
+            if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual)) != 0)
+                continue;
+
+            paramdata.value = paramdata.meta.def = value;
         }
 
-        const uint8_t paramIndex = paramToIndexMap[symbol];
-        Parameter& paramdata = blockdata.parameters[paramIndex];
+        // TODO handle properties
 
-        if (isNullURI(paramdata.symbol))
-            continue;
-        if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual)) != 0)
-            continue;
+        std::ifstream f(defdir + "/defaults.json");
+        nlohmann::json j;
+        std::string jquickpot;
 
-        paramdata.value = paramdata.meta.def = value;
-    }
+        try {
+            j = nlohmann::json::parse(f);
+            jquickpot = j["quickpot"].get<std::string>();
+        } catch (const std::exception& e) {
+            mod_log_warn("failed to parse block defaults: %s", e.what());
+        } catch (...) {
+            mod_log_warn("failed to parse block defaults: unknown exception");
+        }
 
-    // TODO handle properties
-
-    std::ifstream f(defdir + "/defaults.json");
-    nlohmann::json j;
-    std::string jquickpot;
-
-    try {
-        j = nlohmann::json::parse(f);
-        jquickpot = j["quickpot"].get<std::string>();
-    } catch (const std::exception& e) {
-        mod_log_warn("failed to parse block defaults: %s", e.what());
-        return;
-    } catch (...) {
-        mod_log_warn("failed to parse block defaults: unknown exception");
-        return;
-    }
-
-    for (uint8_t p = 0; p < numParams; ++p)
-    {
-        if (blockdata.parameters[p].symbol == jquickpot)
+        if (! jquickpot.empty())
         {
-            blockdata.quickPotSymbol = jquickpot;
-            blockdata.meta.quickPotIndex = p;
-            break;
+            for (uint8_t p = 0; p < numParams; ++p)
+            {
+                if (blockdata.parameters[p].symbol == jquickpot)
+                {
+                    blockdata.quickPotSymbol = jquickpot;
+                    blockdata.meta.quickPotIndex = p;
+                    break;
+                }
+            }
+        }
+    }
+
+    for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
+    {
+        for (uint8_t p = 0; p < numParams; ++p)
+        {
+            blockdata.sceneValues[s].parameters[p] = blockdata.parameters[p].value;
+            blockdata.lastSavedSceneValues[s].parameters[p] = blockdata.parameters[p].value;
+        }
+        for (uint8_t p = 0; p < numProps; ++p)
+        {
+            blockdata.sceneValues[s].properties[p] = blockdata.properties[p].value;
+            blockdata.lastSavedSceneValues[s].properties[p] = blockdata.properties[p].value;
         }
     }
 }
