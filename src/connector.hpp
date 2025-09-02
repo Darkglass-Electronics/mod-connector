@@ -189,7 +189,7 @@ struct HostConnector : Host::FeedbackCallback {
         inline uint8_t parameterIndexForSymbol(const std::string& parameterSymbol)
         {
             try {
-                return parameterSymbolToIndexMap[parameterSymbol.data()];
+                return parameterSymbolToIndexMap[parameterSymbol];
             } catch (...) {
                 return UINT8_MAX;
             }
