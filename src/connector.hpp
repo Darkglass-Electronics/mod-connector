@@ -185,7 +185,31 @@ struct HostConnector : Host::FeedbackCallback {
         std::vector<Parameter> parameters;
         std::vector<Property> properties;
         std::array<SceneValues, NUM_SCENES_PER_PRESET> sceneValues;
+
+        inline uint8_t parameterIndexForSymbol(const std::string& parameterSymbol)
+        {
+            try {
+                return parameterSymbolToIndexMap[parameterSymbol.data()];
+            } catch (...) {
+                return UINT8_MAX;
+            }
+        }
+
+        inline uint8_t propertyIndexForURI(const std::string& propertyURI)
+        {
+            try {
+                return propertyURIToIndexMap[propertyURI];
+            } catch (...) {
+                return UINT8_MAX;
+            }
+        }
+
+    private:
+        // extra details, not stored in json state
+        friend struct HostConnector;
         std::array<SceneValues, NUM_SCENES_PER_PRESET> lastSavedSceneValues;
+        std::unordered_map<std::string, uint8_t> parameterSymbolToIndexMap;
+        std::unordered_map<std::string, uint8_t> propertyURIToIndexMap;
     };
 
     struct ParameterBinding {
@@ -604,7 +628,7 @@ public:
     // ----------------------------------------------------------------------------------------------------------------
     // parameters
 
-    // set a block parameter value
+    // set a block parameter value, based on parameter index
     // NOTE value must already be sanitized!
     void setBlockParameter(uint8_t row,
                            uint8_t block,
@@ -612,10 +636,13 @@ public:
                            float value,
                            SceneMode sceneMode = SceneModeClear);
 
-    // set a block parameter value directly based on port symbol
-    // warning: does not update cached values in _current.block if parameter is included there
-    // nor does it handle scenes or bindings
-    void setBlockParameter(uint8_t row, uint8_t block, const char* symbol, float value);
+    // set a block parameter value, based on port symbol
+    // NOTE value must already be sanitized!
+    void setBlockParameter(uint8_t row,
+                           uint8_t block,
+                           const char* symbol,
+                           float value,
+                           SceneMode sceneMode = SceneModeClear);
 
     // set a block quickpot
     void setBlockQuickPot(uint8_t row, uint8_t block, uint8_t paramIndex);
@@ -694,10 +721,17 @@ public:
 
     // WIP details below this point
 
-    // set a block property
+    // set a block property, based on property index
     void setBlockProperty(uint8_t row,
                           uint8_t block,
                           uint8_t propIndex,
+                          const char* value,
+                          SceneMode sceneMode = SceneModeClear);
+
+    // set a block property, based on property URI
+    void setBlockProperty(uint8_t row,
+                          uint8_t block,
+                          const char* uri,
                           const char* value,
                           SceneMode sceneMode = SceneModeClear);
 
@@ -800,12 +834,13 @@ private:
                    uint8_t numInputs,
                    uint8_t numOutputs,
                    uint8_t numSideInputs,
-                   uint8_t numSideOutputs,
-                   std::unordered_map<std::string, uint8_t>* paramToIndexMapOpt = nullptr,
-                   std::unordered_map<std::string, uint8_t>* propToIndexMapOpt = nullptr) const;
+                   uint8_t numSideOutputs) const;
 
-    void allocPreset(Preset& preset, bool init = true);
-    static void resetPreset(Preset& preset);
+    void allocBlock(Block& blockdata) const;
+    void resetBlock(Block& blockdata) const;
+
+    void allocPreset(Preset& preset, bool init = true) const;
+    void resetPreset(Preset& preset) const;
 };
 
 using HostBindings = HostConnector::Bindings;

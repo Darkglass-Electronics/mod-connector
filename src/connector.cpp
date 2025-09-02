@@ -215,51 +215,6 @@ static void resetProperty(HostConnector::Property& propdata)
     propdata.meta.hwbinding = UINT8_MAX;
 }
 
-static void resetBlock(HostConnector::Block& blockdata)
-{
-    blockdata.enabled = false;
-    blockdata.uri.clear();
-    blockdata.quickPotSymbol.clear();
-    blockdata.meta.enable.hasScenes = false;
-    blockdata.meta.enable.hwbinding = UINT8_MAX;
-    blockdata.meta.enable.tempSceneState = HostConnector::kTemporarySceneNone;
-    blockdata.meta.quickPotIndex = 0;
-    blockdata.meta.numParametersInScenes = 0;
-    blockdata.meta.numPropertiesInScenes = 0;
-    blockdata.meta.numInputs = 0;
-    blockdata.meta.numOutputs = 0;
-    blockdata.meta.numSideInputs = 0;
-    blockdata.meta.numSideOutputs = 0;
-    blockdata.meta.name.clear();
-    blockdata.meta.abbreviation.clear();
-
-    for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
-        resetParameter(blockdata.parameters[p]);
-
-    for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
-        resetProperty(blockdata.properties[p]);
-
-    for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
-    {
-        blockdata.sceneValues[s].enabled = false;
-        blockdata.lastSavedSceneValues[s].enabled = false;
-    }
-}
-
-static void allocBlock(HostConnector::Block& blockdata)
-{
-    blockdata.parameters.resize(MAX_PARAMS_PER_BLOCK);
-    blockdata.properties.resize(MAX_PARAMS_PER_BLOCK);
-
-    for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
-    {
-        blockdata.sceneValues[s].parameters.resize(MAX_PARAMS_PER_BLOCK);
-        blockdata.sceneValues[s].properties.resize(MAX_PARAMS_PER_BLOCK);
-        blockdata.lastSavedSceneValues[s].parameters.resize(MAX_PARAMS_PER_BLOCK);
-        blockdata.lastSavedSceneValues[s].properties.resize(MAX_PARAMS_PER_BLOCK);
-    }
-}
-
 // --------------------------------------------------------------------------------------------------------------------
 
 static bool isNullBlock(const HostConnector::Block& blockdata)
@@ -3389,21 +3344,30 @@ void HostConnector::setBlockParameter(const uint8_t row,
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::setBlockParameter(uint8_t row, uint8_t block, const char* symbol, float value)
+void HostConnector::setBlockParameter(const uint8_t row,
+                                      const uint8_t block,
+                                      const char* const symbol,
+                                      const float value,
+                                      const SceneMode sceneMode)
 {
-    mod_log_debug("setBlockParameter(%u, %u, %s, %f)",
-                  row, block, symbol, value);
+    mod_log_debug("setBlockParameter(%u, %u, %s, %f, %d:%s)",
+                  row, block, symbol, value, sceneMode, SceneMode2Str(sceneMode));
     assert(row < NUM_BLOCK_CHAIN_ROWS);
     assert(block < NUM_BLOCKS_PER_PRESET);
     assert(symbol != nullptr && *symbol != '\0');
 
-    const HostBlockPair hbp = _mapper.get(_current.preset, row, block);
-    assert_return(hbp.id != kMaxHostInstances,);
-    
-    _host.param_set(hbp.id, symbol, value);
+    Block& blockdata(_current.chains[row].blocks[block]);
+    assert_return(!isNullBlock(blockdata),);
 
-    if (hbp.pair != kMaxHostInstances)
-        _host.param_set(hbp.pair, symbol, value);
+    uint8_t paramIndex;
+    try {
+        paramIndex = blockdata.parameterSymbolToIndexMap[symbol];
+    } catch (...) {
+        mod_log_warn("setBlockParameter(): parameter with '%s' symbol does not exist in plugin", symbol);
+        return;
+    }
+
+    setBlockParameter(row, block, paramIndex, value, sceneMode);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -3774,6 +3738,35 @@ void HostConnector::setBlockProperty(const uint8_t row,
     propdata.value = value;
 
     hostPatchSetBlockPair(hbp, propdata);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::setBlockProperty(const uint8_t row,
+                                     const uint8_t block,
+                                     const char* const uri,
+                                     const char* const value,
+                                     const SceneMode sceneMode)
+{
+    mod_log_debug("setBlockProperty(%u, %u, \"%s\", \"%s\", %d:%s)",
+                  row, block, uri, value, sceneMode, SceneMode2Str(sceneMode));
+    assert(row < NUM_BLOCK_CHAIN_ROWS);
+    assert(block < NUM_BLOCKS_PER_PRESET);
+    assert(uri != nullptr && *uri != '\0');
+    assert(value != nullptr);
+
+    Block& blockdata(_current.chains[row].blocks[block]);
+    assert_return(!isNullBlock(blockdata),);
+
+    uint8_t propIndex;
+    try {
+        propIndex = blockdata.propertyURIToIndexMap[uri];
+    } catch (...) {
+        mod_log_warn("setBlockProperty(): property with '%s' URI does not exist in plugin", uri);
+        return;
+    }
+
+    setBlockProperty(row, block, propIndex, value, sceneMode);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -4621,9 +4614,7 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
                     continue;
                 }
 
-                std::unordered_map<std::string, uint8_t> paramToIndexMap, propToIndexMap;
-                initBlock(blockdata, plugin, numInputs, numOutputs, numSideInputs, numSideOutputs,
-                          &paramToIndexMap, &propToIndexMap);
+                initBlock(blockdata, plugin, numInputs, numOutputs, numSideInputs, numSideOutputs);
 
                 // ----------------------------------------------------------------------------------------------------
                 // enabled
@@ -4661,7 +4652,8 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
 
                     if (!quickpot.empty())
                     {
-                        if (const auto it = paramToIndexMap.find(quickpot); it != paramToIndexMap.end())
+                        if (const auto it = blockdata.parameterSymbolToIndexMap.find(quickpot);
+                            it != blockdata.parameterSymbolToIndexMap.end())
                         {
                             blockdata.quickPotSymbol = quickpot;
                             blockdata.meta.quickPotIndex = it->second;
@@ -4691,13 +4683,13 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
 
                         const std::string symbol = jparam["symbol"].get<std::string>();
 
-                        if (paramToIndexMap.find(symbol) == paramToIndexMap.end())
+                        if (blockdata.parameterSymbolToIndexMap.find(symbol) == blockdata.parameterSymbolToIndexMap.end())
                         {
                             mod_log_info("jsonPresetLoad(): parameter with '%s' symbol does not exist in plugin", symbol.c_str());
                             continue;
                         }
 
-                        const uint8_t paramIndex = paramToIndexMap[symbol];
+                        const uint8_t paramIndex = blockdata.parameterSymbolToIndexMap[symbol];
                         Parameter& paramdata = blockdata.parameters[paramIndex];
 
                         if (isNullURI(paramdata.symbol))
@@ -4736,13 +4728,13 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
 
                         const std::string propuri = jprop["uri"].get<std::string>();
 
-                        if (propToIndexMap.find(propuri) == propToIndexMap.end())
+                        if (blockdata.propertyURIToIndexMap.find(propuri) == blockdata.propertyURIToIndexMap.end())
                         {
                             mod_log_info("jsonPresetLoad(): property with '%s' uri does not exist in plugin", uri.c_str());
                             continue;
                         }
 
-                        const uint8_t propIndex = propToIndexMap[propuri];
+                        const uint8_t propIndex = blockdata.propertyURIToIndexMap[propuri];
                         Property& propdata = blockdata.properties[propIndex];
 
                         if (isNullURI(propdata.uri))
@@ -4835,13 +4827,13 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
                                         continue;
                                     }
 
-                                    if (paramToIndexMap.find(symbol) == paramToIndexMap.end())
+                                    if (blockdata.parameterSymbolToIndexMap.find(symbol) == blockdata.parameterSymbolToIndexMap.end())
                                     {
                                         mod_log_info("jsonPresetLoad(): scene parameter with '%s' symbol does not exist", symbol.c_str());
                                         continue;
                                     }
 
-                                    const uint8_t paramIndex = paramToIndexMap[symbol];
+                                    const uint8_t paramIndex = blockdata.parameterSymbolToIndexMap[symbol];
                                     Parameter& paramdata = blockdata.parameters[paramIndex];
 
                                     if (isNullURI(paramdata.symbol))
@@ -4899,13 +4891,13 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
                                         continue;
                                     }
 
-                                    if (propToIndexMap.find(puri) == propToIndexMap.end())
+                                    if (blockdata.propertyURIToIndexMap.find(puri) == blockdata.propertyURIToIndexMap.end())
                                     {
                                         mod_log_info("jsonPresetLoad(): scene parameter with '%s' uri does not exist", puri.c_str());
                                         continue;
                                     }
 
-                                    const uint8_t propIndex = propToIndexMap[puri];
+                                    const uint8_t propIndex = blockdata.propertyURIToIndexMap[puri];
                                     Property& propdata = blockdata.properties[propIndex];
 
                                     if (isNullURI(propdata.uri))
@@ -6233,9 +6225,7 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
                               const uint8_t numInputs,
                               const uint8_t numOutputs,
                               const uint8_t numSideInputs,
-                              const uint8_t numSideOutputs,
-                              std::unordered_map<std::string, uint8_t>* paramToIndexMapOpt,
-                              std::unordered_map<std::string, uint8_t>* propToIndexMapOpt) const
+                              const uint8_t numSideOutputs) const
 {
     assert(plugin != nullptr);
 
@@ -6256,19 +6246,12 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
     blockdata.meta.name = plugin->name;
     blockdata.meta.abbreviation = plugin->abbreviation;
 
-    std::unordered_map<std::string, uint8_t> paramToIndexMapLocal;
-    std::unordered_map<std::string, uint8_t>& paramToIndexMap = paramToIndexMapOpt != nullptr
-                                                              ? *paramToIndexMapOpt
-                                                              : paramToIndexMapLocal;
-
-    std::unordered_map<std::string, uint8_t> propToIndexMapLocal;
-    std::unordered_map<std::string, uint8_t>& propToIndexMap = propToIndexMapOpt != nullptr
-                                                             ? *propToIndexMapOpt
-                                                             : propToIndexMapLocal;
+    blockdata.parameterSymbolToIndexMap.clear();
+    blockdata.propertyURIToIndexMap.clear();
 
     uint8_t numParams = 0;
 
-    const auto handleLv2Port = [&blockdata, &numParams, &paramToIndexMap](const Lv2Port& port)
+    const auto handleLv2Port = [&blockdata, &numParams](const Lv2Port& port)
     {
         if ((port.flags & (Lv2PortIsControl|Lv2ParameterHidden)) != Lv2PortIsControl)
             return;
@@ -6288,7 +6271,7 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
             break;
         }
 
-        paramToIndexMap[port.symbol] = numParams;
+        blockdata.parameterSymbolToIndexMap[port.symbol] = numParams;
 
         blockdata.parameters[numParams++] = {
             .symbol = port.symbol,
@@ -6345,7 +6328,7 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
         if ((prop.flags & Lv2ParameterHidden) != 0)
             continue;
 
-        propToIndexMap[prop.uri] = numProps;
+        blockdata.propertyURIToIndexMap[prop.uri] = numProps;
 
         blockdata.properties[numProps++] = {
             .uri = prop.uri,
@@ -6417,13 +6400,13 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
             const std::string symbol = state.first;
             const float value = state.second;
 
-            if (paramToIndexMap.find(symbol) == paramToIndexMap.end())
+            if (blockdata.parameterSymbolToIndexMap.find(symbol) == blockdata.parameterSymbolToIndexMap.end())
             {
                 mod_log_warn("initBlock(): state param with '%s' symbol does not exist in plugin", symbol.c_str());
                 continue;
             }
 
-            const uint8_t paramIndex = paramToIndexMap[symbol];
+            const uint8_t paramIndex = blockdata.parameterSymbolToIndexMap[symbol];
             Parameter& paramdata = blockdata.parameters[paramIndex];
 
             if (isNullURI(paramdata.symbol))
@@ -6480,7 +6463,54 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::allocPreset(Preset& preset, const bool init)
+void HostConnector::resetBlock(Block& blockdata) const
+{
+    blockdata.enabled = false;
+    blockdata.uri.clear();
+    blockdata.quickPotSymbol.clear();
+    blockdata.meta.enable.hasScenes = false;
+    blockdata.meta.enable.hwbinding = UINT8_MAX;
+    blockdata.meta.enable.tempSceneState = kTemporarySceneNone;
+    blockdata.meta.quickPotIndex = 0;
+    blockdata.meta.numParametersInScenes = 0;
+    blockdata.meta.numPropertiesInScenes = 0;
+    blockdata.meta.numInputs = 0;
+    blockdata.meta.numOutputs = 0;
+    blockdata.meta.numSideInputs = 0;
+    blockdata.meta.numSideOutputs = 0;
+    blockdata.meta.name.clear();
+    blockdata.meta.abbreviation.clear();
+
+    for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+        resetParameter(blockdata.parameters[p]);
+
+    for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+        resetProperty(blockdata.properties[p]);
+
+    for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
+    {
+        blockdata.sceneValues[s].enabled = false;
+        blockdata.lastSavedSceneValues[s].enabled = false;
+    }
+}
+
+void HostConnector::allocBlock(Block& blockdata) const
+{
+    blockdata.parameters.resize(MAX_PARAMS_PER_BLOCK);
+    blockdata.properties.resize(MAX_PARAMS_PER_BLOCK);
+
+    for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
+    {
+        blockdata.sceneValues[s].parameters.resize(MAX_PARAMS_PER_BLOCK);
+        blockdata.sceneValues[s].properties.resize(MAX_PARAMS_PER_BLOCK);
+        blockdata.lastSavedSceneValues[s].parameters.resize(MAX_PARAMS_PER_BLOCK);
+        blockdata.lastSavedSceneValues[s].properties.resize(MAX_PARAMS_PER_BLOCK);
+    }
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::allocPreset(Preset& preset, const bool init) const
 {
     if (init)
     {
@@ -6504,7 +6534,7 @@ void HostConnector::allocPreset(Preset& preset, const bool init)
     }
 }
 
-void HostConnector::resetPreset(Preset& preset)
+void HostConnector::resetPreset(Preset& preset) const
 {
     preset.uuid = generateUUID();
     preset.scene = 0;
