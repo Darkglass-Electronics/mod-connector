@@ -4654,7 +4654,7 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
 
                 if (jblock.contains("parameters"))
                 {
-                    auto& jparams = jblock["parameters"];
+                    const auto& jparams = jblock["parameters"];
                     for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
                     {
                         const std::string jparamid = std::to_string(p + 1);
@@ -4662,7 +4662,7 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
                         if (! jparams.contains(jparamid))
                             break;
 
-                        auto& jparam = jparams[jparamid];
+                        const auto& jparam = jparams[jparamid];
                         if (! (jparam.contains("symbol") && jparam.contains("value")))
                         {
                             mod_log_info("jsonPresetLoad(): parameter %u is missing symbol and/or value", p);
@@ -4690,7 +4690,7 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
                                                                     jparam["value"].get<double>()));
 
                         for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
-                            blockdata.sceneValues[s].parameters[p] = paramdata.value;
+                            blockdata.sceneValues[s].parameters[paramIndex] = paramdata.value;
                     }
                 }
 
@@ -4699,7 +4699,7 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
 
                 if (jblock.contains("properties"))
                 {
-                    auto& jprops = jblock["properties"];
+                    const auto& jprops = jblock["properties"];
                     for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
                     {
                         const std::string jpropid = std::to_string(p + 1);
@@ -4707,7 +4707,7 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
                         if (! jprops.contains(jpropid))
                             break;
 
-                        auto& jprop = jprops[jpropid];
+                        const auto& jprop = jprops[jpropid];
                         if (! (jprop.contains("uri") && jprop.contains("value")))
                         {
                             mod_log_info("jsonPresetLoad(): property %u is missing uri and/or value", p);
@@ -4733,7 +4733,7 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
                         propdata.value = jprop["value"].get<std::string>();
 
                         for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
-                            blockdata.sceneValues[s].properties[p] = propdata.value;
+                            blockdata.sceneValues[s].properties[propIndex] = propdata.value;
                     }
                 }
 
@@ -6310,6 +6310,9 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
 
     for (const Lv2Port& port : plugin->ports)
     {
+        assert(!port.symbol.empty());
+        assert(port.symbol[0] != ':');
+
         handleLv2Port(port);
 
         if (numParams == MAX_PARAMS_PER_BLOCK)
