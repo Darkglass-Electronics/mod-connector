@@ -318,6 +318,16 @@ static inline constexpr T unnormalized(const Meta& meta, T value)
     return unnormalized<T>(value, meta.min, meta.max);
 }
 
+static inline constexpr bool shouldSaveToPreset(const uint32_t flags)
+{
+    static_assert(Lv2PortIsOutput == Lv2PropertyIsReadOnly, "consistent flags between parameters and properties");
+    if ((flags & (Lv2PortIsOutput|Lv2ParameterVirtual)) != 0)
+        return false;
+    if ((flags & (Lv2ParameterHidden|Lv2ParameterSavedToPreset)) != Lv2ParameterSavedToPreset)
+        return false;
+    return true;
+}
+
 static bool shouldBlockBeStereo(const HostConnector::ChainRow& chaindata, const uint8_t block)
 {
     assert(block <= NUM_BLOCKS_PER_PRESET);
@@ -4826,7 +4836,7 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
 
                                     if (isNullURI(paramdata.symbol))
                                         continue;
-                                    if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterHidden|Lv2ParameterVirtual)) != 0)
+                                    if (! shouldSaveToPreset(paramdata.meta.flags))
                                         continue;
 
                                     if ((paramdata.meta.flags & Lv2ParameterInScene) == 0)
@@ -4890,7 +4900,7 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
 
                                     if (isNullURI(propdata.uri))
                                         continue;
-                                    if ((propdata.meta.flags & (Lv2PropertyIsReadOnly|Lv2ParameterHidden)) != 0)
+                                    if (! shouldSaveToPreset(propdata.meta.flags))
                                         continue;
 
                                     if ((propdata.meta.flags & Lv2ParameterInScene) == 0)
@@ -5088,7 +5098,7 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
 
                             if (isNullURI(paramdata.symbol))
                                 break;
-                            if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterHidden|Lv2ParameterVirtual)) != 0)
+                            if (! shouldSaveToPreset(paramdata.meta.flags))
                                 continue;
                             if (paramdata.symbol != symbol)
                                 continue;
@@ -5200,7 +5210,7 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
 
                             if (isNullURI(propdata.uri))
                                 break;
-                            if ((propdata.meta.flags & (Lv2PropertyIsReadOnly|Lv2ParameterHidden)) != 0)
+                            if (! shouldSaveToPreset(propdata.meta.flags))
                                 continue;
                             if (propdata.uri != uri)
                                 continue;
@@ -5488,7 +5498,7 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann::json& jpr
 
                         if (isNullURI(paramdata.symbol))
                             break;
-                        if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterHidden|Lv2ParameterVirtual)) != 0)
+                        if (! shouldSaveToPreset(paramdata.meta.flags))
                             continue;
 
                         const std::string jparamid = std::to_string(++jp);
@@ -5509,7 +5519,7 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann::json& jpr
 
                         if (isNullURI(propdata.uri))
                             break;
-                        if ((propdata.meta.flags & (Lv2PropertyIsReadOnly|Lv2ParameterHidden)) != 0)
+                        if (! shouldSaveToPreset(propdata.meta.flags))
                             continue;
 
                         const std::string jpropid = std::to_string(++jp);
@@ -5545,7 +5555,7 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann::json& jpr
 
                                 if (isNullURI(paramdata.symbol))
                                     break;
-                                if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterHidden|Lv2ParameterVirtual)) != 0)
+                                if (! shouldSaveToPreset(paramdata.meta.flags))
                                     continue;
                                 if ((paramdata.meta.flags & Lv2ParameterInScene) == 0)
                                     continue;
@@ -5566,7 +5576,7 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann::json& jpr
 
                                 if (isNullURI(propdata.uri))
                                     break;
-                                if ((propdata.meta.flags & (Lv2PropertyIsReadOnly|Lv2ParameterHidden)) != 0)
+                                if (! shouldSaveToPreset(propdata.meta.flags))
                                     continue;
                                 if ((propdata.meta.flags & Lv2ParameterInScene) == 0)
                                     continue;
@@ -6250,7 +6260,7 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
 
     const auto handleLv2Port = [&blockdata, &numParams, &paramToIndexMap](const Lv2Port& port)
     {
-        if ((port.flags & (Lv2PortIsControl|Lv2ParameterHidden)) != Lv2PortIsControl)
+        if ((port.flags & Lv2PortIsControl) == 0)
             return;
 
         switch (port.designation)
@@ -6322,9 +6332,6 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
     uint8_t numProps = 0;
     for (const Lv2Property& prop : plugin->properties)
     {
-        if ((prop.flags & Lv2ParameterHidden) != 0)
-            continue;
-
         propToIndexMap[prop.uri] = numProps;
 
         blockdata.properties[numProps++] = {
