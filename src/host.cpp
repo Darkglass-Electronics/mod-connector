@@ -146,6 +146,8 @@ static const char* host_error_code_to_string(const int code)
 
 struct Host::Impl
 {
+    std::string& last_error;
+
     Impl(std::string& last_error_)
         : last_error(last_error_)
     {
@@ -594,6 +596,7 @@ struct Host::Impl
         return error.empty();
     }
 
+private:
     bool _poll(FeedbackCallback* const callback, std::string& error) const
     {
         // read first byte
@@ -1089,9 +1092,6 @@ struct Host::Impl
 
     // ----------------------------------------------------------------------------------------------------------------
 
-    std::string& last_error;
-
-private:
     bool dummyDevMode = false;
     bool nonBlockingMode = false;
     uint16_t numNonBlockingOps = 0;
