@@ -869,26 +869,47 @@ bool HostConnector::loadCurrentPresetFromFile(const char* const filename, const 
 {
     mod_log_debug("loadCurrentPresetFromFile(\"%s\")", filename);
 
-    nlohmann::json j;
-    const bool loaded = loadPresetFromFile(filename, j);
+    const Host::NonBlockingScopeWithAudioFades hnbs(_host);
 
-    // store old active preset in memory before doing anything
-    const Current old = _current;
+    // unload old preset plugins
+    if (_current.numLoadedPlugins != 0)
+    {
+        for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
+        {
+            for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
+            {
+                if (isNullBlock(_current.chains[row].blocks[bl]))
+                    continue;
+
+                if (const HostBlockPair hbp = _mapper.remove(_current.preset, row, bl); hbp.id != kMaxHostInstances)
+                    hostRemoveBlockPair(hbp);
+            }
+        }
+
+        _current.numLoadedPlugins = 0;
+    }
+    else
+    {
+        hostDisconnectChainEndpoints(0);
+    }
 
     // load new preset data
-    if (loaded)
-        jsonPresetLoad(_current, j);
-    else
-        resetPreset(_current);
+    {
+        nlohmann::json j;
+        if (loadPresetFromFile(filename, j))
+            jsonPresetLoad(_current, j);
+        else
+            resetPreset(_current);
+    }
 
     _current.defaultScene = _current.scene;
     _current.filename = filename;
 
-    // switch old preset with new one
-    hostSwitchPreset(old);
-
     if (replaceDefault)
         _presets[_current.preset] = _current;
+
+    // load new preset
+    hostLoadPreset(_current.preset);
 
     return true;
 }
@@ -5613,7 +5634,7 @@ void HostConnector::hostLoadPreset(const uint8_t preset)
 
     const bool active = _current.preset == preset;
 
-    // for active preset, before making connections below, 
+    // for active preset, before making connections below,
     // disconnect possible endpoint direct connection left from previous empty preset
     if (active && _current.numLoadedPlugins == 0) 
     {
@@ -5672,6 +5693,10 @@ void HostConnector::hostLoadPreset(const uint8_t preset)
 void HostConnector::hostSwitchPreset(const Current& prev)
 {
     mod_log_debug("hostSwitchPreset(...)");
+
+    if (_current.preset == prev.preset) {
+        assert(_current.numLoadedPlugins == 0);
+    }
 
     bool oldloaded[NUM_BLOCK_CHAIN_ROWS][NUM_BLOCKS_PER_PRESET];
 
