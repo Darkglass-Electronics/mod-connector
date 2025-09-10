@@ -76,9 +76,9 @@ enum Lv2Flags {
     Lv2ParameterEnumerated      = 1 << 6,
     Lv2ParameterLogarithmic     = 1 << 7,
     Lv2ParameterHidden          = 1 << 8,
-    Lv2ParameterNotGUIButPreset = 1 << 9,
-    // NOTE: on addition, adjust ExtraLv2Flags
-    // in connector.hpp
+    // extensions
+    Lv2ParameterSavedToPreset   = 1 << 9,
+    // NOTE: on addition, adjust ExtraLv2Flags in connector.hpp
 };
 
 struct Lv2ScalePoint {
@@ -119,6 +119,9 @@ struct Lv2Plugin {
     Lv2Category category = kLv2CategoryNone;
     std::vector<Lv2Port> ports;
     std::vector<Lv2Property> properties;
+    // NOTE already in absolute path
+    std::string blockImageOff;
+    std::string blockImageOn;
 };
 
 struct Lv2World {

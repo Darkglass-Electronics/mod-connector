@@ -48,16 +48,24 @@
 #define LV2_DARKGLASS_PROPERTIES_URI    "http://www.darkglass.com/lv2/ns"
 #define LV2_DARKGLASS_PROPERTIES_PREFIX LV2_DARKGLASS_PROPERTIES_URI "#"
 
-#define LV2_DARKGLASS_PROPERTIES__abbreviation          LV2_DARKGLASS_PROPERTIES_PREFIX "abbreviation"
-#define LV2_DARKGLASS_PROPERTIES__notOnGUIsavedToPreset LV2_DARKGLASS_PROPERTIES_PREFIX "notOnGUIsavedToPreset"
-#define LV2_DARKGLASS_PROPERTIES__oneDecimalPoint       LV2_DARKGLASS_PROPERTIES_PREFIX "oneDecimalPoint"
-#define LV2_DARKGLASS_PROPERTIES__quickPot              LV2_DARKGLASS_PROPERTIES_PREFIX "quickPot"
+#define LV2_DARKGLASS_PROPERTIES__abbreviation    LV2_DARKGLASS_PROPERTIES_PREFIX "abbreviation"
+#define LV2_DARKGLASS_PROPERTIES__blockImageOff   LV2_DARKGLASS_PROPERTIES_PREFIX "blockImageOff"
+#define LV2_DARKGLASS_PROPERTIES__blockImageOn    LV2_DARKGLASS_PROPERTIES_PREFIX "blockImageOn"
+#define LV2_DARKGLASS_PROPERTIES__oneDecimalPoint LV2_DARKGLASS_PROPERTIES_PREFIX "oneDecimalPoint"
+#define LV2_DARKGLASS_PROPERTIES__quickPot        LV2_DARKGLASS_PROPERTIES_PREFIX "quickPot"
+#define LV2_DARKGLASS_PROPERTIES__savedToPreset   LV2_DARKGLASS_PROPERTIES_PREFIX "savedToPreset"
 
 #define LILV_NS_KXSTUDIO "http://kxstudio.sf.net/ns/lv2ext/props"
 #define KXSTUDIO__Reset LILV_NS_KXSTUDIO "#Reset"
 
 #define LILV_NS_MOD "http://moddevices.com/ns/mod#"
 #define MOD__CVPort LILV_NS_MOD "CVPort"
+
+#ifdef _WIN32
+#define OS_SEP '\\'
+#else
+#define OS_SEP '/'
+#endif
 
 // --------------------------------------------------------------------------------------------------------------------
 // compatibility functions
@@ -101,9 +109,33 @@ static char* lilv_file_abspath(const char* const path)
 }
 
 // --------------------------------------------------------------------------------------------------------------------
+// custom function to fetch resource file within the plugin's bundle
+
+static std::string lilv_plugin_resource(const LilvPlugin* const plugin, const LilvNode* const node)
+{
+    if (LilvNodes* const nodes = lilv_plugin_get_value(plugin, node))
+    {
+        std::string bundle = lilv_file_abspath(lilv_node_as_string(lilv_plugin_get_bundle_uri(plugin)));
+        std::string resource = lilv_file_abspath(lilv_node_as_uri(lilv_nodes_get_first(nodes)));
+        lilv_nodes_free(nodes);
+
+        // ensure the resource is inside the LV2 bundle
+        if (resource.length() <= bundle.length() ||
+            std::strncmp(resource.c_str(), bundle.c_str(), bundle.length()) != 0 ||
+            resource[bundle.length()] != OS_SEP)
+            resource.clear();
+
+        return resource;
+    }
+    return {};
+}
+
+// --------------------------------------------------------------------------------------------------------------------
 
 struct Lv2NamespaceDefinitions {
-    LilvNode* const dargkglass_abbreviation;
+    LilvNode* const darkglass_abbreviation;
+    LilvNode* const darkglass_blockImageOff;
+    LilvNode* const darkglass_blockImageOn;
     LilvNode* const lv2core_default;
     LilvNode* const lv2core_designation;
     LilvNode* const lv2core_minimum;
@@ -119,7 +151,9 @@ struct Lv2NamespaceDefinitions {
     LilvNode* const units_unit;
 
     Lv2NamespaceDefinitions(LilvWorld* const world)
-        : dargkglass_abbreviation(lilv_new_uri(world, LV2_DARKGLASS_PROPERTIES__abbreviation)),
+        : darkglass_abbreviation(lilv_new_uri(world, LV2_DARKGLASS_PROPERTIES__abbreviation)),
+          darkglass_blockImageOff(lilv_new_uri(world, LV2_DARKGLASS_PROPERTIES__blockImageOff)),
+          darkglass_blockImageOn(lilv_new_uri(world, LV2_DARKGLASS_PROPERTIES__blockImageOn)),
           lv2core_default(lilv_new_uri(world, LV2_CORE__default)),
           lv2core_designation(lilv_new_uri(world, LV2_CORE__designation)),
           lv2core_minimum(lilv_new_uri(world, LV2_CORE__minimum)),
@@ -138,7 +172,9 @@ struct Lv2NamespaceDefinitions {
 
     void free() const
     {
-        lilv_node_free(dargkglass_abbreviation);
+        lilv_node_free(darkglass_abbreviation);
+        lilv_node_free(darkglass_blockImageOff);
+        lilv_node_free(darkglass_blockImageOn);
         lilv_node_free(lv2core_default);
         lilv_node_free(lv2core_designation);
         lilv_node_free(lv2core_minimum);
@@ -243,7 +279,7 @@ struct Lv2World::Impl
             // --------------------------------------------------------------------------------------------------------
             // abbreviation
 
-            if (LilvNodes* const nodes = lilv_plugin_get_value(plugin, ns.dargkglass_abbreviation))
+            if (LilvNodes* const nodes = lilv_plugin_get_value(plugin, ns.darkglass_abbreviation))
             {
                 retplugin->abbreviation = lilv_node_as_string(lilv_nodes_get_first(nodes));
                 lilv_nodes_free(nodes);
@@ -499,8 +535,8 @@ struct Lv2World::Impl
                                     retport.flags |= Lv2ParameterLogarithmic;
                                 else if (std::strcmp(propuri, LV2_PORT_PROPS__notOnGUI) == 0)
                                     retport.flags |= Lv2ParameterHidden;
-                                else if (std::strcmp(propuri, LV2_DARKGLASS_PROPERTIES__notOnGUIsavedToPreset) == 0)
-                                    retport.flags |= Lv2ParameterNotGUIButPreset;
+                                else if (std::strcmp(propuri, LV2_DARKGLASS_PROPERTIES__savedToPreset) == 0)
+                                    retport.flags |= Lv2ParameterSavedToPreset;
                             }
 
                             lilv_nodes_free(nodes);
@@ -778,6 +814,10 @@ struct Lv2World::Impl
                         retplugin->properties.push_back(prop.second);
                 }
             }
+
+            // block images
+            retplugin->blockImageOff = lilv_plugin_resource(plugin, ns.darkglass_blockImageOff);
+            retplugin->blockImageOn = lilv_plugin_resource(plugin, ns.darkglass_blockImageOn);
 
             pluginscache[uri] = retplugin;
             return retplugin;
