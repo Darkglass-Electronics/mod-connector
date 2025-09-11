@@ -278,7 +278,7 @@ static inline constexpr bool shouldSaveToPreset(const uint32_t flags)
     static_assert(Lv2PortIsOutput == Lv2PropertyIsReadOnly, "consistent flags between parameters and properties");
     if ((flags & (Lv2PortIsOutput|Lv2ParameterVirtual)) != 0)
         return false;
-    if ((flags & (Lv2ParameterHidden|Lv2ParameterSavedToPreset)) != Lv2ParameterSavedToPreset)
+    if ((flags & (Lv2ParameterHidden|Lv2ParameterSavedToPreset)) == Lv2ParameterHidden)
         return false;
     return true;
 }
