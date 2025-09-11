@@ -316,6 +316,8 @@ struct Lv2World::Impl
                             retplugin->category = kLv2CategoryDynamicsAmplifier;
                         else if (std::strcmp(cat, "CompressorPlugin") == 0)
                             retplugin->category = kLv2CategoryDynamicsCompressor;
+                        else if (std::strcmp(cat, "EnvelopePlugin") == 0)
+                            retplugin->category = kLv2CategoryDynamicsEnvelope;
                         else if (std::strcmp(cat, "ExpanderPlugin") == 0)
                             retplugin->category = kLv2CategoryDynamicsExpander;
                         else if (std::strcmp(cat, "GatePlugin") == 0)

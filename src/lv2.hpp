@@ -18,6 +18,7 @@ enum Lv2Category {
     kLv2CategoryDynamics,
     kLv2CategoryDynamicsAmplifier,
     kLv2CategoryDynamicsCompressor,
+    kLv2CategoryDynamicsEnvelope,
     kLv2CategoryDynamicsExpander,
     kLv2CategoryDynamicsGate,
     kLv2CategoryDynamicsLimiter,
@@ -202,6 +203,8 @@ const char* lv2_category_name(Lv2Category category)
         return "Dynamics, Amplifier";
     case kLv2CategoryDynamicsCompressor:
         return "Dynamics, Compressor";
+    case kLv2CategoryDynamicsEnvelope:
+        return "Dynamics, Envelope";
     case kLv2CategoryDynamicsExpander:
         return "Dynamics, Expander";
     case kLv2CategoryDynamicsGate:
