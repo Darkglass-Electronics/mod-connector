@@ -113,18 +113,24 @@ static char* lilv_file_abspath(const char* const path)
 
 static std::string lilv_plugin_resource(const LilvPlugin* const plugin, const LilvNode* const node)
 {
-    if (LilvNodes* const nodes = lilv_plugin_get_value(plugin, node))
+    if (LilvNodes* const rnodes = lilv_plugin_get_value(plugin, node))
     {
-        std::string bundle = lilv_file_abspath(lilv_node_as_string(lilv_plugin_get_bundle_uri(plugin)));
-        std::string resource = lilv_file_abspath(lilv_node_as_uri(lilv_nodes_get_first(nodes)));
-        lilv_nodes_free(nodes);
+        LilvNode* const rnode = lilv_nodes_get_first(rnodes);
+        std::string resource;
 
-        // ensure the resource is inside the LV2 bundle
-        if (resource.length() <= bundle.length() ||
-            std::strncmp(resource.c_str(), bundle.c_str(), bundle.length()) != 0 ||
-            resource[bundle.length()] != OS_SEP)
-            resource.clear();
+        if (lilv_node_is_uri(rnode))
+        {
+            const std::string bundle = lilv_file_abspath(lilv_node_as_string(lilv_plugin_get_bundle_uri(plugin)));
+            resource = lilv_file_abspath(lilv_node_as_uri(rnode));
 
+            // ensure the resource is inside the LV2 bundle
+            if (resource.length() <= bundle.length() ||
+                std::strncmp(resource.c_str(), bundle.c_str(), bundle.length()) != 0 ||
+                resource[bundle.length()] != OS_SEP)
+                resource.clear();
+        }
+
+        lilv_nodes_free(rnodes);
         return resource;
     }
     return {};
