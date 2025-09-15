@@ -3143,13 +3143,19 @@ bool HostConnector::reorderBlockBinding(const uint8_t hwid, const uint8_t dest)
     return true;
 }
 
-void HostConnector::setBindingValue(const uint8_t hwid, const double value, const SceneMode sceneMode)
+void HostConnector::setBindingValue(const uint8_t hwid,
+                                    const double value,
+                                    const SceneMode sceneMode,
+                                    const bool updateBindings)
 {
-    mod_log_debug("setBindingValue(%u, %f, %s)", hwid, value, SceneMode2Str(sceneMode));
+    mod_log_debug("setBindingValue(%u, %f, %s, %s)", hwid, value, SceneMode2Str(sceneMode), bool2str(updateBindings));
     assert(hwid < NUM_BINDING_ACTUATORS);
 
     Bindings& bindings(_current.bindings[hwid]);
     bindings.value = value;
+
+    if (! updateBindings)
+        return;
 
     if (const std::list<ParameterBinding>& parambindings(bindings.parameters); ! parambindings.empty())
     {

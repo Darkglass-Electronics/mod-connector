@@ -600,7 +600,7 @@ public:
     bool reorderBlockBinding(uint8_t hwid, uint8_t dest);
 
     // set all block and parameter bindings to a normalized value
-    void setBindingValue(uint8_t hwid, double value, SceneMode sceneMode);
+    void setBindingValue(uint8_t hwid, double value, SceneMode sceneMode, bool updateBindings = true);
 
     // convenience calls for single-chain builds
    #if NUM_BLOCK_CHAIN_ROWS == 1
