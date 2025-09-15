@@ -5137,7 +5137,7 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
 
                             if (isNullURI(paramdata.symbol))
                                 break;
-                            if (! shouldSaveToPreset(paramdata.meta.flags))
+                            if ((paramdata.meta.flags & (Lv2ParameterHidden|Lv2PortIsOutput)) != 0)
                                 continue;
                             if (paramdata.symbol != symbol)
                                 continue;
@@ -5249,7 +5249,7 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
 
                             if (isNullURI(propdata.uri))
                                 break;
-                            if (! shouldSaveToPreset(propdata.meta.flags))
+                            if ((propdata.meta.flags & (Lv2ParameterHidden|Lv2PropertyIsReadOnly)) != 0)
                                 continue;
                             if (propdata.uri != uri)
                                 continue;
