@@ -153,6 +153,9 @@ struct HostConnector : Host::FeedbackCallback {
         // sync all parameter values in a scene, same as clearing it, but only temporarily
         // scene value is "uncleared" if preset is not saved
         SceneModeClearTemporarily,
+        // only update value, do not activate any scenes, but only temporarily
+        // scene value is discarded if preset is not saved
+        SceneModeUpdateTemporarily,
     };
 
     struct SceneValues {
