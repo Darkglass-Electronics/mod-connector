@@ -987,6 +987,8 @@ bool HostConnector::saveCurrentPresetToFile(const char* const filename)
                     Parameter& paramdata(blockdata.parameters[p]);
                     if (isNullURI(paramdata.symbol))
                         break;
+                    if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual|Lv2ParameterExpensive)) != 0)
+                        continue;
                     if ((paramdata.meta.flags & Lv2ParameterInScene) == 0)
                     {
                         for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
@@ -1008,6 +1010,8 @@ bool HostConnector::saveCurrentPresetToFile(const char* const filename)
                     Property& propdata(blockdata.properties[p]);
                     if (isNullURI(propdata.uri))
                         break;
+                    if ((propdata.meta.flags & (Lv2PropertyIsReadOnly|Lv2ParameterExpensive)) != 0)
+                        continue;
                     if ((propdata.meta.flags & Lv2ParameterInScene) == 0)
                     {
                         for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
@@ -1294,8 +1298,8 @@ bool HostConnector::enableBlock(const uint8_t row, const uint8_t block, const bo
 
             assert(blockdata.meta.enable.tempSceneState != kTemporarySceneActivate);
             blockdata.meta.enable.tempSceneState = blockdata.meta.enable.tempSceneState == kTemporarySceneNone
-                                                    ? kTemporarySceneActivate
-                                                    : kTemporarySceneNone;
+                                                 ? kTemporarySceneActivate
+                                                 : kTemporarySceneNone;
         }
         // set new value for current scene
         blockdata.sceneValues[_current.scene].enabled = enable;
@@ -1562,6 +1566,7 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
                     continue;
 
                 paramdata.meta.flags &= ~Lv2ParameterInScene;
+                paramdata.meta.tempSceneState = kTemporarySceneNone;
 
                 if (isNotEqual(paramdata.value, paramdata.meta.def))
                 {
@@ -1585,6 +1590,7 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
                     continue;
 
                 propdata.meta.flags &= ~Lv2ParameterInScene;
+                propdata.meta.tempSceneState = kTemporarySceneNone;
 
                 if (propdata.value != propdata.meta.defpath)
                 {
@@ -2349,7 +2355,7 @@ bool HostConnector::switchScene(const uint8_t scene)
                 Parameter& paramdata(blockdata.parameters[p]);
                 if (isNullURI(paramdata.symbol))
                     break;
-                if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual)) != 0)
+                if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual|Lv2ParameterExpensive)) != 0)
                     continue;
 
                 // revert temp scene state
@@ -2385,7 +2391,7 @@ bool HostConnector::switchScene(const uint8_t scene)
                 Property& propdata(blockdata.properties[p]);
                 if (isNullURI(propdata.uri))
                     break;
-                if ((propdata.meta.flags & Lv2PropertyIsReadOnly) != 0)
+                if ((propdata.meta.flags & (Lv2PropertyIsReadOnly|Lv2ParameterExpensive)) != 0)
                     continue;
 
                 // revert temp scene state
@@ -3301,122 +3307,125 @@ void HostConnector::setBlockParameter(const uint8_t row,
 
     _current.dirty = true;
 
-    switch (sceneMode)
+    if ((paramdata.meta.flags & Lv2ParameterExpensive) == 0)
     {
-    case SceneModeActivate:
-        if ((paramdata.meta.flags & Lv2ParameterInScene) == 0)
+        switch (sceneMode)
         {
-            ++blockdata.meta.numParametersInScenes;
-            paramdata.meta.flags |= Lv2ParameterInScene;
-
-            // set original value for all other scenes
-            for (uint8_t scene = 0; scene < NUM_SCENES_PER_PRESET; ++scene)
+        case SceneModeActivate:
+            if ((paramdata.meta.flags & Lv2ParameterInScene) == 0)
             {
-                if (_current.scene == scene)
-                    continue;
-                blockdata.sceneValues[scene].parameters[paramIndex] = paramdata.value;
-                blockdata.lastSavedSceneValues[scene].parameters[paramIndex] = paramdata.value;
+                ++blockdata.meta.numParametersInScenes;
+                paramdata.meta.flags |= Lv2ParameterInScene;
+
+                // set original value for all other scenes
+                for (uint8_t scene = 0; scene < NUM_SCENES_PER_PRESET; ++scene)
+                {
+                    if (_current.scene == scene)
+                        continue;
+                    blockdata.sceneValues[scene].parameters[paramIndex] = paramdata.value;
+                    blockdata.lastSavedSceneValues[scene].parameters[paramIndex] = paramdata.value;
+                }
             }
-        }
-        // set new value for current scene
-        blockdata.sceneValues[_current.scene].parameters[paramIndex] = value;
-        blockdata.lastSavedSceneValues[_current.scene].parameters[paramIndex] = value;
-        break;
+            // set new value for current scene
+            blockdata.sceneValues[_current.scene].parameters[paramIndex] = value;
+            blockdata.lastSavedSceneValues[_current.scene].parameters[paramIndex] = value;
+            break;
 
-    case SceneModeActivateTemporarily:
-        if ((paramdata.meta.flags & Lv2ParameterInScene) == 0)
-        {
-            ++blockdata.meta.numParametersInScenes;
-            paramdata.meta.flags |= Lv2ParameterInScene;
-
-            // set original value for all other scenes
-            for (uint8_t scene = 0; scene < NUM_SCENES_PER_PRESET; ++scene)
+        case SceneModeActivateTemporarily:
+            if ((paramdata.meta.flags & Lv2ParameterInScene) == 0)
             {
-                if (_current.scene == scene)
-                    continue;
-                blockdata.sceneValues[scene].parameters[paramIndex] = paramdata.value;
+                ++blockdata.meta.numParametersInScenes;
+                paramdata.meta.flags |= Lv2ParameterInScene;
+
+                // set original value for all other scenes
+                for (uint8_t scene = 0; scene < NUM_SCENES_PER_PRESET; ++scene)
+                {
+                    if (_current.scene == scene)
+                        continue;
+                    blockdata.sceneValues[scene].parameters[paramIndex] = paramdata.value;
+                }
+
+                assert(paramdata.meta.tempSceneState != kTemporarySceneActivate);
+                paramdata.meta.tempSceneState = paramdata.meta.tempSceneState == kTemporarySceneNone
+                                              ? kTemporarySceneActivate
+                                              : kTemporarySceneNone;
             }
+            // set new value for current scene
+            blockdata.sceneValues[_current.scene].parameters[paramIndex] = value;
+            break;
 
-            assert(paramdata.meta.tempSceneState != kTemporarySceneActivate);
-            paramdata.meta.tempSceneState = paramdata.meta.tempSceneState == kTemporarySceneNone
-                                            ? kTemporarySceneActivate
-                                            : kTemporarySceneNone;
-        }
-        // set new value for current scene
-        blockdata.sceneValues[_current.scene].parameters[paramIndex] = value;
-        break;
-
-    case SceneModeClear:
-        if ((paramdata.meta.flags & Lv2ParameterInScene) != 0)
-        {
-            --blockdata.meta.numParametersInScenes;
-            paramdata.meta.flags &= ~Lv2ParameterInScene;
-        }
-        for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
-        {
-            blockdata.sceneValues[s].parameters[paramIndex] = value;
-            blockdata.lastSavedSceneValues[s].parameters[paramIndex] = value;
-        }
-        break;
-
-    case SceneModeClearTemporarily:
-        if ((paramdata.meta.flags & Lv2ParameterInScene) != 0)
-        {
-            --blockdata.meta.numParametersInScenes;
-            paramdata.meta.flags &= ~Lv2ParameterInScene;
-
-            assert(paramdata.meta.tempSceneState != kTemporarySceneClear);
-            paramdata.meta.tempSceneState = paramdata.meta.tempSceneState == kTemporarySceneNone
-                                          ? kTemporarySceneClear
-                                          : kTemporarySceneNone;
-        }
-        for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
-            blockdata.sceneValues[s].parameters[paramIndex] = value;
-        break;
-
-    case SceneModeUpdate:
-        if ((paramdata.meta.flags & Lv2ParameterInScene) == 0)
-        {
+        case SceneModeClear:
+            if ((paramdata.meta.flags & Lv2ParameterInScene) != 0)
+            {
+                --blockdata.meta.numParametersInScenes;
+                paramdata.meta.flags &= ~Lv2ParameterInScene;
+            }
             for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
             {
                 blockdata.sceneValues[s].parameters[paramIndex] = value;
                 blockdata.lastSavedSceneValues[s].parameters[paramIndex] = value;
             }
-        }
-        else
-        {
-            blockdata.sceneValues[_current.scene].parameters[paramIndex] = value;
-            blockdata.lastSavedSceneValues[_current.scene].parameters[paramIndex] = value;
-        }
-        break;
+            break;
 
-    case SceneModeUpdateTemporarily:
-        if ((paramdata.meta.flags & Lv2ParameterInScene) == 0)
-        {
+        case SceneModeClearTemporarily:
+            if ((paramdata.meta.flags & Lv2ParameterInScene) != 0)
+            {
+                --blockdata.meta.numParametersInScenes;
+                paramdata.meta.flags &= ~Lv2ParameterInScene;
+
+                assert(paramdata.meta.tempSceneState != kTemporarySceneClear);
+                paramdata.meta.tempSceneState = paramdata.meta.tempSceneState == kTemporarySceneNone
+                                              ? kTemporarySceneClear
+                                              : kTemporarySceneNone;
+            }
             for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
                 blockdata.sceneValues[s].parameters[paramIndex] = value;
-        }
-        else
-        {
-            blockdata.sceneValues[_current.scene].parameters[paramIndex] = value;
-        }
-        break;
-    }
+            break;
 
-    if (paramdata.meta.hwbinding != UINT8_MAX)
-    {
-        Bindings& bindings(_current.bindings[paramdata.meta.hwbinding]);
-        assert(!bindings.parameters.empty());
-
-        ParameterBinding& binding = bindings.parameters.front();
-
-        if (bindings.parameters.size() == 1 && bindings.properties.empty() &&
-            (binding.row == row && binding.block == block && binding.parameterSymbol == paramdata.symbol))
-        {
-            if (binding.min < binding.max)
-                bindings.value = normalized(value, binding.min, binding.max);
+        case SceneModeUpdate:
+            if ((paramdata.meta.flags & Lv2ParameterInScene) == 0)
+            {
+                for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
+                {
+                    blockdata.sceneValues[s].parameters[paramIndex] = value;
+                    blockdata.lastSavedSceneValues[s].parameters[paramIndex] = value;
+                }
+            }
             else
-                bindings.value = 1.f - normalized(value, binding.max, binding.min);
+            {
+                blockdata.sceneValues[_current.scene].parameters[paramIndex] = value;
+                blockdata.lastSavedSceneValues[_current.scene].parameters[paramIndex] = value;
+            }
+            break;
+
+        case SceneModeUpdateTemporarily:
+            if ((paramdata.meta.flags & Lv2ParameterInScene) == 0)
+            {
+                for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
+                    blockdata.sceneValues[s].parameters[paramIndex] = value;
+            }
+            else
+            {
+                blockdata.sceneValues[_current.scene].parameters[paramIndex] = value;
+            }
+            break;
+        }
+
+        if (paramdata.meta.hwbinding != UINT8_MAX)
+        {
+            Bindings& bindings(_current.bindings[paramdata.meta.hwbinding]);
+            assert(!bindings.parameters.empty());
+
+            ParameterBinding& binding = bindings.parameters.front();
+
+            if (bindings.parameters.size() == 1 && bindings.properties.empty() &&
+                (binding.row == row && binding.block == block && binding.parameterSymbol == paramdata.symbol))
+            {
+                if (binding.min < binding.max)
+                    bindings.value = normalized(value, binding.min, binding.max);
+                else
+                    bindings.value = 1.f - normalized(value, binding.max, binding.min);
+            }
         }
     }
 
@@ -3729,106 +3738,109 @@ void HostConnector::setBlockProperty(const uint8_t row,
 
     _current.dirty = true;
 
-    switch (sceneMode)
+    if ((propdata.meta.flags & Lv2ParameterExpensive) == 0)
     {
-    case SceneModeActivate:
-        if ((propdata.meta.flags & Lv2ParameterInScene) == 0)
+        switch (sceneMode)
         {
-            ++blockdata.meta.numPropertiesInScenes;
-            propdata.meta.flags |= Lv2ParameterInScene;
-
-            // set original value for all other scenes
-            for (uint8_t scene = 0; scene < NUM_SCENES_PER_PRESET; ++scene)
+        case SceneModeActivate:
+            if ((propdata.meta.flags & Lv2ParameterInScene) == 0)
             {
-                if (_current.scene == scene)
-                    continue;
-                blockdata.sceneValues[scene].properties[propIndex] = propdata.value;
-                blockdata.lastSavedSceneValues[scene].properties[propIndex] = propdata.value;
+                ++blockdata.meta.numPropertiesInScenes;
+                propdata.meta.flags |= Lv2ParameterInScene;
+
+                // set original value for all other scenes
+                for (uint8_t scene = 0; scene < NUM_SCENES_PER_PRESET; ++scene)
+                {
+                    if (_current.scene == scene)
+                        continue;
+                    blockdata.sceneValues[scene].properties[propIndex] = propdata.value;
+                    blockdata.lastSavedSceneValues[scene].properties[propIndex] = propdata.value;
+                }
             }
-        }
-        // set new value for current scene
-        blockdata.sceneValues[_current.scene].properties[propIndex] = value;
-        blockdata.lastSavedSceneValues[_current.scene].properties[propIndex] = value;
-        break;
+            // set new value for current scene
+            blockdata.sceneValues[_current.scene].properties[propIndex] = value;
+            blockdata.lastSavedSceneValues[_current.scene].properties[propIndex] = value;
+            break;
 
-    case SceneModeActivateTemporarily:
-        if ((propdata.meta.flags & Lv2ParameterInScene) == 0)
-        {
-            ++blockdata.meta.numPropertiesInScenes;
-            propdata.meta.flags |= Lv2ParameterInScene;
-
-            // set original value for all other scenes
-            for (uint8_t scene = 0; scene < NUM_SCENES_PER_PRESET; ++scene)
+        case SceneModeActivateTemporarily:
+            if ((propdata.meta.flags & Lv2ParameterInScene) == 0)
             {
-                if (_current.scene == scene)
-                    continue;
-                blockdata.sceneValues[scene].properties[propIndex] = propdata.value;
+                ++blockdata.meta.numPropertiesInScenes;
+                propdata.meta.flags |= Lv2ParameterInScene;
+
+                // set original value for all other scenes
+                for (uint8_t scene = 0; scene < NUM_SCENES_PER_PRESET; ++scene)
+                {
+                    if (_current.scene == scene)
+                        continue;
+                    blockdata.sceneValues[scene].properties[propIndex] = propdata.value;
+                }
+
+                assert(propdata.meta.tempSceneState != kTemporarySceneActivate);
+                propdata.meta.tempSceneState = propdata.meta.tempSceneState == kTemporarySceneNone
+                                             ? kTemporarySceneActivate
+                                             : kTemporarySceneNone;
             }
+            // set new value for current scene
+            blockdata.sceneValues[_current.scene].properties[propIndex] = value;
+            break;
 
-            assert(propdata.meta.tempSceneState != kTemporarySceneActivate);
-            propdata.meta.tempSceneState = propdata.meta.tempSceneState == kTemporarySceneNone
-                                         ? kTemporarySceneActivate
-                                         : kTemporarySceneNone;
-        }
-        // set new value for current scene
-        blockdata.sceneValues[_current.scene].properties[propIndex] = value;
-        break;
-
-    case SceneModeClear:
-        if ((propdata.meta.flags & Lv2ParameterInScene) != 0)
-        {
-            --blockdata.meta.numPropertiesInScenes;
-            propdata.meta.flags &= ~Lv2ParameterInScene;
-        }
-        for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
-        {
-            blockdata.sceneValues[s].properties[propIndex] = value;
-            blockdata.lastSavedSceneValues[s].properties[propIndex] = value;
-        }
-        break;
-
-    case SceneModeClearTemporarily:
-        if ((propdata.meta.flags & Lv2ParameterInScene) != 0)
-        {
-            --blockdata.meta.numPropertiesInScenes;
-            propdata.meta.flags &= ~Lv2ParameterInScene;
-
-            assert(propdata.meta.tempSceneState != kTemporarySceneClear);
-            propdata.meta.tempSceneState = propdata.meta.tempSceneState == kTemporarySceneNone
-                                         ? kTemporarySceneClear
-                                         : kTemporarySceneNone;
-        }
-        for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
-            blockdata.sceneValues[s].properties[propIndex] = value;
-        break;
-
-    case SceneModeUpdate:
-        if ((propdata.meta.flags & Lv2ParameterInScene) == 0)
-        {
+        case SceneModeClear:
+            if ((propdata.meta.flags & Lv2ParameterInScene) != 0)
+            {
+                --blockdata.meta.numPropertiesInScenes;
+                propdata.meta.flags &= ~Lv2ParameterInScene;
+            }
             for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
             {
                 blockdata.sceneValues[s].properties[propIndex] = value;
                 blockdata.lastSavedSceneValues[s].properties[propIndex] = value;
             }
-        }
-        else
-        {
-            blockdata.sceneValues[_current.scene].properties[propIndex] = value;
-            blockdata.lastSavedSceneValues[_current.scene].properties[propIndex] = value;
-        }
-        break;
+            break;
 
-    case SceneModeUpdateTemporarily:
-        if ((propdata.meta.flags & Lv2ParameterInScene) == 0)
-        {
+        case SceneModeClearTemporarily:
+            if ((propdata.meta.flags & Lv2ParameterInScene) != 0)
+            {
+                --blockdata.meta.numPropertiesInScenes;
+                propdata.meta.flags &= ~Lv2ParameterInScene;
+
+                assert(propdata.meta.tempSceneState != kTemporarySceneClear);
+                propdata.meta.tempSceneState = propdata.meta.tempSceneState == kTemporarySceneNone
+                                             ? kTemporarySceneClear
+                                             : kTemporarySceneNone;
+            }
             for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
                 blockdata.sceneValues[s].properties[propIndex] = value;
+            break;
+
+        case SceneModeUpdate:
+            if ((propdata.meta.flags & Lv2ParameterInScene) == 0)
+            {
+                for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
+                {
+                    blockdata.sceneValues[s].properties[propIndex] = value;
+                    blockdata.lastSavedSceneValues[s].properties[propIndex] = value;
+                }
+            }
+            else
+            {
+                blockdata.sceneValues[_current.scene].properties[propIndex] = value;
+                blockdata.lastSavedSceneValues[_current.scene].properties[propIndex] = value;
+            }
+            break;
+
+        case SceneModeUpdateTemporarily:
+            if ((propdata.meta.flags & Lv2ParameterInScene) == 0)
+            {
+                for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
+                    blockdata.sceneValues[s].properties[propIndex] = value;
+            }
+            else
+            {
+                blockdata.sceneValues[_current.scene].properties[propIndex] = value;
+            }
+            break;
         }
-        else
-        {
-            blockdata.sceneValues[_current.scene].properties[propIndex] = value;
-        }
-        break;
     }
 
     if (propdata.meta.hwbinding != UINT8_MAX)
