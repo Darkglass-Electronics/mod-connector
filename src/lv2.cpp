@@ -539,6 +539,8 @@ struct Lv2World::Impl
                                     retport.flags |= Lv2ParameterInteger;
                                 else if (std::strcmp(propuri, LV2_CORE__enumeration) == 0)
                                     retport.flags |= Lv2ParameterEnumerated;
+                                else if (std::strcmp(propuri, LV2_PORT_PROPS__expensive) == 0)
+                                    retport.flags |= Lv2ParameterExpensive;
                                 else if (std::strcmp(propuri, LV2_PORT_PROPS__logarithmic) == 0)
                                     retport.flags |= Lv2ParameterLogarithmic;
                                 else if (std::strcmp(propuri, LV2_PORT_PROPS__notOnGUI) == 0)
