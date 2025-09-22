@@ -98,8 +98,8 @@ struct WebSocketConnector : QObject,
     WebSocketServer wsServer;
     bool verboseLogs = false;
 
-    // keep current bank in memory
-    QJsonObject bankJson;
+    // keep current json in memory
+    QJsonObject stateJson;
 
     WebSocketConnector()
         : HostConnector(),
@@ -131,13 +131,13 @@ struct WebSocketConnector : QObject,
 
         ok = true;
 
-        bankJson["type"] = "bank";
+        stateJson["type"] = "state";
 
-        QFile bankFile("bank.json");
-        if (bankFile.open(QIODevice::ReadOnly|QIODevice::Text))
+        QFile stateFile("state.json");
+        if (stateFile.open(QIODevice::ReadOnly|QIODevice::Text))
         {
-            bankJson["bank"] = QJsonDocument::fromJson(bankFile.readAll()).object();
-            handleBankChanges(bankJson["bank"].toObject());
+            stateJson["bank"] = QJsonDocument::fromJson(stateFile.readAll()).object();
+            handleBankChanges(stateJson["bank"].toObject());
         }
     }
 
@@ -145,7 +145,7 @@ struct WebSocketConnector : QObject,
     // this will send the current bank to the socket client, along with the list of plugins and categories
     void newWebSocketConnection(QWebSocket* const ws) override
     {
-        if (! bankJson.contains("plugins"))
+        if (! stateJson.contains("plugins"))
         {
             QJsonArray plugins;
 
@@ -162,16 +162,16 @@ struct WebSocketConnector : QObject,
                 }
             }
 
-            bankJson["plugins"] = plugins;
+            stateJson["plugins"] = plugins;
 
             QJsonArray categories;
             for (uint32_t i = 0; i < kLv2CategoryCount; ++i)
                 categories.append(lv2_category_name(static_cast<Lv2Category>(i)));
 
-            bankJson["categories"] = categories;
+            stateJson["categories"] = categories;
         }
 
-        ws->sendTextMessage(QJsonDocument(bankJson).toJson(QJsonDocument::Compact));
+        ws->sendTextMessage(QJsonDocument(stateJson).toJson(QJsonDocument::Compact));
     }
 
     // websocket message received, typically to indicate bank changes
@@ -182,13 +182,13 @@ struct WebSocketConnector : QObject,
         if (msgObj["type"] == "bank")
         {
             QJsonObject bankObj;
-            if (bankJson.contains("bank"))
-                bankObj = bankJson["bank"].toObject();
+            if (stateJson.contains("bank"))
+                bankObj = stateJson["bank"].toObject();
 
             const QJsonObject msgBankObj(msgObj["bank"].toObject());
             copyJsonObjectValue(bankObj, msgBankObj);
 
-            bankJson["bank"] = bankObj;
+            stateJson["bank"] = bankObj;
 
             if (verboseLogs)
             {
@@ -300,9 +300,9 @@ private slots:
     {
         bankChangedRecently = false;
 
-        QFile bankFile("bank.json");
-        if (bankFile.open(QIODevice::WriteOnly|QIODevice::Truncate|QIODevice::Text))
-            bankFile.write(QJsonDocument(bankJson["bank"].toObject()).toJson());
+        QFile stateFile("state.json");
+        if (stateFile.open(QIODevice::WriteOnly|QIODevice::Truncate|QIODevice::Text))
+            stateFile.write(QJsonDocument(stateJson["bank"].toObject()).toJson());
     }
 };
 
@@ -317,12 +317,20 @@ int main(int argc, char* argv[])
 
     WebSocketConnector connector;
 
-#ifdef HAVE_SYSTEMD
     if (connector.ok)
+    {
+#ifdef HAVE_SYSTEMD
         sd_notify(0, "READY=1");
 #endif
+    }
+    else
+    {
+        fprintf(stderr, "Failed to connect to host.\n");
+        fprintf(stderr, "For faking a mod-host connection set MOD_DEV_HOST=1 in the running environment\n");
+        return 1;
+    }
 
-    return connector.ok ? app.exec() : 1;
+    return app.exec();
 }
 
 // --------------------------------------------------------------------------------------------------------------------

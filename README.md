@@ -4,7 +4,7 @@ This is a little project for a websocket server that:
 
 - serves LV2 plugin information to clients
 - stores received data from clients in a persistent way
-- translates that data into [mod-host](https://github.com/moddevices/mod-host) commands
+- translates that data into [mod-host](https://github.com/mod-audio/mod-host) commands
 
 mod-connector uses `/websocket` entry point in port 13371.  
 Connecting clients will receive the current state as json with this data model:
@@ -13,6 +13,11 @@ Connecting clients will receive the current state as json with this data model:
 {
     "version": 0,
     "type": "state",
+    "categories": [
+      "None",
+      "Delay",
+      "Distortion"
+    ],
     "plugins": [
         {
             "uri": "",
@@ -43,6 +48,7 @@ Connecting clients will receive the current state as json with this data model:
     ],
     "state": {
         "bank": 1,
+        "preset": 1,
         "banks": {
             "1": {
                 "presets": {
@@ -74,9 +80,44 @@ Connecting clients will receive the current state as json with this data model:
 The plugin category can be one of these values:
 
 - "None"
+- "Delay"
+- "Distortion"
+- "Distortion, Waveshaper"
+- "Dynamics"
+- "Dynamics, Amplifier"
+- "Dynamics, Compressor"
+- "Dynamics, Envelope"
+- "Dynamics, Expander"
+- "Dynamics, Gate"
+- "Dynamics, Limiter"
 - "Filter"
+- "Filter, Allpass"
+- "Filter, Bandpass"
+- "Filter, Comb"
+- "Filter, Equaliser"
+- "Filter, Equaliser, Multiband"
+- "Filter, Equaliser, Parametric"
+- "Filter, Highpass"
+- "Filter, Lowpass"
+- "Generator"
+- "Generator, Constant"
+- "Generator, Instrument"
+- "Generator, Oscillator"
+- "MIDI"
+- "Modulator"
+- "Modulator, Chorus"
+- "Modulator, Flanger"
+- "Modulator, Phaser"
 - "Reverb"
+- "Simulator"
+- "Spatial"
+- "Spectral"
+- "Spectral, Pitch Shifter"
 - "Utility"
+- "Utility, Analyser"
+- "Utility, Converter"
+- "Utility, Function"
+- "Utility, Mixer"
 
 The plugin port flags will contain at least one of these types:
 
