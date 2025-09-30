@@ -4,7 +4,7 @@ project(mod-connector-lib-test)
 set(CMAKE_C_STANDARD 17)
 set(CMAKE_CXX_STANDARD 17)
 
-set(MOD_CONNECTOR_LIB_TEST TRUE)
+set(MOD_CONNECTOR_TESTS TRUE)
 include(${CMAKE_CURRENT_SOURCE_DIR}/../../CMakeLists.txt)
 
 add_executable(mod-connector-lib-test main.cpp)
