@@ -489,6 +489,9 @@ public:
     // returning false means the block was unchanged
     bool replaceBlockWhileKeepingCurrentData(uint8_t row, uint8_t block, const char* uri);
 
+    // reset a block to default settings
+    bool resetBlock(uint8_t row, uint8_t block);
+
     // save a current block state as the default state for next time the same block is loaded
     // this is done by saving an lv2 preset of the plugin inside the block
     bool saveBlockStateAsDefault(uint8_t row, uint8_t block);

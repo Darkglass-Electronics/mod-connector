@@ -1924,7 +1924,7 @@ bool HostConnector::replaceBlockWhileKeepingCurrentData(const uint8_t row, const
         if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual)) != 0)
             continue;
 
-        if (isNotEqual(paramdata.value, paramdata.meta.def2))
+        if (isNotEqual(paramdata.value, paramdata.meta.def))
             params.push_back({ paramdata.symbol.c_str(), paramdata.value });
     }
 
@@ -1952,6 +1952,104 @@ bool HostConnector::replaceBlockWhileKeepingCurrentData(const uint8_t row, const
     }
 
     _current.dirty = true;
+    return true;
+}
+
+bool HostConnector::resetBlock(uint8_t row, uint8_t block)
+{
+    mod_log_debug("resetBlock(%u, %u)", row, block);
+    assert(row < NUM_BLOCK_CHAIN_ROWS);
+    assert(block < NUM_BLOCKS_PER_PRESET);
+
+    Block& blockdata = _current.chains[row].blocks[block];
+
+    const HostBlockPair hbp = _mapper.get(_current.preset, row, block);
+    assert_return(hbp.id != kMaxHostInstances, false);
+
+    std::vector<flushed_param> params;
+    params.reserve(MAX_PARAMS_PER_BLOCK);
+
+    std::array<bool, MAX_PARAMS_PER_BLOCK> propsToReset{};
+
+    blockdata.meta.enable.hasScenes = false;
+    blockdata.meta.enable.hwbinding = UINT8_MAX;
+    blockdata.meta.enable.tempSceneState = kTemporarySceneNone;
+    blockdata.meta.numParametersInScenes = 0;
+    blockdata.meta.numPropertiesInScenes = 0;
+
+    for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
+    {
+        blockdata.sceneValues[s].enabled = blockdata.enabled;
+        blockdata.lastSavedSceneValues[s].enabled = blockdata.enabled;
+    }
+
+    for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+    {
+        Parameter& paramdata(blockdata.parameters[p]);
+        if (isNullURI(paramdata.symbol))
+            break;
+        if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual)) != 0)
+            continue;
+
+        paramdata.meta.flags &= ~Lv2ParameterInScene;
+        paramdata.meta.tempSceneState = kTemporarySceneNone;
+
+        if (isNotEqual(paramdata.value, paramdata.meta.def))
+        {
+            paramdata.value = paramdata.meta.def;
+            params.push_back({ paramdata.symbol.c_str(), paramdata.meta.def });
+        }
+
+        for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
+        {
+            blockdata.sceneValues[s].parameters[p] = paramdata.value;
+            blockdata.lastSavedSceneValues[s].parameters[p] = paramdata.value;
+        }
+    }
+
+    for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+    {
+        Property& propdata(blockdata.properties[p]);
+        if (isNullURI(propdata.uri))
+            break;
+        if ((propdata.meta.flags & Lv2PropertyIsReadOnly) != 0)
+            continue;
+
+        propdata.meta.flags &= ~Lv2ParameterInScene;
+        propdata.meta.tempSceneState = kTemporarySceneNone;
+
+        if (propdata.value != propdata.meta.defpath)
+        {
+            propdata.value = propdata.meta.defpath;
+            propsToReset[p] = true;
+        }
+
+        for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
+        {
+            blockdata.sceneValues[s].properties[p] = propdata.value;
+            blockdata.lastSavedSceneValues[s].properties[p] = propdata.value;
+        }
+    }
+
+    _current.dirty = true;
+
+    const Host::NonBlockingScopeWithAudioFades hnbs(_host);
+
+    if (! params.empty())
+        hostParamsFlushBlockPair(hbp, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params);
+
+    for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+    {
+        Property& propdata(blockdata.properties[p]);
+        if (isNullURI(propdata.uri))
+            break;
+        if ((propdata.meta.flags & Lv2PropertyIsReadOnly) != 0)
+            continue;
+
+        if (propsToReset[p])
+            hostPatchSetBlockPair(hbp, propdata);
+    }
+
     return true;
 }
 
