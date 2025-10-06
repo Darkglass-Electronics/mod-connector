@@ -189,19 +189,19 @@ struct HostConnector : Host::FeedbackCallback {
         std::vector<Property> properties;
         std::array<SceneValues, NUM_SCENES_PER_PRESET> sceneValues;
 
-        inline uint8_t parameterIndexForSymbol(const std::string& parameterSymbol)
+        inline uint8_t parameterIndexForSymbol(const std::string& parameterSymbol) const
         {
             try {
-                return parameterSymbolToIndexMap[parameterSymbol];
+                return parameterSymbolToIndexMap.at(parameterSymbol);
             } catch (...) {
                 return UINT8_MAX;
             }
         }
 
-        inline uint8_t propertyIndexForURI(const std::string& propertyURI)
+        inline uint8_t propertyIndexForURI(const std::string& propertyURI) const
         {
             try {
-                return propertyURIToIndexMap[propertyURI];
+                return propertyURIToIndexMap.at(propertyURI);
             } catch (...) {
                 return UINT8_MAX;
             }
