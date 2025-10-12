@@ -12,6 +12,10 @@
 #define NUM_BINDING_ACTUATORS 6
 #endif
 
+#ifndef NUM_BINDING_PAGES
+#define NUM_BINDING_PAGES 1
+#endif
+
 #ifndef NUM_PRESETS_PER_BANK
 #define NUM_PRESETS_PER_BANK 3
 #endif
