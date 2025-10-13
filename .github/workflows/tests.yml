@@ -3,7 +3,7 @@ name: tests
 on: [push, pull_request]
 
 env:
-  CACHE_VERSION: 1
+  CACHE_VERSION: 2
   DEBIAN_FRONTEND: noninteractive
   JACKD_CMD_ARGS: -r -d dummy -r 48000 -p 8192
 
@@ -29,7 +29,7 @@ jobs:
         shell: bash
         run: |
           if [ ! -d ~/mod-host ]; then
-            git clone --depth=1 https://github.com/mod-audio/mod-host.git ~/mod-host
+            git clone --depth=1 https://github.com/mod-audio/mod-host.git -b multi ~/mod-host
             make -C ~/mod-host -j $(nproc)
           fi
       - name: build test blocks
