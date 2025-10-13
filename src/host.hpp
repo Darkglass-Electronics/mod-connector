@@ -435,6 +435,28 @@ struct Host {
     bool output_data_ready();
 
    /**
+     * toggle effect activated state (multiple instance variant)
+     */
+    bool multi_activate(bool activate_value, unsigned int instance_count, const int16_t* instances);
+
+   /**
+     * set the value of a control port (multiple instance variant)
+     */
+    bool multi_param_set(const char* param_symbol,
+                         float param_value,
+                         unsigned int instance_count,
+                         const int16_t* instances);
+
+   /**
+     * flush several param values at once and trigger reset if available (multiple instance variant)
+     */
+    bool multi_params_flush(uint8_t reset_value,
+                            unsigned int param_count,
+                            const flushed_param* params,
+                            unsigned int instance_count,
+                            const int16_t* instances);
+
+   /**
      * poll feedback port for messages, triggering a callback for each one
      */
     bool poll_feedback(FeedbackCallback* callback) const;

@@ -3529,10 +3529,15 @@ void HostConnector::setBlockParameter(const uint8_t row,
 
     paramdata.value = value;
 
-    _host.param_set(hbp.id, paramdata.symbol.c_str(), value);
-
     if (hbp.pair != kMaxHostInstances)
-        _host.param_set(hbp.pair, paramdata.symbol.c_str(), value);
+    {
+        const int16_t instances[2] = { static_cast<int16_t>(hbp.id), static_cast<int16_t>(hbp.pair) };
+        _host.multi_param_set(paramdata.symbol.c_str(), value, 2, instances);
+    }
+    else
+    {
+        _host.param_set(hbp.id, paramdata.symbol.c_str(), value);
+    }
 }
 
 
@@ -5913,7 +5918,9 @@ void HostConnector::hostSwitchPreset(const Current& prev)
     bool oldloaded[NUM_BLOCK_CHAIN_ROWS][NUM_BLOCKS_PER_PRESET];
 
     // preallocating some data
+    std::vector<int16_t> instances;
     std::vector<flushed_param> params;
+    instances.reserve(kMaxHostInstances);
     params.reserve(MAX_PARAMS_PER_BLOCK);
 
     _current.dirty = false;
@@ -5947,11 +5954,13 @@ void HostConnector::hostSwitchPreset(const Current& prev)
                     hostDisconnectAllBlockInputs(blockdata, hbp);
                     hostDisconnectAllBlockOutputs(blockdata, hbp);
 
+                    assert(hbp.id != kMaxHostInstances);
+
                     if (hbp.id != kMaxHostInstances)
-                        _host.activate(hbp.id, false);
+                        instances.push_back(hbp.id);
 
                     if (hbp.pair != kMaxHostInstances)
-                        _host.activate(hbp.pair, false);
+                        instances.push_back(hbp.pair);
 
                     ++numLoadedPlugins;
                 }
@@ -5961,7 +5970,53 @@ void HostConnector::hostSwitchPreset(const Current& prev)
             }
         }
 
-        // step 2: activate and connect all plugins in new preset
+        switch (instances.size())
+        {
+        case 0:
+            break;
+        case 1:
+            _host.activate(instances.front(), false);
+            break;
+        default:
+            _host.multi_activate(false, instances.size(), instances.data());
+            break;
+        }
+
+        instances.clear();
+
+        // step 2: activate all new plugins
+        for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
+        {
+            for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
+            {
+                if (isNullBlock(_current.chains[row].blocks[bl]))
+                    continue;
+
+                const HostBlockPair hbp = _mapper.get(_current.preset, row, bl);
+
+                assert(hbp.id != kMaxHostInstances);
+
+                if (hbp.id != kMaxHostInstances)
+                    instances.push_back(hbp.id);
+
+                if (hbp.pair != kMaxHostInstances)
+                    instances.push_back(hbp.pair);
+            }
+        }
+
+        switch (instances.size())
+        {
+        case 0:
+            break;
+        case 1:
+            _host.activate(instances.front(), true);
+            break;
+        default:
+            _host.multi_activate(true, instances.size(), instances.data());
+            break;
+        }
+
+        // step 3: connect all new plugins
         for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
         {
             uint8_t last = 0;
@@ -5974,11 +6029,7 @@ void HostConnector::hostSwitchPreset(const Current& prev)
 
                 const HostBlockPair hbp = _mapper.get(_current.preset, row, bl);
 
-                if (hbp.id != kMaxHostInstances)
-                    _host.activate(hbp.id, true);
-
-                if (hbp.pair != kMaxHostInstances)
-                    _host.activate(hbp.pair, true);
+                assert(hbp.id != kMaxHostInstances);
 
                 if (numLoadedPlugins == 0)
                     hostConnectBlockToChainInput(row, bl);
@@ -6212,10 +6263,16 @@ void HostConnector::hostParamsFlushBlockPair(const HostBlockPair& hbp,
 {
     assert(hbp.id != kMaxHostInstances);
 
-    _host.params_flush(hbp.id, reset_value, params.size(), params.data());
-
     if (hbp.pair != kMaxHostInstances)
-        _host.params_flush(hbp.pair, reset_value, params.size(), params.data());
+    {
+        const int16_t instances[2] = { static_cast<int16_t>(hbp.id), static_cast<int16_t>(hbp.pair) };
+
+        _host.multi_params_flush(reset_value, params.size(), params.data(), 2, instances);
+    }
+    else
+    {
+        _host.params_flush(hbp.id, reset_value, params.size(), params.data());
+    }
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -6386,6 +6443,10 @@ void HostConnector::hostReady()
 
 void HostConnector::enableAudioProcessing(const bool enable)
 {
+    // preallocating some data
+    std::vector<int16_t> instances;
+    instances.reserve(kMaxHostInstances);
+
     if (enable)
     {
         // activate all active plugins
@@ -6398,13 +6459,27 @@ void HostConnector::enableAudioProcessing(const bool enable)
 
                 const HostBlockPair hbp = _mapper.get(_current.preset, row, bl);
 
+                assert(hbp.id != kMaxHostInstances);
+
                 if (hbp.id != kMaxHostInstances)
-                    _host.activate(hbp.id, true);
+                    instances.push_back(hbp.id);
 
                 if (hbp.pair != kMaxHostInstances)
-                    _host.activate(hbp.pair, true);
+                    instances.push_back(hbp.pair);
             }
-        } 
+        }
+
+        switch (instances.size())
+        {
+        case 0:
+            break;
+        case 1:
+            _host.activate(instances.front(), true);
+            break;
+        default:
+            _host.multi_activate(true, instances.size(), instances.data());
+            break;
+        }
 
         // make connections
         hostEnsureStereoChain(_current.preset, 0);
@@ -6414,7 +6489,7 @@ void HostConnector::enableAudioProcessing(const bool enable)
     else 
     {
         // fade out + processing off
-        _host.feature_enable(Host::kFeatureProcessing, Host::kProcessingOffWithFadeOut);  
+        _host.feature_enable(Host::kFeatureProcessing, Host::kProcessingOffWithFadeOut);
         
         // deactivate all active plugins
         for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
@@ -6426,13 +6501,27 @@ void HostConnector::enableAudioProcessing(const bool enable)
 
                 const HostBlockPair hbp = _mapper.get(_current.preset, row, bl);
 
+                assert(hbp.id != kMaxHostInstances);
+
                 if (hbp.id != kMaxHostInstances)
-                    _host.activate(hbp.id, false);
+                    instances.push_back(hbp.id);
 
                 if (hbp.pair != kMaxHostInstances)
-                    _host.activate(hbp.pair, false);
+                    instances.push_back(hbp.pair);
             }
-        } 
+        }
+
+        switch (instances.size())
+        {
+        case 0:
+            break;
+        case 1:
+            _host.activate(instances.front(), false);
+            break;
+        default:
+            _host.multi_activate(false, instances.size(), instances.data());
+            break;
+        }
     }
 }
 
