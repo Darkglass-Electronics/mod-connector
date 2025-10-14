@@ -6,6 +6,13 @@
 
 #include <cstdarg>
 
+#ifdef _WIN32
+#include <winsock2.h>
+#include <windows.h>
+#else
+#include <ctime>
+#endif
+
 // --------------------------------------------------------------------------------------------------------------------
 // utilities for logging where levels 0:warn 1:info and 2:debug, adjustable by "MOD_LOG" env var
 
@@ -85,4 +92,36 @@ bool getSupportedPluginIO(const Lv2Plugin* const plugin,
 
     return true;
 }
+
+// --------------------------------------------------------------------------------------------------------------------
+// get a monotonically-increasing time in nanoseconds
+
+uint64_t getTimeNS() noexcept
+{
+   #if defined(_WIN32)
+    static struct {
+      LARGE_INTEGER freq;
+      LARGE_INTEGER counter;
+      BOOL r1, r2;
+    } s = { {}, {}, QueryPerformanceFrequency(&s.freq), QueryPerformanceCounter(&s.counter) };
+
+    LARGE_INTEGER counter;
+    QueryPerformanceCounter(&counter);
+    return (counter.QuadPart - s.counter.QuadPart) * 1000000000ULL / s.freq.QuadPart;
+   #elif defined(__APPLE__)
+    static const uint64_t s = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+    return clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - s;
+   #else
+    static struct {
+        timespec ts;
+        int r;
+        uint64_t ns;
+    } s = { {}, clock_gettime(CLOCK_MONOTONIC, &s.ts), static_cast<uint64_t>(s.ts.tv_sec * 1000000000ULL +
+                                                                             s.ts.tv_nsec) };
+    timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (ts.tv_sec * 1000000000ULL + ts.tv_nsec) - s.ns;
+   #endif
+}
+
 // --------------------------------------------------------------------------------------------------------------------

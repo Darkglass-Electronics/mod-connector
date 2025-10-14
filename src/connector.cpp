@@ -4173,8 +4173,6 @@ void HostConnector::hostClearAndLoadCurrentBank()
     {
         _host.feature_enable(Host::kFeatureProcessing, Host::kProcessingOffWithFadeOut);
 
-        // TESTING the multi_remove is multi-threaded
-        // needs some testing to ensure it's safe to use
         std::vector<int16_t> instances;
         instances.reserve(kMaxHostInstances);
 
@@ -5884,11 +5882,50 @@ void HostConnector::hostLoadPreset(const uint8_t preset)
         hostDisconnectChainEndpoints(0);
     }
 
+    // first pass for gathering all blocks to load
+    std::vector<int16_t> instances;
+    std::vector<const char*> uris;
+    instances.reserve(kMaxHostInstances);
+    uris.reserve(kMaxHostInstances);
+
     for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
     {
         const ChainRow& chaindata(active ? _current.chains[row] : _presets[preset].chains[row]);
 
-        bool firstBlock = true;
+        for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
+        {
+            const Block& blockdata(chaindata.blocks[bl]);
+            if (isNullBlock(blockdata))
+                continue;
+
+            instances.push_back(_mapper.add(preset, row, bl));
+            uris.push_back(blockdata.uri.c_str());
+        }
+    }
+
+    // load blocks in parallel
+    switch (instances.size())
+    {
+    case 0:
+        break;
+    case 1:
+        if (active)
+            _host.add(uris.front(), instances.front());
+        else
+            _host.preload(uris.front(), instances.front());
+        break;
+    default:
+        if (active)
+            _host.multi_add(instances.size(), instances.data(), uris.data());
+        else
+            _host.multi_preload(instances.size(), instances.data(), uris.data());
+        break;
+    }
+
+    // setup for the loaded blocks
+    for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
+    {
+        const ChainRow& chaindata(active ? _current.chains[row] : _presets[preset].chains[row]);
 
         // related to active preset only
         uint8_t numLoadedPlugins = 0;
@@ -5899,26 +5936,12 @@ void HostConnector::hostLoadPreset(const uint8_t preset)
             if (isNullBlock(blockdata))
                 continue;
 
-            if (firstBlock)
-                firstBlock = false;
-
-            const HostBlockPair hbp = { _mapper.add(preset, row, bl), kMaxHostInstances };
-
-            bool added = hostLoadInstance(blockdata, hbp.id, active);
-
-            if (! added)
-            {
-                if (active)
-                    resetBlock(_current.chains[row].blocks[bl]);
-
-                _mapper.remove(preset, row, bl);
-                continue;
-            }
-
-            // dealing with connections after this point, only valid if preset is the active one
             if (active)
                 ++numLoadedPlugins;
 
+            const HostBlockPair hbp = _mapper.get(preset, row, bl);
+
+            hostSetupInstance(blockdata, hbp.id);
             hostSetupSideIO(preset, row, bl, hbp, nullptr);
         }
 
@@ -5926,8 +5949,7 @@ void HostConnector::hostLoadPreset(const uint8_t preset)
             _current.numLoadedPlugins += numLoadedPlugins;
     }
 
-    // add necessary dual mono pairs
-    // and make connections if active preset
+    // add necessary dual mono pairs and make connections if active preset
     hostEnsureStereoChain(preset, 0);
 }
 
@@ -6207,42 +6229,48 @@ bool HostConnector::hostLoadInstance(const Block& blockdata, const uint16_t inst
 {
     assert(instance_number != kMaxHostInstances);
 
-    std::vector<flushed_param> params;
-    params.reserve(MAX_PARAMS_PER_BLOCK);
-
     if (active ? _host.add(blockdata.uri.c_str(), instance_number)
                : _host.preload(blockdata.uri.c_str(), instance_number))
     {
-        if (!blockdata.enabled)
-            _host.bypass(instance_number, true);
-
-        for (const Parameter& paramdata : blockdata.parameters)
-        {
-            if (isNullURI(paramdata.symbol))
-                break;
-            if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual)) != 0)
-                continue;
-            if (isNotEqual(paramdata.value, paramdata.meta.def2))
-                params.push_back({ paramdata.symbol.c_str(), paramdata.value });
-        }
-
-        if (! params.empty())
-            _host.params_flush(instance_number, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params.size(), params.data());
-
-        for (const Property& propdata : blockdata.properties)
-        {
-            if (isNullURI(propdata.uri))
-                break;
-            if ((propdata.meta.flags & Lv2PropertyIsReadOnly) != 0)
-                continue;
-            if (propdata.value != propdata.meta.defpath)
-                _host.patch_set(instance_number, propdata.uri.c_str(), propdata.value.c_str());
-        }
-
+        hostSetupInstance(blockdata, instance_number);
         return true;
     }
 
     return false;
+}
+
+void HostConnector::hostSetupInstance(const Block& blockdata, const uint16_t instance_number)
+{
+    assert(instance_number != kMaxHostInstances);
+
+    std::vector<flushed_param> params;
+    params.reserve(MAX_PARAMS_PER_BLOCK);
+
+    if (!blockdata.enabled)
+        _host.bypass(instance_number, true);
+
+    for (const Parameter& paramdata : blockdata.parameters)
+    {
+        if (isNullURI(paramdata.symbol))
+            break;
+        if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual)) != 0)
+            continue;
+        if (isNotEqual(paramdata.value, paramdata.meta.def2))
+            params.push_back({ paramdata.symbol.c_str(), paramdata.value });
+    }
+
+    if (! params.empty())
+        _host.params_flush(instance_number, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params.size(), params.data());
+
+    for (const Property& propdata : blockdata.properties)
+    {
+        if (isNullURI(propdata.uri))
+            break;
+        if ((propdata.meta.flags & Lv2PropertyIsReadOnly) != 0)
+            continue;
+        if (propdata.value != propdata.meta.defpath)
+            _host.patch_set(instance_number, propdata.uri.c_str(), propdata.value.c_str());
+    }
 }
 
 // --------------------------------------------------------------------------------------------------------------------

@@ -547,6 +547,22 @@ struct Host::Impl
         int r;
         last_error.clear();
 
+       #ifndef NDEBUG
+        std::string cmd;
+        uint64_t* times;
+
+        if (_mod_log_level() >= 1)
+        {
+            cmd.reserve(8);
+            times = new uint64_t[numNonBlockingOps + 1];
+            times[numNonBlockingOps] = getTimeNS();
+        }
+        else
+        {
+            times = nullptr;
+        }
+       #endif
+
         mod_log_debug("%s: begin, numNonBlockingOps: %u", __func__, numNonBlockingOps);
 
         while (numNonBlockingOps != 0)
@@ -557,11 +573,28 @@ struct Host::Impl
             if (r == 1)
             {
                 // fprintf(stderr, "%c", c);
+               #ifndef NDEBUG
+                if (times != nullptr)
+                    cmd += c;
+               #endif
 
                 if (c == '\0')
                 {
                     --numNonBlockingOps;
                     mod_log_debug3("%s: next, numNonBlockingOps: %u", __func__, numNonBlockingOps);
+
+                   #ifndef NDEBUG
+                    if (times != nullptr)
+                    {
+                        times[numNonBlockingOps] = getTimeNS();
+                        fprintf(stderr,
+                                "wait %03u %12lu %s\n",
+                                numNonBlockingOps,
+                                times[numNonBlockingOps] - times[numNonBlockingOps + 1],
+                                cmd.c_str());
+                        cmd.clear();
+                    }
+                   #endif
                 }
             }
             /* Error */
@@ -579,6 +612,10 @@ struct Host::Impl
                 return false;
             }
         }
+
+       #ifndef NDEBUG
+        delete[] times;
+       #endif
 
         mod_log_debug("%s: end, numNonBlockingOps: %u", __func__, numNonBlockingOps);
         return true;
