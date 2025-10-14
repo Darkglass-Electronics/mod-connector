@@ -153,7 +153,7 @@ struct Host {
     bool add(const char* uri, int16_t instance_number);
  
     /**
-     * remove an LV2 plugin instance (and also the jack client)
+     * remove an LV2 plugin instance, and also the jack client
      * when instance_number is -1 all plugins will be removed
      */
     bool remove(int16_t instance_number);
@@ -435,9 +435,32 @@ struct Host {
     bool output_data_ready();
 
    /**
+     * add an LV2 plugin encapsulated as a jack client (multiple instance variant)
+     * !EXPERIMENTAL!
+     */
+    bool multi_add(unsigned int instance_count, const int16_t* instances, const char* const* uris);
+
+   /**
+     * remove an LV2 plugin instance, and also the jack client (multiple instance variant)
+     * !EXPERIMENTAL!
+     */
+    bool multi_remove(unsigned int instance_count, const int16_t* instances);
+
+   /**
      * toggle effect activated state (multiple instance variant)
      */
     bool multi_activate(bool activate_value, unsigned int instance_count, const int16_t* instances);
+
+   /**
+     * add an LV2 plugin encapsulated as a jack client, in deactivated state (multiple instance variant)
+     * !EXPERIMENTAL!
+     */
+    bool multi_preload(unsigned int instance_count, const int16_t* instances, const char* const* uris);
+
+   /**
+     * toggle effect processing (multiple instance variant)
+     */
+    bool multi_bypass(bool bypass_value, unsigned int instance_count, const int16_t* instances);
 
    /**
      * set the value of a control port (multiple instance variant)

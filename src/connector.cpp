@@ -4172,6 +4172,32 @@ void HostConnector::hostClearAndLoadCurrentBank()
     else
     {
         _host.feature_enable(Host::kFeatureProcessing, Host::kProcessingOffWithFadeOut);
+
+        // TESTING the multi_remove is multi-threaded
+        // needs some testing to ensure it's safe to use
+        std::vector<int16_t> instances;
+        instances.reserve(kMaxHostInstances);
+
+        for (uint8_t pr = 0; pr < NUM_PRESETS_PER_BANK; ++pr)
+        {
+            for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
+            {
+                for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
+                {
+                    const HostBlockPair hbp = _mapper.get(pr, row, bl);
+
+                    if (hbp.id == kMaxHostInstances)
+                        continue;
+
+                    instances.push_back(hbp.id);
+
+                    if (hbp.pair != kMaxHostInstances)
+                        instances.push_back(hbp.pair);
+                }
+            }
+        }
+
+        _host.multi_remove(instances.size(), instances.data());
     }
 
     _host.remove(-1);
@@ -6225,10 +6251,16 @@ void HostConnector::hostBypassBlockPair(const HostBlockPair& hbp, const bool byp
 {
     assert(hbp.id != kMaxHostInstances);
 
-    _host.bypass(hbp.id, bypass);
-
     if (hbp.pair != kMaxHostInstances)
-        _host.bypass(hbp.pair, bypass);
+    {
+        const int16_t instances[2] = { static_cast<int16_t>(hbp.id), static_cast<int16_t>(hbp.pair) };
+
+        _host.multi_bypass(bypass, 2, instances);
+    }
+    else
+    {
+        _host.bypass(hbp.id, bypass);
+    }
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -6237,10 +6269,16 @@ void HostConnector::hostRemoveBlockPair(const HostBlockPair& hbp)
 {
     assert(hbp.id != kMaxHostInstances);
 
-    _host.remove(hbp.id);
-
     if (hbp.pair != kMaxHostInstances)
-        _host.remove(hbp.pair);
+    {
+        const int16_t instances[2] = { static_cast<int16_t>(hbp.id), static_cast<int16_t>(hbp.pair) };
+
+        _host.multi_remove(2, instances);
+    }
+    else
+    {
+        _host.remove(hbp.id);
+    }
 }
 
 // --------------------------------------------------------------------------------------------------------------------

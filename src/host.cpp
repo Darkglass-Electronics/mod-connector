@@ -1739,6 +1739,38 @@ bool Host::output_data_ready()
     return impl->writeMessageAndWait("output_data_ready");
 }
 
+bool Host::multi_add(const unsigned int instance_count,
+                     const int16_t* const instances,
+                     const char* const* const uris)
+{
+    VALIDATE_INSTANCE_COUNT(instance_count);
+
+    std::string msg = format("multi_add %u", instance_count);
+
+    for (unsigned int i = 0; i < instance_count; ++i)
+    {
+        VALIDATE_INSTANCE_NUMBER(instances[i])
+        msg += format(" %s %d", uris[i], instances[i]);
+    }
+
+    return impl->writeMessageAndWait(msg);
+}
+
+bool Host::multi_remove(const unsigned int instance_count, const int16_t* const instances)
+{
+    VALIDATE_INSTANCE_COUNT(instance_count);
+
+    std::string msg = format("multi_remove %u", instance_count);
+
+    for (unsigned int i = 0; i < instance_count; ++i)
+    {
+        VALIDATE_INSTANCE_NUMBER(instances[i])
+        msg += format(" %d", instances[i]);
+    }
+
+    return impl->writeMessageAndWait(msg);
+}
+
 bool Host::multi_activate(const bool activate_value,
                           const unsigned int instance_count,
                           const int16_t* const instances)
@@ -1746,6 +1778,38 @@ bool Host::multi_activate(const bool activate_value,
     VALIDATE_INSTANCE_COUNT(instance_count);
 
     std::string msg = format("multi_activate %d %u", activate_value ? 1 : 0, instance_count);
+
+    for (unsigned int i = 0; i < instance_count; ++i)
+    {
+        VALIDATE_INSTANCE_NUMBER(instances[i])
+        msg += format(" %d", instances[i]);
+    }
+
+    return impl->writeMessageAndWait(msg);
+}
+
+bool Host::multi_preload(const unsigned int instance_count,
+                         const int16_t* const instances,
+                         const char* const* const uris)
+{
+    VALIDATE_INSTANCE_COUNT(instance_count);
+
+    std::string msg = format("multi_preload %u", instance_count);
+
+    for (unsigned int i = 0; i < instance_count; ++i)
+    {
+        VALIDATE_INSTANCE_NUMBER(instances[i])
+        msg += format(" %s %d", uris[i], instances[i]);
+    }
+
+    return impl->writeMessageAndWait(msg);
+}
+
+bool Host::multi_bypass(const bool bypass_value, const unsigned int instance_count, const int16_t* const instances)
+{
+    VALIDATE_INSTANCE_COUNT(instance_count);
+
+    std::string msg = format("multi_bypass %d %u", bypass_value ? 1 : 0, instance_count);
 
     for (unsigned int i = 0; i < instance_count; ++i)
     {
