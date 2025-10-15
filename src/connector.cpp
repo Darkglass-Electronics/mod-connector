@@ -4195,7 +4195,17 @@ void HostConnector::hostClearAndLoadCurrentBank()
             }
         }
 
-        _host.multi_remove(instances.size(), instances.data());
+        switch (instances.size())
+        {
+        case 0:
+            break;
+        case 1:
+            _host.remove(instances.front());
+            break;
+        default:
+            _host.multi_remove(instances.size(), instances.data());
+            break;
+        }
     }
 
     _host.remove(-1);
