@@ -547,6 +547,22 @@ struct Host::Impl
         int r;
         last_error.clear();
 
+       #ifndef NDEBUG
+        std::string cmd;
+        uint64_t* times;
+
+        if (_mod_log_level() >= 1)
+        {
+            cmd.reserve(8);
+            times = new uint64_t[numNonBlockingOps + 1];
+            times[numNonBlockingOps] = getTimeNS();
+        }
+        else
+        {
+            times = nullptr;
+        }
+       #endif
+
         mod_log_debug("%s: begin, numNonBlockingOps: %u", __func__, numNonBlockingOps);
 
         while (numNonBlockingOps != 0)
@@ -557,11 +573,28 @@ struct Host::Impl
             if (r == 1)
             {
                 // fprintf(stderr, "%c", c);
+               #ifndef NDEBUG
+                if (times != nullptr)
+                    cmd += c;
+               #endif
 
                 if (c == '\0')
                 {
                     --numNonBlockingOps;
                     mod_log_debug3("%s: next, numNonBlockingOps: %u", __func__, numNonBlockingOps);
+
+                   #ifndef NDEBUG
+                    if (times != nullptr)
+                    {
+                        times[numNonBlockingOps] = getTimeNS();
+                        fprintf(stderr,
+                                "wait %03u %12lu %s\n",
+                                numNonBlockingOps,
+                                times[numNonBlockingOps] - times[numNonBlockingOps + 1],
+                                cmd.c_str());
+                        cmd.clear();
+                    }
+                   #endif
                 }
             }
             /* Error */
@@ -579,6 +612,10 @@ struct Host::Impl
                 return false;
             }
         }
+
+       #ifndef NDEBUG
+        delete[] times;
+       #endif
 
         mod_log_debug("%s: end, numNonBlockingOps: %u", __func__, numNonBlockingOps);
         return true;
@@ -1156,6 +1193,7 @@ Host::NonBlockingScopeWithAudioFades::~NonBlockingScopeWithAudioFades()
 // input validation for debug builds
 
 #ifdef NDEBUG
+#define VALIDATE_INSTANCE_COUNT(n)
 #define VALIDATE_INSTANCE_NUMBER(n)
 #define VALIDATE_INSTANCE_REMOVE_NUMBER(n)
 #define VALIDATE_BPB(b)
@@ -1210,6 +1248,7 @@ static bool valid_uri(const char* const uri)
 }
 #define VALIDATE(expr) \
     if (__builtin_expect(!(expr),0)) { _assert_print(#expr, __FILE__, __LINE__); abort(); return {}; }
+#define VALIDATE_INSTANCE_COUNT(n) VALIDATE(n >= 2 && n < 64)
 #define VALIDATE_INSTANCE_NUMBER(n) VALIDATE(n >= 0 && n < MAX_MOD_HOST_INSTANCES)
 #define VALIDATE_INSTANCE_REMOVE_NUMBER(n) VALIDATE(n >= -1 && n < MAX_MOD_HOST_INSTANCES)
 #define VALIDATE_BPB(b) VALIDATE(b >= 1 && b <= 16)
@@ -1507,7 +1546,7 @@ bool Host::cc_map(const int16_t instance_number,
     VALIDATE_INSTANCE_NUMBER(instance_number)
     VALIDATE_SYMBOL(param_symbol)
 
-    std::string msg = format("cc_map %d %s %d %d %s %f %f %f %d %d %s %d",
+    std::string msg = format("cc_map %d %s %d %d %s %f %f %f %d %d %s %u",
                              instance_number,
                              param_symbol,
                              device_id,
@@ -1735,6 +1774,133 @@ bool Host::transport_sync(const TransportSync sync)
 bool Host::output_data_ready()
 {
     return impl->writeMessageAndWait("output_data_ready");
+}
+
+bool Host::multi_add(const unsigned int instance_count,
+                     const int16_t* const instances,
+                     const char* const* const uris)
+{
+    VALIDATE_INSTANCE_COUNT(instance_count);
+
+    std::string msg = format("multi_add %u", instance_count);
+
+    for (unsigned int i = 0; i < instance_count; ++i)
+    {
+        VALIDATE_INSTANCE_NUMBER(instances[i])
+        msg += format(" %s %d", uris[i], instances[i]);
+    }
+
+    return impl->writeMessageAndWait(msg);
+}
+
+bool Host::multi_remove(const unsigned int instance_count, const int16_t* const instances)
+{
+    VALIDATE_INSTANCE_COUNT(instance_count);
+
+    std::string msg = format("multi_remove %u", instance_count);
+
+    for (unsigned int i = 0; i < instance_count; ++i)
+    {
+        VALIDATE_INSTANCE_NUMBER(instances[i])
+        msg += format(" %d", instances[i]);
+    }
+
+    return impl->writeMessageAndWait(msg);
+}
+
+bool Host::multi_activate(const bool activate_value,
+                          const unsigned int instance_count,
+                          const int16_t* const instances)
+{
+    VALIDATE_INSTANCE_COUNT(instance_count);
+
+    std::string msg = format("multi_activate %d %u", activate_value ? 1 : 0, instance_count);
+
+    for (unsigned int i = 0; i < instance_count; ++i)
+    {
+        VALIDATE_INSTANCE_NUMBER(instances[i])
+        msg += format(" %d", instances[i]);
+    }
+
+    return impl->writeMessageAndWait(msg);
+}
+
+bool Host::multi_preload(const unsigned int instance_count,
+                         const int16_t* const instances,
+                         const char* const* const uris)
+{
+    VALIDATE_INSTANCE_COUNT(instance_count);
+
+    std::string msg = format("multi_preload %u", instance_count);
+
+    for (unsigned int i = 0; i < instance_count; ++i)
+    {
+        VALIDATE_INSTANCE_NUMBER(instances[i])
+        msg += format(" %s %d", uris[i], instances[i]);
+    }
+
+    return impl->writeMessageAndWait(msg);
+}
+
+bool Host::multi_bypass(const bool bypass_value, const unsigned int instance_count, const int16_t* const instances)
+{
+    VALIDATE_INSTANCE_COUNT(instance_count);
+
+    std::string msg = format("multi_bypass %d %u", bypass_value ? 1 : 0, instance_count);
+
+    for (unsigned int i = 0; i < instance_count; ++i)
+    {
+        VALIDATE_INSTANCE_NUMBER(instances[i])
+        msg += format(" %d", instances[i]);
+    }
+
+    return impl->writeMessageAndWait(msg);
+}
+
+bool Host::multi_param_set(const char* const param_symbol,
+                           const float param_value,
+                           const unsigned int instance_count,
+                           const int16_t* const instances)
+{
+    VALIDATE_INSTANCE_COUNT(instance_count);
+    VALIDATE_SYMBOL(param_symbol);
+
+    std::string msg = format("multi_param_set %s %f %u", param_symbol, param_value, instance_count);
+
+    for (unsigned int i = 0; i < instance_count; ++i)
+    {
+        VALIDATE_INSTANCE_NUMBER(instances[i])
+        msg += format(" %d", instances[i]);
+    }
+
+    return impl->writeMessageAndWait(msg);
+}
+
+bool Host::multi_params_flush(const uint8_t reset_value,
+                              const unsigned int param_count,
+                              const flushed_param* const params,
+                              const unsigned int instance_count,
+                              const int16_t* const instances)
+{
+    VALIDATE_INSTANCE_COUNT(instance_count);
+
+    std::string msg = format("multi_params_flush %u %u", reset_value, instance_count);
+
+    for (unsigned int i = 0; i < instance_count; ++i)
+    {
+        VALIDATE_INSTANCE_NUMBER(instances[i])
+        msg += format(" %d", instances[i]);
+    }
+
+    msg += format(" %u", param_count);
+
+    for (unsigned int i = 0; i < param_count; ++i)
+    {
+        VALIDATE_SYMBOL(params[i].symbol)
+        msg += format(" %s %f", params[i].symbol, params[i].value);
+    }
+
+    return impl->writeMessageAndWait(msg);
 }
 
 bool Host::poll_feedback(FeedbackCallback* const callback) const

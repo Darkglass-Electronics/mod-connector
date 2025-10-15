@@ -131,3 +131,8 @@ bool getSupportedPluginIO(const Lv2Plugin* plugin,
                           uint8_t& numSideOutputs);
 
 // --------------------------------------------------------------------------------------------------------------------
+// get a monotonically-increasing time in nanoseconds
+
+uint64_t getTimeNS() noexcept;
+
+// --------------------------------------------------------------------------------------------------------------------

@@ -818,6 +818,8 @@ private:
 
     // add (active==true) or preload block defined by blockdata to instance_number
     bool hostLoadInstance(const Block& blockdata, uint16_t instance_number, bool active);
+    // called inside hostLoadInstance
+    void hostSetupInstance(const Block& blockdata, uint16_t instance_number);
 
     // set bypass state of block and its pair if exists
     void hostBypassBlockPair(const HostBlockPair& hbp, bool bypass);
