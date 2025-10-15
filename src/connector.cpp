@@ -1955,9 +1955,9 @@ bool HostConnector::replaceBlockWhileKeepingCurrentData(const uint8_t row, const
     return true;
 }
 
-bool HostConnector::resetBlock(uint8_t row, uint8_t block)
+bool HostConnector::resetBlock(const uint8_t row, const uint8_t block, const bool resetUserDefaults)
 {
-    mod_log_debug("resetBlock(%u, %u)", row, block);
+    mod_log_debug("resetBlock(%u, %u, %s)", row, block, bool2str(resetUserDefaults));
     assert(row < NUM_BLOCK_CHAIN_ROWS);
     assert(block < NUM_BLOCKS_PER_PRESET);
 
@@ -1981,6 +1981,48 @@ bool HostConnector::resetBlock(uint8_t row, uint8_t block)
     {
         blockdata.sceneValues[s].enabled = blockdata.enabled;
         blockdata.lastSavedSceneValues[s].enabled = blockdata.enabled;
+    }
+
+    if (resetUserDefaults)
+    {
+        // reset live default values
+        for (uint8_t rowB = 0; rowB < NUM_BLOCK_CHAIN_ROWS; ++rowB)
+        {
+            for (uint8_t blB = 0; blB < NUM_BLOCKS_PER_PRESET; ++blB)
+            {
+                Block& blockdataB(_current.chains[rowB].blocks[blB]);
+                if (isNullBlock(blockdataB))
+                    continue;
+                if (blockdataB.uri != blockdata.uri)
+                    continue;
+
+                for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                {
+                    Parameter& paramdata(blockdata.parameters[p]);
+                    if (isNullURI(paramdata.symbol))
+                        break;
+                    if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual)) != 0)
+                        continue;
+
+                    blockdataB.parameters[p].meta.def = blockdataB.parameters[p].meta.def2;
+                }
+
+                // TODO update default properties
+            }
+        }
+
+        // remove default preset
+        do {
+            assert_continue(!blockdata.meta.abbreviation.empty());
+
+            const std::string defdir = getDefaultPluginBundleForBlock(blockdata);
+
+            if (std::filesystem::exists(defdir))
+            {
+                _host.bundle_remove(defdir.c_str());
+                std::filesystem::remove_all(defdir);
+            }
+        } while (false);
     }
 
     for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
