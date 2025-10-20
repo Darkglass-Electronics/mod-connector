@@ -1518,7 +1518,7 @@ bool HostConnector::reorderBlock(const uint8_t row, const uint8_t orig, const ui
 
 // --------------------------------------------------------------------------------------------------------------------
 
-bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const char* const uri)
+bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const char* const uri, bool keepBindings)
 {
     mod_log_debug("replaceBlock(%u, %u, \"%s\")", row, block, uri);
     assert(row < NUM_BLOCK_CHAIN_ROWS);
@@ -1684,7 +1684,7 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
         if (!isNullBlock(blockdata))
         {
             --_current.numLoadedPlugins;
-            hostRemoveAllBlockBindings(row, block);
+            if (!keepBindings) hostRemoveAllBlockBindings(row, block);
             hostRemoveInstanceForBlock(row, block);
         }
 
@@ -1893,7 +1893,7 @@ bool HostConnector::replaceBlockWhileKeepingCurrentData(const uint8_t row, const
         return false;
     }
 
-    if (! replaceBlock(row, block, uri))
+    if (! replaceBlock(row, block, uri, true))
         return false;
 
     {
