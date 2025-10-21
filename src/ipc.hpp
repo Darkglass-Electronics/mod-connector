@@ -62,12 +62,17 @@ struct IPC
      * change writing blocking mode.
      * will wait for all responses if writing becomes blocking.
      */
-    void setWriteBlocking(bool blocking);
+    void setWriteBlockingAndWait(bool blocking);
 
     /**
      * write a message and potentially fetch remote response.
      */
     bool writeMessage(const std::string& message, ResponseType respType = kResponseNone, Response* resp = nullptr);
+
+    /**
+     * write a message without a reply, typically used for replies themselves.
+     */
+    bool writeMessageWithoutReply(const std::string& message);
 
 private:
     struct Impl;

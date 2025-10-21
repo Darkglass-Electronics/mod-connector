@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2024-2025 Filipe Coelho <falktx@darkglass.com>
 // SPDX-License-Identifier: ISC
 
+#define MOD_LOG_GROUP "ipc"
+
 #include "ipc.hpp"
 #include "utils.hpp"
 
@@ -20,6 +22,11 @@
 #define closesocket close
 #define INVALID_SOCKET -1
 typedef int SOCKET;
+#endif
+
+#ifdef HAVE_SERIALPORT
+#include <libserialport.h>
+#define SERIALPORT_BLOCKING_READ_TIMEOUT_MS 40
 #endif
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -48,6 +55,7 @@ struct IPC::Impl
         std::free(buffer);
     }
 
+   #ifdef HAVE_SERIALPORT
     void openSerial(const char* const path, const int baudrate)
     {
         if (dummyDevMode)
@@ -55,6 +63,7 @@ struct IPC::Impl
 
         iface = std::make_unique<Serial>(last_error, path, baudrate);
     }
+   #endif
 
     void openTCP(const int port)
     {
@@ -92,7 +101,7 @@ struct IPC::Impl
         }
 
         // set blocking mode, so we block-wait until message is fully delivered
-        const int flags = iface->readBlocking();
+        const int flags = iface->setReadBlocking();
 
         // read full message now
         buffer[0] = firstbyte;
@@ -133,12 +142,12 @@ struct IPC::Impl
         }
 
         // set non-blocking mode again
-        iface->readNonBlocking(flags);
+        iface->setReadNonBlocking(flags);
 
         return buffer;
     }
 
-    void setWriteBlocking(bool blocking)
+    void setWriteBlockingAndWait(const bool blocking)
     {
         if (blocking)
         {
@@ -167,7 +176,7 @@ struct IPC::Impl
             if (resp != nullptr)
             {
                 *resp = {};
-                resp->code = SUCCESS;
+                resp->code = 0;
                 switch (respType)
                 {
                 case kResponseNone:
@@ -202,10 +211,6 @@ struct IPC::Impl
         {
             assert(numNonBlockingOps == 0);
 
-            // use stack buffer first, in case of small messages
-            char stackbuffer[128];
-            char* buffer = stackbuffer;
-            size_t buffersize = sizeof(stackbuffer) / sizeof(stackbuffer[0]);
             size_t written = 0;
             last_error.clear();
 
@@ -221,19 +226,10 @@ struct IPC::Impl
                         break;
 
                     // increase buffer by 2x for longer messages
-                    if (++written == buffersize)
+                    if (++written == bufferSize)
                     {
-                        buffersize *= 2;
-
-                        if (stackbuffer == buffer)
-                        {
-                            buffer = static_cast<char*>(std::malloc(buffersize));
-                            std::memcpy(buffer, stackbuffer, sizeof(stackbuffer));
-                        }
-                        else
-                        {
-                            buffer = static_cast<char*>(std::realloc(buffer, buffersize));
-                        }
+                        bufferSize *= 2;
+                        buffer = static_cast<char*>(std::realloc(buffer, bufferSize));
                     }
                 }
                 /* Error */
@@ -253,10 +249,6 @@ struct IPC::Impl
             if (! last_error.empty())
             {
                 mod_log_warn("error: %s", last_error.c_str());
-
-                if (stackbuffer != buffer)
-                    std::free(buffer);
-
                 return false;
             }
 
@@ -271,19 +263,9 @@ struct IPC::Impl
             {
                 if (resp != nullptr)
                 {
-                    resp->code = SUCCESS;
-
-                    if (stackbuffer != buffer)
-                        resp->data.s = buffer;
-                    else
-                        resp->data.s = strdup(buffer);
+                    resp->code = 0;
+                    resp->data.s = strdup(buffer);
                 }
-                else
-                {
-                    if (stackbuffer != buffer)
-                        std::free(buffer);
-                }
-
                 return true;
             }
 
@@ -360,6 +342,14 @@ struct IPC::Impl
         }
 
         return true;
+    }
+
+    bool writeMessageWithoutReply(const std::string& message)
+    {
+        if (dummyDevMode)
+            return true;
+
+        return iface->writeMessage(message);
     }
 
 private:
@@ -454,28 +444,33 @@ private:
         std::string& last_error;
         Interface(std::string& last_error_) : last_error(last_error_) {};
         virtual ~Interface() = default;
-        [[nodiscard]] virtual int readBlocking() = 0;
-        virtual void readNonBlocking(int flags) = 0;
+        [[nodiscard]] virtual int setReadBlocking() = 0;
+        virtual void setReadNonBlocking(int flags) = 0;
         [[nodiscard]] virtual int readMessageByte(char* c) = 0;
         [[nodiscard]] virtual int readResponseByte(char* c) = 0;
         [[nodiscard]] virtual bool writeMessage(const std::string& message) = 0;
     };
 
+   #ifdef HAVE_SERIALPORT
     struct Serial : Interface {
-        Serial(std::string& last_error, const char* path, int baudrate);
+        Serial(std::string& last_error_, const char* serial, int baudrate);
         ~Serial() override;
-        [[nodiscard]] int readBlocking() final;
-        void readNonBlocking(int flags) final;
+        [[nodiscard]] int setReadBlocking() final;
+        void setReadNonBlocking(int flags) final;
         [[nodiscard]] int readMessageByte(char* c) final;
         [[nodiscard]] int readResponseByte(char* c) final;
         [[nodiscard]] bool writeMessage(const std::string& message) final;
+
+        struct sp_port *serialport = nullptr;
+        bool readIsBlocking = false;
     };
+   #endif
 
     struct TCP : Interface {
-        TCP(std::string& last_error, int port);
+        TCP(std::string& last_error_, int port);
         ~TCP() override;
-        [[nodiscard]] int readBlocking() final;
-        void readNonBlocking(int flags) final;
+        [[nodiscard]] int setReadBlocking() final;
+        void setReadNonBlocking(int flags) final;
         [[nodiscard]] int readMessageByte(char* c) final;
         [[nodiscard]] int readResponseByte(char* c) final;
         [[nodiscard]] bool writeMessage(const std::string& message) final;
@@ -493,8 +488,8 @@ private:
 
 // --------------------------------------------------------------------------------------------------------------------
 
-IPC::Impl::TCP::TCP(std::string& last_error, const int port)
-    : Interface(last_error)
+IPC::Impl::TCP::TCP(std::string& last_error_, const int port)
+    : Interface(last_error_)
 {
     last_error.clear();
 
@@ -605,7 +600,7 @@ IPC::Impl::TCP::~TCP()
    #endif
 }
 
-int IPC::Impl::TCP::readBlocking()
+int IPC::Impl::TCP::setReadBlocking()
 {
    #ifdef _WIN32
     unsigned long nonblocking = 0;
@@ -618,7 +613,7 @@ int IPC::Impl::TCP::readBlocking()
    #endif
 }
 
-void IPC::Impl::TCP::readNonBlocking(const int flags [[maybe_unused]])
+void IPC::Impl::TCP::setReadNonBlocking(const int flags [[maybe_unused]])
 {
    #ifdef _WIN32
     unsigned long nonblocking = 1;
@@ -668,11 +663,83 @@ bool IPC::Impl::TCP::writeMessage(const std::string& message)
 
 // --------------------------------------------------------------------------------------------------------------------
 
+#ifdef HAVE_SERIALPORT
+
+IPC::Impl::Serial::Serial(std::string& last_error_, const char* const serial, const int baudrate)
+    : Interface(last_error_)
+{
+    last_error.clear();
+
+    if (sp_get_port_by_name(serial, &serialport) == SP_OK)
+    {
+        if (sp_open(serialport, SP_MODE_READ_WRITE) == SP_OK)
+        {
+            sp_set_baudrate(serialport, baudrate);
+            sp_set_xon_xoff(serialport, SP_XONXOFF_DISABLED);
+            sp_flush(serialport, SP_BUF_BOTH);
+            return;
+        }
+
+        sp_free_port(serialport);
+        serialport = nullptr;
+    }
+}
+
+IPC::Impl::Serial::~Serial()
+{
+    if (serialport != nullptr)
+    {
+        sp_close(serialport);
+        sp_free_port(serialport);
+        serialport = nullptr;
+    }
+}
+
+int IPC::Impl::Serial::setReadBlocking()
+{
+    readIsBlocking = true;
+    return 0;
+}
+
+void IPC::Impl::Serial::setReadNonBlocking(const int flags [[maybe_unused]])
+{
+    readIsBlocking = false;
+}
+
+int IPC::Impl::Serial::readMessageByte(char* const c)
+{
+    return readIsBlocking
+        ? sp_blocking_read(serialport, c, 1, SERIALPORT_BLOCKING_READ_TIMEOUT_MS)
+        : sp_nonblocking_read(serialport, c, 1);
+}
+
+int IPC::Impl::Serial::readResponseByte(char* const c)
+{
+    return readMessageByte(c);
+}
+
+bool IPC::Impl::Serial::writeMessage(const std::string& message)
+{
+    if (serialport == nullptr)
+    {
+        last_error = "serial port is not open";
+        return false;
+    }
+
+    return sp_blocking_write(serialport, message.c_str(), message.size() + 1, 0);
+}
+
+#endif
+
+// --------------------------------------------------------------------------------------------------------------------
+
+#ifdef HAVE_SERIALPORT
 IPC::IPC(const char* const serial, const int baudrate)
     : impl(new Impl(last_error))
 {
     impl->openSerial(serial, baudrate);
 }
+#endif
 
 IPC::IPC(const int tcpPort)
     : impl(new Impl(last_error))
@@ -690,14 +757,19 @@ char* IPC::readMessage(uint32_t* const bytesRead)
     return impl->readMessage(bytesRead);
 }
 
-void IPC::setWriteBlocking(const bool blocking)
+void IPC::setWriteBlockingAndWait(const bool blocking)
 {
-    impl->setWriteBlocking(blocking);
+    impl->setWriteBlockingAndWait(blocking);
 }
 
 bool IPC::writeMessage(const std::string& message, const ResponseType respType, Response* const resp)
 {
     return impl->writeMessage(message, respType, resp);
+}
+
+bool IPC::writeMessageWithoutReply(const std::string& message)
+{
+    return impl->writeMessageWithoutReply(message);
 }
 
 // --------------------------------------------------------------------------------------------------------------------

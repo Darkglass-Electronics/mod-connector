@@ -172,9 +172,9 @@ struct Host::Impl
     // ----------------------------------------------------------------------------------------------------------------
     // message handling
 
-    void setWriteBlocking(const bool blocking)
+    void setWriteBlockingAndWait(const bool blocking)
     {
-        ipc->setWriteBlocking(blocking);
+        ipc->setWriteBlockingAndWait(blocking);
     }
 
     bool writeMessageAndWait(const std::string& message,
@@ -202,7 +202,7 @@ struct Host::Impl
     // ----------------------------------------------------------------------------------------------------------------
     // feedback port handling
 
-    bool poll(FeedbackCallback* const callback) const
+    [[nodiscard]] bool poll(FeedbackCallback* const callback) const
     {
         std::string error;
 
@@ -212,7 +212,7 @@ struct Host::Impl
     }
 
 private:
-    bool _poll(FeedbackCallback* const callback, std::string& error) const
+    [[nodiscard]] bool _poll(FeedbackCallback* const callback, std::string& error) const
     {
         uint32_t bytesRead;
         char* const buffer = ipc->readMessage(&bytesRead);
@@ -651,12 +651,12 @@ Host::~Host() { delete impl; }
 Host::NonBlockingScope::NonBlockingScope(Host& host_)
     : host(host_)
 {
-    host.impl->setWriteBlocking(false);
+    host.impl->setWriteBlockingAndWait(false);
 }
 
 Host::NonBlockingScope::~NonBlockingScope()
 {
-    host.impl->setWriteBlocking(true);
+    host.impl->setWriteBlockingAndWait(true);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -664,14 +664,14 @@ Host::NonBlockingScope::~NonBlockingScope()
 Host::NonBlockingScopeWithAudioFades::NonBlockingScopeWithAudioFades(Host& host_)
     : host(host_)
 {
-    host.impl->setWriteBlocking(false);
+    host.impl->setWriteBlockingAndWait(false);
     host.feature_enable(Host::kFeatureProcessing, Host::kProcessingOffWithFadeOut);
 }
 
 Host::NonBlockingScopeWithAudioFades::~NonBlockingScopeWithAudioFades()
 {
     host.feature_enable(Host::kFeatureProcessing, Host::kProcessingOnWithFadeIn);
-    host.impl->setWriteBlocking(true);
+    host.impl->setWriteBlockingAndWait(true);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
