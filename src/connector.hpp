@@ -482,8 +482,8 @@ public:
     // replace a block with another lv2 plugin (referenced by its URI)
     // passing null or empty string as the URI means clearing the block
     // returning false means the block was unchanged
-    // use keepBindings flag only when making sure the new plugin has same control inputs
-    bool replaceBlock(uint8_t row, uint8_t block, const char* uri, bool keepBindings = false);
+    // use clearBindingsForReplacementBlock=false only when making sure the new plugin has same control inputs
+    bool replaceBlock(uint8_t row, uint8_t block, const char* uri, bool clearBindingsForReplacementBlock = true);
 
     // replace a block with another lv2 plugin that matches current one (referenced by its URI)
     // the current and new plugin must have the exact same parameters and properties
