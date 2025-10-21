@@ -15,10 +15,16 @@
 #include <unordered_map>
 
 enum ExtraLv2Flags {
-    Lv2ParameterVirtual = 1 << 11,
-    Lv2ParameterInScene = 1 << 12,
-    Lv2ParameterNotInQuickPot = 1 << 13,
+    Lv2ParameterVirtual = 1 << 13,
+    Lv2ParameterInScene = 1 << 14,
+    Lv2ParameterNotInQuickPot = 1 << 15,
 };
+
+typedef enum {
+	LV2_UI_STATE_NONE     = 0,  /**< Remove any previously set UI states. */
+	LV2_UI_STATE_INACTIVE = 1,  /**< Inactive state (edits to port value are inaudible / ineffective at the moment). */
+	LV2_UI_STATE_BLOCKED  = 2   /**< Blocked state (all edits to this port's value should be blocked and are ignored internally in the plugin). */
+} LV2_UIState;
 
 // --------------------------------------------------------------------------------------------------------------------
 
@@ -123,6 +129,7 @@ struct HostConnector : Host::FeedbackCallback {
             std::string unit;
             std::vector<Lv2ScalePoint> scalePoints;
         } meta;
+        LV2_UIState uiState = LV2_UI_STATE_NONE;
     };
 
     struct Property {
