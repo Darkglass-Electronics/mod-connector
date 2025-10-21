@@ -84,7 +84,8 @@ struct Host {
                 kFeedbackMidiMapped,
                 kFeedbackTransport,
                 kFeedbackLog,
-                kFeedbackFinished
+                kFeedbackFinished,
+                kFeedbackParameterUIState
             } type;
             union {
                 struct {
@@ -134,6 +135,11 @@ struct Host {
                     char type;
                     const char* msg;
                 } log;
+                struct {
+                    int effect_id;
+                    const char* symbol;
+                    LV2_UIState value;
+                } paramUIState;
             };
         };
 
