@@ -19,19 +19,6 @@
 
 namespace System {
 
-static bool reboot()
-{
-#ifdef LINUX_DEVICE
-    static const char *const pathname = "/usr/sbin/reboot";
-    static const char *argv[] = {pathname, nullptr};
-    execv(pathname, const_cast<char *const *>(argv));
-
-    // if we reach this point, the command failed
-#endif
-
-    return false;
-}
-
 static bool rebootInRecoveryMode()
 {
 #ifdef LINUX_DEVICE
@@ -161,6 +148,7 @@ private:
             return _writeReply("r 0");
         }
 
+        // web-ui is connected
         if (std::strcmp(buffer, CMD_GUI_CONNECTED) == 0)
         {
             HMICallbackData d = { HMICallbackData::kConnected, {} };
@@ -169,6 +157,7 @@ private:
             return _writeReply("r 0");
         }
 
+        // web-ui is disconnected
         if (std::strcmp(buffer, CMD_GUI_DISCONNECTED) == 0)
         {
             HMICallbackData d = { HMICallbackData::kDisconnected, {} };
@@ -177,22 +166,7 @@ private:
             return _writeReply("r 0");
         }
 
-        // clear all addressings
-        if (std::strcmp(buffer, CMD_PEDALBOARD_CLEAR) == 0)
-        {
-            for (int i = 0; i < NUM_BINDING_PAGES; ++i)
-            {
-                actuatorPages[i].active = false;
-                for (int j = 0; j < NUM_BINDING_ACTUATORS; ++j)
-                    actuatorPages[i].actuators[j] = {};
-            }
-
-            HMICallbackData d = { HMICallbackData::kPedalboardClear, {} };
-            callback->hmiCallback(d);
-
-            return _writeReply("r 0");
-        }
-
+        // assign a new hw control
         if (std::strncmp(buffer, CMD_CONTROL_ADD, 2) == 0)
         {
             buffer[1] = buffer[3] = '\0';
@@ -269,6 +243,7 @@ private:
             return _writeReply("r 0");
         }
 
+        // unassign a hw control
         if (std::strncmp(buffer, CMD_CONTROL_REMOVE, 2) == 0)
         {
             const int hw_id = std::atoi(buffer + 2);
@@ -287,6 +262,7 @@ private:
             return _writeReply("r 0");
         }
 
+        // send assigned control data
         if (std::strncmp(buffer, CMD_CONTROL_SET, 2) == 0)
         {
             buffer[1] = buffer[3] = '\0';
@@ -304,6 +280,22 @@ private:
 
             HMICallbackData d = { HMICallbackData::kControlSet, {} };
             d.controlSet.hw_id = hw_id;
+            callback->hmiCallback(d);
+
+            return _writeReply("r 0");
+        }
+
+        // clear all addressings
+        if (std::strcmp(buffer, CMD_PEDALBOARD_CLEAR) == 0)
+        {
+            for (int i = 0; i < NUM_BINDING_PAGES; ++i)
+            {
+                actuatorPages[i].active = false;
+                for (int j = 0; j < NUM_BINDING_ACTUATORS; ++j)
+                    actuatorPages[i].actuators[j] = {};
+            }
+
+            HMICallbackData d = { HMICallbackData::kPedalboardClear, {} };
             callback->hmiCallback(d);
 
             return _writeReply("r 0");
