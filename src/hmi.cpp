@@ -19,6 +19,18 @@
 
 namespace System {
 
+#ifdef LINUX_DEVICE
+static bool reboot()
+{
+    static const char *const pathname = "/usr/sbin/reboot";
+    static const char *argv[] = {pathname, nullptr};
+    execv(pathname, const_cast<char *const *>(argv));
+
+    // if we reach this point, the command failed
+    return false;
+}
+#endif
+
 static bool rebootInRecoveryMode()
 {
 #ifdef LINUX_DEVICE
@@ -42,12 +54,10 @@ struct HMI::Impl
 
     Impl(std::array<ActuatorPage, NUM_BINDING_PAGES> &actuatorPages_,
          uint8_t &page_,
-         Callback *callback_,
          std::string& last_error_)
         : last_error(last_error_),
           actuatorPages(actuatorPages_),
-          page(page_),
-          callback(callback_)
+          page(page_)
     {
     }
 
@@ -96,11 +106,11 @@ struct HMI::Impl
 
     // ----------------------------------------------------------------------------------------------------------------
 
-    bool poll()
+    bool poll(Callback* const callback)
     {
         std::string error;
 
-        while (_poll(error)) {}
+        while (_poll(callback, error)) {}
 
         return error.empty();
 #if 0
@@ -132,7 +142,7 @@ struct HMI::Impl
     }
 
 private:
-    [[nodiscard]] bool _poll(std::string& error) const
+    [[nodiscard]] bool _poll(Callback* const callback, std::string& error) const
     {
         uint32_t bytesRead;
         char* const buffer = ipc->readMessage(&bytesRead);
@@ -326,8 +336,6 @@ private:
     std::array<ActuatorPage, NUM_BINDING_PAGES> &actuatorPages;
     uint8_t &page;
 
-    Callback *const callback;
-
     // ----------------------------------------------------------------------------------------------------------------
 
     std::unique_ptr<IPC> ipc;
@@ -337,8 +345,8 @@ private:
 
 // --------------------------------------------------------------------------------------------------------------------
 
-HMI::HMI(Callback *callback, const char* const serial, const int baudrate)
-    : impl(new Impl(_actuatorPages, _page, callback, last_error))
+HMI::HMI(const char* const serial, const int baudrate)
+    : impl(new Impl(_actuatorPages, _page, last_error))
 {
     impl->open(serial, baudrate);
 }
@@ -363,26 +371,21 @@ HMI::NonBlockingScope::~NonBlockingScope()
 bool HMI::control_set(uint8_t hw_id, float value)
 {
     assert(hw_id < NUM_BINDING_ACTUATORS);
-    assert(_actuatorPages[hw_id].active);
-    assert(_page < _actuatorPages[hw_id].actuators.size());
+    assert(_page < NUM_BINDING_PAGES);
 
-    Actuator& actuator = _actuatorPages[hw_id].actuators[_page];
+    ActuatorPage& actuatorPage = _actuatorPages[_page];
+    assert(actuatorPage.active);
+    assert(hw_id < actuatorPage.actuators.size());
+
+    Actuator& actuator = actuatorPage.actuators[hw_id];
     assert(actuator.assigned);
 
     actuator.current = value;
 
-    if (impl->writeMessageAndWait(format(CMD_CONTROL_SET, hw_id, value)))
-    {
-        // HMICallbackData d = { HMICallbackData::kControlSet, {} };
-        // d.controlSet.hw_id = hw_id;
-        // _callback->hmiCallback(d);
-        return true;
-    }
-
-    return false;
+    return impl->writeMessageAndWait(format(CMD_CONTROL_SET, hw_id, value));
 }
 
-bool HMI::poll()
+bool HMI::poll(Callback* const callback)
 {
-    return impl->poll();
+    return impl->poll(callback);
 }

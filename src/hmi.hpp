@@ -149,10 +149,10 @@ struct HMI
     // changes the tuner input source
     bool tuner_input(uint8_t input);
 
-    HMI(Callback *callback, const char *serial, int baudrate);
+    HMI(const char *serial, int baudrate);
     ~HMI();
 
-    bool poll();
+    bool poll(Callback* callback);
 
    /**
      * class to activate non-blocking mode during a function scope.
