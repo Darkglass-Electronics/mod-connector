@@ -67,8 +67,9 @@ struct IPC::Impl
 
     void openTCP(const int port)
     {
-        if (const char* const dev = std::getenv("MOD_DEV_HOST"); std::atoi(dev) != 0)
-            dummyDevMode = true;
+        if (const char* const dev = std::getenv("MOD_DEV_HOST"))
+            if (std::atoi(dev) != 0)
+                dummyDevMode = true;
 
         if (dummyDevMode)
             return;
