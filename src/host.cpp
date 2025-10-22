@@ -5,6 +5,7 @@
 
 #include "host.hpp"
 #include "config.h"
+#include "instance_mapper.hpp"
 #include "utils.hpp"
 
 #include <cassert>
@@ -1248,7 +1249,7 @@ static bool valid_uri(const char* const uri)
 }
 #define VALIDATE(expr) \
     if (__builtin_expect(!(expr),0)) { _assert_print(#expr, __FILE__, __LINE__); abort(); return {}; }
-#define VALIDATE_INSTANCE_COUNT(n) VALIDATE(n >= 2 && n < 64)
+#define VALIDATE_INSTANCE_COUNT(n) VALIDATE(n >= 2 && n < kMaxHostInstances)
 #define VALIDATE_INSTANCE_NUMBER(n) VALIDATE(n >= 0 && n < MAX_MOD_HOST_INSTANCES)
 #define VALIDATE_INSTANCE_REMOVE_NUMBER(n) VALIDATE(n >= -1 && n < MAX_MOD_HOST_INSTANCES)
 #define VALIDATE_BPB(b) VALIDATE(b >= 1 && b <= 16)
