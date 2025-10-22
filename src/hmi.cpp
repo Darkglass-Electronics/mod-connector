@@ -113,32 +113,6 @@ struct HMI::Impl
         while (_poll(callback, error)) {}
 
         return error.empty();
-#if 0
-        // poll serial port
-        while (serialport != nullptr)
-        {
-            bool reading = true;
-            switch (serial_read_msg_until_zero(serialport, buf, debug))
-            {
-                case SP_READ_ERROR_NO_DATA:
-                    reading = false;
-                    break;
-
-                case SP_READ_ERROR_INVALID_DATA:
-                    reading = false;
-                    serial_read_ignore_until_zero(serialport);
-                    break;
-
-                case SP_READ_ERROR_IO:
-                    return false;
-            }
-
-            if (! reading)
-                break;
-            if (! parseAndReplyToMessage())
-                return false;
-        }
-#endif
     }
 
 private:
