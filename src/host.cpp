@@ -6,23 +6,12 @@
 #include "host.hpp"
 #include "config.h"
 #include "instance_mapper.hpp"
+#include "ipc.hpp"
 #include "utils.hpp"
 
 #include <cassert>
 #include <cstring>
-
-#ifdef _WIN32
-#include <winsock2.h>
-#else
-#include <fcntl.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <sys/socket.h>
-#include <unistd.h>
-#define closesocket close
-#define INVALID_SOCKET -1
-typedef int SOCKET;
-#endif
+#include <memory>
 
 // --------------------------------------------------------------------------------------------------------------------
 
@@ -60,22 +49,6 @@ enum HostError {
 
     ERR_MEMORY_ALLOCATION = -901,
     ERR_INVALID_OPERATION = -902
-};
-
-enum HostResponseType {
-    kHostResponseNone,
-    kHostResponseInteger,
-    kHostResponseFloat,
-    kHostResponseString,
-};
-
-struct HostResponse {
-    int code;
-    union {
-        int i;
-        float f;
-        char* s;
-    } data;
 };
 
 static const char* host_error_code_to_string(const int code)
@@ -152,198 +125,67 @@ struct Host::Impl
     Impl(std::string& last_error_)
         : last_error(last_error_)
     {
-       #ifdef __EMSCRIPTEN__
-        dummyDevMode = true;
-        return;
-       #endif
-
-        if (const char* const dev = std::getenv("MOD_DEV_HOST"))
-        {
-            if (std::atoi(dev) != 0)
-            {
-                dummyDevMode = true;
-                return;
-            }
-        }
-
-       #ifdef _WIN32
-        WSADATA wsaData;
-        if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
-        {
-            last_error = "WSAStartup failed";
-            return;
-        }
-
-        if (LOBYTE(wsaData.wVersion) != 2 || HIBYTE(wsaData.wVersion) != 2)
-        {
-            last_error = "WSAStartup version mismatch";
-            WSACleanup();
-            return;
-        }
-
-        wsaInitialized = true;
-       #endif
-
         reconnect();
     }
 
     ~Impl()
     {
         close();
-
-       #ifdef _WIN32
-        if (wsaInitialized)
-            WSACleanup();
-       #endif
     }
 
     bool reconnect()
     {
-        if (dummyDevMode)
-            return true;
-
-       #ifdef _WIN32
-        if (! wsaInitialized)
-            return false;
-       #endif
-
-        if (sockets.out != INVALID_SOCKET)
+        if (ipc == nullptr)
         {
-            last_error.clear();
-            return true;
-        }
-
-       #ifdef MOD_DEVICE_HOST_PORT
-        static constexpr const int port = MOD_DEVICE_HOST_PORT;
-       #else
-        int port;
-        if (const char* const portEnv = std::getenv("MOD_DEVICE_HOST_PORT"))
-        {
-            port = std::atoi(portEnv);
-
-            if (port == 0)
+           #ifdef MOD_DEVICE_HOST_PORT
+            static constexpr const int port = MOD_DEVICE_HOST_PORT;
+           #else
+            int port;
+            if (const char* const portEnv = std::getenv("MOD_DEVICE_HOST_PORT"))
             {
-                last_error = "No valid port specified, try setting `MOD_DEVICE_HOST_PORT` env var";
-                return false;
+                port = std::atoi(portEnv);
+
+                if (port == 0)
+                {
+                    last_error = "No valid port specified, try setting `MOD_DEVICE_HOST_PORT` env var";
+                    return false;
+                }
             }
-        }
-        else
-        {
-            port = 5555;
-        }
-       #endif
+            else
+            {
+                port = 5555;
+            }
+           #endif
 
-        if ((sockets.out = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET)
-        {
-            last_error = "output socket error";
-            return false;
+            ipc = std::make_unique<IPC>(port);
         }
 
-        if ((sockets.feedback = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET)
-        {
-            last_error = "feedback socket error";
-            ::closesocket(sockets.out);
-            sockets.out = INVALID_SOCKET;
-            return false;
-        }
+        last_error = ipc->last_error;
 
-       #ifndef _WIN32
-        /* increase socket size */
-        int value = 131071;
-        setsockopt(sockets.out, SOL_SOCKET, SO_RCVBUF, &value, sizeof(value));
-        setsockopt(sockets.feedback, SOL_SOCKET, SO_RCVBUF, &value, sizeof(value));
+        if (last_error.empty())
+            return true;
 
-        /* set TCP_NODELAY */
-        value = 1;
-        setsockopt(sockets.out, IPPROTO_TCP, TCP_NODELAY, &value, sizeof(value));
-        setsockopt(sockets.feedback, IPPROTO_TCP, TCP_NODELAY, &value, sizeof(value));
-       #endif
-
-        /* Startup the socket struct */
-        struct sockaddr_in serv_addr = {};
-        serv_addr.sin_family = AF_INET;
-        serv_addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-
-        /* Try assign the server address */
-        serv_addr.sin_port = htons(port);
-        if (::connect(sockets.out, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0)
-        {
-            close();
-            last_error = "output socket connect error";
-            return false;
-        }
-
-        serv_addr.sin_port = htons(port + 1);
-        if (::connect(sockets.feedback, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0)
-        {
-            close();
-            last_error = "feedback socket connect error";
-            return false;
-        }
-
-        /* set non-blocking mode on feedback port, so we can poke to see if there are any messages */
-       #ifdef _WIN32
-        unsigned long nonblocking = 1;
-        ::ioctlsocket(sockets.feedback, FIONBIO, &nonblocking);
-       #else
-        const int socketflags = ::fcntl(sockets.feedback, F_GETFL);
-        ::fcntl(sockets.feedback, F_SETFL, socketflags | O_NONBLOCK);
-       #endif
-
-        return true;
+        ipc = nullptr;
+        return false;
     }
 
     void close()
     {
-        if (sockets.out == INVALID_SOCKET)
-            return;
-
-        // make local copies so that we can invalidate these vars first
-        const SOCKET outsock = sockets.out;
-        const SOCKET fbsock = sockets.feedback;
-        sockets.out = sockets.feedback = INVALID_SOCKET;
-
-        ::closesocket(outsock);
-        ::closesocket(fbsock);
+        ipc.reset();
     }
 
     // ----------------------------------------------------------------------------------------------------------------
     // message handling
 
-    bool writeMessageAndWait(const std::string& message,
-                             const HostResponseType respType = kHostResponseNone,
-                             HostResponse* const resp = nullptr)
+    void setWriteBlockingAndWait(const bool blocking)
     {
-        if (dummyDevMode)
-        {
-            if (resp != nullptr)
-            {
-                *resp = {};
-                resp->code = SUCCESS;
-                switch (respType)
-                {
-                case kHostResponseNone:
-                    break;
-                case kHostResponseFloat:
-                    resp->data.f = 0.f;
-                    break;
-                case kHostResponseInteger:
-                    resp->data.i = 0;
-                    break;
-                case kHostResponseString:
-                    resp->data.s = strdup("");
-                    break;
-                }
-            }
-            return true;
-        }
+        ipc->setWriteBlockingAndWait(blocking);
+    }
 
-        if (sockets.out == INVALID_SOCKET)
-        {
-            last_error = "mod-host socket is not connected";
-            return false;
-        }
-
+    bool writeMessageAndWait(const std::string& message,
+                             const IPC::ResponseType respType = IPC::kResponseNone,
+                             IPC::Response* const resp = nullptr)
+    {
        #ifndef NDEBUG
         const bool canDebug = message != "output_data_ready";
         if (canDebug) {
@@ -351,373 +193,44 @@ struct Host::Impl
         }
        #endif
 
-        // write message to socket
-        {
-            const char* buffer = message.c_str();
-            size_t msgsize = message.size() + 1;
-            int ret;
+        if (ipc->writeMessage(message, respType, resp))
+            return true;
 
-            while (msgsize > 0)
-            {
-                ret = ::send(sockets.out, buffer, msgsize, 0);
-                if (ret < 0)
-                {
-                    last_error = "send error";
-                    return false;
-                }
-
-                msgsize -= ret;
-                buffer += ret;
-            }
-        }
-
-        // retrieve response
-        if (nonBlockingMode)
-        {
-            assert(resp == nullptr);
-
-            ++numNonBlockingOps;
-
-            mod_log_debug3("%s: non-block send, numNonBlockingOps: %u", __func__, numNonBlockingOps);
-        }
+        if (resp != nullptr && resp->code < 0)
+            last_error = host_error_code_to_string(resp->code);
         else
-        {
-            assert(numNonBlockingOps == 0);
+            last_error = ipc->last_error;
 
-            // use stack buffer first, in case of small messages
-            char stackbuffer[128];
-            char* buffer = stackbuffer;
-            size_t buffersize = sizeof(stackbuffer) / sizeof(stackbuffer[0]);
-            size_t written = 0;
-            last_error.clear();
-
-            for (int r;;)
-            {
-                r = recv(sockets.out, buffer + written, 1, 0);
-
-                /* Data received */
-                if (r == 1)
-                {
-                    // null terminator, stop
-                    if (buffer[written] == '\0')
-                        break;
-
-                    // increase buffer by 2x for longer messages
-                    if (++written == buffersize)
-                    {
-                        buffersize *= 2;
-
-                        if (stackbuffer == buffer)
-                        {
-                            buffer = static_cast<char*>(std::malloc(buffersize));
-                            std::memcpy(buffer, stackbuffer, sizeof(stackbuffer));
-                        }
-                        else
-                        {
-                            buffer = static_cast<char*>(std::realloc(buffer, buffersize));
-                        }
-                    }
-                }
-                /* Error */
-                else if (r < 0)
-                {
-                    last_error = "read error";
-                    break;
-                }
-                /* Client disconnected */
-                else
-                {
-                    last_error = "disconnected";
-                    break;
-                }
-            }
-
-            if (! last_error.empty())
-            {
-                mod_log_warn("error: %s", last_error.c_str());
-
-                if (stackbuffer != buffer)
-                    std::free(buffer);
-
-                return false;
-            }
-
-           #ifndef NDEBUG
-            if (canDebug) {
-                mod_log_debug("%s: received response: '%s'", __func__, buffer);
-            }
-           #endif
-
-            // special handling for string replies, read all incoming data
-            if (respType == kHostResponseString)
-            {
-                if (resp != nullptr)
-                {
-                    resp->code = SUCCESS;
-
-                    if (stackbuffer != buffer)
-                        resp->data.s = buffer;
-                    else
-                        resp->data.s = strdup(buffer);
-                }
-                else
-                {
-                    if (stackbuffer != buffer)
-                        std::free(buffer);
-                }
-
-                return true;
-            }
-
-            if (buffer[0] == '\0')
-            {
-                last_error = "mod-host reply is empty";
-                return false;
-            }
-            if (std::strncmp(buffer, "resp ", 5) != 0)
-            {
-                last_error = "mod-host reply is malformed (missing resp prefix)";
-                return false;
-            }
-            if (buffer[5] == '\0')
-            {
-                last_error = "mod-host reply is incomplete (less than 6 characters)";
-                return false;
-            }
-
-            char* const respbuffer = buffer + 5;
-            const char* respdata;
-            if (char* respargs = std::strchr(respbuffer, ' '))
-            {
-                *respargs = '\0';
-                respdata = respargs + 1;
-            }
-            else
-            {
-                respdata = nullptr;
-            }
-
-            // parse response error code
-            // bool ok = false;
-            const int respcode = std::atoi(respbuffer);
-
-            /*
-            if (! ok)
-            {
-                last_error = "failed to parse mod-host response error code";
-                return false;
-            }
-            */
-            if (respcode < 0)
-            {
-                last_error = host_error_code_to_string(respcode);
-                return false;
-            }
-
-            // stop here if not wanting response data
-            if (resp == nullptr)
-                return true;
-
-            *resp = {};
-            resp->code = respcode;
-
-            switch (respType)
-            {
-            case kHostResponseNone:
-            case kHostResponseString:
-                break;
-            case kHostResponseInteger:
-                resp->data.i = respdata != nullptr
-                             ? std::atoi(respdata)
-                             : 0;
-                break;
-            case kHostResponseFloat:
-                resp->data.f = respdata != nullptr
-                             ? std::atof(respdata)
-                             : 0.f;
-                break;
-            }
-        }
-
-        return true;
-    }
-
-    bool wait()
-    {
-        char c;
-        int r;
-        last_error.clear();
-
-       #ifndef NDEBUG
-        std::string cmd;
-        uint64_t* times;
-
-        if (_mod_log_level() >= 1)
-        {
-            cmd.reserve(8);
-            times = new uint64_t[numNonBlockingOps + 1];
-            times[numNonBlockingOps] = getTimeNS();
-        }
-        else
-        {
-            times = nullptr;
-        }
-       #endif
-
-        mod_log_debug("%s: begin, numNonBlockingOps: %u", __func__, numNonBlockingOps);
-
-        while (numNonBlockingOps != 0)
-        {
-            r = recv(sockets.out, &c, 1, 0);
-
-            /* Data received */
-            if (r == 1)
-            {
-                // fprintf(stderr, "%c", c);
-               #ifndef NDEBUG
-                if (times != nullptr)
-                    cmd += c;
-               #endif
-
-                if (c == '\0')
-                {
-                    --numNonBlockingOps;
-                    mod_log_debug3("%s: next, numNonBlockingOps: %u", __func__, numNonBlockingOps);
-
-                   #ifndef NDEBUG
-                    if (times != nullptr)
-                    {
-                        times[numNonBlockingOps] = getTimeNS();
-                        fprintf(stderr,
-                                "wait %03u %12lu %s\n",
-                                numNonBlockingOps,
-                                times[numNonBlockingOps] - times[numNonBlockingOps + 1],
-                                cmd.c_str());
-                        cmd.clear();
-                    }
-                   #endif
-                }
-            }
-            /* Error */
-            else if (r < 0)
-            {
-                last_error = "read error";
-                mod_log_warn("error: %s", last_error.c_str());
-                return false;
-            }
-            /* Client disconnected */
-            else
-            {
-                last_error = "disconnected";
-                mod_log_warn("error: %s", last_error.c_str());
-                return false;
-            }
-        }
-
-       #ifndef NDEBUG
-        delete[] times;
-       #endif
-
-        mod_log_debug("%s: end, numNonBlockingOps: %u", __func__, numNonBlockingOps);
-        return true;
+        return false;
     }
 
     // ----------------------------------------------------------------------------------------------------------------
     // feedback port handling
 
-    bool poll(FeedbackCallback* const callback) const
+    [[nodiscard]] bool poll(FeedbackCallback* const callback) const
     {
         std::string error;
 
-        while (!dummyDevMode && _poll(callback, error)) {}
+        while (_poll(callback, error)) {}
 
         return error.empty();
     }
 
 private:
-    bool _poll(FeedbackCallback* const callback, std::string& error) const
+    [[nodiscard]] bool _poll(FeedbackCallback* const callback, std::string& error) const
     {
-        // read first byte
-        char firstbyte = '\0';
-        int r = recv(sockets.feedback, &firstbyte, 1, 0);
+        uint32_t bytesRead;
+        char* const buffer = ipc->readMessage(&bytesRead);
 
-        // nothing to read, quit
-        if (r == 0)
-            return false;
-
-        if (r < 0)
+        if (buffer == nullptr)
         {
-            error = "read error";
+            error = ipc->last_error;
             return false;
         }
-
-        // set blocking mode, so we block-wait until message is fully delivered
-       #ifdef _WIN32
-        unsigned long blocking = 0;
-        ::ioctlsocket(sockets.feedback, FIONBIO, &blocking);
-       #else
-        const int socketflags = ::fcntl(sockets.feedback, F_GETFL);
-        ::fcntl(sockets.feedback, F_SETFL, socketflags & ~O_NONBLOCK);
-       #endif
-
-        // use stack buffer first, in case of small messages
-        char stackbuffer[128] = { firstbyte, };
-        char* buffer = stackbuffer;
-        size_t buffersize = sizeof(stackbuffer) / sizeof(stackbuffer[0]);
-        size_t read = 1;
-
-        for (;;)
-        {
-            r = recv(sockets.feedback, buffer + read, 1, 0);
-
-            /* Data received */
-            if (r == 1)
-            {
-                // null terminator, stop
-                if (buffer[read] == '\0')
-                    break;
-
-                // increase buffer by 2x for longer messages
-                if (++read == buffersize)
-                {
-                    buffersize *= 2;
-
-                    if (stackbuffer == buffer)
-                    {
-                        buffer = static_cast<char*>(std::malloc(buffersize));
-                        std::memcpy(buffer, stackbuffer, sizeof(stackbuffer));
-                    }
-                    else
-                    {
-                        buffer = static_cast<char*>(std::realloc(buffer, buffersize));
-                    }
-                }
-            }
-            /* Error */
-            else if (r < 0)
-            {
-                error = "read error";
-                break;
-            }
-            /* Client disconnected */
-            else
-            {
-                error = "disconnected";
-                break;
-            }
-        }
-
-        // set non-blocking mode again
-       #ifdef _WIN32
-        unsigned long nonblocking = 1;
-        ::ioctlsocket(sockets.feedback, FIONBIO, &nonblocking);
-       #else
-        ::fcntl(sockets.feedback, F_SETFL, socketflags | O_NONBLOCK);
-       #endif
 
         if (std::strncmp(buffer, "audio_monitor ", 14) == 0)
         {
-            assert(read > 16);
+            assert(bytesRead > 16);
             HostFeedbackData d = { HostFeedbackData::kFeedbackAudioMonitor, {} };
 
             char* msgbuffer;
@@ -737,7 +250,7 @@ private:
         }
         else if (std::strncmp(buffer, "cpu_load ", 9) == 0)
         {
-            assert(read > 11);
+            assert(bytesRead > 11);
             HostFeedbackData d = { HostFeedbackData::kFeedbackCpuLoad, {} };
 
             char* msgbuffer;
@@ -763,7 +276,7 @@ private:
         }
         else if (std::strncmp(buffer, "param_set ", 10) == 0)
         {
-            assert(read > 12);
+            assert(bytesRead > 12);
             HostFeedbackData d = { HostFeedbackData::kFeedbackParameterSet, {} };
 
             char* msgbuffer;
@@ -789,7 +302,7 @@ private:
         }
         else if (std::strncmp(buffer, "patch_set ", 10) == 0)
         {
-            assert(read > 12);
+            assert(bytesRead > 12);
             HostFeedbackData d = { HostFeedbackData::kFeedbackPatchSet, {} };
 
             char* msgbuffer;
@@ -950,7 +463,7 @@ private:
         }
         else if (std::strncmp(buffer, "output_set ", 11) == 0)
         {
-            assert(read > 13);
+            assert(bytesRead > 13);
             HostFeedbackData d = { HostFeedbackData::kFeedbackOutputMonitor, {} };
 
             char* msgbuffer;
@@ -976,7 +489,7 @@ private:
         }
         else if (std::strncmp(buffer, "midi_control_change ", 20) == 0)
         {
-            assert(read > 22);
+            assert(bytesRead > 22);
             HostFeedbackData d = { HostFeedbackData::kFeedbackMidiControlChange, {} };
 
             char* msgbuffer;
@@ -1002,7 +515,7 @@ private:
         }
         else if (std::strncmp(buffer, "midi_program_change ", 20) == 0)
         {
-            assert(read > 22);
+            assert(bytesRead > 22);
             HostFeedbackData d = { HostFeedbackData::kFeedbackMidiProgramChange, {} };
 
             char* msgbuffer;
@@ -1022,7 +535,7 @@ private:
         }
         else if (std::strncmp(buffer, "midi_mapped ", 12) == 0)
         {
-            assert(read > 14);
+            assert(bytesRead > 14);
             HostFeedbackData d = { HostFeedbackData::kFeedbackMidiMapped, {} };
 
             char* msgbuffer;
@@ -1072,7 +585,7 @@ private:
         }
         else if (std::strncmp(buffer, "transport ", 10) == 0)
         {
-            assert(read > 12);
+            assert(bytesRead > 12);
             HostFeedbackData d = { HostFeedbackData::kFeedbackTransport, {} };
 
             char* msgbuffer;
@@ -1098,7 +611,7 @@ private:
         }
         else if (std::strncmp(buffer, "log ", 4) == 0)
         {
-            assert(read > 6);
+            assert(bytesRead > 6);
             HostFeedbackData d = { HostFeedbackData::kFeedbackLog, {} };
 
             switch (buffer[4])
@@ -1122,26 +635,12 @@ private:
             mod_log_warn("unknown feedback message '%s'\n", buffer);
         }
 
-        if (stackbuffer != buffer)
-            std::free(buffer);
-
         return true;
     }
 
     // ----------------------------------------------------------------------------------------------------------------
 
-    bool dummyDevMode = false;
-    bool nonBlockingMode = false;
-    uint16_t numNonBlockingOps = 0;
-
-    struct {
-        SOCKET out = INVALID_SOCKET;
-        SOCKET feedback = INVALID_SOCKET;
-    } sockets;
-
-   #ifdef _WIN32
-    bool wsaInitialized = false;
-   #endif
+    std::unique_ptr<IPC> ipc;
 
     friend class NonBlockingScope;
     friend class NonBlockingScopeWithAudioFades;
@@ -1157,17 +656,12 @@ Host::~Host() { delete impl; }
 Host::NonBlockingScope::NonBlockingScope(Host& host_)
     : host(host_)
 {
-    assert(! host.impl->nonBlockingMode);
-
-    host.impl->nonBlockingMode = true;
+    host.impl->setWriteBlockingAndWait(false);
 }
 
 Host::NonBlockingScope::~NonBlockingScope()
 {
-    assert(host.impl->nonBlockingMode);
-
-    host.impl->nonBlockingMode = false;
-    host.impl->wait();
+    host.impl->setWriteBlockingAndWait(true);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -1175,19 +669,14 @@ Host::NonBlockingScope::~NonBlockingScope()
 Host::NonBlockingScopeWithAudioFades::NonBlockingScopeWithAudioFades(Host& host_)
     : host(host_)
 {
-    assert(! host.impl->nonBlockingMode);
-
-    host.impl->nonBlockingMode = true;
+    host.impl->setWriteBlockingAndWait(false);
     host.feature_enable(Host::kFeatureProcessing, Host::kProcessingOffWithFadeOut);
 }
 
 Host::NonBlockingScopeWithAudioFades::~NonBlockingScopeWithAudioFades()
 {
-    assert(host.impl->nonBlockingMode);
-
     host.feature_enable(Host::kFeatureProcessing, Host::kProcessingOnWithFadeIn);
-    host.impl->nonBlockingMode = false;
-    host.impl->wait();
+    host.impl->setWriteBlockingAndWait(true);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -1336,8 +825,8 @@ std::string Host::preset_show(const char* const preset_uri)
 {
     VALIDATE_URI(preset_uri);
 
-    HostResponse resp = {};
-    if (impl->writeMessageAndWait(format("preset_show %s", preset_uri), kHostResponseString, &resp))
+    IPC::Response resp = {};
+    if (impl->writeMessageAndWait(format("preset_show %s", preset_uri), IPC::kResponseString, &resp))
     {
         std::string ret(resp.data.s);
         std::free(resp.data.s);
@@ -1392,9 +881,9 @@ float Host::param_get(const int16_t instance_number, const char* const param_sym
     VALIDATE_INSTANCE_NUMBER(instance_number)
     VALIDATE_SYMBOL(param_symbol)
 
-    HostResponse resp = {};
+    IPC::Response resp = {};
     return impl->writeMessageAndWait(format("param_get %d %s", instance_number, param_symbol),
-                                     kHostResponseFloat,
+                                     IPC::kResponseFloat,
                                      &resp) ? resp.data.f : 0.f;
 }
 
@@ -1449,8 +938,8 @@ std::string Host::licensee(const int16_t instance_number)
 {
     VALIDATE_INSTANCE_NUMBER(instance_number)
 
-    HostResponse resp = {};
-    if (impl->writeMessageAndWait(format("licensee %d", instance_number), kHostResponseString, &resp))
+    IPC::Response resp = {};
+    if (impl->writeMessageAndWait(format("licensee %d", instance_number), IPC::kResponseString, &resp))
     {
         std::string ret(resp.data.s);
         std::free(resp.data.s);
@@ -1650,14 +1139,14 @@ bool Host::hmi_unmap(const int16_t instance_number, const char* const param_symb
 
 float Host::cpu_load()
 {
-    HostResponse resp = {};
-    return impl->writeMessageAndWait("cpu_load", kHostResponseFloat, &resp) ? resp.data.f : 0.f;
+    IPC::Response resp = {};
+    return impl->writeMessageAndWait("cpu_load", IPC::kResponseFloat, &resp) ? resp.data.f : 0.f;
 }
 
 float Host::max_cpu_load()
 {
-    HostResponse resp = {};
-    return impl->writeMessageAndWait("max_cpu_load", kHostResponseFloat, &resp) ? resp.data.f : 0.f;
+    IPC::Response resp = {};
+    return impl->writeMessageAndWait("max_cpu_load", IPC::kResponseFloat, &resp) ? resp.data.f : 0.f;
 }
 
 bool Host::load(const char* const file_name)

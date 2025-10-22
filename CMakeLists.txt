@@ -25,6 +25,7 @@ if (lv2_1_18_FOUND)
 else()
   pkg_check_modules(lv2 REQUIRED IMPORTED_TARGET lv2)
 endif()
+pkg_check_modules(serialport IMPORTED_TARGET libserialport)
 
 #######################################################################################################################
 # Setup connector target
@@ -62,6 +63,7 @@ if(PROJECT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR AND NOT MOD_CONNECTOR_TESTS)
   target_compile_definitions(mod-connector
     PRIVATE
       $<$<BOOL:${lv2_1_18_FOUND}>:HAVE_LV2_1_18>
+      $<$<BOOL:${serialport_FOUND}>:HAVE_SERIALPORT>
       $<$<BOOL:${systemd_FOUND}>:HAVE_SYSTEMD>
   )
 
@@ -82,6 +84,7 @@ if(PROJECT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR AND NOT MOD_CONNECTOR_TESTS)
     PRIVATE
       PkgConfig::lilv
       PkgConfig::lv2
+      $<$<BOOL:${serialport_FOUND}>:PkgConfig::serialport>
       $<$<BOOL:${systemd_FOUND}>:PkgConfig::systemd>
       Qt::Core
       Qt::Network
@@ -94,10 +97,12 @@ if(PROJECT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR AND NOT MOD_CONNECTOR_TESTS)
       src/connector.cpp
       src/host.cpp
       src/instance_mapper.cpp
+      src/ipc.cpp
       src/lv2.cpp
       src/main.cpp
       src/utils.cpp
       src/websocket.cpp
+      $<$<BOOL:${serialport_FOUND}>:src/hmi.cpp>
   )
 
   add_executable(tests)
@@ -105,6 +110,7 @@ if(PROJECT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR AND NOT MOD_CONNECTOR_TESTS)
   target_compile_definitions(tests
     PRIVATE
       $<$<BOOL:${lv2_1_18_FOUND}>:HAVE_LV2_1_18>
+      $<$<BOOL:${serialport_FOUND}>:HAVE_SERIALPORT>
       JACK_CAPTURE_PORT_2="system:capture_1" # 1in 2out system for tests
       NUM_BLOCK_CHAIN_ROWS=2
   )
@@ -119,6 +125,7 @@ if(PROJECT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR AND NOT MOD_CONNECTOR_TESTS)
       PkgConfig::jack
       PkgConfig::lilv
       PkgConfig::lv2
+      $<$<BOOL:${serialport_FOUND}>:PkgConfig::serialport>
       Qt::Core
   )
 
@@ -127,9 +134,11 @@ if(PROJECT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR AND NOT MOD_CONNECTOR_TESTS)
       src/connector.cpp
       src/host.cpp
       src/instance_mapper.cpp
+      src/ipc.cpp
       src/lv2.cpp
       src/tests.cpp
       src/utils.cpp
+      $<$<BOOL:${serialport_FOUND}>:src/hmi.cpp>
   )
 
 else()
@@ -141,6 +150,7 @@ else()
   target_compile_definitions(mod-connector
     INTERFACE
       $<$<BOOL:${lv2_1_18_FOUND}>:HAVE_LV2_1_18>
+      $<$<BOOL:${serialport_FOUND}>:HAVE_SERIALPORT>
   )
 
   target_include_directories(mod-connector
@@ -152,6 +162,7 @@ else()
     INTERFACE
       PkgConfig::lilv
       PkgConfig::lv2
+      $<$<BOOL:${serialport_FOUND}>:PkgConfig::serialport>
       $<$<BOOL:${WIN32}>:ws2_32>
   )
 
@@ -159,9 +170,11 @@ else()
     INTERFACE
       ${CMAKE_CURRENT_LIST_DIR}/src/connector.cpp
       ${CMAKE_CURRENT_LIST_DIR}/src/host.cpp
+      ${CMAKE_CURRENT_LIST_DIR}/src/ipc.cpp
       ${CMAKE_CURRENT_LIST_DIR}/src/instance_mapper.cpp
       ${CMAKE_CURRENT_LIST_DIR}/src/lv2.cpp
       ${CMAKE_CURRENT_LIST_DIR}/src/utils.cpp
+      $<$<BOOL:${serialport_FOUND}>:${CMAKE_CURRENT_LIST_DIR}/src/hmi.cpp>
   )
 
 endif()
