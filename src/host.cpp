@@ -161,7 +161,12 @@ struct Host::Impl
         }
 
         last_error = ipc->last_error;
-        return ipc->last_error.empty();
+
+        if (last_error.empty())
+            return true;
+
+        ipc = nullptr;
+        return false;
     }
 
     void close()
