@@ -95,7 +95,6 @@ if(PROJECT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR AND NOT MOD_CONNECTOR_TESTS)
   target_sources(mod-connector
     PRIVATE
       src/connector.cpp
-      src/hmi.cpp
       src/host.cpp
       src/instance_mapper.cpp
       src/ipc.cpp
@@ -103,6 +102,7 @@ if(PROJECT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR AND NOT MOD_CONNECTOR_TESTS)
       src/main.cpp
       src/utils.cpp
       src/websocket.cpp
+      $<$<BOOL:${serialport_FOUND}>:src/hmi.cpp>
   )
 
   add_executable(tests)
@@ -132,13 +132,13 @@ if(PROJECT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR AND NOT MOD_CONNECTOR_TESTS)
   target_sources(tests
     PRIVATE
       src/connector.cpp
-      src/hmi.cpp
       src/host.cpp
       src/instance_mapper.cpp
       src/ipc.cpp
       src/lv2.cpp
       src/tests.cpp
       src/utils.cpp
+      $<$<BOOL:${serialport_FOUND}>:src/hmi.cpp>
   )
 
 else()
@@ -169,12 +169,12 @@ else()
   target_sources(mod-connector
     INTERFACE
       ${CMAKE_CURRENT_LIST_DIR}/src/connector.cpp
-      ${CMAKE_CURRENT_LIST_DIR}/src/hmi.cpp
       ${CMAKE_CURRENT_LIST_DIR}/src/host.cpp
       ${CMAKE_CURRENT_LIST_DIR}/src/ipc.cpp
       ${CMAKE_CURRENT_LIST_DIR}/src/instance_mapper.cpp
       ${CMAKE_CURRENT_LIST_DIR}/src/lv2.cpp
       ${CMAKE_CURRENT_LIST_DIR}/src/utils.cpp
+      $<$<BOOL:${serialport_FOUND}>:${CMAKE_CURRENT_LIST_DIR}/src/hmi.cpp>
   )
 
 endif()
