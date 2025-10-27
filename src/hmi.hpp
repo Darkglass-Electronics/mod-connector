@@ -77,6 +77,12 @@ struct HMI
     const std::array<ActuatorPage, NUM_BINDING_PAGES> &actuatorPages = _actuatorPages;
     const uint8_t &page = _page;
 
+    // helper for fetching current actuator page
+    [[nodiscard]] inline const ActuatorPage& currentActuatorPage() const
+    {
+        return _actuatorPages[_page];
+    }
+
     /**
      * string describing the last error, in case any operation fails.
      * will also be set during initialization in case of HMI connection failure.

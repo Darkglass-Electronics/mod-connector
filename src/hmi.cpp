@@ -158,7 +158,8 @@ private:
             const int hw_id = std::atoi(buffer + 2);
             assert(hw_id < NUM_BINDING_ACTUATORS);
 
-            Actuator& actuator = actuatorPages[page].actuators[hw_id];
+            ActuatorPage& actuatorPage = actuatorPages[page];
+            Actuator& actuator = actuatorPage.actuators[hw_id];
 
             char *sep = buffer + 4;
             char *name, *unit;
@@ -218,6 +219,7 @@ private:
                          hw_id, name, unit, actuator.flags,
                          actuator.current, actuator.max, actuator.min, actuator.steps);
 
+            actuatorPage.active = true;
             actuator.assigned = true;
 
             HMICallbackData d = { HMICallbackData::kControlAdd, {} };
@@ -233,9 +235,12 @@ private:
             const int hw_id = std::atoi(buffer + 2);
             assert(hw_id < NUM_BINDING_ACTUATORS);
 
-            Actuator& actuator = actuatorPages[page].actuators[hw_id];
+            ActuatorPage& actuatorPage = actuatorPages[page];
+            Actuator& actuator = actuatorPage.actuators[hw_id];
 
             mod_log_warn("HMI control remove %d", hw_id);
+
+            // TODO update actuatorPage
 
             actuator = {};
 
