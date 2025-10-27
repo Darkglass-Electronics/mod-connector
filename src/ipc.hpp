@@ -9,8 +9,7 @@
 struct IPC
 {
     /**
-     * string describing the last error, in case any operation fails.
-     * will also be set during initialization in case of IPC connection failure.
+     * type of message response expected to be received.
      */
     enum ResponseType {
         kResponseNone,
@@ -20,8 +19,8 @@ struct IPC
     };
 
     /**
-     * string describing the last error, in case any operation fails.
-     * will also be set during initialization in case of IPC connection failure.
+     * message response with error code and optional data.
+     * there is no generic handling, response is specific to the message being sent.
      */
     struct Response {
         int code;
