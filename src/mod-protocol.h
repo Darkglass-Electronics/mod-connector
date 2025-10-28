@@ -81,7 +81,7 @@
 //HOST action: returns the assigned control value via control_set
 #define CMD_CONTROL_GET               "g %i"
 
-// control_set <hw_id><value>
+// control_set <hw_id> <value>
 //response: `r 0`
 //HMI action: sends assigned control data
 //HOST action: sends assigned control data

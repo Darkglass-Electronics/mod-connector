@@ -48,16 +48,12 @@ static bool rebootInRecoveryMode()
 
 // --------------------------------------------------------------------------------------------------------------------
 
-struct HMI::Impl
+struct HMIProto::Impl
 {
     std::string& last_error;
 
-    Impl(std::array<ActuatorPage, NUM_BINDING_PAGES> &actuatorPages_,
-         uint8_t &page_,
-         std::string& last_error_)
-        : last_error(last_error_),
-          actuatorPages(actuatorPages_),
-          page(page_)
+    Impl(std::string& last_error_)
+        : last_error(last_error_)
     {
     }
 
@@ -158,8 +154,8 @@ private:
             const int hw_id = std::atoi(buffer + 2);
             assert(hw_id < NUM_BINDING_ACTUATORS);
 
-            ActuatorPage& actuatorPage = actuatorPages[page];
-            Actuator& actuator = actuatorPage.actuators[hw_id];
+            HMICallbackData d = { HMICallbackData::kControlAdd, {} };
+            d.controlAdd.hw_id = hw_id;
 
             char *sep = buffer + 4;
             char *name, *unit;
@@ -178,9 +174,9 @@ private:
                 assert(sep != nullptr);
             }
             *sep++ = '\0';
-            actuator.name = name;
+            d.controlAdd.label = name;
 
-            actuator.flags = std::atoi(sep);
+            d.controlAdd.flags = std::atoi(sep);
             sep = std::strchr(sep, ' ') + 1;
             assert(sep != nullptr);
 
@@ -198,32 +194,23 @@ private:
                 assert(sep != nullptr);
             }
             *sep++ = '\0';
-            actuator.unit = unit;
+            d.controlAdd.unit = unit;
 
-            actuator.current = std::atof(sep);
+            d.controlAdd.current = std::atof(sep);
             sep = std::strchr(sep, ' ') + 1;
             assert(sep != nullptr);
 
-            actuator.max = std::atof(sep);
+            d.controlAdd.max = std::atof(sep);
             sep = std::strchr(sep, ' ') + 1;
             assert(sep != nullptr);
 
-            actuator.min = std::atof(sep);
+            d.controlAdd.min = std::atof(sep);
             sep = std::strchr(sep, ' ') + 1;
             assert(sep != nullptr);
 
-            actuator.steps = std::atoi(sep);
+            d.controlAdd.steps = std::atoi(sep);
             // sep = std::strchr(sep, ' ') + 1;
 
-            mod_log_warn("HMI control add %d \"%s\" \"%s\" %d %f %f %f %d",
-                         hw_id, name, unit, actuator.flags,
-                         actuator.current, actuator.max, actuator.min, actuator.steps);
-
-            actuatorPage.active = true;
-            actuator.assigned = true;
-
-            HMICallbackData d = { HMICallbackData::kControlAdd, {} };
-            d.controlAdd.hw_id = hw_id;
             callback->hmiCallback(d);
 
             return _writeReply("r 0");
@@ -234,15 +221,6 @@ private:
         {
             const int hw_id = std::atoi(buffer + 2);
             assert(hw_id < NUM_BINDING_ACTUATORS);
-
-            ActuatorPage& actuatorPage = actuatorPages[page];
-            Actuator& actuator = actuatorPage.actuators[hw_id];
-
-            mod_log_warn("HMI control remove %d", hw_id);
-
-            // TODO update actuatorPage
-
-            actuator = {};
 
             HMICallbackData d = { HMICallbackData::kControlRemove, {} };
             d.controlRemove.hw_id = hw_id;
@@ -259,16 +237,9 @@ private:
             const int hw_id = std::atoi(buffer + 2);
             assert(hw_id < NUM_BINDING_ACTUATORS);
 
-            Actuator& actuator = actuatorPages[page].actuators[hw_id];
-
-            const float value = std::atof(buffer + 4);
-
-            mod_log_warn("HMI control set %d %f", hw_id, value);
-
-            actuator.current = value;
-
             HMICallbackData d = { HMICallbackData::kControlSet, {} };
             d.controlSet.hw_id = hw_id;
+            d.controlSet.value = std::atof(buffer + 4);
             callback->hmiCallback(d);
 
             return _writeReply("r 0");
@@ -277,13 +248,6 @@ private:
         // clear all addressings
         if (std::strcmp(buffer, CMD_PEDALBOARD_CLEAR) == 0)
         {
-            for (int i = 0; i < NUM_BINDING_PAGES; ++i)
-            {
-                actuatorPages[i].active = false;
-                for (int j = 0; j < NUM_BINDING_ACTUATORS; ++j)
-                    actuatorPages[i].actuators[j] = {};
-            }
-
             HMICallbackData d = { HMICallbackData::kPedalboardClear, {} };
             callback->hmiCallback(d);
 
@@ -312,11 +276,6 @@ private:
 
     // ----------------------------------------------------------------------------------------------------------------
 
-    std::array<ActuatorPage, NUM_BINDING_PAGES> &actuatorPages;
-    uint8_t &page;
-
-    // ----------------------------------------------------------------------------------------------------------------
-
     std::unique_ptr<IPC> ipc;
 
     friend class NonBlockingScope;
@@ -324,47 +283,140 @@ private:
 
 // --------------------------------------------------------------------------------------------------------------------
 
-HMI::HMI(const char* const serial, const int baudrate)
-    : impl(new Impl(_actuatorPages, _page, last_error))
+HMIProto::HMIProto(const char* const serial, const int baudrate)
+    : impl(new Impl(last_error))
 {
     impl->open(serial, baudrate);
 }
 
-HMI::~HMI() { delete impl; }
+HMIProto::~HMIProto() { delete impl; }
 
 // --------------------------------------------------------------------------------------------------------------------
 
-HMI::NonBlockingScope::NonBlockingScope(HMI& hmi_)
+HMIProto::NonBlockingScope::NonBlockingScope(HMIProto& hmi_)
     : hmi(hmi_)
 {
     hmi.impl->setWriteBlockingAndWait(false);
 }
 
-HMI::NonBlockingScope::~NonBlockingScope()
+HMIProto::NonBlockingScope::~NonBlockingScope()
 {
     hmi.impl->setWriteBlockingAndWait(true);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
 
-bool HMI::control_set(uint8_t hw_id, float value)
+bool HMIProto::control_set(uint8_t hw_id, float value)
 {
-    assert(hw_id < NUM_BINDING_ACTUATORS);
-    assert(_page < NUM_BINDING_PAGES);
-
-    ActuatorPage& actuatorPage = _actuatorPages[_page];
-    assert(actuatorPage.active);
-    assert(hw_id < actuatorPage.actuators.size());
-
-    Actuator& actuator = actuatorPage.actuators[hw_id];
-    assert(actuator.assigned);
-
-    actuator.current = value;
-
     return impl->writeMessageAndWait(format(CMD_CONTROL_SET, hw_id, value));
 }
 
-bool HMI::poll(Callback* const callback)
+bool HMIProto::_poll(Callback* const callback)
 {
     return impl->poll(callback);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+HMI::HMI(Callback* const callback, const char* const serial, const int baudrate)
+    : HMIProto(serial, baudrate),
+      _callback(callback)
+{
+}
+
+bool HMI::poll()
+{
+    return _poll(this);
+}
+
+void HMI::hmiCallback(const Data &data)
+{
+    switch (data.type)
+    {
+    case HMICallbackData::kConnected:
+        _webConnected = true;
+        break;
+
+    case HMICallbackData::kDisconnected:
+        _webConnected = false;
+        break;
+
+    case HMICallbackData::kControlAdd:
+    {
+        const uint8_t hw_id = data.controlAdd.hw_id;
+        assert(hw_id < NUM_BINDING_ACTUATORS);
+
+        ActuatorPage& actuatorPage = _actuatorPages[_page];
+        assert(hw_id < actuatorPage.actuators.size());
+
+        Actuator& actuator = actuatorPage.actuators[hw_id];
+        assert(!actuator.assigned);
+
+        actuator.assigned = true;
+        actuator.label = data.controlAdd.label;
+        actuator.unit = data.controlAdd.unit;
+        actuator.flags = data.controlAdd.flags;
+        actuator.current = data.controlAdd.current;
+        actuator.min = data.controlAdd.min;
+        actuator.max = data.controlAdd.max;
+        actuator.steps = data.controlAdd.steps;
+
+        actuatorPage.active = true;
+        break;
+    }
+
+    case HMICallbackData::kControlRemove:
+    {
+        const uint8_t hw_id = data.controlRemove.hw_id;
+        assert(hw_id < NUM_BINDING_ACTUATORS);
+
+        ActuatorPage& actuatorPage = _actuatorPages[_page];
+        assert(hw_id < actuatorPage.actuators.size());
+
+        Actuator& actuator = actuatorPage.actuators[hw_id];
+        assert(actuator.assigned);
+
+        actuator = {};
+
+        bool active = false;
+        for (int i = 0; i < NUM_BINDING_ACTUATORS; ++i)
+        {
+            if (actuatorPage.actuators[i].assigned)
+            {
+                active = true;
+                break;
+            }
+        }
+
+        actuatorPage.active = active;
+        break;
+    }
+
+    case HMICallbackData::kControlSet:
+    {
+        const uint8_t hw_id = data.controlSet.hw_id;
+        assert(hw_id < NUM_BINDING_ACTUATORS);
+
+        ActuatorPage& actuatorPage = _actuatorPages[_page];
+        assert(actuatorPage.active);
+        assert(hw_id < actuatorPage.actuators.size());
+
+        Actuator& actuator = actuatorPage.actuators[hw_id];
+        assert(actuator.assigned);
+
+        actuator.current = data.controlSet.value;
+        break;
+    }
+
+    case HMICallbackData::kPedalboardClear:
+        for (int i = 0; i < NUM_BINDING_PAGES; ++i)
+        {
+            _actuatorPages[i].active = false;
+            for (int j = 0; j < NUM_BINDING_ACTUATORS; ++j)
+                _actuatorPages[i].actuators[j] = {};
+        }
+        break;
+    }
+
+    _callback->hmiCallback(data);
 }

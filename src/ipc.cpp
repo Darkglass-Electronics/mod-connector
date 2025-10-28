@@ -476,7 +476,9 @@ private:
         [[nodiscard]] int readResponseByte(char* c) final;
         [[nodiscard]] bool writeMessage(const std::string& message) final;
 
+       #ifdef _WIN32
         bool wsaInitialized = false;
+       #endif
 
         struct {
             SOCKET out = INVALID_SOCKET;

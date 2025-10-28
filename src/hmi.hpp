@@ -9,9 +9,11 @@
 #include <array>
 #include <string>
 
+struct HMI;
+
 // --------------------------------------------------------------------------------------------------------------------
 
-struct HMI
+struct HMIProto
 {
     /**
      * Callback used for receiving messages, triggered via poll().
@@ -36,6 +38,13 @@ struct HMI
                 // kControlAdd
                 struct {
                     uint8_t hw_id;
+                    const char* label;
+                    const char* unit;
+                    uint32_t flags;
+                    float current;
+                    float min;
+                    float max;
+                    int steps;
                 } controlAdd;
                 // kControlRemove
                 struct {
@@ -44,44 +53,19 @@ struct HMI
                 // kControlSet
                 struct {
                     uint8_t hw_id;
+                    float value;
                 } controlSet;
             };
         };
 
         /** destructor */
-        virtual ~Callback() {}
+        virtual ~Callback() = default;
 
         /**
          * HMI message received.
          */
         virtual void hmiCallback(const Data &data) = 0;
     };
-
-    struct Actuator {
-        bool assigned = false;
-        int flags = 0;
-        int steps = 0;
-        float min = 0.f;
-        float max = 1.f;
-        float current = 0.f;
-        std::string name;
-        std::string unit;
-    };
-
-    struct ActuatorPage {
-        std::array<Actuator, NUM_BINDING_ACTUATORS> actuators;
-        bool active;
-    };
-
-    // publicly accessible read-only data
-    const std::array<ActuatorPage, NUM_BINDING_PAGES> &actuatorPages = _actuatorPages;
-    const uint8_t &page = _page;
-
-    // helper for fetching current actuator page
-    [[nodiscard]] inline const ActuatorPage& currentActuatorPage() const
-    {
-        return _actuatorPages[_page];
-    }
 
     /**
      * string describing the last error, in case any operation fails.
@@ -155,10 +139,8 @@ struct HMI
     // changes the tuner input source
     bool tuner_input(uint8_t input);
 
-    HMI(const char *serial, int baudrate);
-    ~HMI();
-
-    bool poll(Callback* callback);
+    HMIProto(const char *serial, int baudrate);
+    ~HMIProto();
 
    /**
      * class to activate non-blocking mode during a function scope.
@@ -166,20 +148,70 @@ struct HMI
      * while only waiting once (in the class destructor).
      */
     class NonBlockingScope {
-        HMI& hmi;
+        HMIProto& hmi;
     public:
-        NonBlockingScope(HMI& hmi);
+        NonBlockingScope(HMIProto& hmi);
         ~NonBlockingScope();
     };
+
+private:
+    // private details
+    struct Impl;
+    Impl *const impl;
+
+    bool _poll(Callback* callback);
+    friend struct HMI;
+};
+
+// --------------------------------------------------------------------------------------------------------------------
+
+struct HMI : HMIProto,
+             private HMIProto::Callback
+{
+    using Callback = HMIProto::Callback;
+
+    struct Actuator {
+        bool assigned = false;
+        std::string label;
+        std::string unit;
+        uint32_t flags = 0;
+        float current = 0.f;
+        float min = 0.f;
+        float max = 1.f;
+        int steps = 0;
+    };
+
+    struct ActuatorPage {
+        std::array<Actuator, NUM_BINDING_ACTUATORS> actuators;
+        bool active;
+    };
+
+    // publicly accessible read-only data
+    const std::array<ActuatorPage, NUM_BINDING_PAGES> &actuatorPages = _actuatorPages;
+    const uint8_t &page = _page;
+    const bool &webConnected = _webConnected;
+
+    // helper for fetching current actuator page
+    [[nodiscard]] inline const ActuatorPage& currentActuatorPage() const
+    {
+        return _actuatorPages[_page];
+    }
+
+    HMI(Callback* callback, const char *serial, int baudrate);
+
+    bool poll();
 
 private:
     // private writable data
     std::array<ActuatorPage, NUM_BINDING_PAGES> _actuatorPages;
     uint8_t _page = 0;
+    bool _webConnected = false;
 
-    // private details
-    struct Impl;
-    Impl *const impl;
+    // callback handling for updates of accessible data
+    Callback* const _callback;
+    void hmiCallback(const Data &data) final;
 };
 
-using HMICallbackData = HMI::Callback::Data;
+// --------------------------------------------------------------------------------------------------------------------
+
+using HMICallbackData = HMIProto::Callback::Data;
