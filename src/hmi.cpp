@@ -128,7 +128,6 @@ private:
             return _writeReply("r 0");
         }
 
-        // web-ui is connected
         if (std::strcmp(buffer, CMD_GUI_CONNECTED) == 0)
         {
             HMICallbackData d = { HMICallbackData::kConnected, {} };
@@ -137,7 +136,6 @@ private:
             return _writeReply("r 0");
         }
 
-        // web-ui is disconnected
         if (std::strcmp(buffer, CMD_GUI_DISCONNECTED) == 0)
         {
             HMICallbackData d = { HMICallbackData::kDisconnected, {} };
@@ -146,7 +144,6 @@ private:
             return _writeReply("r 0");
         }
 
-        // assign a new hw control
         if (std::strncmp(buffer, CMD_CONTROL_ADD, 2) == 0)
         {
             buffer[1] = buffer[3] = '\0';
@@ -216,7 +213,6 @@ private:
             return _writeReply("r 0");
         }
 
-        // unassign a hw control
         if (std::strncmp(buffer, CMD_CONTROL_REMOVE, 2) == 0)
         {
             const int hw_id = std::atoi(buffer + 2);
@@ -229,7 +225,6 @@ private:
             return _writeReply("r 0");
         }
 
-        // send assigned control data
         if (std::strncmp(buffer, CMD_CONTROL_SET, 2) == 0)
         {
             buffer[1] = buffer[3] = '\0';
@@ -245,7 +240,63 @@ private:
             return _writeReply("r 0");
         }
 
-        // clear all addressings
+        if (std::strncmp(buffer, CMD_INITIAL_STATE, 3) == 0)
+        {
+            char *sep = buffer + 3;
+
+            HMICallbackData d = { HMICallbackData::kInitialState, {} };
+
+            d.initialState.numPedalboards = std::atoi(sep);
+            sep = std::strchr(sep, ' ') + 1;
+            assert(sep != nullptr);
+
+            d.initialState.paginationStart = std::atoi(sep);
+            sep = std::strchr(sep, ' ') + 1;
+            assert(sep != nullptr);
+
+            d.initialState.paginationEnd = std::atoi(sep);
+            sep = std::strchr(sep, ' ') + 1;
+            assert(sep != nullptr);
+
+            d.initialState.bankId = std::atoi(sep);
+            sep = std::strchr(sep, ' ') + 1;
+            assert(sep != nullptr);
+
+            d.initialState.pedalboardId = std::atoi(sep);
+            sep = std::strchr(sep, ' ') + 1;
+            assert(sep != nullptr);
+
+            // TODO pedalboard list
+
+            callback->hmiCallback(d);
+
+            return _writeReply("r 0");
+        }
+
+        if (std::strncmp(buffer, CMD_PEDALBOARD_NAME_SET, 3) == 0)
+        {
+            char* name;
+            char* sep = buffer + 3;
+
+            if (*sep == '\"')
+            {
+                name = sep + 1;
+                sep = std::strchr(name, '\"');
+                assert(sep != nullptr);
+                *sep++ = '\0';
+            }
+            else
+            {
+                name = sep;
+            }
+
+            HMICallbackData d = { HMICallbackData::kPedalboardNameSet, {} };
+            d.pedalboardNameSet.name = name;
+            callback->hmiCallback(d);
+
+            return _writeReply("r 0");
+        }
+
         if (std::strcmp(buffer, CMD_PEDALBOARD_CLEAR) == 0)
         {
             HMICallbackData d = { HMICallbackData::kPedalboardClear, {} };
@@ -254,7 +305,6 @@ private:
             return _writeReply("r 0");
         }
 
-        // reboot into restore mode
         if (std::strcmp(buffer, CMD_RESTORE) == 0)
         {
             System::rebootInRecoveryMode();
@@ -407,6 +457,15 @@ void HMI::hmiCallback(const Data &data)
         actuator.current = data.controlSet.value;
         break;
     }
+
+    case HMICallbackData::kInitialState:
+        _bankId = data.initialState.bankId;
+        _pedalboardId = data.initialState.pedalboardId;
+        break;
+
+    case HMICallbackData::kPedalboardNameSet:
+        _pedalboardName = data.pedalboardNameSet.name;
+        break;
 
     case HMICallbackData::kPedalboardClear:
         for (int i = 0; i < NUM_BINDING_PAGES; ++i)

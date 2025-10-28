@@ -31,6 +31,10 @@ struct HMIProto
                 kControlRemove,
                 // sends assigned control data
                 kControlSet,
+                // host initial state
+                kInitialState,
+                // set the name of the current pedalboard on the device display
+                kPedalboardNameSet,
                 // clear all pedalboard related items
                 kPedalboardClear,
             } type;
@@ -55,6 +59,19 @@ struct HMIProto
                     uint8_t hw_id;
                     float value;
                 } controlSet;
+                // kInitialState
+                struct {
+                    uint32_t numPedalboards;
+                    uint32_t paginationStart;
+                    uint32_t paginationEnd;
+                    uint32_t bankId;
+                    uint32_t pedalboardId;
+                    // TODO pedalboard list
+                } initialState;
+                // kPedalboardNameSet
+                struct {
+                    const char* name;
+                } pedalboardNameSet;
             };
         };
 
@@ -189,6 +206,9 @@ struct HMI : HMIProto,
     // publicly accessible read-only data
     const std::array<ActuatorPage, NUM_BINDING_PAGES> &actuatorPages = _actuatorPages;
     const uint8_t &page = _page;
+    const uint32_t &bankId = _bankId;
+    const uint32_t &pedalboardId = _pedalboardId;
+    const std::string &pedalboardName = _pedalboardName;
     const bool &webConnected = _webConnected;
 
     // helper for fetching current actuator page
@@ -205,6 +225,9 @@ private:
     // private writable data
     std::array<ActuatorPage, NUM_BINDING_PAGES> _actuatorPages;
     uint8_t _page = 0;
+    uint32_t _bankId = 0;
+    uint32_t _pedalboardId = 0;
+    std::string _pedalboardName;
     bool _webConnected = false;
 
     // callback handling for updates of accessible data
