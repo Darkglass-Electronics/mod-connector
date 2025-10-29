@@ -1121,7 +1121,7 @@ private:
             mod_log_warn("unknown feedback message '%s'\n", buffer);
         }
         
-        // TODO: handle port ui state updates (HostFeedbackData::kFeedbackParameterUIState)
+        // TODO: handle control port state updates (HostFeedbackData::kFeedbackParameterState)
 
         if (stackbuffer != buffer)
             std::free(buffer);

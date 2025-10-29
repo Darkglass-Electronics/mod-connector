@@ -6530,9 +6530,9 @@ void HostConnector::hostFeedbackCallback(const HostFeedbackData& data)
         cdata.midiProgramChange.program = data.midiProgramChange.program;
         break;
 
-    // TODO: handle HostFeedbackData::kFeedbackParameterUIState
+    // TODO: handle HostFeedbackData::kFeedbackParameterState
     //       - update to parameter state cache (HostConnector::Parameter.uiState in _current)
-    //       - notify forward as HostFeedbackData::kFeedbackParameterUIState
+    //       - notify forward as HostFeedbackData::kFeedbackParameterState
 
     default:
         return;
