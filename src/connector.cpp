@@ -6530,6 +6530,43 @@ void HostConnector::hostFeedbackCallback(const HostFeedbackData& data)
         cdata.midiProgramChange.program = data.midiProgramChange.program;
         break;
 
+    case HostFeedbackData::kFeedbackParameterState:
+    {
+        assert(data.paramState.effect_id >= 0);
+        assert(data.paramState.effect_id < MAX_MOD_HOST_INSTANCES);
+
+        LV2_Control_Port_State stateValue = static_cast<LV2_Control_Port_State>(data.paramState.value);
+        assert(stateValue >= LV2_CONTROL_PORT_STATE_NONE && stateValue <= LV2_CONTROL_PORT_STATE_BLOCKED);
+
+        const HostBlockAndRow hbar = _mapper.get_block_with_id(_current.preset, data.paramState.effect_id);
+        if (hbar.row == NUM_BLOCK_CHAIN_ROWS || hbar.block == NUM_BLOCKS_PER_PRESET)
+            return;
+
+        Block& blockdata = _current.chains[hbar.row].blocks[hbar.block];
+
+        uint8_t p = 0;
+        for (; p < MAX_PARAMS_PER_BLOCK; ++p)
+        {
+            if (isNullURI(blockdata.parameters[p].symbol))
+                return;
+            if (blockdata.parameters[p].symbol == data.paramState.symbol)
+                break;
+        }
+
+        if (p == MAX_PARAMS_PER_BLOCK)
+            return;
+
+        blockdata.parameters[p].state = stateValue;
+
+        cdata.type = HostCallbackData::kParameterStateUpdate;
+        cdata.parameterStateUpdate.row = hbar.row;
+        cdata.parameterStateUpdate.block = hbar.block;
+        cdata.parameterStateUpdate.index = p;
+        cdata.parameterStateUpdate.symbol = data.paramState.symbol;
+        cdata.parameterStateUpdate.state = stateValue;
+    }
+        break;
+
     // TODO: handle HostFeedbackData::kFeedbackParameterState
     //       - update to parameter state cache (HostConnector::Parameter.uiState in _current)
     //       - notify forward as HostFeedbackData::kFeedbackParameterState
