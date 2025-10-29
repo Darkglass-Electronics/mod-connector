@@ -42,6 +42,7 @@ struct HostConnector : Host::FeedbackCallback {
                 // TODO rename Patch to Property
                 kMidiControlChange,
                 kMidiProgramChange,
+                kParameterStateUpdate,
             } type;
             union {
                 // kAudioMonitor
@@ -100,6 +101,14 @@ struct HostConnector : Host::FeedbackCallback {
                     uint8_t channel;
                     uint8_t program;
                 } midiProgramChange;
+                // kParameterStateUpdate
+                struct {
+                    uint8_t row;
+                    uint8_t block;
+                    uint8_t index;
+                    const char* symbol;
+                    LV2_Control_Port_State state;
+                } parameterStateUpdate;
             };
         };
 
