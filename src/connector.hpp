@@ -137,8 +137,8 @@ struct HostConnector : Host::FeedbackCallback {
             std::string shortname;
             std::string unit;
             std::vector<Lv2ScalePoint> scalePoints;
+            LV2_Control_Port_State state = LV2_CONTROL_PORT_STATE_NONE;
         } meta;
-        LV2_Control_Port_State state = LV2_CONTROL_PORT_STATE_NONE;
     };
 
     struct Property {

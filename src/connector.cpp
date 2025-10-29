@@ -6556,7 +6556,7 @@ void HostConnector::hostFeedbackCallback(const HostFeedbackData& data)
         if (p == MAX_PARAMS_PER_BLOCK)
             return;
 
-        blockdata.parameters[p].state = stateValue;
+        blockdata.parameters[p].meta.state = stateValue;
 
         cdata.type = HostCallbackData::kParameterStateUpdate;
         cdata.parameterStateUpdate.row = hbar.row;
