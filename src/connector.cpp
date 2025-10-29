@@ -987,7 +987,7 @@ bool HostConnector::saveCurrentPresetToFile(const char* const filename)
                     Parameter& paramdata(blockdata.parameters[p]);
                     if (isNullURI(paramdata.symbol))
                         break;
-                    if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual|Lv2ParameterExpensive)) != 0)
+                    if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual|Lv2ParameterExpensive|Lv2ParameterMayUpdateBlockedState)) != 0)
                         continue;
                     if ((paramdata.meta.flags & Lv2ParameterInScene) == 0)
                     {
@@ -1010,7 +1010,7 @@ bool HostConnector::saveCurrentPresetToFile(const char* const filename)
                     Property& propdata(blockdata.properties[p]);
                     if (isNullURI(propdata.uri))
                         break;
-                    if ((propdata.meta.flags & (Lv2PropertyIsReadOnly|Lv2ParameterExpensive)) != 0)
+                    if ((propdata.meta.flags & (Lv2PropertyIsReadOnly|Lv2ParameterExpensive|Lv2ParameterMayUpdateBlockedState)) != 0)
                         continue;
                     if ((propdata.meta.flags & Lv2ParameterInScene) == 0)
                     {
@@ -2496,7 +2496,7 @@ bool HostConnector::switchScene(const uint8_t scene)
                 Parameter& paramdata(blockdata.parameters[p]);
                 if (isNullURI(paramdata.symbol))
                     break;
-                if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual|Lv2ParameterExpensive)) != 0)
+                if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual|Lv2ParameterExpensive|Lv2ParameterMayUpdateBlockedState)) != 0)
                     continue;
 
                 // revert temp scene state
@@ -2532,7 +2532,7 @@ bool HostConnector::switchScene(const uint8_t scene)
                 Property& propdata(blockdata.properties[p]);
                 if (isNullURI(propdata.uri))
                     break;
-                if ((propdata.meta.flags & (Lv2PropertyIsReadOnly|Lv2ParameterExpensive)) != 0)
+                if ((propdata.meta.flags & (Lv2PropertyIsReadOnly|Lv2ParameterExpensive|Lv2ParameterMayUpdateBlockedState)) != 0)
                     continue;
 
                 // revert temp scene state
@@ -2644,7 +2644,7 @@ bool HostConnector::addBlockParameterBinding(const uint8_t hwid,
 
     Parameter& paramdata(blockdata.parameters[paramIndex]);
     assert_return(!isNullURI(paramdata.symbol), false);
-    assert_return((paramdata.meta.flags & Lv2PortIsOutput) == 0, false);
+    assert_return((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterMayUpdateBlockedState)) == 0, false);
     assert_return(paramdata.meta.hwbinding == UINT8_MAX, false);
 
     paramdata.meta.hwbinding = hwid;
@@ -3098,12 +3098,12 @@ bool HostConnector::replaceBlockParameterBinding(const uint8_t hwid,
 
     Parameter& paramdata(blockdata.parameters[paramIndex]);
     assert_return(!isNullURI(paramdata.symbol), false);
-    assert_return((paramdata.meta.flags & Lv2PortIsOutput) == 0, false);
+    assert_return((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterMayUpdateBlockedState)) == 0, false);
     assert_return(paramdata.meta.hwbinding != UINT8_MAX, false);
 
     Parameter& paramdataB(blockdataB.parameters[paramIndexB]);
     assert_return(!isNullURI(paramdataB.symbol), false);
-    assert_return((paramdataB.meta.flags & Lv2PortIsOutput) == 0, false);
+    assert_return((paramdataB.meta.flags & (Lv2PortIsOutput|Lv2ParameterMayUpdateBlockedState)) == 0, false);
     assert_return(paramdataB.meta.hwbinding == UINT8_MAX, false);
 
     std::list<ParameterBinding>& bindings(_current.bindings[hwid].parameters);
@@ -3448,7 +3448,7 @@ void HostConnector::setBlockParameter(const uint8_t row,
 
     _current.dirty = true;
 
-    if ((paramdata.meta.flags & Lv2ParameterExpensive) == 0)
+    if ((paramdata.meta.flags & (Lv2ParameterExpensive|Lv2ParameterMayUpdateBlockedState)) == 0)
     {
         switch (sceneMode)
         {
@@ -3884,7 +3884,7 @@ void HostConnector::setBlockProperty(const uint8_t row,
 
     _current.dirty = true;
 
-    if ((propdata.meta.flags & Lv2ParameterExpensive) == 0)
+    if ((propdata.meta.flags & (Lv2ParameterExpensive|Lv2ParameterMayUpdateBlockedState)) == 0)
     {
         switch (sceneMode)
         {
