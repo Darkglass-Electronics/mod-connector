@@ -84,6 +84,12 @@ struct IPC::Impl
 
     char* readMessage(uint32_t* const bytesRead)
     {
+        if (dummyDevMode)
+        {
+            last_error.clear();
+            return nullptr;
+        }
+
         // read first byte
         char firstbyte = '\0';
         int r = iface->readMessageByte(&firstbyte);

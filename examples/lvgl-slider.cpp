@@ -157,7 +157,7 @@ struct HostApp : Host::FeedbackCallback {
 
 // --------------------------------------------------------------------------------------------------------------------
 
-static void slider_event_callback (lv_event_t* e)
+static void slider_event_callback(lv_event_t* e)
 {
     const auto eventCode = lv_event_get_code (e);
     auto* slider = lv_event_get_target_obj (e);
@@ -197,14 +197,14 @@ int main(int argc, char **argv)
     lv_init();
 
     lv_display_t* display = lv_sdl_window_create(800, 300);
-    lv_display_set_default (display);
+    lv_display_set_default(display);
 
     lv_indev_t* mouse = lv_sdl_mouse_create();
-    lv_indev_set_display (mouse, display);
+    lv_indev_set_display(mouse, display);
 
     lv_indev_t* keyboard = lv_sdl_keyboard_create();
-    lv_indev_set_display (keyboard, display);
-    lv_obj_set_style_bg_color (lv_screen_active(), lv_color_hex (0x888888), LV_PART_MAIN);
+    lv_indev_set_display(keyboard, display);
+    lv_obj_set_style_bg_color(lv_screen_active(), lv_color_hex (0x888888), LV_PART_MAIN);
 
     // Chain setup
     {
@@ -233,12 +233,12 @@ int main(int argc, char **argv)
 
     // Set up a slider to control the TanhClipper's pre-gain
     lv_obj_t* preGainSlider = lv_slider_create (lv_screen_active());
-    lv_slider_set_range (preGainSlider, -120, 80);
-    lv_slider_set_value (preGainSlider, 0, LV_ANIM_OFF);
-    lv_obj_add_event_cb (preGainSlider, slider_event_callback, LV_EVENT_VALUE_CHANGED, &app);
-    lv_obj_add_event_cb (preGainSlider, slider_event_callback, LV_EVENT_RELEASED, &app);
-    lv_obj_set_size (preGainSlider, 300, 30);
-    lv_obj_center (preGainSlider);
+    lv_slider_set_range(preGainSlider, -120, 80);
+    lv_slider_set_value(preGainSlider, 0, LV_ANIM_OFF);
+    lv_obj_add_event_cb(preGainSlider, slider_event_callback, LV_EVENT_VALUE_CHANGED, &app);
+    lv_obj_add_event_cb(preGainSlider, slider_event_callback, LV_EVENT_RELEASED, &app);
+    lv_obj_set_size(preGainSlider, 300, 30);
+    lv_obj_center(preGainSlider);
 
     // initial lvgl idle, ensures first screen contents are visible
     lv_timer_periodic_handler();
@@ -248,9 +248,7 @@ int main(int argc, char **argv)
     lv_display_add_event_cb(display, HostApp::_requestHostUpdates, LV_EVENT_RENDER_READY, &app);
 
     while (running)
-    {
         app.idle();
-    }
 
     lv_deinit();
 
