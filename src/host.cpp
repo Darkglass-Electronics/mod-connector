@@ -635,7 +635,8 @@ private:
             mod_log_warn("unknown feedback message '%s'\n", buffer);
         }
         
-        // TODO: handle control port state updates (HostFeedbackData::kFeedbackParameterState)
+        // TODO: handle control port state updates
+        // (parse HostFeedbackData::kFeedbackParameterStateUpdate from host message)
 
         return true;
     }

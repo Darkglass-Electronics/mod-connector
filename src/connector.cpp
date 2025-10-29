@@ -6530,7 +6530,7 @@ void HostConnector::hostFeedbackCallback(const HostFeedbackData& data)
         cdata.midiProgramChange.program = data.midiProgramChange.program;
         break;
 
-    case HostFeedbackData::kFeedbackParameterState:
+    case HostFeedbackData::kFeedbackParameterStateUpdate:
     {
         assert(data.paramState.effect_id >= 0);
         assert(data.paramState.effect_id < MAX_MOD_HOST_INSTANCES);
@@ -6566,10 +6566,6 @@ void HostConnector::hostFeedbackCallback(const HostFeedbackData& data)
         cdata.parameterStateUpdate.state = stateValue;
     }
         break;
-
-    // TODO: handle HostFeedbackData::kFeedbackParameterState
-    //       - update to parameter state cache (HostConnector::Parameter.uiState in _current)
-    //       - notify forward as HostFeedbackData::kFeedbackParameterState
 
     default:
         return;

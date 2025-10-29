@@ -85,7 +85,7 @@ struct Host {
                 kFeedbackTransport,
                 kFeedbackLog,
                 kFeedbackFinished,
-                kFeedbackParameterState
+                kFeedbackParameterStateUpdate
             } type;
             union {
                 struct {
@@ -139,7 +139,7 @@ struct Host {
                     int effect_id;
                     const char* symbol;
                     int value;
-                } paramState;
+                } paramStateUpdate;
             };
         };
 
