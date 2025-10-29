@@ -6532,13 +6532,13 @@ void HostConnector::hostFeedbackCallback(const HostFeedbackData& data)
 
     case HostFeedbackData::kFeedbackParameterStateUpdate:
     {
-        assert(data.paramState.effect_id >= 0);
-        assert(data.paramState.effect_id < MAX_MOD_HOST_INSTANCES);
+        assert(data.paramStateUpdate.effect_id >= 0);
+        assert(data.paramStateUpdate.effect_id < MAX_MOD_HOST_INSTANCES);
 
-        LV2_Control_Port_State stateValue = static_cast<LV2_Control_Port_State>(data.paramState.value);
+        LV2_Control_Port_State stateValue = static_cast<LV2_Control_Port_State>(data.paramStateUpdate.value);
         assert(stateValue >= LV2_CONTROL_PORT_STATE_NONE && stateValue <= LV2_CONTROL_PORT_STATE_BLOCKED);
 
-        const HostBlockAndRow hbar = _mapper.get_block_with_id(_current.preset, data.paramState.effect_id);
+        const HostBlockAndRow hbar = _mapper.get_block_with_id(_current.preset, data.paramStateUpdate.effect_id);
         if (hbar.row == NUM_BLOCK_CHAIN_ROWS || hbar.block == NUM_BLOCKS_PER_PRESET)
             return;
 
@@ -6549,7 +6549,7 @@ void HostConnector::hostFeedbackCallback(const HostFeedbackData& data)
         {
             if (isNullURI(blockdata.parameters[p].symbol))
                 return;
-            if (blockdata.parameters[p].symbol == data.paramState.symbol)
+            if (blockdata.parameters[p].symbol == data.paramStateUpdate.symbol)
                 break;
         }
 
@@ -6562,7 +6562,7 @@ void HostConnector::hostFeedbackCallback(const HostFeedbackData& data)
         cdata.parameterStateUpdate.row = hbar.row;
         cdata.parameterStateUpdate.block = hbar.block;
         cdata.parameterStateUpdate.index = p;
-        cdata.parameterStateUpdate.symbol = data.paramState.symbol;
+        cdata.parameterStateUpdate.symbol = data.paramStateUpdate.symbol;
         cdata.parameterStateUpdate.state = stateValue;
     }
         break;
