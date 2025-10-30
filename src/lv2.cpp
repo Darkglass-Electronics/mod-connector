@@ -48,12 +48,13 @@
 #define LV2_DARKGLASS_PROPERTIES_URI    "http://www.darkglass.com/lv2/ns"
 #define LV2_DARKGLASS_PROPERTIES_PREFIX LV2_DARKGLASS_PROPERTIES_URI "#"
 
-#define LV2_DARKGLASS_PROPERTIES__abbreviation    LV2_DARKGLASS_PROPERTIES_PREFIX "abbreviation"
-#define LV2_DARKGLASS_PROPERTIES__blockImageOff   LV2_DARKGLASS_PROPERTIES_PREFIX "blockImageOff"
-#define LV2_DARKGLASS_PROPERTIES__blockImageOn    LV2_DARKGLASS_PROPERTIES_PREFIX "blockImageOn"
-#define LV2_DARKGLASS_PROPERTIES__oneDecimalPoint LV2_DARKGLASS_PROPERTIES_PREFIX "oneDecimalPoint"
-#define LV2_DARKGLASS_PROPERTIES__quickPot        LV2_DARKGLASS_PROPERTIES_PREFIX "quickPot"
-#define LV2_DARKGLASS_PROPERTIES__savedToPreset   LV2_DARKGLASS_PROPERTIES_PREFIX "savedToPreset"
+#define LV2_DARKGLASS_PROPERTIES__abbreviation          LV2_DARKGLASS_PROPERTIES_PREFIX "abbreviation"
+#define LV2_DARKGLASS_PROPERTIES__blockImageOff         LV2_DARKGLASS_PROPERTIES_PREFIX "blockImageOff"
+#define LV2_DARKGLASS_PROPERTIES__blockImageOn          LV2_DARKGLASS_PROPERTIES_PREFIX "blockImageOn"
+#define LV2_DARKGLASS_PROPERTIES__mayUpdateBlockedState LV2_DARKGLASS_PROPERTIES_PREFIX "mayUpdateBlockedState"
+#define LV2_DARKGLASS_PROPERTIES__oneDecimalPoint       LV2_DARKGLASS_PROPERTIES_PREFIX "oneDecimalPoint"
+#define LV2_DARKGLASS_PROPERTIES__quickPot              LV2_DARKGLASS_PROPERTIES_PREFIX "quickPot"
+#define LV2_DARKGLASS_PROPERTIES__savedToPreset         LV2_DARKGLASS_PROPERTIES_PREFIX "savedToPreset"
 
 #define LILV_NS_KXSTUDIO "http://kxstudio.sf.net/ns/lv2ext/props"
 #define KXSTUDIO__Reset LILV_NS_KXSTUDIO "#Reset"
@@ -545,6 +546,8 @@ struct Lv2World::Impl
                                     retport.flags |= Lv2ParameterLogarithmic;
                                 else if (std::strcmp(propuri, LV2_PORT_PROPS__notOnGUI) == 0)
                                     retport.flags |= Lv2ParameterHidden;
+                                else if (std::strcmp(propuri, LV2_DARKGLASS_PROPERTIES__mayUpdateBlockedState) == 0)
+                                    retport.flags |= Lv2ParameterMayUpdateBlockedState;
                                 else if (std::strcmp(propuri, LV2_DARKGLASS_PROPERTIES__savedToPreset) == 0)
                                     retport.flags |= Lv2ParameterSavedToPreset;
                             }

@@ -63,23 +63,24 @@ enum Lv2Designation {
 
 enum Lv2Flags {
     // port flags
-    Lv2PortIsAudio              = 1 << 0,
-    Lv2PortIsControl            = 1 << 1,
-    Lv2PortIsOutput             = 1 << 2,
-    Lv2PortIsSidechain          = 1 << 3,
+    Lv2PortIsAudio                    = 1 << 0,
+    Lv2PortIsControl                  = 1 << 1,
+    Lv2PortIsOutput                   = 1 << 2,
+    Lv2PortIsSidechain                = 1 << 3,
     // property flags
-    Lv2PropertyIsPath           = 1 << 0,
-    Lv2PropertyIsParameter      = 1 << 1,
-    Lv2PropertyIsReadOnly       = 1 << 2,
+    Lv2PropertyIsPath                 = 1 << 0,
+    Lv2PropertyIsParameter            = 1 << 1,
+    Lv2PropertyIsReadOnly             = 1 << 2,
     // common flags
-    Lv2ParameterToggled         = 1 << 4,
-    Lv2ParameterInteger         = 1 << 5,
-    Lv2ParameterEnumerated      = 1 << 6,
-    Lv2ParameterLogarithmic     = 1 << 7,
-    Lv2ParameterHidden          = 1 << 8,
-    Lv2ParameterExpensive       = 1 << 9,
+    Lv2ParameterToggled               = 1 << 4,
+    Lv2ParameterInteger               = 1 << 5,
+    Lv2ParameterEnumerated            = 1 << 6,
+    Lv2ParameterLogarithmic           = 1 << 7,
+    Lv2ParameterHidden                = 1 << 8,
+    Lv2ParameterExpensive             = 1 << 9,
     // extensions
-    Lv2ParameterSavedToPreset   = 1 << 10,
+    Lv2ParameterMayUpdateBlockedState = 1 << 10,
+    Lv2ParameterSavedToPreset         = 1 << 11,
     // NOTE: on addition, adjust ExtraLv2Flags in connector.hpp
 };
 

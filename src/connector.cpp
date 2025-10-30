@@ -45,6 +45,31 @@ using PropertyBindingIteratorConst = std::list<HostPropertyBinding>::const_itera
 
 // --------------------------------------------------------------------------------------------------------------------
 
+static constexpr const uint32_t Lv2ParameterNotAllowedToChange
+    = Lv2PortIsOutput|Lv2ParameterVirtual;
+
+static constexpr const uint32_t Lv2ParameterNotAllowedInBindings
+    = Lv2PortIsOutput|Lv2ParameterMayUpdateBlockedState;
+
+static constexpr const uint32_t Lv2ParameterNotAllowedInQuickPot
+    = Lv2PortIsOutput|Lv2ParameterNotInQuickPot;
+
+static constexpr const uint32_t Lv2ParameterNotAllowedInScenes
+    = Lv2PortIsOutput|Lv2ParameterVirtual|Lv2ParameterExpensive|Lv2ParameterMayUpdateBlockedState;
+
+// --------------------------------------------------------------------------------------------------------------------
+
+static constexpr const uint32_t Lv2PropertyNotAllowedToChange
+    = Lv2PropertyIsReadOnly;
+
+static constexpr const uint32_t Lv2PropertyNotAllowedInBindings
+    = Lv2PropertyIsReadOnly|Lv2ParameterMayUpdateBlockedState;
+
+static constexpr const uint32_t Lv2PropertyNotAllowedInScenes
+    = Lv2PropertyIsReadOnly|Lv2ParameterExpensive|Lv2ParameterMayUpdateBlockedState;
+
+// --------------------------------------------------------------------------------------------------------------------
+
 #ifndef _WIN32
 static const char* getHomeDir()
 {
@@ -275,10 +300,18 @@ static inline constexpr T unnormalized(const Meta& meta, T value)
     return unnormalized<T>(value, meta.min, meta.max);
 }
 
-static inline constexpr bool shouldSaveToPreset(const uint32_t flags)
+static inline constexpr bool shouldSaveParameterToPreset(const uint32_t flags)
 {
-    static_assert(Lv2PortIsOutput == Lv2PropertyIsReadOnly, "consistent flags between parameters and properties");
-    if ((flags & (Lv2PortIsOutput|Lv2ParameterVirtual)) != 0)
+    if ((flags & Lv2ParameterNotAllowedToChange) != 0)
+        return false;
+    if ((flags & (Lv2ParameterHidden|Lv2ParameterSavedToPreset)) == Lv2ParameterHidden)
+        return false;
+    return true;
+}
+
+static inline constexpr bool shouldSavePropertyToPreset(const uint32_t flags)
+{
+    if ((flags & Lv2PropertyNotAllowedToChange) != 0)
         return false;
     if ((flags & (Lv2ParameterHidden|Lv2ParameterSavedToPreset)) == Lv2ParameterHidden)
         return false;
@@ -987,7 +1020,7 @@ bool HostConnector::saveCurrentPresetToFile(const char* const filename)
                     Parameter& paramdata(blockdata.parameters[p]);
                     if (isNullURI(paramdata.symbol))
                         break;
-                    if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual|Lv2ParameterExpensive)) != 0)
+                    if ((paramdata.meta.flags & Lv2ParameterNotAllowedInScenes) != 0)
                         continue;
                     if ((paramdata.meta.flags & Lv2ParameterInScene) == 0)
                     {
@@ -1010,7 +1043,7 @@ bool HostConnector::saveCurrentPresetToFile(const char* const filename)
                     Property& propdata(blockdata.properties[p]);
                     if (isNullURI(propdata.uri))
                         break;
-                    if ((propdata.meta.flags & (Lv2PropertyIsReadOnly|Lv2ParameterExpensive)) != 0)
+                    if ((propdata.meta.flags & Lv2PropertyNotAllowedInScenes) != 0)
                         continue;
                     if ((propdata.meta.flags & Lv2ParameterInScene) == 0)
                     {
@@ -1562,7 +1595,7 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
                 Parameter& paramdata(blockdata.parameters[p]);
                 if (isNullURI(paramdata.symbol))
                     break;
-                if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual)) != 0)
+                if ((paramdata.meta.flags & Lv2ParameterNotAllowedToChange) != 0)
                     continue;
 
                 paramdata.meta.flags &= ~Lv2ParameterInScene;
@@ -1586,7 +1619,7 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
                 Property& propdata(blockdata.properties[p]);
                 if (isNullURI(propdata.uri))
                     break;
-                if ((propdata.meta.flags & Lv2PropertyIsReadOnly) != 0)
+                if ((propdata.meta.flags & Lv2PropertyNotAllowedToChange) != 0)
                     continue;
 
                 propdata.meta.flags &= ~Lv2ParameterInScene;
@@ -1623,7 +1656,7 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
                 Property& propdata(blockdata.properties[p]);
                 if (isNullURI(propdata.uri))
                     break;
-                if ((propdata.meta.flags & Lv2PropertyIsReadOnly) != 0)
+                if ((propdata.meta.flags & Lv2PropertyNotAllowedToChange) != 0)
                     continue;
 
                 if (propsToReset[p])
@@ -1710,7 +1743,7 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
                 Parameter& paramdata(blockdata.parameters[p]);
                 if (isNullURI(paramdata.symbol))
                     break;
-                if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual)) != 0)
+                if ((paramdata.meta.flags & Lv2ParameterNotAllowedToChange) != 0)
                     continue;
 
                 // if def2 (default from ttl) does not match running value, make sure to inform the plugin
@@ -1922,7 +1955,7 @@ bool HostConnector::replaceBlockWhileKeepingCurrentData(const uint8_t row, const
         const Parameter& paramdata(blockcopy.parameters[p]);
         if (isNullURI(paramdata.symbol))
             break;
-        if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual)) != 0)
+        if ((paramdata.meta.flags & Lv2ParameterNotAllowedToChange) != 0)
             continue;
 
         if (isNotEqual(paramdata.value, paramdata.meta.def))
@@ -1944,7 +1977,7 @@ bool HostConnector::replaceBlockWhileKeepingCurrentData(const uint8_t row, const
             const Property& propdata(blockcopy.properties[p]);
             if (isNullURI(propdata.uri))
                 break;
-            if ((propdata.meta.flags & Lv2PropertyIsReadOnly) != 0)
+            if ((propdata.meta.flags & Lv2PropertyNotAllowedToChange) != 0)
                 continue;
 
             if (propdata.value != propdata.meta.defpath)
@@ -2002,7 +2035,7 @@ bool HostConnector::resetBlock(const uint8_t row, const uint8_t block, const boo
                     Parameter& paramdata(blockdata.parameters[p]);
                     if (isNullURI(paramdata.symbol))
                         break;
-                    if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual)) != 0)
+                    if ((paramdata.meta.flags & Lv2ParameterNotAllowedToChange) != 0)
                         continue;
 
                     blockdataB.parameters[p].meta.def = blockdataB.parameters[p].meta.def2;
@@ -2031,7 +2064,7 @@ bool HostConnector::resetBlock(const uint8_t row, const uint8_t block, const boo
         Parameter& paramdata(blockdata.parameters[p]);
         if (isNullURI(paramdata.symbol))
             break;
-        if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual)) != 0)
+        if ((paramdata.meta.flags & Lv2ParameterNotAllowedToChange) != 0)
             continue;
 
         paramdata.meta.flags &= ~Lv2ParameterInScene;
@@ -2055,7 +2088,7 @@ bool HostConnector::resetBlock(const uint8_t row, const uint8_t block, const boo
         Property& propdata(blockdata.properties[p]);
         if (isNullURI(propdata.uri))
             break;
-        if ((propdata.meta.flags & Lv2PropertyIsReadOnly) != 0)
+        if ((propdata.meta.flags & Lv2PropertyNotAllowedToChange) != 0)
             continue;
 
         propdata.meta.flags &= ~Lv2ParameterInScene;
@@ -2086,7 +2119,7 @@ bool HostConnector::resetBlock(const uint8_t row, const uint8_t block, const boo
         Property& propdata(blockdata.properties[p]);
         if (isNullURI(propdata.uri))
             break;
-        if ((propdata.meta.flags & Lv2PropertyIsReadOnly) != 0)
+        if ((propdata.meta.flags & Lv2PropertyNotAllowedToChange) != 0)
             continue;
 
         if (propsToReset[p])
@@ -2126,7 +2159,7 @@ bool HostConnector::saveBlockStateAsDefault(const uint8_t row, const uint8_t blo
                 Parameter& paramdata(blockdata.parameters[p]);
                 if (isNullURI(paramdata.symbol))
                     break;
-                if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual)) != 0)
+                if ((paramdata.meta.flags & Lv2ParameterNotAllowedToChange) != 0)
                     continue;
 
                 blockdataB.parameters[p].meta.def = paramdata.value;
@@ -2496,7 +2529,7 @@ bool HostConnector::switchScene(const uint8_t scene)
                 Parameter& paramdata(blockdata.parameters[p]);
                 if (isNullURI(paramdata.symbol))
                     break;
-                if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual|Lv2ParameterExpensive)) != 0)
+                if ((paramdata.meta.flags & Lv2ParameterNotAllowedInScenes) != 0)
                     continue;
 
                 // revert temp scene state
@@ -2532,7 +2565,7 @@ bool HostConnector::switchScene(const uint8_t scene)
                 Property& propdata(blockdata.properties[p]);
                 if (isNullURI(propdata.uri))
                     break;
-                if ((propdata.meta.flags & (Lv2PropertyIsReadOnly|Lv2ParameterExpensive)) != 0)
+                if ((propdata.meta.flags & Lv2PropertyNotAllowedInScenes) != 0)
                     continue;
 
                 // revert temp scene state
@@ -2644,7 +2677,7 @@ bool HostConnector::addBlockParameterBinding(const uint8_t hwid,
 
     Parameter& paramdata(blockdata.parameters[paramIndex]);
     assert_return(!isNullURI(paramdata.symbol), false);
-    assert_return((paramdata.meta.flags & Lv2PortIsOutput) == 0, false);
+    assert_return((paramdata.meta.flags & Lv2ParameterNotAllowedInBindings) == 0, false);
     assert_return(paramdata.meta.hwbinding == UINT8_MAX, false);
 
     paramdata.meta.hwbinding = hwid;
@@ -2693,7 +2726,7 @@ bool HostConnector::addBlockPropertyBinding(const uint8_t hwid,
 
     Property& propdata(blockdata.properties[propIndex]);
     assert_return(!isNullURI(propdata.uri), false);
-    assert_return((propdata.meta.flags & Lv2PropertyIsReadOnly) == 0, false);
+    assert_return((propdata.meta.flags & Lv2PropertyNotAllowedInBindings) == 0, false);
     assert_return(propdata.meta.hwbinding == UINT8_MAX, false);
 
     propdata.meta.hwbinding = hwid;
@@ -2785,7 +2818,7 @@ bool HostConnector::editBlockParameterBinding(const uint8_t hwid,
 
     Parameter& paramdata(blockdata.parameters[paramIndex]);
     assert_return(!isNullURI(paramdata.symbol), false);
-    assert_return((paramdata.meta.flags & Lv2PortIsOutput) == 0, false);
+    assert_return((paramdata.meta.flags & Lv2ParameterNotAllowedInBindings) == 0, false);
     assert_return(paramdata.meta.hwbinding != UINT8_MAX, false);
 
     std::list<ParameterBinding>& bindings(_current.bindings[hwid].parameters);
@@ -2916,7 +2949,7 @@ bool HostConnector::removeBlockParameterBinding(const uint8_t hwid,
 
     Parameter& paramdata(blockdata.parameters[paramIndex]);
     assert_return(!isNullURI(paramdata.symbol), false);
-    assert_return((paramdata.meta.flags & Lv2PortIsOutput) == 0, false);
+    assert_return((paramdata.meta.flags & Lv2ParameterNotAllowedInBindings) == 0, false);
     assert_return(paramdata.meta.hwbinding != UINT8_MAX, false);
 
     paramdata.meta.hwbinding = UINT8_MAX;
@@ -2963,7 +2996,7 @@ bool HostConnector::removeBlockPropertyBinding(const uint8_t hwid,
 
     Property& propdata(blockdata.properties[propIndex]);
     assert_return(!isNullURI(propdata.uri), false);
-    assert_return((propdata.meta.flags & Lv2PropertyIsReadOnly) == 0, false);
+    assert_return((propdata.meta.flags & Lv2PropertyNotAllowedInBindings) == 0, false);
     assert_return(propdata.meta.hwbinding != UINT8_MAX, false);
 
     propdata.meta.hwbinding = UINT8_MAX;
@@ -3098,12 +3131,12 @@ bool HostConnector::replaceBlockParameterBinding(const uint8_t hwid,
 
     Parameter& paramdata(blockdata.parameters[paramIndex]);
     assert_return(!isNullURI(paramdata.symbol), false);
-    assert_return((paramdata.meta.flags & Lv2PortIsOutput) == 0, false);
+    assert_return((paramdata.meta.flags & Lv2ParameterNotAllowedInBindings) == 0, false);
     assert_return(paramdata.meta.hwbinding != UINT8_MAX, false);
 
     Parameter& paramdataB(blockdataB.parameters[paramIndexB]);
     assert_return(!isNullURI(paramdataB.symbol), false);
-    assert_return((paramdataB.meta.flags & Lv2PortIsOutput) == 0, false);
+    assert_return((paramdataB.meta.flags & Lv2ParameterNotAllowedInBindings) == 0, false);
     assert_return(paramdataB.meta.hwbinding == UINT8_MAX, false);
 
     std::list<ParameterBinding>& bindings(_current.bindings[hwid].parameters);
@@ -3179,12 +3212,12 @@ bool HostConnector::replaceBlockPropertyBinding(const uint8_t hwid,
 
     Property& propdata(blockdata.properties[propIndex]);
     assert_return(!isNullURI(propdata.uri), false);
-    assert_return((propdata.meta.flags & Lv2PropertyIsReadOnly) == 0, false);
+    assert_return((propdata.meta.flags & Lv2PropertyNotAllowedInBindings) == 0, false);
     assert_return(propdata.meta.hwbinding != UINT8_MAX, false);
 
     Property& propdataB(blockdataB.properties[propIndexB]);
     assert_return(!isNullURI(propdataB.uri), false);
-    assert_return((propdataB.meta.flags & Lv2PropertyIsReadOnly) == 0, false);
+    assert_return((propdataB.meta.flags & Lv2PropertyNotAllowedInBindings) == 0, false);
     assert_return(propdataB.meta.hwbinding == UINT8_MAX, false);
 
     std::list<PropertyBinding>& bindings(_current.bindings[hwid].properties);
@@ -3444,11 +3477,12 @@ void HostConnector::setBlockParameter(const uint8_t row,
 
     Parameter& paramdata(blockdata.parameters[paramIndex]);
     assert_return(!isNullURI(paramdata.symbol),);
-    assert_return((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual)) == 0,);
+    assert_return((paramdata.meta.flags & Lv2ParameterNotAllowedToChange) == 0,);
+    assert_return(paramdata.meta.state != Lv2ParameterStateBlocked,);
 
     _current.dirty = true;
 
-    if ((paramdata.meta.flags & Lv2ParameterExpensive) == 0)
+    if ((paramdata.meta.flags & (Lv2ParameterExpensive|Lv2ParameterMayUpdateBlockedState)) == 0)
     {
         switch (sceneMode)
         {
@@ -3626,7 +3660,7 @@ void HostConnector::setBlockQuickPot(const uint8_t row, const uint8_t block, con
 
     const Parameter& paramdata(blockdata.parameters[paramIndex]);
     assert_return(!isNullURI(paramdata.symbol),);
-    assert_return((paramdata.meta.flags & Lv2PortIsOutput) == 0,);
+    assert_return((paramdata.meta.flags & Lv2ParameterNotAllowedInQuickPot) == 0,);
 
     blockdata.quickPotSymbol = paramdata.symbol;
     blockdata.meta.quickPotIndex = paramIndex;
@@ -3880,11 +3914,11 @@ void HostConnector::setBlockProperty(const uint8_t row,
 
     Property& propdata(blockdata.properties[propIndex]);
     assert_return(!isNullURI(propdata.uri),);
-    assert_return((propdata.meta.flags & Lv2PropertyIsReadOnly) == 0,);
+    assert_return((propdata.meta.flags & Lv2PropertyNotAllowedToChange) == 0,);
 
     _current.dirty = true;
 
-    if ((propdata.meta.flags & Lv2ParameterExpensive) == 0)
+    if ((propdata.meta.flags & (Lv2ParameterExpensive|Lv2ParameterMayUpdateBlockedState)) == 0)
     {
         switch (sceneMode)
         {
@@ -4997,7 +5031,7 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
 
                         if (isNullURI(paramdata.symbol))
                             continue;
-                        if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual)) != 0)
+                        if ((paramdata.meta.flags & Lv2ParameterNotAllowedToChange) != 0)
                             continue;
 
                         paramdata.value = std::max(paramdata.meta.min,
@@ -5042,7 +5076,7 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
 
                         if (isNullURI(propdata.uri))
                             continue;
-                        if ((propdata.meta.flags & Lv2PropertyIsReadOnly) != 0)
+                        if ((propdata.meta.flags & Lv2PropertyNotAllowedToChange) != 0)
                             continue;
 
                         propdata.value = jprop["value"].get<std::string>();
@@ -5141,7 +5175,7 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
 
                                     if (isNullURI(paramdata.symbol))
                                         continue;
-                                    if (! shouldSaveToPreset(paramdata.meta.flags))
+                                    if (! shouldSaveParameterToPreset(paramdata.meta.flags))
                                         continue;
 
                                     if ((paramdata.meta.flags & Lv2ParameterInScene) == 0)
@@ -5205,7 +5239,7 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
 
                                     if (isNullURI(propdata.uri))
                                         continue;
-                                    if (! shouldSaveToPreset(propdata.meta.flags))
+                                    if (! shouldSavePropertyToPreset(propdata.meta.flags))
                                         continue;
 
                                     if ((propdata.meta.flags & Lv2ParameterInScene) == 0)
@@ -5403,7 +5437,7 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
 
                             if (isNullURI(paramdata.symbol))
                                 break;
-                            if ((paramdata.meta.flags & (Lv2ParameterHidden|Lv2PortIsOutput)) != 0)
+                            if (! shouldSaveParameterToPreset(paramdata.meta.flags))
                                 continue;
                             if (paramdata.symbol != symbol)
                                 continue;
@@ -5515,7 +5549,7 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
 
                             if (isNullURI(propdata.uri))
                                 break;
-                            if ((propdata.meta.flags & (Lv2ParameterHidden|Lv2PropertyIsReadOnly)) != 0)
+                            if (! shouldSavePropertyToPreset(propdata.meta.flags))
                                 continue;
                             if (propdata.uri != uri)
                                 continue;
@@ -5803,7 +5837,7 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann::json& jpr
 
                         if (isNullURI(paramdata.symbol))
                             break;
-                        if (! shouldSaveToPreset(paramdata.meta.flags))
+                        if (! shouldSaveParameterToPreset(paramdata.meta.flags))
                             continue;
 
                         const std::string jparamid = std::to_string(++jp);
@@ -5824,7 +5858,7 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann::json& jpr
 
                         if (isNullURI(propdata.uri))
                             break;
-                        if (! shouldSaveToPreset(propdata.meta.flags))
+                        if (! shouldSavePropertyToPreset(propdata.meta.flags))
                             continue;
 
                         const std::string jpropid = std::to_string(++jp);
@@ -5860,7 +5894,7 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann::json& jpr
 
                                 if (isNullURI(paramdata.symbol))
                                     break;
-                                if (! shouldSaveToPreset(paramdata.meta.flags))
+                                if (! shouldSaveParameterToPreset(paramdata.meta.flags))
                                     continue;
                                 if ((paramdata.meta.flags & Lv2ParameterInScene) == 0)
                                     continue;
@@ -5881,7 +5915,7 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann::json& jpr
 
                                 if (isNullURI(propdata.uri))
                                     break;
-                                if (! shouldSaveToPreset(propdata.meta.flags))
+                                if (! shouldSavePropertyToPreset(propdata.meta.flags))
                                     continue;
                                 if ((propdata.meta.flags & Lv2ParameterInScene) == 0)
                                     continue;
@@ -6191,7 +6225,7 @@ void HostConnector::hostSwitchPreset(const Current& prev)
 
                         if (isNullURI(defparamdata.symbol))
                             break;
-                        if ((defparamdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual)) != 0)
+                        if ((defparamdata.meta.flags & Lv2ParameterNotAllowedToChange) != 0)
                             continue;
                         if (isEqual(defparamdata.value, oldparamdata.value))
                             continue;
@@ -6206,7 +6240,7 @@ void HostConnector::hostSwitchPreset(const Current& prev)
 
                         if (isNullURI(defpropdata.uri))
                             break;
-                        if ((defpropdata.meta.flags & Lv2PropertyIsReadOnly) != 0)
+                        if ((defpropdata.meta.flags & Lv2PropertyNotAllowedToChange) != 0)
                             continue;
                         if (defpropdata.value == prevpropdata.value)
                             continue;
@@ -6246,7 +6280,7 @@ void HostConnector::hostSwitchPreset(const Current& prev)
                     const Parameter& defparamdata(defblockdata.parameters[p]);
                     if (isNullURI(defparamdata.symbol))
                         break;
-                    if ((defparamdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual)) != 0)
+                    if ((defparamdata.meta.flags & Lv2ParameterNotAllowedToChange) != 0)
                         continue;
                     if (isEqual(defparamdata.value, defparamdata.meta.def2))
                         continue;
@@ -6259,7 +6293,7 @@ void HostConnector::hostSwitchPreset(const Current& prev)
                     const Property& defpropdata(defblockdata.properties[p]);
                     if (isNullURI(defpropdata.uri))
                         break;
-                    if ((defpropdata.meta.flags & Lv2PropertyIsReadOnly) != 0)
+                    if ((defpropdata.meta.flags & Lv2PropertyNotAllowedToChange) != 0)
                         continue;
                     if (defpropdata.value == defpropdata.meta.defpath)
                         continue;
@@ -6306,7 +6340,7 @@ void HostConnector::hostSetupInstance(const Block& blockdata, const uint16_t ins
     {
         if (isNullURI(paramdata.symbol))
             break;
-        if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual)) != 0)
+        if ((paramdata.meta.flags & Lv2ParameterNotAllowedToChange) != 0)
             continue;
         if (isNotEqual(paramdata.value, paramdata.meta.def2))
             params.push_back({ paramdata.symbol.c_str(), paramdata.value });
@@ -6319,7 +6353,7 @@ void HostConnector::hostSetupInstance(const Block& blockdata, const uint16_t ins
     {
         if (isNullURI(propdata.uri))
             break;
-        if ((propdata.meta.flags & Lv2PropertyIsReadOnly) != 0)
+        if ((propdata.meta.flags & Lv2PropertyNotAllowedToChange) != 0)
             continue;
         if (propdata.value != propdata.meta.defpath)
             _host.patch_set(instance_number, propdata.uri.c_str(), propdata.value.c_str());
@@ -6479,6 +6513,42 @@ void HostConnector::hostFeedbackCallback(const HostFeedbackData& data)
                 cdata.parameterSet.value = data.paramSet.value;
             }
         }
+        break;
+
+    case HostFeedbackData::kFeedbackParameterState:
+    {
+        assert(data.paramState.effect_id >= 0);
+        assert(data.paramState.effect_id < MAX_MOD_HOST_INSTANCES);
+        assert(data.paramState.value >= Lv2ParameterStateNone && data.paramState.value <= Lv2ParameterStateBlocked);
+
+        const HostBlockAndRow hbar = _mapper.get_block_with_id(_current.preset, data.paramState.effect_id);
+        if (hbar.row == NUM_BLOCK_CHAIN_ROWS || hbar.block == NUM_BLOCKS_PER_PRESET)
+            return;
+
+        Block& blockdata = _current.chains[hbar.row].blocks[hbar.block];
+
+        uint8_t p = 0;
+        for (; p < MAX_PARAMS_PER_BLOCK; ++p)
+        {
+            if (isNullURI(blockdata.parameters[p].symbol))
+                return;
+            if (blockdata.parameters[p].symbol == data.paramState.symbol)
+                break;
+        }
+
+        if (p == MAX_PARAMS_PER_BLOCK)
+            return;
+
+        const Lv2ParameterState stateValue = static_cast<Lv2ParameterState>(data.paramState.value);
+        blockdata.parameters[p].meta.state = stateValue;
+
+        cdata.type = HostCallbackData::kParameterState;
+        cdata.parameterState.row = hbar.row;
+        cdata.parameterState.block = hbar.block;
+        cdata.parameterState.index = p;
+        cdata.parameterState.symbol = data.paramState.symbol;
+        cdata.parameterState.state = stateValue;
+    }
         break;
 
     case HostFeedbackData::kFeedbackPatchSet:
@@ -6714,6 +6784,7 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
                 .designation = port.designation,
                 .hwbinding = UINT8_MAX,
                 .tempSceneState = kTemporarySceneNone,
+                .state = Lv2ParameterStateNone,
                 .def = port.def,
                 .min = port.min,
                 .max = port.max,
@@ -6843,7 +6914,7 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
 
             if (isNullURI(paramdata.symbol))
                 continue;
-            if ((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual)) != 0)
+            if ((paramdata.meta.flags & Lv2ParameterNotAllowedToChange) != 0)
                 continue;
 
             paramdata.value = paramdata.meta.def = value;
