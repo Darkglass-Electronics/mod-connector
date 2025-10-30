@@ -369,6 +369,11 @@ bool HMIProto::control_page(const uint8_t hw_id, const uint32_t prop_bitmask, co
     return impl->writeMessageAndWait(format(CMD_CONTROL_PAGE, hw_id, prop_bitmask, page_index_id));
 }
 
+bool HMIProto::pedalboard_load(const uint32_t bank_id, const uint32_t pb_id)
+{
+    return impl->writeMessageAndWait(format("pb %d %d", bank_id, pb_id));
+}
+
 std::vector<std::string> HMIProto::pedalboards(const bool up_page,
                                                const uint32_t current_page_index,
                                                const uint32_t bank_uid)

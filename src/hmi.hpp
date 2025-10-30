@@ -99,6 +99,9 @@ struct HMIProto
     // host will trigger several kControlAdd callbacks with the new control page data
     bool control_page(uint8_t hw_id, uint32_t prop_bitmask, uint8_t page_index_id);
 
+    // load the requested pedalboard
+    bool pedalboard_load(uint32_t bank_id, uint32_t pb_id);
+
     // request a new page of pedalboards
     std::vector<std::string> pedalboards(bool up_page, uint32_t current_page_index, uint32_t bank_uid);
 
