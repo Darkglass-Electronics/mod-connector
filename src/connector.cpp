@@ -3445,6 +3445,7 @@ void HostConnector::setBlockParameter(const uint8_t row,
     Parameter& paramdata(blockdata.parameters[paramIndex]);
     assert_return(!isNullURI(paramdata.symbol),);
     assert_return((paramdata.meta.flags & (Lv2PortIsOutput|Lv2ParameterVirtual)) == 0,);
+    assert_return(paramdata.meta.state != Lv2ParameterStateBlocked,);
 
     _current.dirty = true;
 
