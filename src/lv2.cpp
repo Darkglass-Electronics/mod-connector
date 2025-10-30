@@ -546,10 +546,10 @@ struct Lv2World::Impl
                                     retport.flags |= Lv2ParameterLogarithmic;
                                 else if (std::strcmp(propuri, LV2_PORT_PROPS__notOnGUI) == 0)
                                     retport.flags |= Lv2ParameterHidden;
-                                else if (std::strcmp(propuri, LV2_DARKGLASS_PROPERTIES__savedToPreset) == 0)
-                                    retport.flags |= Lv2ParameterSavedToPreset;
                                 else if (std::strcmp(propuri, LV2_DARKGLASS_PROPERTIES__mayUpdateBlockedState) == 0)
                                     retport.flags |= Lv2ParameterMayUpdateBlockedState;
+                                else if (std::strcmp(propuri, LV2_DARKGLASS_PROPERTIES__savedToPreset) == 0)
+                                    retport.flags |= Lv2ParameterSavedToPreset;
                             }
 
                             lilv_nodes_free(nodes);

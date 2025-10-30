@@ -77,6 +77,7 @@ struct Host {
                 kFeedbackAudioMonitor,
                 kFeedbackCpuLoad,
                 kFeedbackParameterSet,
+                kFeedbackParameterState,
                 kFeedbackPatchSet,
                 kFeedbackOutputMonitor,
                 kFeedbackMidiControlChange,
@@ -85,7 +86,6 @@ struct Host {
                 kFeedbackTransport,
                 kFeedbackLog,
                 kFeedbackFinished,
-                kFeedbackParameterStateUpdate
             } type;
             union {
                 struct {
@@ -93,6 +93,11 @@ struct Host {
                     const char* symbol;
                     float value;
                 } paramSet, outputMonitor;
+                struct {
+                    int effect_id;
+                    const char* symbol;
+                    int value;
+                } paramState;
                 struct {
                     int index;
                     float value;
@@ -135,11 +140,6 @@ struct Host {
                     char type;
                     const char* msg;
                 } log;
-                struct {
-                    int effect_id;
-                    const char* symbol;
-                    int value;
-                } paramStateUpdate;
             };
         };
 

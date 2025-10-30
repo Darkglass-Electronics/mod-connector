@@ -6481,6 +6481,42 @@ void HostConnector::hostFeedbackCallback(const HostFeedbackData& data)
         }
         break;
 
+    case HostFeedbackData::kFeedbackParameterState:
+    {
+        assert(data.paramState.effect_id >= 0);
+        assert(data.paramState.effect_id < MAX_MOD_HOST_INSTANCES);
+        assert(data.paramState.value >= Lv2ParameterStateNone && data.paramState.value <= Lv2ParameterStateBlocked);
+
+        const HostBlockAndRow hbar = _mapper.get_block_with_id(_current.preset, data.paramState.effect_id);
+        if (hbar.row == NUM_BLOCK_CHAIN_ROWS || hbar.block == NUM_BLOCKS_PER_PRESET)
+            return;
+
+        Block& blockdata = _current.chains[hbar.row].blocks[hbar.block];
+
+        uint8_t p = 0;
+        for (; p < MAX_PARAMS_PER_BLOCK; ++p)
+        {
+            if (isNullURI(blockdata.parameters[p].symbol))
+                return;
+            if (blockdata.parameters[p].symbol == data.paramState.symbol)
+                break;
+        }
+
+        if (p == MAX_PARAMS_PER_BLOCK)
+            return;
+
+        const Lv2ParameterState stateValue = static_cast<Lv2ParameterState>(data.paramState.value);
+        blockdata.parameters[p].meta.state = stateValue;
+
+        cdata.type = HostCallbackData::kParameterState;
+        cdata.parameterState.row = hbar.row;
+        cdata.parameterState.block = hbar.block;
+        cdata.parameterState.index = p;
+        cdata.parameterState.symbol = data.paramState.symbol;
+        cdata.parameterState.state = stateValue;
+    }
+        break;
+
     case HostFeedbackData::kFeedbackPatchSet:
         assert(data.patchSet.effect_id >= 0);
         assert(data.patchSet.effect_id < MAX_MOD_HOST_INSTANCES);
@@ -6528,43 +6564,6 @@ void HostConnector::hostFeedbackCallback(const HostFeedbackData& data)
         cdata.type = HostCallbackData::kMidiProgramChange;
         cdata.midiProgramChange.channel = data.midiProgramChange.channel;
         cdata.midiProgramChange.program = data.midiProgramChange.program;
-        break;
-
-    case HostFeedbackData::kFeedbackParameterStateUpdate:
-    {
-        assert(data.paramStateUpdate.effect_id >= 0);
-        assert(data.paramStateUpdate.effect_id < MAX_MOD_HOST_INSTANCES);
-
-        LV2_Control_Port_State stateValue = static_cast<LV2_Control_Port_State>(data.paramStateUpdate.value);
-        assert(stateValue >= LV2_CONTROL_PORT_STATE_NONE && stateValue <= LV2_CONTROL_PORT_STATE_BLOCKED);
-
-        const HostBlockAndRow hbar = _mapper.get_block_with_id(_current.preset, data.paramStateUpdate.effect_id);
-        if (hbar.row == NUM_BLOCK_CHAIN_ROWS || hbar.block == NUM_BLOCKS_PER_PRESET)
-            return;
-
-        Block& blockdata = _current.chains[hbar.row].blocks[hbar.block];
-
-        uint8_t p = 0;
-        for (; p < MAX_PARAMS_PER_BLOCK; ++p)
-        {
-            if (isNullURI(blockdata.parameters[p].symbol))
-                return;
-            if (blockdata.parameters[p].symbol == data.paramStateUpdate.symbol)
-                break;
-        }
-
-        if (p == MAX_PARAMS_PER_BLOCK)
-            return;
-
-        blockdata.parameters[p].meta.state = stateValue;
-
-        cdata.type = HostCallbackData::kParameterStateUpdate;
-        cdata.parameterStateUpdate.row = hbar.row;
-        cdata.parameterStateUpdate.block = hbar.block;
-        cdata.parameterStateUpdate.index = p;
-        cdata.parameterStateUpdate.symbol = data.paramStateUpdate.symbol;
-        cdata.parameterStateUpdate.state = stateValue;
-    }
         break;
 
     default:
@@ -6751,6 +6750,7 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
                 .designation = port.designation,
                 .hwbinding = UINT8_MAX,
                 .tempSceneState = kTemporarySceneNone,
+                .state = Lv2ParameterStateNone,
                 .def = port.def,
                 .min = port.min,
                 .max = port.max,

@@ -20,11 +20,11 @@ enum ExtraLv2Flags {
     Lv2ParameterNotInQuickPot = 1 << 14,
 };
 
-typedef enum {
-	LV2_CONTROL_PORT_STATE_NONE     = 0,  /**< No special state / Remove any previously set states. */
-	LV2_CONTROL_PORT_STATE_INACTIVE = 1,  /**< Inactive state (updates to port value are inaudible / ineffective). */
-	LV2_CONTROL_PORT_STATE_BLOCKED  = 2   /**< Blocked state (updates to port value are ignored by the plugin and they should be blocked and ignored by the host). */
-} LV2_Control_Port_State;
+enum Lv2ParameterState {
+    Lv2ParameterStateNone = 0,
+    Lv2ParameterStateInactive,
+    Lv2ParameterStateBlocked,
+};
 
 // --------------------------------------------------------------------------------------------------------------------
 
@@ -36,13 +36,13 @@ struct HostConnector : Host::FeedbackCallback {
                 kCpuLoad,
                 kLog,
                 kParameterSet,
+                kParameterState,
                 kPatchSet,
                 kToolParameterSet,
                 kToolPatchSet,
                 // TODO rename Patch to Property
                 kMidiControlChange,
                 kMidiProgramChange,
-                kParameterStateUpdate,
             } type;
             union {
                 // kAudioMonitor
@@ -69,6 +69,14 @@ struct HostConnector : Host::FeedbackCallback {
                     const char* symbol;
                     float value;
                 } parameterSet;
+                // kParameterState
+                struct {
+                    uint8_t row;
+                    uint8_t block;
+                    uint8_t index;
+                    const char* symbol;
+                    Lv2ParameterState state;
+                } parameterState;
                 // kPatchSet
                 struct {
                     uint8_t row;
@@ -101,14 +109,6 @@ struct HostConnector : Host::FeedbackCallback {
                     uint8_t channel;
                     uint8_t program;
                 } midiProgramChange;
-                // kParameterStateUpdate
-                struct {
-                    uint8_t row;
-                    uint8_t block;
-                    uint8_t index;
-                    const char* symbol;
-                    LV2_Control_Port_State state;
-                } parameterStateUpdate;
             };
         };
 
@@ -131,13 +131,13 @@ struct HostConnector : Host::FeedbackCallback {
             uint32_t designation;
             uint8_t hwbinding;
             TemporarySceneState tempSceneState;
+            Lv2ParameterState state;
             float def, min, max;
             float def2; // default from plugin ttl, which might not match initial state (default preset override)
             std::string name;
             std::string shortname;
             std::string unit;
             std::vector<Lv2ScalePoint> scalePoints;
-            LV2_Control_Port_State state = LV2_CONTROL_PORT_STATE_NONE;
         } meta;
     };
 
