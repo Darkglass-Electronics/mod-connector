@@ -195,7 +195,8 @@ struct IPC::Impl
                     resp->data.i = 0;
                     break;
                 case kResponseString:
-                    resp->data.s = strdup("");
+                    *buffer = '\0';
+                    resp->data.s = buffer;
                     break;
                 }
             }
@@ -274,7 +275,7 @@ struct IPC::Impl
                 if (resp != nullptr)
                 {
                     resp->code = 0;
-                    resp->data.s = strdup(buffer);
+                    resp->data.s = buffer;
                 }
                 return true;
             }
@@ -291,7 +292,7 @@ struct IPC::Impl
                 respbuffer = buffer + 2;
                 if (*respbuffer == '\0')
                 {
-                    last_error = "mod-host reply is incomplete (less than 3 characters)";
+                    last_error = "mod-ui reply is incomplete (less than 3 characters)";
                     return false;
                 }
             }
@@ -306,7 +307,7 @@ struct IPC::Impl
             }
             else
             {
-                last_error = "mod-host reply is malformed (missing 'r' or 'resp' prefix)";
+                last_error = "reply is malformed (missing 'r' or 'resp' prefix)";
                 return false;
             }
 
@@ -322,7 +323,6 @@ struct IPC::Impl
             }
 
             // parse response error code
-            // bool ok = false;
             const int respcode = std::atoi(respbuffer);
 
             if (respcode < 0)
