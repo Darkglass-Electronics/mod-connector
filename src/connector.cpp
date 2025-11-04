@@ -52,7 +52,7 @@ static constexpr const uint32_t Lv2ParameterNotAllowedInBindings
     = Lv2PortIsOutput|Lv2ParameterMayUpdateBlockedState;
 
 static constexpr const uint32_t Lv2ParameterNotAllowedInQuickPot
-    = Lv2PortIsOutput|Lv2ParameterNotInQuickPot;
+    = Lv2PortIsOutput|Lv2ParameterNotInQuickPot|Lv2ParameterMayUpdateBlockedState;
 
 static constexpr const uint32_t Lv2ParameterNotAllowedInScenes
     = Lv2PortIsOutput|Lv2ParameterVirtual|Lv2ParameterExpensive|Lv2ParameterMayUpdateBlockedState;
