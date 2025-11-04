@@ -212,6 +212,12 @@ struct HMI : HMIProto,
         bool active;
     };
 
+    bool poll();
+
+    // sends assigned control data
+    // NOTE applies to the current page only
+    bool control_set(uint8_t hw_id, float value);
+
     // publicly accessible read-only data
     const std::array<ActuatorPage, NUM_BINDING_PAGES> &actuatorPages = _actuatorPages;
     const uint8_t &actuatorPage = _actuatorPage;
@@ -235,8 +241,6 @@ struct HMI : HMIProto,
     }
 
     HMI(Callback* callback, const char *serial, int baudrate);
-
-    bool poll();
 
 private:
     // private writable data

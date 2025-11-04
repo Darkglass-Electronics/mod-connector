@@ -470,6 +470,30 @@ bool HMI::poll()
     return _poll(this);
 }
 
+bool HMI::control_set(const uint8_t hw_id, const float value)
+{
+    assert(hw_id < NUM_BINDING_ACTUATORS);
+
+    ActuatorPage& actuatorPageH = _actuatorPages[_actuatorPage];
+    assert(actuatorPageH.active);
+    assert(hw_id < actuatorPageH.actuators.size());
+
+    Actuator& actuator = actuatorPageH.actuators[hw_id];
+    assert(actuator.assigned);
+
+    if (! HMIProto::control_set(hw_id, value))
+        return false;
+
+    actuator.current = value;
+
+    HMICallbackData data = { HMICallbackData::kControlSet, {} };
+    data.controlSet.hw_id = hw_id;
+    data.controlSet.value = value;
+    _callback->hmiCallback(data);
+
+    return true;
+}
+
 void HMI::hmiCallback(const Data &data)
 {
     switch (data.type)
