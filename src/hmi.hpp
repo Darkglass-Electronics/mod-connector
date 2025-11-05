@@ -8,6 +8,7 @@
 
 #include <array>
 #include <string>
+#include <vector>
 
 struct HMI;
 
@@ -91,10 +92,36 @@ struct HMIProto
     std::string last_error;
 
     // sends assigned control data
+    // NOTE applies to the current page only
     bool control_set(uint8_t hw_id, float value);
 
-    // sends back a control_add command with new control page data
+    // report to host we changed page
+    // host will trigger several kControlAdd callbacks with the new control page data
     bool control_page(uint8_t hw_id, uint32_t prop_bitmask, uint8_t page_index_id);
+
+    // load the requested pedalboard
+    bool pedalboard_load(uint32_t bank_id, uint32_t pb_id);
+
+    // request a new page of pedalboards
+    std::vector<std::string> pedalboards(bool up_page, uint32_t current_page_index, uint32_t bank_uid);
+
+    HMIProto(const char *serial, int baudrate);
+    ~HMIProto();
+
+   /**
+     * class to activate non-blocking mode during a function scope.
+     * this allows to send a bunch of related messages in quick succession,
+     * while only waiting once (in the class destructor).
+     */
+    class NonBlockingScope {
+        HMIProto& hmi;
+    public:
+        NonBlockingScope(HMIProto& hmi);
+        ~NonBlockingScope();
+    };
+
+    // NOTE functions below this line are not implemented yet!
+    // ----------------------------------------------------------------------------------------------------------------
 
     // returns a new page of banks
     bool banks(int8_t direction, uint32_t current_banks_hover_id);
@@ -111,9 +138,6 @@ struct HMIProto
 
     // reorder the pedalboard in a bank
     bool reorder_pbs_in_bank(uint32_t bank_uid, uint32_t pb_to_move_uid, uint32_t index_to_move_to);
-
-    // request a new page of pedalboards
-    bool pedalboards(bool up_page, uint32_t current_page_index, uint32_t bank_uid);
 
     // resets the pedalboard to the last saved state
     bool pedalboard_reset();
@@ -156,21 +180,6 @@ struct HMIProto
     // changes the tuner input source
     bool tuner_input(uint8_t input);
 
-    HMIProto(const char *serial, int baudrate);
-    ~HMIProto();
-
-   /**
-     * class to activate non-blocking mode during a function scope.
-     * this allows to send a bunch of related messages in quick succession,
-     * while only waiting once (in the class destructor).
-     */
-    class NonBlockingScope {
-        HMIProto& hmi;
-    public:
-        NonBlockingScope(HMIProto& hmi);
-        ~NonBlockingScope();
-    };
-
 private:
     // private details
     struct Impl;
@@ -203,32 +212,46 @@ struct HMI : HMIProto,
         bool active;
     };
 
+    bool poll();
+
+    // sends assigned control data
+    // NOTE applies to the current page only
+    bool control_set(uint8_t hw_id, float value);
+
     // publicly accessible read-only data
     const std::array<ActuatorPage, NUM_BINDING_PAGES> &actuatorPages = _actuatorPages;
-    const uint8_t &page = _page;
+    const uint8_t &actuatorPage = _actuatorPage;
+
+    // current bank details
     const uint32_t &bankId = _bankId;
+    const uint32_t &numPedalboardsInBank = _numPedalboardsInBank;
+    const std::string &bankName = _bankName;
+
+    // current pedalboard details
     const uint32_t &pedalboardId = _pedalboardId;
     const std::string &pedalboardName = _pedalboardName;
+
+    // others
     const bool &webConnected = _webConnected;
 
     // helper for fetching current actuator page
     [[nodiscard]] inline const ActuatorPage& currentActuatorPage() const
     {
-        return _actuatorPages[_page];
+        return _actuatorPages[_actuatorPage];
     }
 
     HMI(Callback* callback, const char *serial, int baudrate);
 
-    bool poll();
-
 private:
     // private writable data
     std::array<ActuatorPage, NUM_BINDING_PAGES> _actuatorPages;
-    uint8_t _page = 0;
-    uint32_t _bankId = 0;
-    uint32_t _pedalboardId = 0;
-    std::string _pedalboardName;
     bool _webConnected = false;
+    uint8_t _actuatorPage = 0;
+    uint32_t _bankId = 0;
+    uint32_t _numPedalboardsInBank = 0;
+    uint32_t _pedalboardId = 0;
+    std::string _bankName = "All Pedalboards";
+    std::string _pedalboardName;
 
     // callback handling for updates of accessible data
     Callback* const _callback;

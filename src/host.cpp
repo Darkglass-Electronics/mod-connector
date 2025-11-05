@@ -855,7 +855,6 @@ std::string Host::preset_show(const char* const preset_uri)
     if (impl->writeMessageAndWait(format("preset_show %s", preset_uri), IPC::kResponseString, &resp))
     {
         std::string ret(resp.data.s);
-        std::free(resp.data.s);
         return ret;
     }
 
@@ -968,7 +967,6 @@ std::string Host::licensee(const int16_t instance_number)
     if (impl->writeMessageAndWait(format("licensee %d", instance_number), IPC::kResponseString, &resp))
     {
         std::string ret(resp.data.s);
-        std::free(resp.data.s);
         return ret;
     }
 

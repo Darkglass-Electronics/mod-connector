@@ -84,6 +84,12 @@ struct IPC::Impl
 
     char* readMessage(uint32_t* const bytesRead)
     {
+        if (dummyDevMode)
+        {
+            last_error.clear();
+            return nullptr;
+        }
+
         // read first byte
         char firstbyte = '\0';
         int r = iface->readMessageByte(&firstbyte);
@@ -189,7 +195,8 @@ struct IPC::Impl
                     resp->data.i = 0;
                     break;
                 case kResponseString:
-                    resp->data.s = strdup("");
+                    *buffer = '\0';
+                    resp->data.s = buffer;
                     break;
                 }
             }
@@ -197,7 +204,10 @@ struct IPC::Impl
         }
 
         if (! iface->writeMessage(message))
+        {
+            mod_log_warn("iface->writeMessage() error: %s", last_error.c_str());
             return false;
+        }
 
         // retrieve response
         if (nonBlockingMode)
@@ -249,7 +259,7 @@ struct IPC::Impl
 
             if (! last_error.empty())
             {
-                mod_log_warn("error: %s", last_error.c_str());
+                mod_log_warn("iface->readResponseByte() error: %s", last_error.c_str());
                 return false;
             }
 
@@ -265,7 +275,7 @@ struct IPC::Impl
                 if (resp != nullptr)
                 {
                     resp->code = 0;
-                    resp->data.s = strdup(buffer);
+                    resp->data.s = buffer;
                 }
                 return true;
             }
@@ -276,17 +286,20 @@ struct IPC::Impl
                 return false;
             }
 
+            char* respbuffer;
             if (std::strncmp(buffer, "r ", 2) == 0)
             {
-                if (buffer[2] == '\0')
+                respbuffer = buffer + 2;
+                if (*respbuffer == '\0')
                 {
-                    last_error = "mod-host reply is incomplete (less than 3 characters)";
+                    last_error = "mod-ui reply is incomplete (less than 3 characters)";
                     return false;
                 }
             }
             else if (std::strncmp(buffer, "resp ", 5) == 0)
             {
-                if (buffer[5] == '\0')
+                respbuffer = buffer + 5;
+                if (*respbuffer == '\0')
                 {
                     last_error = "mod-host reply is incomplete (less than 6 characters)";
                     return false;
@@ -294,11 +307,10 @@ struct IPC::Impl
             }
             else
             {
-                last_error = "mod-host reply is malformed (missing 'r' or 'resp' prefix)";
+                last_error = "reply is malformed (missing 'r' or 'resp' prefix)";
                 return false;
             }
 
-            char* const respbuffer = buffer + 5;
             const char* respdata;
             if (char* respargs = std::strchr(respbuffer, ' '))
             {
@@ -311,7 +323,6 @@ struct IPC::Impl
             }
 
             // parse response error code
-            // bool ok = false;
             const int respcode = std::atoi(respbuffer);
 
             if (respcode < 0)
@@ -718,7 +729,7 @@ int IPC::Impl::Serial::readMessageByte(char* const c)
 
 int IPC::Impl::Serial::readResponseByte(char* const c)
 {
-    return readMessageByte(c);
+    return sp_blocking_read(serialport, c, 1, SERIALPORT_BLOCKING_READ_TIMEOUT_MS);
 }
 
 bool IPC::Impl::Serial::writeMessage(const std::string& message)
