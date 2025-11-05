@@ -143,16 +143,17 @@ private:
 
         if (std::strncmp(buffer, CMD_CONTROL_ADD, 2) == 0)
         {
-            buffer[1] = buffer[3] = '\0';
+            char *name, *unit, *sep = buffer + 2;
 
-            const int hw_id = std::atoi(buffer + 2);
+            const int hw_id = std::atoi(sep);
             assert(hw_id < NUM_BINDING_ACTUATORS * NUM_BINDING_PAGES);
 
             HMICallbackData d = { HMICallbackData::kControlAdd, {} };
             d.controlAdd.hw_id = hw_id;
 
-            char *sep = buffer + 4;
-            char *name, *unit;
+            sep = std::strchr(sep, ' ');
+            assert(sep != nullptr);
+            ++sep;
 
             if (*sep == '\"')
             {
@@ -228,14 +229,18 @@ private:
 
         if (std::strncmp(buffer, CMD_CONTROL_SET, 2) == 0)
         {
-            buffer[1] = buffer[3] = '\0';
+            char *sep = buffer + 2;
 
-            const int hw_id = std::atoi(buffer + 2);
+            const int hw_id = std::atoi(sep);
             assert(hw_id < NUM_BINDING_ACTUATORS * NUM_BINDING_PAGES);
+
+            sep = std::strchr(sep, ' ');
+            assert(sep != nullptr);
+            ++sep;
 
             HMICallbackData d = { HMICallbackData::kControlSet, {} };
             d.controlSet.hw_id = hw_id;
-            d.controlSet.value = std::atof(buffer + 4);
+            d.controlSet.value = std::atof(sep);
             callback->hmiCallback(d);
 
             return _writeReply("r 0");
@@ -250,24 +255,29 @@ private:
             HMICallbackData d = { HMICallbackData::kInitialState, {} };
 
             d.initialState.numPedalboards = std::atoi(sep);
-            sep = std::strchr(sep, ' ') + 1;
+            sep = std::strchr(sep, ' ');
             assert(sep != nullptr);
+            ++sep;
 
             d.initialState.paginationStart = std::atoi(sep);
-            sep = std::strchr(sep, ' ') + 1;
+            sep = std::strchr(sep, ' ');
             assert(sep != nullptr);
+            ++sep;
 
             d.initialState.paginationEnd = std::atoi(sep);
-            sep = std::strchr(sep, ' ') + 1;
+            sep = std::strchr(sep, ' ');
             assert(sep != nullptr);
+            ++sep;
 
             d.initialState.bankId = std::atoi(sep);
-            sep = std::strchr(sep, ' ') + 1;
+            sep = std::strchr(sep, ' ');
             assert(sep != nullptr);
+            ++sep;
 
             d.initialState.pedalboardId = std::atoi(sep);
-            sep = std::strchr(sep, ' ') + 1;
+            sep = std::strchr(sep, ' ');
             assert(sep != nullptr);
+            ++sep;
 
             // TODO pedalboard list
 
