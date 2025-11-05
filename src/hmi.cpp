@@ -146,7 +146,7 @@ private:
             buffer[1] = buffer[3] = '\0';
 
             const int hw_id = std::atoi(buffer + 2);
-            assert(hw_id < NUM_BINDING_ACTUATORS);
+            assert(hw_id < NUM_BINDING_ACTUATORS * NUM_BINDING_PAGES);
 
             HMICallbackData d = { HMICallbackData::kControlAdd, {} };
             d.controlAdd.hw_id = hw_id;
@@ -217,7 +217,7 @@ private:
         if (std::strncmp(buffer, CMD_CONTROL_REMOVE, 2) == 0)
         {
             const int hw_id = std::atoi(buffer + 2);
-            assert(hw_id < NUM_BINDING_ACTUATORS);
+            assert(hw_id < NUM_BINDING_ACTUATORS * NUM_BINDING_PAGES);
 
             HMICallbackData d = { HMICallbackData::kControlRemove, {} };
             d.controlRemove.hw_id = hw_id;
@@ -231,7 +231,7 @@ private:
             buffer[1] = buffer[3] = '\0';
 
             const int hw_id = std::atoi(buffer + 2);
-            assert(hw_id < NUM_BINDING_ACTUATORS);
+            assert(hw_id < NUM_BINDING_ACTUATORS * NUM_BINDING_PAGES);
 
             HMICallbackData d = { HMICallbackData::kControlSet, {} };
             d.controlSet.hw_id = hw_id;
@@ -472,13 +472,9 @@ bool HMI::poll()
 
 bool HMI::control_set(const uint8_t hw_id, const float value)
 {
-    assert(hw_id < NUM_BINDING_ACTUATORS);
+    assert(hw_id < NUM_BINDING_ACTUATORS * NUM_BINDING_PAGES);
 
-    ActuatorPage& actuatorPageH = _actuatorPages[_actuatorPage];
-    assert(actuatorPageH.active);
-    assert(hw_id < actuatorPageH.actuators.size());
-
-    Actuator& actuator = actuatorPageH.actuators[hw_id];
+    Actuator& actuator = _actuators[hw_id];
     assert(actuator.assigned);
 
     if (! HMIProto::control_set(hw_id, value))
@@ -509,12 +505,9 @@ void HMI::hmiCallback(const Data &data)
     case HMICallbackData::kControlAdd:
     {
         const uint8_t hw_id = data.controlAdd.hw_id;
-        assert(hw_id < NUM_BINDING_ACTUATORS);
+        assert(hw_id < NUM_BINDING_ACTUATORS * NUM_BINDING_PAGES);
 
-        ActuatorPage& actuatorPageH = _actuatorPages[_actuatorPage];
-        assert(hw_id < actuatorPageH.actuators.size());
-
-        Actuator& actuator = actuatorPageH.actuators[hw_id];
+        Actuator& actuator = _actuators[hw_id];
         assert(!actuator.assigned);
 
         actuator.assigned = true;
@@ -525,48 +518,27 @@ void HMI::hmiCallback(const Data &data)
         actuator.min = data.controlAdd.min;
         actuator.max = data.controlAdd.max;
         actuator.steps = data.controlAdd.steps;
-
-        actuatorPageH.active = true;
         break;
     }
 
     case HMICallbackData::kControlRemove:
     {
         const uint8_t hw_id = data.controlRemove.hw_id;
-        assert(hw_id < NUM_BINDING_ACTUATORS);
+        assert(hw_id < NUM_BINDING_ACTUATORS * NUM_BINDING_PAGES);
 
-        ActuatorPage& actuatorPageH = _actuatorPages[_actuatorPage];
-        assert(hw_id < actuatorPageH.actuators.size());
-
-        Actuator& actuator = actuatorPageH.actuators[hw_id];
+        Actuator& actuator = _actuators[hw_id];
         assert(actuator.assigned);
 
         actuator = {};
-
-        bool active = false;
-        for (int i = 0; i < NUM_BINDING_ACTUATORS; ++i)
-        {
-            if (actuatorPageH.actuators[i].assigned)
-            {
-                active = true;
-                break;
-            }
-        }
-
-        actuatorPageH.active = active;
         break;
     }
 
     case HMICallbackData::kControlSet:
     {
         const uint8_t hw_id = data.controlSet.hw_id;
-        assert(hw_id < NUM_BINDING_ACTUATORS);
+        assert(hw_id < NUM_BINDING_ACTUATORS * NUM_BINDING_PAGES);
 
-        ActuatorPage& actuatorPageH = _actuatorPages[_actuatorPage];
-        assert(actuatorPageH.active);
-        assert(hw_id < actuatorPageH.actuators.size());
-
-        Actuator& actuator = actuatorPageH.actuators[hw_id];
+        Actuator& actuator = _actuators[hw_id];
         assert(actuator.assigned);
 
         actuator.current = data.controlSet.value;
@@ -584,12 +556,8 @@ void HMI::hmiCallback(const Data &data)
         break;
 
     case HMICallbackData::kPedalboardClear:
-        for (int i = 0; i < NUM_BINDING_PAGES; ++i)
-        {
-            _actuatorPages[i].active = false;
-            for (int j = 0; j < NUM_BINDING_ACTUATORS; ++j)
-                _actuatorPages[i].actuators[j] = {};
-        }
+        for (int i = 0; i < NUM_BINDING_ACTUATORS * NUM_BINDING_PAGES; ++i)
+            _actuators[i] = {};
         break;
     }
 
