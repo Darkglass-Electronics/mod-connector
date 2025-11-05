@@ -1960,6 +1960,9 @@ bool HostConnector::replaceBlockWhileKeepingCurrentData(const uint8_t row, const
 
         if (isNotEqual(paramdata.value, paramdata.meta.def))
             params.push_back({ paramdata.symbol.c_str(), paramdata.value });
+
+        // initialize states, because there will be no updates on initial Lv2ParameterStateNone state
+        _current.chains[row].blocks[block].parameters[p].meta.state = Lv2ParameterStateNone;
     }
 
     {
