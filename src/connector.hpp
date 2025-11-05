@@ -184,6 +184,7 @@ struct HostConnector : Host::FeedbackCallback {
             uint8_t numSideOutputs;
             std::string name;
             std::string abbreviation;
+            std::string brand;
         } meta;
         std::vector<Parameter> parameters;
         std::vector<Property> properties;

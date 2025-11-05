@@ -62,16 +62,26 @@ static const char* getHomeDir()
 
 static std::string getDefaultPluginBundleForBlock(const HostBlock& blockdata)
 {
-   #if defined(_WIN32)
+  #if defined(_WIN32)
     WCHAR wpath[MAX_PATH] = {};
     if (SHGetFolderPathW(nullptr, CSIDL_APPDATA, nullptr, SHGFP_TYPE_CURRENT, wpath) == S_OK)
-        return format("%ls\\LV2\\default-%s.lv2", wpath, blockdata.meta.abbreviation.c_str());
+        return format("%ls\\LV2\\default-%s%s.lv2",
+                      wpath,
+                      blockdata.meta.brand.c_str(),
+                      blockdata.meta.abbreviation.c_str());
     return {};
-   #elif defined(__APPLE__)
-    return format("%s/Library/Audio/Plug-Ins/LV2/default-%s.lv2", getHomeDir(), blockdata.meta.abbreviation.c_str());
+  #else
+    return format(
+   #ifdef __APPLE__
+        "%s/Library/Audio/Plug-Ins/LV2/default-%s%s.lv2",
    #else
-    return format("%s/.lv2/default-%s.lv2", getHomeDir(), blockdata.meta.abbreviation.c_str());
+        "%s/.lv2/default-%s%s.lv2",
    #endif
+        getHomeDir(),
+        blockdata.meta.brand.c_str(),
+        blockdata.meta.abbreviation.c_str()
+    );
+  #endif
 }
 
 static std::string getNextMacroBindingName(const HostConnector::Current& current)
@@ -2020,7 +2030,8 @@ bool HostConnector::resetBlock(const uint8_t row, const uint8_t block, const boo
 
             if (std::filesystem::exists(defdir))
             {
-                _host.bundle_remove(defdir.c_str());
+                const std::string resource = "file://" + defdir + "/default.ttl";
+                _host.bundle_remove(defdir.c_str(), resource.c_str());
                 std::filesystem::remove_all(defdir);
             }
         } while (false);
