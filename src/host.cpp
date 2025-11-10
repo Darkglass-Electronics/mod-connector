@@ -844,6 +844,15 @@ bool Host::connect(const char* const origin_port, const char* const destination_
                                             escape(origin_port).c_str(), escape(destination_port).c_str()));
 }
 
+bool Host::connect_matching(const char* const matching_port, const char* const destination_port)
+{
+    VALIDATE_JACK_PORT(matching_port);
+    VALIDATE_JACK_PORT(destination_port);
+
+    return impl->writeMessageAndWait(format("connect_matching %s %s",
+                                            escape(matching_port).c_str(), escape(destination_port).c_str()));
+}
+
 bool Host::disconnect(const char* const origin_port, const char* const destination_port)
 {
     VALIDATE_JACK_PORT(origin_port);
