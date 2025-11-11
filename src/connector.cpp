@@ -3840,16 +3840,17 @@ void HostConnector::connectBlockAudioInput2Tool(const uint8_t row,
                                                 const uint8_t block,
                                                 const uint8_t toolIndex,
                                                 const char* const toolInSymbolL,
-                                                const char* const toolInSymbolR)
+                                                const char* const toolInSymbolR,
+                                                const char* const toolInSymbolSidechainL,
+                                                const char* const toolInSymbolSidechainR)
 {
-    mod_log_debug("connectBlockAudioInput2Tool(%u, %u, %u, \"%s\", \"%s\")", row, block, toolIndex, toolInSymbolL, toolInSymbolR);
+    mod_log_debug("connectBlockAudioInput2Tool(%u, %u, %u, \"%s\", \"%s\", \"%s\", \"%s\")",
+                  row, block, toolIndex, toolInSymbolL, toolInSymbolR, toolInSymbolSidechainL, toolInSymbolSidechainR);
     assert(row < NUM_BLOCK_CHAIN_ROWS);
     assert(block < NUM_BLOCKS_PER_PRESET);
     assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
     assert(toolIndex != 5);
     assert(toolInSymbolL != nullptr && *toolInSymbolL != '\0');
-
-    const bool toolStereoIn = toolInSymbolR != nullptr && *toolInSymbolR != '\0';
 
     const Block& blockdata(_current.chains[row].blocks[block]);
     const Lv2Plugin* const plugin = lv2world.getPluginByURI(blockdata.uri.c_str());
@@ -3858,7 +3859,7 @@ void HostConnector::connectBlockAudioInput2Tool(const uint8_t row,
     const HostBlockPair hbp = _mapper.get(_current.preset, row, block);
     assert_return(hbp.id != kMaxHostInstances,);
 
-    // collect audio ports from block
+    // collect non-sidechain audio ports from block
     std::vector<std::string> ports;
     ports.reserve(2);
 
@@ -3885,10 +3886,40 @@ void HostConnector::connectBlockAudioInput2Tool(const uint8_t row,
         format(MOD_HOST_EFFECT_PREFIX "%d:%s", MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, toolInSymbolL).c_str());
 
     // connect stereo, if relevant
-    if (ports.size() == 2 && toolStereoIn)
-        _host.connect_matching(
-            ports[1].c_str(),
-            format(MOD_HOST_EFFECT_PREFIX "%d:%s", MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, toolInSymbolR).c_str());
+    if (ports.size() == 2 && toolInSymbolR != nullptr && *toolInSymbolR != '\0')
+        _host.connect_matching(ports[1].c_str(), format(MOD_HOST_EFFECT_PREFIX "%d:%s",
+                                                        MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex,
+                                                        toolInSymbolR).c_str());
+
+    // collect sidechain audio ports from block
+    ports.clear();
+    for (const Lv2Port& port : plugin->ports)
+    {
+        if ((port.flags & testFlags) != (Lv2PortIsAudio|Lv2PortIsSidechain))
+            continue;
+
+        ports.push_back(format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbp.id, port.symbol.c_str()));
+
+        if (hbp.pair != kMaxHostInstances)
+        {
+            ports.push_back(format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbp.pair, port.symbol.c_str()));
+            break;
+        }
+    }
+
+    if (ports.empty())
+        return;
+
+    // connect mono
+    _host.connect_matching(ports[0].c_str(), format(MOD_HOST_EFFECT_PREFIX "%d:%s",
+                                                    MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex,
+                                                    toolInSymbolSidechainL).c_str());
+
+    // connect stereo, if relevant
+    if (ports.size() == 2 && toolInSymbolSidechainR != nullptr && *toolInSymbolSidechainR != '\0')
+        _host.connect_matching(ports[1].c_str(), format(MOD_HOST_EFFECT_PREFIX "%d:%s",
+                                                        MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex,
+                                                        toolInSymbolSidechainR).c_str());
 }
 
 // --------------------------------------------------------------------------------------------------------------------

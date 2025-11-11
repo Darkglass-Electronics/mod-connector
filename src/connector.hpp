@@ -720,7 +720,9 @@ public:
                                      uint8_t block,
                                      uint8_t toolIndex,
                                      const char* toolInSymbolL,
-                                     const char* toolInSymbolR = nullptr);
+                                     const char* toolInSymbolR = nullptr,
+                                     const char* toolInSymbolSidechainL = nullptr,
+                                     const char* toolInSymbolSidechainR = nullptr);
 
     // disconnect all ports from a tool audio port
     void disconnectToolAudioPort(uint8_t toolIndex, const char* symbol);
