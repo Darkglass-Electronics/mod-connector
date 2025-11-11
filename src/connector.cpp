@@ -3856,15 +3856,15 @@ void HostConnector::connectBlock2Tool(const uint8_t row,
         return;
 
     // connect mono
-    _host.connect_matching(ports[0].c_str(), format(MOD_HOST_EFFECT_PREFIX "%d:%s",
-                                                    MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex,
-                                                    toolInSymbolSidechainL).c_str());
+    _host.connect(ports[0].c_str(), format(MOD_HOST_EFFECT_PREFIX "%d:%s",
+                                           MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex,
+                                           toolInSymbolSidechainL).c_str());
 
     // connect stereo, if relevant
     if (ports.size() == 2 && toolInSymbolSidechainR != nullptr && *toolInSymbolSidechainR != '\0')
-        _host.connect_matching(ports[1].c_str(), format(MOD_HOST_EFFECT_PREFIX "%d:%s",
-                                                        MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex,
-                                                        toolInSymbolSidechainR).c_str());
+        _host.connect(ports[1].c_str(), format(MOD_HOST_EFFECT_PREFIX "%d:%s",
+                                               MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex,
+                                               toolInSymbolSidechainR).c_str());
 }
 
 // --------------------------------------------------------------------------------------------------------------------
