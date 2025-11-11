@@ -711,7 +711,9 @@ public:
                            uint8_t block,
                            uint8_t toolIndex,
                            const char* toolInSymbolL,
-                           const char* toolInSymbolR = nullptr);
+                           const char* toolInSymbolR = nullptr,
+                           const char* toolInSymbolSidechainL = nullptr,
+                           const char* toolInSymbolSidechainR = nullptr);
 
     // connect a block input port to a tool input port
     // this is done by querying what is connected to the block input port,
