@@ -207,11 +207,6 @@ struct HMI : HMIProto,
         int steps = 0;
     };
 
-    struct ActuatorPage {
-        std::array<Actuator, NUM_BINDING_ACTUATORS> actuators;
-        bool active;
-    };
-
     bool poll();
 
     // sends assigned control data
@@ -219,8 +214,7 @@ struct HMI : HMIProto,
     bool control_set(uint8_t hw_id, float value);
 
     // publicly accessible read-only data
-    const std::array<ActuatorPage, NUM_BINDING_PAGES> &actuatorPages = _actuatorPages;
-    const uint8_t &actuatorPage = _actuatorPage;
+    const std::array<Actuator, NUM_BINDING_ACTUATORS * NUM_BINDING_PAGES> &actuators = _actuators;
 
     // current bank details
     const uint32_t &bankId = _bankId;
@@ -234,19 +228,12 @@ struct HMI : HMIProto,
     // others
     const bool &webConnected = _webConnected;
 
-    // helper for fetching current actuator page
-    [[nodiscard]] inline const ActuatorPage& currentActuatorPage() const
-    {
-        return _actuatorPages[_actuatorPage];
-    }
-
     HMI(Callback* callback, const char *serial, int baudrate);
 
 private:
     // private writable data
-    std::array<ActuatorPage, NUM_BINDING_PAGES> _actuatorPages;
+    std::array<Actuator, NUM_BINDING_ACTUATORS * NUM_BINDING_PAGES> _actuators;
     bool _webConnected = false;
-    uint8_t _actuatorPage = 0;
     uint32_t _bankId = 0;
     uint32_t _numPedalboardsInBank = 0;
     uint32_t _pedalboardId = 0;

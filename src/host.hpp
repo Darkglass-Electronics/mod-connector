@@ -195,6 +195,11 @@ struct Host {
     bool connect(const char* origin_port, const char* destination_port);
 
     /**
+     * connect the same connected ports of a port to another, so they match.
+     */
+    bool connect_matching(const char* matching_port, const char* destination_port);
+
+    /**
      * disconnect two jack ports
      */
     bool disconnect(const char* origin_port, const char* destination_port);
