@@ -701,10 +701,33 @@ public:
     void connectToolAudioOutput(uint8_t toolIndex, const char* symbol, const char* jackPort);
 
     // connect a tool audio output port to another tool's input port
-    void connectTool2Tool(uint8_t toolAIndex, const char* toolAOutSymbol, uint8_t toolBIndex, const char* toolBInSymbol);
+    void connectTool2Tool(uint8_t toolAIndex,
+                          const char* toolAOutSymbol,
+                          uint8_t toolBIndex,
+                          const char* toolBInSymbol);
 
     // connect a block output port to a tool input port
-    void connectBlock2Tool(uint8_t row, uint8_t block, uint8_t toolIndex, const char* toolInSymbolL, const char* toolInSymbolR = nullptr);
+    void connectBlock2Tool(uint8_t row,
+                           uint8_t block,
+                           uint8_t toolIndex,
+                           const char* toolInSymbolL,
+                           const char* toolInSymbolR = nullptr,
+                           const char* toolInSymbolSidechainL = nullptr,
+                           const char* toolInSymbolSidechainR = nullptr);
+
+    // connect a block input port to a tool input port
+    // this is done by querying what is connected to the block input port,
+    // and then making matching connections on the tool input port
+    void connectBlockAudioInput2Tool(uint8_t row,
+                                     uint8_t block,
+                                     uint8_t toolIndex,
+                                     const char* toolInSymbolL,
+                                     const char* toolInSymbolR = nullptr,
+                                     const char* toolInSymbolSidechainL = nullptr,
+                                     const char* toolInSymbolSidechainR = nullptr);
+
+    // disconnect all ports from a tool audio port
+    void disconnectToolAudioPort(uint8_t toolIndex, const char* symbol);
 
     // map a tool parameter to a specific MIDI CC
     void mapToolParameterToMIDICC(uint8_t toolIndex,
