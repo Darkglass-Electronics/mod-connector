@@ -15,9 +15,15 @@
 #include <unordered_map>
 
 enum ExtraLv2Flags {
-    Lv2ParameterVirtual = 1 << 11,
-    Lv2ParameterInScene = 1 << 12,
-    Lv2ParameterNotInQuickPot = 1 << 13,
+    Lv2ParameterVirtual = 1 << 12,
+    Lv2ParameterInScene = 1 << 13,
+    Lv2ParameterNotInQuickPot = 1 << 14,
+};
+
+enum Lv2ParameterState {
+    Lv2ParameterStateNone = 0,
+    Lv2ParameterStateInactive,
+    Lv2ParameterStateBlocked,
 };
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -30,6 +36,7 @@ struct HostConnector : Host::FeedbackCallback {
                 kCpuLoad,
                 kLog,
                 kParameterSet,
+                kParameterState,
                 kPatchSet,
                 kToolParameterSet,
                 kToolPatchSet,
@@ -62,6 +69,14 @@ struct HostConnector : Host::FeedbackCallback {
                     const char* symbol;
                     float value;
                 } parameterSet;
+                // kParameterState
+                struct {
+                    uint8_t row;
+                    uint8_t block;
+                    uint8_t index;
+                    const char* symbol;
+                    Lv2ParameterState state;
+                } parameterState;
                 // kPatchSet
                 struct {
                     uint8_t row;
@@ -116,6 +131,7 @@ struct HostConnector : Host::FeedbackCallback {
             uint32_t designation;
             uint8_t hwbinding;
             TemporarySceneState tempSceneState;
+            Lv2ParameterState state;
             float def, min, max;
             float def2; // default from plugin ttl, which might not match initial state (default preset override)
             std::string name;

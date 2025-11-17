@@ -300,6 +300,32 @@ private:
 
             callback->hostFeedbackCallback(d);
         }
+        else if (std::strncmp(buffer, "param_state ", 12) == 0)
+        {
+            assert(bytesRead > 14);
+            HostFeedbackData d = { HostFeedbackData::kFeedbackParameterState, {} };
+
+            char* msgbuffer;
+            char* sep = buffer + 12;
+
+            // 1st arg: int effect_id
+            msgbuffer = sep;
+            sep = std::strchr(sep, ' ');
+            *sep++ = '\0';
+            d.paramState.effect_id = std::atoi(msgbuffer);
+
+            // 2nd arg: char* symbol
+            msgbuffer = sep;
+            sep = std::strchr(sep, ' ');
+            *sep++ = '\0';
+            d.paramState.symbol = msgbuffer;
+
+            // 3rd arg: int state
+            msgbuffer = sep;
+            d.paramState.value = std::atoi(msgbuffer);
+
+            callback->hostFeedbackCallback(d);
+        }
         else if (std::strncmp(buffer, "patch_set ", 10) == 0)
         {
             assert(bytesRead > 12);
