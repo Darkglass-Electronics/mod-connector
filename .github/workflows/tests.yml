@@ -29,7 +29,7 @@ jobs:
         shell: bash
         run: |
           if [ ! -d ~/mod-host ]; then
-            git clone --depth=1 https://github.com/mod-audio/mod-host.git -b multi ~/mod-host
+            git clone --depth=1 https://github.com/mod-audio/mod-host.git ~/mod-host
             make -C ~/mod-host -j $(nproc)
           fi
       - name: build test blocks
