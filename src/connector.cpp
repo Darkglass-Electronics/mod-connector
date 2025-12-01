@@ -1607,6 +1607,8 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
                     break;
                 if ((paramdata.meta.flags & Lv2ParameterNotAllowedToChange) != 0)
                     continue;
+                if (paramdata.meta.state == Lv2ParameterStateBlocked)
+                    continue;
 
                 paramdata.meta.flags &= ~Lv2ParameterInScene;
                 paramdata.meta.tempSceneState = kTemporarySceneNone;
@@ -2080,6 +2082,8 @@ bool HostConnector::resetBlock(const uint8_t row, const uint8_t block, const boo
             break;
         if ((paramdata.meta.flags & Lv2ParameterNotAllowedToChange) != 0)
             continue;
+        if (paramdata.meta.state == Lv2ParameterStateBlocked)
+            continue;
 
         paramdata.meta.flags &= ~Lv2ParameterInScene;
         paramdata.meta.tempSceneState = kTemporarySceneNone;
@@ -2173,7 +2177,7 @@ bool HostConnector::saveBlockStateAsDefault(const uint8_t row, const uint8_t blo
                 Parameter& paramdata(blockdata.parameters[p]);
                 if (isNullURI(paramdata.symbol))
                     break;
-                if ((paramdata.meta.flags & Lv2ParameterNotAllowedToChange) != 0)
+                if ((paramdata.meta.flags & (Lv2ParameterNotAllowedToChange | Lv2ParameterMayUpdateBlockedState)) != 0)
                     continue;
 
                 blockdataB.parameters[p].meta.def = paramdata.value;
@@ -7085,6 +7089,16 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
                 continue;
             if ((paramdata.meta.flags & Lv2ParameterNotAllowedToChange) != 0)
                 continue;
+            if (paramdata.meta.state == Lv2ParameterStateBlocked)
+                continue;
+
+            // ignore potentially unsafe default values from user defaults
+            // for parameters that may update to blocked state right after initialization
+            if ((paramdata.meta.flags & Lv2ParameterMayUpdateBlockedState) != 0)
+            {
+                paramdata.value = paramdata.meta.def = paramdata.meta.def2;
+                continue;
+            }
 
             paramdata.value = paramdata.meta.def = value;
         }
