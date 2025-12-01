@@ -6361,9 +6361,10 @@ void HostConnector::hostSwitchPreset(const Current& prev)
 
     // audio is now processing new preset
 
-    // scope for preloading default preset state
+    // scope for preloading default preset state and copying current port state cache
     {
         const Preset& defaults = _presets[prev.preset];
+        Preset& inactivatedPreset = _presets[prev.preset];
         // bool defloaded[NUM_BLOCKS_PER_PRESET];
 
         const Host::NonBlockingScope hnbs(_host);
@@ -6374,8 +6375,10 @@ void HostConnector::hostSwitchPreset(const Current& prev)
             {
                 const Block& defblockdata = defaults.chains[row].blocks[bl];
                 const Block& prevblockdata = prev.chains[row].blocks[bl];
+                Block& inactblockdata = inactivatedPreset.chains[row].blocks[bl];
 
                 // using same plugin (or both empty)
+                // already loaded plugin instance(s) will be kept
                 if (defblockdata.uri == prevblockdata.uri)
                 {
                     if (isNullBlock(defblockdata))
@@ -6395,10 +6398,18 @@ void HostConnector::hostSwitchPreset(const Current& prev)
                     {
                         const Parameter& defparamdata(defblockdata.parameters[p]);
                         const Parameter& oldparamdata(prevblockdata.parameters[p]);
+                        Parameter& inactparamdata(inactblockdata.parameters[p]);
 
                         if (isNullURI(defparamdata.symbol))
                             break;
+
+                        // copy param state to _presets because it's not part of saved preset data
+                        // but should be kept for next activation
+                        inactparamdata.meta.state = oldparamdata.meta.state;
+
                         if ((defparamdata.meta.flags & Lv2ParameterNotAllowedToChange) != 0)
+                            continue;
+                        if (inactparamdata.meta.state == Lv2ParameterStateBlocked)
                             continue;
                         if (isEqual(defparamdata.value, oldparamdata.value))
                             continue;
@@ -6479,6 +6490,7 @@ void HostConnector::hostSwitchPreset(const Current& prev)
         }
 
         // ensure necessary dual mono blocks are added
+        // FIXME? this makes unnecessary connections for the non-acive preset?
         hostEnsureStereoChain(prev.preset, 0);
     }
 }
