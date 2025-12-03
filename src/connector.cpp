@@ -3442,18 +3442,19 @@ void HostConnector::setBindingValue(const uint8_t hwid,
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::pollHostUpdates(Callback* const callback)
+bool HostConnector::pollHostUpdates(Callback* const callback)
 {
     _callback = callback;
-    _host.poll_feedback(this);
+    bool retval = _host.poll_feedback(this);
     _callback = nullptr;
+    return retval;
 }
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::requestHostUpdates()
+bool HostConnector::requestHostUpdates()
 {
-    _host.output_data_ready();
+    return _host.output_data_ready();
 }
 
 // --------------------------------------------------------------------------------------------------------------------

@@ -357,10 +357,10 @@ public:
 
     // poll for host updates (e.g. MIDI-mapped parameter changes, tempo changes)
     // NOTE make sure to call `requestHostUpdates()` after handling all updates
-    void pollHostUpdates(Callback* callback);
+    bool pollHostUpdates(Callback* callback);
 
     // request more host updates
-    void requestHostUpdates();
+    bool requestHostUpdates();
 
     // ----------------------------------------------------------------------------------------------------------------
     // debug helpers
