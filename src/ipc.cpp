@@ -420,27 +420,27 @@ private:
                     }
                    #endif
                 }
+
+                continue;
             }
+
             /* Error */
-            else if (r < 0)
-            {
+            if (r < 0)
                 last_error = "read error";
-                mod_log_warn("error: %s", last_error.c_str());
-                return false;
-            }
             /* Client disconnected */
             else
-            {
                 last_error = "disconnected";
-                mod_log_warn("error: %s", last_error.c_str());
-                return false;
-            }
+
+           #ifndef NDEBUG
+            delete[] times;
+           #endif
+            mod_log_warn("error: %s", last_error.c_str());
+            return false;
         }
 
        #ifndef NDEBUG
         delete[] times;
        #endif
-
         mod_log_debug("%s: end, numNonBlockingOps: %u", __func__, numNonBlockingOps);
         return true;
     }

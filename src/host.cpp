@@ -397,7 +397,7 @@ private:
                 case 'i':
                     if (int32_t* const data = static_cast<int32_t*>(std::calloc(d.patchSet.data.v.num, sizeof(int32_t))))
                     {
-                        for (uint32_t i = 0; i < d.patchSet.data.v.num && *msgbuffer != '\0'; ++i)
+                        for (uint32_t i = 0; i < d.patchSet.data.v.num && msgbuffer != nullptr && *msgbuffer != '\0'; ++i)
                         {
                             if ((sep = std::strchr(sep, ':')) != nullptr)
                                 *sep++ = '\0';
@@ -417,7 +417,7 @@ private:
                 case 'l':
                     if (int64_t* const data = static_cast<int64_t*>(std::calloc(d.patchSet.data.v.num, sizeof(int64_t))))
                     {
-                        for (uint32_t i = 0; i < d.patchSet.data.v.num && *msgbuffer != '\0'; ++i)
+                        for (uint32_t i = 0; i < d.patchSet.data.v.num && msgbuffer != nullptr && *msgbuffer != '\0'; ++i)
                         {
                             if ((sep = std::strchr(sep, ':')) != nullptr)
                                 *sep++ = '\0';
@@ -437,7 +437,7 @@ private:
                 case 'f':
                     if (float* const data = static_cast<float*>(std::calloc(d.patchSet.data.v.num, sizeof(float))))
                     {
-                        for (uint32_t i = 0; i < d.patchSet.data.v.num && *msgbuffer != '\0'; ++i)
+                        for (uint32_t i = 0; i < d.patchSet.data.v.num && msgbuffer != nullptr && *msgbuffer != '\0'; ++i)
                         {
                             if ((sep = std::strchr(sep, ':')) != nullptr)
                                 *sep++ = '\0';
@@ -457,7 +457,7 @@ private:
                 case 'g':
                     if (double* const data = static_cast<double*>(std::calloc(d.patchSet.data.v.num, sizeof(double))))
                     {
-                        for (uint32_t i = 0; i < d.patchSet.data.v.num && *msgbuffer != '\0'; ++i)
+                        for (uint32_t i = 0; i < d.patchSet.data.v.num && msgbuffer != nullptr && *msgbuffer != '\0'; ++i)
                         {
                             if ((sep = std::strchr(sep, ':')) != nullptr)
                                 *sep++ = '\0';
