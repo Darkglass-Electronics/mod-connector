@@ -193,6 +193,12 @@ struct Host::Impl
         }
        #endif
 
+        if (ipc == nullptr)
+        {
+            last_error = "not yet connected";
+            return false;
+        }
+
         if (ipc->writeMessage(message, respType, resp))
             return true;
 
