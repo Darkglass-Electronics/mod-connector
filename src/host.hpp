@@ -192,7 +192,7 @@ struct Host {
     /**
      * connect two jack ports
      */
-    bool connect(const char* origin_port, const char* destination_port);
+    bool connect(const char* origin_port, const char* destination_port, bool safe = false);
 
     /**
      * connect the same connected ports of a port to another, so they match.
@@ -202,7 +202,7 @@ struct Host {
     /**
      * disconnect two jack ports
      */
-    bool disconnect(const char* origin_port, const char* destination_port);
+    bool disconnect(const char* origin_port, const char* destination_port, bool safe = false);
 
     /**
      * disconnect all connections of a jack port

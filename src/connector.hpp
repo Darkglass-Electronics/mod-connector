@@ -711,7 +711,7 @@ public:
     bool enableTool(uint8_t toolIndex, const char* uri);
 
     // connect a tool audio input port to an arbitrary jack output port
-    void connectToolAudioInput(uint8_t toolIndex, const char* symbol, const char* jackPort);
+    void connectToolAudioInput(uint8_t toolIndex, const char* symbol, const char* jackPort, bool safe = false);
 
     // connect a tool audio output port to an arbitrary jack input port
     void connectToolAudioOutput(uint8_t toolIndex, const char* symbol, const char* jackPort);
