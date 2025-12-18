@@ -3756,17 +3756,18 @@ bool HostConnector::enableTool(const uint8_t toolIndex, const char* const uri)
 
 void HostConnector::connectToolAudioInput(const uint8_t toolIndex,
                                           const char* const symbol,
-                                          const char* const jackPort)
+                                          const char* const jackPort,
+                                          const bool safe)
 {
-    mod_log_debug("connectToolAudioInput(%u, \"%s\", \"%s\")", toolIndex, symbol, jackPort);
+    mod_log_debug("connectToolAudioInput(%u, \"%s\", \"%s\", %s)", toolIndex, symbol, jackPort, bool2str(safe));
     assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
     assert(toolIndex != 5);
     assert(symbol != nullptr && *symbol != '\0');
     assert(jackPort != nullptr && *jackPort != '\0');
 
-    _host.connect(jackPort, format(MOD_HOST_EFFECT_PREFIX "%d:%s", 
-                                   MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex,
-                                   symbol).c_str());
+    _host.connect(jackPort,
+                  format(MOD_HOST_EFFECT_PREFIX "%d:%s", MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, symbol).c_str(),
+                  safe);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -4502,16 +4503,9 @@ void HostConnector::hostConnectChainEndpointsAction(const uint8_t row, const boo
 
     assert(!chain.playback[1].empty());
 
-    if (connect)
-    {
-        _host.connect(chain.capture[0].c_str(), chain.playback[0].c_str());
-        _host.connect(chain.capture[1].c_str(), chain.playback[1].c_str());
-    }
-    else
-    {
-        _host.disconnect(chain.capture[0].c_str(), chain.playback[0].c_str());
-        _host.disconnect(chain.capture[1].c_str(), chain.playback[1].c_str());
-    }
+    bool (Host::*const call)(const char*, const char*, bool) = connect ? &Host::connect : &Host::disconnect;
+    (_host.*call)(chain.capture[0].c_str(), chain.playback[0].c_str(), true);
+    (_host.*call)(chain.capture[1].c_str(), chain.playback[1].c_str(), true);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -4529,7 +4523,7 @@ void HostConnector::hostConnectChainInputAction(const uint8_t row, const uint8_t
     const HostBlockPair hbp = _mapper.get(_current.preset, row, block);
     assert_return(hbp.id != kMaxHostInstances,);
 
-    bool (Host::*call)(const char*, const char*) = connect ? &Host::connect : &Host::disconnect;
+    bool (Host::*const call)(const char*, const char*, bool) = connect ? &Host::connect : &Host::disconnect;
     std::string origin, target;
 
     for (size_t i = 0, j = 0; i < plugin->ports.size() && j < 2; ++i)
@@ -4542,14 +4536,14 @@ void HostConnector::hostConnectChainInputAction(const uint8_t row, const uint8_t
         origin = _current.chains[row].capture[j++];
         target = format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbp.id, plugin->ports[i].symbol.c_str());
         assert_continue(!origin.empty());
-        (_host.*call)(origin.c_str(), target.c_str());
+        (_host.*call)(origin.c_str(), target.c_str(), false);
 
         if (hbp.pair != kMaxHostInstances)
         {
             origin = _current.chains[row].capture[j++];
             target = format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbp.pair, plugin->ports[i].symbol.c_str());
             assert_continue(!origin.empty());
-            (_host.*call)(origin.c_str(), target.c_str());
+            (_host.*call)(origin.c_str(), target.c_str(), false);
             return;
         }
     }
@@ -4578,7 +4572,7 @@ void HostConnector::hostConnectChainOutputAction(const uint8_t row, const uint8_
     const HostBlockPair hbp = _mapper.get(_current.preset, row, block);
     assert_return(hbp.id != kMaxHostInstances,);
 
-    bool (Host::*call)(const char*, const char*) = connect ? &Host::connect : &Host::disconnect;
+    bool (Host::*const call)(const char*, const char*, bool) = connect ? &Host::connect : &Host::disconnect;
     std::string origin, target;
     int dsti = 0;
 
@@ -4591,19 +4585,19 @@ void HostConnector::hostConnectChainOutputAction(const uint8_t row, const uint8_
 
         origin = format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbp.id, plugin->ports[i].symbol.c_str());
         target = chain.playback[dsti++];
-        (_host.*call)(origin.c_str(), target.c_str());
+        (_host.*call)(origin.c_str(), target.c_str(), false);
 
         if (hbp.pair != kMaxHostInstances)
         {
             origin = format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbp.pair, plugin->ports[i].symbol.c_str());
             target = chain.playback[dsti++];
-            (_host.*call)(origin.c_str(), target.c_str());
+            (_host.*call)(origin.c_str(), target.c_str(), false);
             return;
         }
     }
 
     if (dsti == 1)
-        (_host.*call)(origin.c_str(), chain.playback[1].c_str());
+        (_host.*call)(origin.c_str(), chain.playback[1].c_str(), false);
 }
 
 // --------------------------------------------------------------------------------------------------------------------

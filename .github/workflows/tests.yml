@@ -3,7 +3,7 @@ name: tests
 on: [push, pull_request]
 
 env:
-  CACHE_VERSION: 3
+  CACHE_VERSION: 4
   DEBIAN_FRONTEND: noninteractive
   JACKD_CMD_ARGS: -r -d dummy -r 48000 -p 8192
 

@@ -867,13 +867,15 @@ std::string Host::preset_show(const char* const preset_uri)
     return {};
 }
 
-bool Host::connect(const char* const origin_port, const char* const destination_port)
+bool Host::connect(const char* const origin_port, const char* const destination_port, const bool safe)
 {
     VALIDATE_JACK_PORT(origin_port);
     VALIDATE_JACK_PORT(destination_port);
 
-    return impl->writeMessageAndWait(format("connect %s %s",
-                                            escape(origin_port).c_str(), escape(destination_port).c_str()));
+    return impl->writeMessageAndWait(format("%s %s %s",
+                                            safe ? "connect_safe" : "connect" ,
+                                            escape(origin_port).c_str(),
+                                            escape(destination_port).c_str()));
 }
 
 bool Host::connect_matching(const char* const matching_port, const char* const destination_port)
@@ -885,13 +887,15 @@ bool Host::connect_matching(const char* const matching_port, const char* const d
                                             escape(matching_port).c_str(), escape(destination_port).c_str()));
 }
 
-bool Host::disconnect(const char* const origin_port, const char* const destination_port)
+bool Host::disconnect(const char* const origin_port, const char* const destination_port, const bool safe)
 {
     VALIDATE_JACK_PORT(origin_port);
     VALIDATE_JACK_PORT(destination_port);
 
-    return impl->writeMessageAndWait(format("disconnect %s %s",
-                                            escape(origin_port).c_str(), escape(destination_port).c_str()));
+    return impl->writeMessageAndWait(format("%s %s %s",
+                                            safe ? "disconnect_safe" : "disconnect" ,
+                                            escape(origin_port).c_str(),
+                                            escape(destination_port).c_str()));
 }
 
 bool Host::disconnect_all(const char* const origin_port)
