@@ -5598,13 +5598,18 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
                             continue;
                         }
 
+                        bool found = false;
                         for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
                         {
                             Parameter& paramdata = blockdata.parameters[p];
 
                             if (isNullURI(paramdata.symbol))
                                 break;
-                            if (! shouldSaveParameterToPreset(paramdata.meta.flags))
+                            // NOTE we always save all bindings
+                            // the check here needs to be custom to allow virtual params
+                            if ((paramdata.meta.flags & Lv2PortIsOutput) != 0)
+                                continue;
+                            if ((paramdata.meta.flags & (Lv2ParameterHidden|Lv2ParameterSavedToPreset)) == Lv2ParameterHidden)
                                 continue;
                             if (paramdata.symbol != symbol)
                                 continue;
@@ -5627,8 +5632,12 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
                                     .parameterIndex = p,
                                 },
                             });
+                            found = true;
                             break;
                         }
+
+                        if (! found)
+                            mod_log_warn("jsonPresetLoad(): binding parameter %s not found in plugin", symbol.c_str());
                     }
 
                     bindings.parameters = parameters;
