@@ -21,6 +21,7 @@
 #include <unistd.h>
 #define closesocket close
 #define INVALID_SOCKET -1
+#define SD_BOTH SHUT_RDWR
 typedef int SOCKET;
 #endif
 
@@ -92,6 +93,7 @@ static int getLastError()
 struct IPC::Impl
 {
     std::string& last_error;
+    bool server = false;
 
     Impl(std::string& last_error_)
         : last_error(last_error_)
@@ -123,7 +125,16 @@ struct IPC::Impl
     }
    #endif
 
-    void openTCP(const int port)
+    void openSingleTCP(const int port, const bool isServer)
+    {
+        if (dummyDevMode)
+            return;
+
+        iface = std::make_unique<SingleSocketTCP>(last_error, port, isServer);
+        server = isServer;
+    }
+
+    void openDualTCP(const int port)
     {
         if (const char* const dev = std::getenv("MOD_DEV_HOST"))
             if (std::atoi(dev) != 0)
@@ -155,13 +166,21 @@ struct IPC::Impl
         // nothing to read, quit
         if (r == 0)
         {
-            last_error.clear();
+            // TCP server will return 0 when client is disconnected
+            if (server)
+                last_error = format("readMessage fist byte disconnected, error: %d", getLastError());
+            else
+                last_error.clear();
             return nullptr;
         }
 
         if (r < 0)
         {
-            last_error = format("readMessage fist byte error, return: %d, error: %d", r, getLastError());
+            // TCP server will "error" with EWOULDBLOCK when there is no data to read
+            if (server && (errno == EAGAIN || errno == EWOULDBLOCK))
+                last_error.clear();
+            else
+                last_error = format("readMessage fist byte error, return: %d, error: %d", r, getLastError());
             return nullptr;
         }
 
@@ -536,6 +555,21 @@ private:
     };
    #endif
 
+    struct SingleSocketTCP : Interface {
+        SingleSocketTCP(std::string& last_error_, int port, bool isServer);
+        ~SingleSocketTCP() override;
+        [[nodiscard]] int setReadBlocking() final;
+        void setReadNonBlocking(int flags) final;
+        [[nodiscard]] int readMessageByte(char* c) final;
+        [[nodiscard]] int readResponseByte(char* c) final;
+        [[nodiscard]] bool writeMessage(const std::string& message) final;
+
+        struct {
+            SOCKET out = INVALID_SOCKET;
+            SOCKET outfd = INVALID_SOCKET;
+        } sockets;
+    };
+
     struct DualSocketTCP : Interface {
         DualSocketTCP(std::string& last_error_, int port);
         ~DualSocketTCP() override;
@@ -553,6 +587,184 @@ private:
 
     std::unique_ptr<Interface> iface;
 };
+
+// --------------------------------------------------------------------------------------------------------------------
+
+IPC::Impl::SingleSocketTCP::SingleSocketTCP(std::string& last_error_, const int port, const bool isServer)
+    : Interface(last_error_)
+{
+    last_error.clear();
+
+   #ifdef _WIN32
+    if (! wsaInit(last_error))
+        return;
+   #endif
+
+    SOCKET outsock, outsockfd;
+
+    if (outsock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP); outsock == INVALID_SOCKET)
+    {
+        last_error = "output socket error";
+        return;
+    }
+
+   #ifndef _WIN32
+    int value;
+
+    /* increase socket size */
+    constexpr const int socketsize = 131071;
+    value = socketsize;
+    setsockopt(outsock, SOL_SOCKET, SO_RCVBUF, &value, sizeof(value));
+
+    /* set TCP_NODELAY */
+    value = 1;
+    setsockopt(outsock, IPPROTO_TCP, TCP_NODELAY, &value, sizeof(value));
+   #endif
+
+    /* Startup the socket struct */
+    struct sockaddr_in serv_addr = {};
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    serv_addr.sin_port = htons(port);
+
+    /* Try to connect or bind address */
+    if (isServer)
+    {
+        /* Allow the reuse of the socket address */
+       #ifndef _WIN32
+        value = 1;
+        setsockopt(outsock, SOL_SOCKET, SO_REUSEPORT, &value, sizeof(value));
+       #endif
+
+        if (::bind(outsock, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0)
+        {
+            ::closesocket(outsock);
+            last_error = "socket bind error";
+            return;
+        }
+        if (::listen(outsock, -1) < 0)
+        {
+            ::closesocket(outsock);
+            last_error = "socket listen error";
+            return;
+        }
+        if (outsockfd = ::accept(outsock, nullptr, nullptr); outsockfd < 0)
+        {
+            ::closesocket(outsock);
+            last_error = "socket accept error";
+            return;
+        }
+
+        /* set non-blocking mode, so we can poke to see if there are any messages */
+       #ifdef _WIN32
+        unsigned long nonblocking = 1;
+        ::ioctlsocket(outsock, FIONBIO, &nonblocking);
+       #else
+        const int socketflags = ::fcntl(outsock, F_GETFL);
+        ::fcntl(outsock, F_SETFL, socketflags | O_NONBLOCK);
+       #endif
+
+        sockets.outfd = outsockfd;
+    }
+    else
+    {
+        if (::connect(outsock, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0)
+        {
+            ::closesocket(outsock);
+            last_error = "output socket connect error";
+            return;
+        }
+
+        sockets.outfd = outsock;
+    }
+
+    sockets.out = outsock;
+}
+
+IPC::Impl::SingleSocketTCP::~SingleSocketTCP()
+{
+    if (sockets.out == INVALID_SOCKET)
+        return;
+
+    // make local copies so that we can invalidate these vars first
+    const SOCKET outsock = sockets.out;
+    const SOCKET outsockfd = sockets.outfd;
+    sockets.out = sockets.outfd = INVALID_SOCKET;
+
+    // shutdown connection first
+    if (outsock != outsockfd)
+        shutdown(outsockfd, SD_BOTH);
+
+    // then the socket
+    ::closesocket(outsock);
+
+   #ifdef _WIN32
+    wsaCleanup();
+   #endif
+}
+
+int IPC::Impl::SingleSocketTCP::setReadBlocking()
+{
+    assert(sockets.outfd != INVALID_SOCKET);
+   #ifdef _WIN32
+    unsigned long nonblocking = 0;
+    ::ioctlsocket(sockets.outfd, FIONBIO, &nonblocking);
+    return 0;
+   #else
+    const int socketflags = ::fcntl(sockets.outfd, F_GETFL);
+    ::fcntl(sockets.outfd, F_SETFL, socketflags & ~O_NONBLOCK);
+    return socketflags;
+   #endif
+}
+
+void IPC::Impl::SingleSocketTCP::setReadNonBlocking(const int flags)
+{
+    assert(sockets.outfd != INVALID_SOCKET);
+   #ifdef _WIN32
+    unsigned long nonblocking = 1;
+    ::ioctlsocket(sockets.outfd, FIONBIO, &nonblocking);
+   #else
+    ::fcntl(sockets.outfd, F_SETFL, flags | O_NONBLOCK);
+   #endif
+}
+
+int IPC::Impl::SingleSocketTCP::readMessageByte(char* const c)
+{
+    return recv(sockets.outfd, c, 1, 0);
+}
+
+int IPC::Impl::SingleSocketTCP::readResponseByte(char* const c)
+{
+    return recv(sockets.outfd, c, 1, 0);
+}
+
+bool IPC::Impl::SingleSocketTCP::writeMessage(const std::string& message)
+{
+    if (sockets.outfd == INVALID_SOCKET)
+    {
+        last_error = "socket is not connected";
+        return false;
+    }
+
+    const char* buffer = message.c_str();
+    size_t msgsize = message.size() + 1;
+    int ret;
+
+    while (msgsize > 0)
+    {
+        ret = ::send(sockets.outfd, buffer, msgsize, 0);
+        if (ret < 0)
+        {
+            last_error = "send error";
+            return false;
+        }
+
+        msgsize -= ret;
+        buffer += ret;
+     }
+
+    return true;
+}
 
 // --------------------------------------------------------------------------------------------------------------------
 
@@ -798,10 +1010,17 @@ IPC* IPC::createSerialPortIPC(const char* const serial, const int baudrate)
 #endif
 }
 
+IPC* IPC::createSingleSocketIPC(const int tcpPort, const bool isServer)
+{
+    IPC* const ipc = new IPC();
+    ipc->impl->openSingleTCP(tcpPort, isServer);
+    return ipc;
+}
+
 IPC* IPC::createDualSocketIPC(const int tcpPort)
 {
     IPC* const ipc = new IPC();
-    ipc->impl->openTCP(tcpPort);
+    ipc->impl->openDualTCP(tcpPort);
     return ipc;
 }
 
