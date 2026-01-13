@@ -132,7 +132,7 @@ struct IPC::Impl
         if (dummyDevMode)
             return;
 
-        iface = std::make_unique<TCP>(last_error, port);
+        iface = std::make_unique<DualSocketTCP>(last_error, port);
     }
 
     void close()
@@ -536,9 +536,9 @@ private:
     };
    #endif
 
-    struct TCP : Interface {
-        TCP(std::string& last_error_, int port);
-        ~TCP() override;
+    struct DualSocketTCP : Interface {
+        DualSocketTCP(std::string& last_error_, int port);
+        ~DualSocketTCP() override;
         [[nodiscard]] int setReadBlocking() final;
         void setReadNonBlocking(int flags) final;
         [[nodiscard]] int readMessageByte(char* c) final;
@@ -556,7 +556,7 @@ private:
 
 // --------------------------------------------------------------------------------------------------------------------
 
-IPC::Impl::TCP::TCP(std::string& last_error_, const int port)
+IPC::Impl::DualSocketTCP::DualSocketTCP(std::string& last_error_, const int port)
     : Interface(last_error_)
 {
     last_error.clear();
@@ -633,7 +633,7 @@ IPC::Impl::TCP::TCP(std::string& last_error_, const int port)
     sockets.feedback = fbsock;
 }
 
-IPC::Impl::TCP::~TCP()
+IPC::Impl::DualSocketTCP::~DualSocketTCP()
 {
     if (sockets.out == INVALID_SOCKET)
         return;
@@ -651,7 +651,7 @@ IPC::Impl::TCP::~TCP()
    #endif
 }
 
-int IPC::Impl::TCP::setReadBlocking()
+int IPC::Impl::DualSocketTCP::setReadBlocking()
 {
    #ifdef _WIN32
     unsigned long nonblocking = 0;
@@ -664,7 +664,7 @@ int IPC::Impl::TCP::setReadBlocking()
    #endif
 }
 
-void IPC::Impl::TCP::setReadNonBlocking(const int flags [[maybe_unused]])
+void IPC::Impl::DualSocketTCP::setReadNonBlocking(const int flags [[maybe_unused]])
 {
    #ifdef _WIN32
     unsigned long nonblocking = 1;
@@ -674,17 +674,17 @@ void IPC::Impl::TCP::setReadNonBlocking(const int flags [[maybe_unused]])
    #endif
 }
 
-int IPC::Impl::TCP::readMessageByte(char* const c)
+int IPC::Impl::DualSocketTCP::readMessageByte(char* const c)
 {
     return recv(sockets.feedback, c, 1, 0);
 }
 
-int IPC::Impl::TCP::readResponseByte(char* const c)
+int IPC::Impl::DualSocketTCP::readResponseByte(char* const c)
 {
     return recv(sockets.out, c, 1, 0);
 }
 
-bool IPC::Impl::TCP::writeMessage(const std::string& message)
+bool IPC::Impl::DualSocketTCP::writeMessage(const std::string& message)
 {
     if (sockets.out == INVALID_SOCKET)
     {
