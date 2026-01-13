@@ -121,6 +121,11 @@ static const char* host_error_code_to_string(const int code)
 struct Host::Impl
 {
     std::string& last_error;
+   #ifdef MOD_DEVICE_HOST_PORT
+    static constexpr int portNumber = MOD_DEVICE_HOST_PORT;
+   #else
+    int portNumber = -1;
+   #endif
 
     Impl(std::string& last_error_)
         : last_error(last_error_)
@@ -135,17 +140,14 @@ struct Host::Impl
 
     bool reconnect()
     {
-        if (ipc == nullptr)
+       #ifndef MOD_DEVICE_HOST_PORT
+        if (portNumber == -1)
         {
-           #ifdef MOD_DEVICE_HOST_PORT
-            static constexpr const int port = MOD_DEVICE_HOST_PORT;
-           #else
-            int port;
             if (const char* const portEnv = std::getenv("MOD_DEVICE_HOST_PORT"))
             {
-                port = std::atoi(portEnv);
+                portNumber = std::atoi(portEnv);
 
-                if (port == 0)
+                if (portNumber == 0)
                 {
                     last_error = "No valid port specified, try setting `MOD_DEVICE_HOST_PORT` env var";
                     return false;
@@ -153,12 +155,13 @@ struct Host::Impl
             }
             else
             {
-                port = 5555;
+                portNumber = 5555;
             }
-           #endif
-
-            ipc = std::make_unique<IPC>(port);
         }
+       #endif
+
+        if (ipc == nullptr)
+            ipc = std::make_unique<IPC>(portNumber);
 
         last_error = ipc->last_error;
 
