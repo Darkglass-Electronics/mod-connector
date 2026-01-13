@@ -62,14 +62,14 @@ struct HMIProto::Impl
     bool open(const char* const serial, const int baudrate)
     {
         if (ipc == nullptr)
-            ipc = std::make_unique<IPC>(serial, baudrate);
+            ipc.reset(IPC::createSerialPortIPC(serial, baudrate));
 
         last_error = ipc->last_error;
 
         if (last_error.empty())
             return true;
 
-        ipc = nullptr;
+        ipc.reset();
         return false;
     }
 

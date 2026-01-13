@@ -161,14 +161,14 @@ struct Host::Impl
        #endif
 
         if (ipc == nullptr)
-            ipc = std::make_unique<IPC>(portNumber);
+            ipc.reset(IPC::createDualSocketIPC(portNumber));
 
         last_error = ipc->last_error;
 
         if (last_error.empty())
             return true;
 
-        ipc = nullptr;
+        ipc.reset();
         return false;
     }
 

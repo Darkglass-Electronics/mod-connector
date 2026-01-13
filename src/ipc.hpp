@@ -32,14 +32,14 @@ struct IPC
     };
 
     /**
-     * constructor for IPC using serial port, specifying path to serial port and baudrate.
+     * create IPC using a serial port, specifying path to serial port and baudrate.
      */
-    IPC(const char* serial, int baudrate);
+    static IPC* createSerialPortIPC(const char* serial, int baudrate);
 
     /**
-     * constructor for TCP socket, specifying TCP port.
+     * create IPC using dual TCP sockets (one out-going, one receiving), specifying TCP port.
      */
-    IPC(int tcpPort);
+    static IPC* createDualSocketIPC(int tcpPort);
 
     /**
      * destructor.
@@ -73,6 +73,9 @@ struct IPC
      * write a message without a reply, typically used for replies themselves.
      */
     bool writeMessageWithoutReply(const std::string& message);
+
+protected:
+    IPC();
 
 private:
     struct Impl;
