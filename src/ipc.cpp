@@ -189,6 +189,7 @@ struct IPC::Impl
 
         // read full message now
         buffer[0] = firstbyte;
+        last_error.clear();
 
         for (uint32_t read = 1;;)
         {
@@ -215,20 +216,20 @@ struct IPC::Impl
             else if (r < 0)
             {
                 last_error = format("readMessageByte %u read error, return: %d, error: %d", read, r, getLastError());
-                return nullptr;
+                break;
             }
             /* Client disconnected */
             else
             {
                 last_error = format("readMessageByte %u disconnected, error: %d", read, getLastError());
-                return nullptr;
+                break;
             }
         }
 
         // set non-blocking mode again
         iface->setReadNonBlocking(flags);
 
-        return buffer;
+        return last_error.empty() ? buffer : nullptr;
     }
 
     void setWriteBlockingAndWait(const bool blocking)
