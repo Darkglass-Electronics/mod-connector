@@ -4297,6 +4297,40 @@ void HostConnector::setBlockProperty(const uint8_t row,
 
 // --------------------------------------------------------------------------------------------------------------------
 
+bool HostConnector::bundleAdd(const char* const path)
+{
+    mod_log_debug("bundleAdd(\"%s\")", path);
+    assert(path != nullptr && *path != '\0');
+    assert(path[std::strlen(path) - 1] == PATH_SEP_CHAR);
+
+    if (_host.bundle_add(path))
+    {
+        _lv2world.bundleAdd(path);
+        return true;
+    }
+
+    return false;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+bool HostConnector::bundleRemove(const char* path)
+{
+    mod_log_debug("bundleRemove(\"%s\")", path);
+    assert(path != nullptr && *path != '\0');
+    assert(path[std::strlen(path) - 1] == PATH_SEP_CHAR);
+
+    if (_host.bundle_remove(path))
+    {
+        _lv2world.bundleRemove(path);
+        return true;
+    }
+
+    return false;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 void HostConnector::hostConnectBlockToBlock(const uint8_t row, const uint8_t blockA, const uint8_t blockB)
 {
     mod_log_debug("hostConnectBlockToBlock(%u, %u, %u)", row, blockA, blockB);

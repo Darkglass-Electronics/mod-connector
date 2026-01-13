@@ -313,6 +313,9 @@ struct HostConnector : Host::FeedbackCallback {
     // connection to mod-host, handled internally
     Host _host;
 
+    // internal lv2 world instance
+    Lv2World _lv2world;
+
 protected:
     // internal host instance mapper
     HostInstanceMapper _mapper;
@@ -330,8 +333,8 @@ protected:
     bool _firstboot = true;
 
 public:
-    // lv2 world for getting information about plugins
-    const Lv2World lv2world;
+    // read-only lv2 world for getting information about plugins
+    const Lv2World& lv2world = _lv2world;
 
     // list of virtual parameters per plugin
     // NOTE symbol MUST start with ":" and not be ":bypass"
@@ -794,6 +797,19 @@ public:
         setBlockProperty(0, block, propIndex, value, sceneMode);
     }
    #endif
+
+    // ----------------------------------------------------------------------------------------------------------------
+    // advanced plugin bundle management
+
+    // WIP details below this point
+
+    // add a bundle to the LV2 world
+    // NOTE path must end with OS-specific path separator (e.g. '/' under Linux)
+    bool bundleAdd(const char* path);
+
+    // remove a bundle from the LV2 world
+    // NOTE path must end with OS-specific path separator (e.g. '/' under Linux)
+    bool bundleRemove(const char* path);
 
     // ----------------------------------------------------------------------------------------------------------------
 

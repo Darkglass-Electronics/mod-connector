@@ -16,6 +16,15 @@
 #define constexprstr constexpr
 #endif
 
+// OS-specific path separator
+#ifdef _WIN32
+#define PATH_SEP_CHAR '\\'
+#define PATH_SEP_STR "\\"
+#else
+#define PATH_SEP_CHAR '/'
+#define PATH_SEP_STR "/"
+#endif
+
 struct Lv2Plugin;
 
 // --------------------------------------------------------------------------------------------------------------------
