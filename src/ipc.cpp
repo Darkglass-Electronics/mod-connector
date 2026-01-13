@@ -784,18 +784,32 @@ bool IPC::Impl::Serial::writeMessage(const std::string& message)
 
 // --------------------------------------------------------------------------------------------------------------------
 
+IPC* IPC::createSerialPortIPC(const char* const serial, const int baudrate)
+{
 #ifdef HAVE_SERIALPORT
-IPC::IPC(const char* const serial, const int baudrate)
-    : impl(new Impl(last_error))
-{
-    impl->openSerial(serial, baudrate);
-}
+    IPC* const ipc = new IPC();
+    ipc->impl->openSerial(serial, baudrate);
+    return ipc;
+#else
+    return nullptr;
+    // unused
+    (void)serial;
+    (void)baudrate;
 #endif
+}
 
-IPC::IPC(const int tcpPort)
+IPC* IPC::createDualSocketIPC(const int tcpPort)
+{
+    IPC* const ipc = new IPC();
+    ipc->impl->openTCP(tcpPort);
+    return ipc;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+IPC::IPC()
     : impl(new Impl(last_error))
 {
-    impl->openTCP(tcpPort);
 }
 
 IPC::~IPC()
