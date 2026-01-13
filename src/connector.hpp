@@ -490,7 +490,7 @@ public:
 
     // enable or disable/bypass a block
     // returning false means the block was unchanged
-    bool enableBlock(uint8_t row, uint8_t block, bool enable, SceneMode sceneMode);
+    bool enableBlock(uint8_t row, uint8_t block, bool enable, SceneMode sceneMode, bool markPresetDirty = true);
 
     // reorder/move a block into a new position
     // returning false means the current chain was unchanged
@@ -624,7 +624,7 @@ public:
     bool reorderBlockBinding(uint8_t hwid, uint8_t dest);
 
     // set all block and parameter bindings to a normalized value
-    void setBindingValue(uint8_t hwid, double value, SceneMode sceneMode, bool updateBindings = true);
+    void setBindingValue(uint8_t hwid, double value, SceneMode sceneMode, bool updateBindings = true, bool markPresetDirty = true);
 
     // convenience calls for single-chain builds
    #if NUM_BLOCK_CHAIN_ROWS == 1
@@ -658,7 +658,8 @@ public:
                            uint8_t block,
                            uint8_t paramIndex,
                            float value,
-                           SceneMode sceneMode = SceneModeClear);
+                           SceneMode sceneMode = SceneModeClear,
+                           bool markPresetDirty = true);
 
     // set a block parameter value, based on port symbol
     // NOTE value must already be sanitized!
@@ -666,7 +667,8 @@ public:
                            uint8_t block,
                            const char* symbol,
                            float value,
-                           SceneMode sceneMode = SceneModeClear);
+                           SceneMode sceneMode = SceneModeClear,
+                           bool markPresetDirty = true);
 
     // set a block quickpot
     void setBlockQuickPot(uint8_t row, uint8_t block, uint8_t paramIndex);
@@ -773,14 +775,16 @@ public:
                           uint8_t block,
                           uint8_t propIndex,
                           const char* value,
-                          SceneMode sceneMode = SceneModeClear);
+                          SceneMode sceneMode = SceneModeClear,
+                          bool markPresetDirty = true);
 
     // set a block property, based on property URI
     void setBlockProperty(uint8_t row,
                           uint8_t block,
                           const char* uri,
                           const char* value,
-                          SceneMode sceneMode = SceneModeClear);
+                          SceneMode sceneMode = SceneModeClear,
+                          bool markPresetDirty = true);
 
     // convenience calls for single-chain builds
    #if NUM_BLOCK_CHAIN_ROWS == 1

@@ -1289,9 +1289,9 @@ void HostConnector::setCurrentPresetName(const char* const name)
 
 // --------------------------------------------------------------------------------------------------------------------
 
-bool HostConnector::enableBlock(const uint8_t row, const uint8_t block, const bool enable, const SceneMode sceneMode)
+bool HostConnector::enableBlock(const uint8_t row, const uint8_t block, const bool enable, const SceneMode sceneMode, const bool markPresetDirty)
 {
-    mod_log_debug("enableBlock(%u, %u, %s, %d:%s)", row, block, bool2str(enable), sceneMode, SceneMode2Str(sceneMode));
+    mod_log_debug("enableBlock(%u, %u, %s, %d:%s, %s)", row, block, bool2str(enable), sceneMode, SceneMode2Str(sceneMode), bool2str(markPresetDirty));
     assert(row < NUM_BLOCK_CHAIN_ROWS);
     assert(block < NUM_BLOCKS_PER_PRESET);
 
@@ -1301,7 +1301,8 @@ bool HostConnector::enableBlock(const uint8_t row, const uint8_t block, const bo
     const HostBlockPair hbp = _mapper.get(_current.preset, row, block);
     assert_return(hbp.id != kMaxHostInstances, false);
 
-    _current.dirty = true;
+    if (markPresetDirty)
+        _current.dirty = true;
 
     switch (sceneMode)
     {
@@ -3370,9 +3371,10 @@ bool HostConnector::reorderBlockBinding(const uint8_t hwid, const uint8_t dest)
 void HostConnector::setBindingValue(const uint8_t hwid,
                                     const double value,
                                     const SceneMode sceneMode,
-                                    const bool updateBindings)
+                                    const bool updateBindings,
+                                    const bool markPresetDirty)
 {
-    mod_log_debug("setBindingValue(%u, %f, %s, %s)", hwid, value, SceneMode2Str(sceneMode), bool2str(updateBindings));
+    mod_log_debug("setBindingValue(%u, %f, %s, %s, %s)", hwid, value, SceneMode2Str(sceneMode), bool2str(updateBindings), bool2str(markPresetDirty));
     assert(hwid < NUM_BINDING_ACTUATORS);
 
     Bindings& bindings(_current.bindings[hwid]);
@@ -3424,7 +3426,7 @@ void HostConnector::setBindingValue(const uint8_t hwid,
                         paramValue = std::rint(paramValue);
                 }
 
-                setBlockParameter(row, block, paramIndex, paramValue, sceneMode);
+                setBlockParameter(row, block, paramIndex, paramValue, sceneMode, markPresetDirty);
             }
         }
     }
@@ -3479,10 +3481,11 @@ void HostConnector::setBlockParameter(const uint8_t row,
                                       const uint8_t block,
                                       const uint8_t paramIndex,
                                       const float value,
-                                      const SceneMode sceneMode)
+                                      const SceneMode sceneMode,
+                                      const bool markPresetDirty)
 {
-    mod_log_debug("setBlockParameter(%u, %u, %u, %f, %d:%s)",
-                  row, block, paramIndex, value, sceneMode, SceneMode2Str(sceneMode));
+    mod_log_debug("setBlockParameter(%u, %u, %u, %f, %d:%s, %s)",
+                  row, block, paramIndex, value, sceneMode, SceneMode2Str(sceneMode), bool2str(markPresetDirty));
     assert(row < NUM_BLOCK_CHAIN_ROWS);
     assert(block < NUM_BLOCKS_PER_PRESET);
     assert(paramIndex < MAX_PARAMS_PER_BLOCK);
@@ -3498,7 +3501,8 @@ void HostConnector::setBlockParameter(const uint8_t row,
     assert_return((paramdata.meta.flags & Lv2ParameterNotAllowedToChange) == 0,);
     assert_return(paramdata.meta.state != Lv2ParameterStateBlocked,);
 
-    _current.dirty = true;
+    if (markPresetDirty)
+        _current.dirty = true;
 
     if ((paramdata.meta.flags & (Lv2ParameterExpensive|Lv2ParameterMayUpdateBlockedState)) == 0)
     {
@@ -3642,10 +3646,11 @@ void HostConnector::setBlockParameter(const uint8_t row,
                                       const uint8_t block,
                                       const char* const symbol,
                                       const float value,
-                                      const SceneMode sceneMode)
+                                      const SceneMode sceneMode,
+                                      const bool markPresetDirty)
 {
-    mod_log_debug("setBlockParameter(%u, %u, %s, %f, %d:%s)",
-                  row, block, symbol, value, sceneMode, SceneMode2Str(sceneMode));
+    mod_log_debug("setBlockParameter(%u, %u, %s, %f, %d:%s, %s)",
+                  row, block, symbol, value, sceneMode, SceneMode2Str(sceneMode), bool2str(markPresetDirty));
     assert(row < NUM_BLOCK_CHAIN_ROWS);
     assert(block < NUM_BLOCKS_PER_PRESET);
     assert(symbol != nullptr && *symbol != '\0');
@@ -3661,7 +3666,7 @@ void HostConnector::setBlockParameter(const uint8_t row,
         return;
     }
 
-    setBlockParameter(row, block, paramIndex, value, sceneMode);
+    setBlockParameter(row, block, paramIndex, value, sceneMode, markPresetDirty);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -4073,10 +4078,11 @@ void HostConnector::setBlockProperty(const uint8_t row,
                                      const uint8_t block,
                                      const uint8_t propIndex,
                                      const char* const value,
-                                     const SceneMode sceneMode)
+                                     const SceneMode sceneMode,
+                                     const bool markPresetDirty)
 {
-    mod_log_debug("setBlockProperty(%u, %u, %u, \"%s\", %d:%s)",
-                  row, block, propIndex, value, sceneMode, SceneMode2Str(sceneMode));
+    mod_log_debug("setBlockProperty(%u, %u, %u, \"%s\", %d:%s, %s)",
+                  row, block, propIndex, value, sceneMode, SceneMode2Str(sceneMode), bool2str(markPresetDirty));
     assert(row < NUM_BLOCK_CHAIN_ROWS);
     assert(block < NUM_BLOCKS_PER_PRESET);
     assert(propIndex < MAX_PARAMS_PER_BLOCK);
@@ -4092,7 +4098,8 @@ void HostConnector::setBlockProperty(const uint8_t row,
     assert_return(!isNullURI(propdata.uri),);
     assert_return((propdata.meta.flags & Lv2PropertyNotAllowedToChange) == 0,);
 
-    _current.dirty = true;
+    if (markPresetDirty)
+        _current.dirty = true;
 
     if ((propdata.meta.flags & (Lv2ParameterExpensive|Lv2ParameterMayUpdateBlockedState)) == 0)
     {
@@ -4225,10 +4232,11 @@ void HostConnector::setBlockProperty(const uint8_t row,
                                      const uint8_t block,
                                      const char* const uri,
                                      const char* const value,
-                                     const SceneMode sceneMode)
+                                     const SceneMode sceneMode,
+                                     const bool markPresetDirty)
 {
-    mod_log_debug("setBlockProperty(%u, %u, \"%s\", \"%s\", %d:%s)",
-                  row, block, uri, value, sceneMode, SceneMode2Str(sceneMode));
+    mod_log_debug("setBlockProperty(%u, %u, \"%s\", \"%s\", %d:%s, %s)",
+                  row, block, uri, value, sceneMode, SceneMode2Str(sceneMode), bool2str(markPresetDirty));
     assert(row < NUM_BLOCK_CHAIN_ROWS);
     assert(block < NUM_BLOCKS_PER_PRESET);
     assert(uri != nullptr && *uri != '\0');
@@ -4245,7 +4253,7 @@ void HostConnector::setBlockProperty(const uint8_t row,
         return;
     }
 
-    setBlockProperty(row, block, propIndex, value, sceneMode);
+    setBlockProperty(row, block, propIndex, value, sceneMode, markPresetDirty);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
