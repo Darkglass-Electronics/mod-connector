@@ -659,10 +659,10 @@ IPC::Impl::SingleSocketTCP::SingleSocketTCP(std::string& last_error_, const int 
         /* set non-blocking mode, so we can poke to see if there are any messages */
        #ifdef _WIN32
         unsigned long nonblocking = 1;
-        ::ioctlsocket(outsock, FIONBIO, &nonblocking);
+        ::ioctlsocket(outsockfd, FIONBIO, &nonblocking);
        #else
-        const int socketflags = ::fcntl(outsock, F_GETFL);
-        ::fcntl(outsock, F_SETFL, socketflags | O_NONBLOCK);
+        const int socketflags = ::fcntl(outsockfd, F_GETFL);
+        ::fcntl(outsockfd, F_SETFL, socketflags | O_NONBLOCK);
        #endif
 
         sockets.outfd = outsockfd;
