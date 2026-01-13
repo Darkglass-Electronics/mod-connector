@@ -159,6 +159,18 @@ struct Lv2World {
     */
     [[nodiscard]] std::unordered_map<std::string, float> loadPluginState(const char* path) const;
 
+   /**
+    * add a bundle to the LV2 world
+    * @note path must end with OS-specific path separator (e.g. '/' under Linux)
+    */
+    void bundleAdd(const char* path);
+
+   /**
+    * remove a bundle from the LV2 world
+    * @note path must end with OS-specific path separator (e.g. '/' under Linux)
+    */
+    void bundleRemove(const char* path);
+
     Lv2World();
     ~Lv2World();
 
