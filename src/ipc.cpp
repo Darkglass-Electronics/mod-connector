@@ -76,6 +76,16 @@ static void wsaCleanup()
 }
 #endif
 
+// --------------------------------------------------------------------------------------------------------------------
+
+static int getLastError()
+{
+   #ifdef _WIN32
+    return WSAGetLastError();
+   #else
+    return errno;
+   #endif
+}
 
 // --------------------------------------------------------------------------------------------------------------------
 
@@ -151,7 +161,7 @@ struct IPC::Impl
 
         if (r < 0)
         {
-            last_error = "read error";
+            last_error = format("readMessage fist byte error, return: %d, error: %d", r, getLastError());
             return nullptr;
         }
 
@@ -161,7 +171,7 @@ struct IPC::Impl
         // read full message now
         buffer[0] = firstbyte;
 
-        for (size_t read = 1;;)
+        for (uint32_t read = 1;;)
         {
             r = iface->readMessageByte(buffer + read);
 
@@ -185,13 +195,13 @@ struct IPC::Impl
             /* Error */
             else if (r < 0)
             {
-                last_error = "read error";
+                last_error = format("readMessageByte %u read error, return: %d, error: %d", read, r, getLastError());
                 return nullptr;
             }
             /* Client disconnected */
             else
             {
-                last_error = "disconnected";
+                last_error = format("readMessageByte %u disconnected, error: %d", read, getLastError());
                 return nullptr;
             }
         }
@@ -270,7 +280,7 @@ struct IPC::Impl
         {
             assert(numNonBlockingOps == 0);
 
-            size_t written = 0;
+            uint32_t written = 0;
             last_error.clear();
 
             for (int r;;)
@@ -294,13 +304,13 @@ struct IPC::Impl
                 /* Error */
                 else if (r < 0)
                 {
-                    last_error = "read error";
+                    last_error = format("writeMessage %u reply read error, return: %d, error: %d", written, r, getLastError());
                     break;
                 }
                 /* Client disconnected */
                 else
                 {
-                    last_error = "disconnected";
+                    last_error = format("writeMessage %u reply disconnected, error: %d", written, getLastError());
                     break;
                 }
             }
