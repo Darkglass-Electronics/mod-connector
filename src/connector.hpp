@@ -133,7 +133,7 @@ struct HostConnector : Host::FeedbackCallback {
             TemporarySceneState tempSceneState;
             Lv2ParameterState state;
             float def, min, max;
-            float def2; // default from plugin ttl, which might not match initial state (default preset override)
+            float defttl; // default from plugin ttl, which might not match initial state (default preset override)
             std::string name;
             std::string shortname;
             std::string unit;

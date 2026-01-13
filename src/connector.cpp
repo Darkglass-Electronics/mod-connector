@@ -1759,8 +1759,8 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
                 if ((paramdata.meta.flags & Lv2ParameterNotAllowedToChange) != 0)
                     continue;
 
-                // if def2 (default from ttl) does not match running value, make sure to inform the plugin
-                if (isNotEqual(paramdata.value, paramdata.meta.def2))
+                // if defttl (default from ttl) does not match running value, make sure to inform the plugin
+                if (isNotEqual(paramdata.value, paramdata.meta.defttl))
                     params.push_back({ paramdata.symbol.c_str(), paramdata.value });
             }
 
@@ -2054,7 +2054,7 @@ bool HostConnector::resetBlock(const uint8_t row, const uint8_t block, const boo
                     if ((paramdata.meta.flags & Lv2ParameterNotAllowedToChange) != 0)
                         continue;
 
-                    blockdataB.parameters[p].meta.def = blockdataB.parameters[p].meta.def2;
+                    blockdataB.parameters[p].meta.def = blockdataB.parameters[p].meta.defttl;
                 }
 
                 // TODO update default properties
@@ -6479,7 +6479,7 @@ void HostConnector::hostSwitchPreset(const Current& prev)
                         break;
                     if ((defparamdata.meta.flags & Lv2ParameterNotAllowedToChange) != 0)
                         continue;
-                    if (isEqual(defparamdata.value, defparamdata.meta.def2))
+                    if (isEqual(defparamdata.value, defparamdata.meta.defttl))
                         continue;
 
                     params.push_back({ defparamdata.symbol.c_str(), defparamdata.value });
@@ -6540,7 +6540,7 @@ void HostConnector::hostSetupInstance(const Block& blockdata, const uint16_t ins
             break;
         if ((paramdata.meta.flags & Lv2ParameterNotAllowedToChange) != 0)
             continue;
-        if (isNotEqual(paramdata.value, paramdata.meta.def2))
+        if (isNotEqual(paramdata.value, paramdata.meta.defttl))
             params.push_back({ paramdata.symbol.c_str(), paramdata.value });
     }
 
@@ -6986,7 +6986,7 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
                 .def = port.def,
                 .min = port.min,
                 .max = port.max,
-                .def2 = port.def,
+                .defttl = port.def,
                 .name = port.name,
                 .shortname = port.shortname,
                 .unit = port.unit,
@@ -7121,7 +7121,7 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
             // for parameters that may update to blocked state right after initialization
             if ((paramdata.meta.flags & Lv2ParameterMayUpdateBlockedState) != 0)
             {
-                paramdata.value = paramdata.meta.def = paramdata.meta.def2;
+                paramdata.value = paramdata.meta.def = paramdata.meta.defttl;
                 continue;
             }
 
