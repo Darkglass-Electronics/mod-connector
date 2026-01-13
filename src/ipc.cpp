@@ -30,6 +30,54 @@ typedef int SOCKET;
 #endif
 
 // --------------------------------------------------------------------------------------------------------------------
+// WSA scope through reference counter
+
+#ifdef _WIN32
+static int wsaInitCounter = 0;
+
+static bool wsaInit(std::string& error)
+{
+    // WSA setup failed before, don't try again
+    if (wsaInitCounter == -1)
+    {
+        error = "WSA setup failed";
+        return false;
+    }
+
+    // initializing for the first time
+    if (wsaInitCounter == 0)
+    {
+        WSADATA wsaData;
+        if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
+        {
+            wsaInitCounter = -1;
+            error = "WSAStartup failed";
+            return false;
+        }
+
+        if (LOBYTE(wsaData.wVersion) != 2 || HIBYTE(wsaData.wVersion) != 2)
+        {
+            wsaInitCounter = -1;
+            error = "WSAStartup version mismatch";
+            WSACleanup();
+            return false;
+        }
+    }
+
+    // increment reference counter
+    ++wsaInitCounter;
+    return true;
+}
+
+static void wsaCleanup()
+{
+    if (wsaInitCounter > 0 && --wsaInitCounter == 0)
+        WSACleanup();
+}
+#endif
+
+
+// --------------------------------------------------------------------------------------------------------------------
 
 struct IPC::Impl
 {
@@ -487,10 +535,6 @@ private:
         [[nodiscard]] int readResponseByte(char* c) final;
         [[nodiscard]] bool writeMessage(const std::string& message) final;
 
-       #ifdef _WIN32
-        bool wsaInitialized = false;
-       #endif
-
         struct {
             SOCKET out = INVALID_SOCKET;
             SOCKET feedback = INVALID_SOCKET;
@@ -508,24 +552,8 @@ IPC::Impl::TCP::TCP(std::string& last_error_, const int port)
     last_error.clear();
 
    #ifdef _WIN32
-    if (! wsaInitialized)
-    {
-        WSADATA wsaData;
-        if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
-        {
-            last_error = "WSAStartup failed";
-            return;
-        }
-
-        if (LOBYTE(wsaData.wVersion) != 2 || HIBYTE(wsaData.wVersion) != 2)
-        {
-            last_error = "WSAStartup version mismatch";
-            WSACleanup();
-            return;
-        }
-
-        wsaInitialized = true;
-    }
+    if (! wsaInit(last_error))
+        return;
    #endif
 
     SOCKET outsock, fbsock;
@@ -609,8 +637,7 @@ IPC::Impl::TCP::~TCP()
     ::closesocket(fbsock);
 
    #ifdef _WIN32
-    WSACleanup();
-    wsaInitialized = false;
+    wsaCleanup();
    #endif
 }
 
