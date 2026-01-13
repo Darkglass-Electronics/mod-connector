@@ -37,6 +37,12 @@ struct IPC
     static IPC* createSerialPortIPC(const char* serial, int baudrate);
 
     /**
+     * create IPC using a TCP socket, specifying TCP port and if server or client.
+     * @note creation of a server is a blocking operation until a client is connected.
+     */
+    static IPC* createSingleSocketIPC(int tcpPort, bool isServer);
+
+    /**
      * create IPC using dual TCP sockets (one out-going, one receiving), specifying TCP port.
      */
     static IPC* createDualSocketIPC(int tcpPort);
