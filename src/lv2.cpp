@@ -6,6 +6,7 @@
 #include "lv2.hpp"
 #include "utils.hpp"
 
+#include <algorithm>
 #include <cstring>
 #include <map>
 
@@ -210,16 +211,14 @@ struct Lv2World::Impl
         lilv_world_load_all(world);
 
         plugins = lilv_world_get_all_plugins(world);
-
-        const uint32_t plugincount = lilv_plugins_size(plugins);
-        pluginuris.reserve(plugincount);
+        pluginuris.reserve(lilv_plugins_size(plugins));
 
         LILV_FOREACH(plugins, it, plugins)
         {
             const LilvPlugin* const p = lilv_plugins_get(plugins, it);
 
             const std::string uri(lilv_node_as_uri(lilv_plugin_get_uri(p)));
-            pluginuris.push_back(uri);
+            pluginuris.emplace_back(uri);
             pluginscache[uri] = nullptr;
         }
     }
@@ -627,7 +626,7 @@ struct Lv2World::Impl
 
                                 // now store them sorted
                                 for (auto& scalepoint : sortedpoints)
-                                    retport.scalePoints.push_back(scalepoint.second);
+                                    retport.scalePoints.emplace_back(scalepoint.second);
                             }
 
                             lilv_scale_points_free(scalepoints);
@@ -824,7 +823,7 @@ struct Lv2World::Impl
                     retplugin->properties.reserve(count);
 
                     for (auto& prop : properties)
-                        retplugin->properties.push_back(prop.second);
+                        retplugin->properties.emplace_back(prop.second);
                 }
             }
 
@@ -875,6 +874,55 @@ struct Lv2World::Impl
         return values;
     }
 
+    void bundleAdd(const char* const path)
+    {
+        std::vector<std::string> pluginsInBundle;
+        _pluginsInBundle(pluginsInBundle, path);
+        assert_return(! pluginsInBundle.empty(),);
+
+        if (LilvNode* const b = lilv_new_file_uri(world, nullptr, path))
+        {
+            lilv_world_load_bundle(world, b);
+            lilv_node_free(b);
+        }
+
+        plugins = lilv_world_get_all_plugins(world);
+        pluginuris.reserve(lilv_plugins_size(plugins));
+
+        for (const std::string& uri : pluginsInBundle)
+        {
+            assert(pluginscache.find(uri) == pluginscache.end());
+
+            pluginuris.emplace_back(uri);
+            pluginscache[uri] = nullptr;
+        }
+    }
+
+    void bundleRemove(const char* const path)
+    {
+        std::vector<std::string> pluginsInBundle;
+        _pluginsInBundle(pluginsInBundle, path);
+        assert_return(! pluginsInBundle.empty(),);
+
+        if (LilvNode* const b = lilv_new_file_uri(world, nullptr, path))
+        {
+            lilv_world_unload_bundle(world, b);
+            lilv_node_free(b);
+        }
+
+        plugins = lilv_world_get_all_plugins(world);
+
+        for (const std::string& uri : pluginsInBundle)
+        {
+            const std::vector<std::string>::const_iterator it = std::find(pluginuris.cbegin(), pluginuris.cend(), uri);
+            assert_continue(it != pluginuris.cend());
+
+            pluginuris.erase(it);
+            pluginscache.erase(uri);
+        }
+    }
+
+
 private:
     std::string& last_error;
 
@@ -887,6 +935,7 @@ private:
 
     static LV2_URID _mapfn(LV2_URID_Map_Handle handle, const char* uri);
     static void _portfn(const char* symbol, void* userData, const void* value, uint32_t size, uint32_t type);
+    static void _pluginsInBundle(std::vector<std::string>& pluginsInBundle, const char* bundlepath);
 };
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -925,7 +974,7 @@ LV2_URID Lv2World::Impl::_mapfn(LV2_URID_Map_Handle, const char* const uri)
         ++urid;
     }
 
-    mapping.push_back(uri);
+    mapping.emplace_back(uri);
     return urid;
 }
 
@@ -981,6 +1030,29 @@ void Lv2World::Impl::_portfn(const char* const symbol,
                  symbol, userData, value, size, size);
 }
 
+void Lv2World::Impl::_pluginsInBundle(std::vector<std::string>& pluginsInBundle, const char* const bundlepath)
+{
+    if (LilvWorld* const w = lilv_world_new())
+    {
+        if (LilvNode* const b = lilv_new_file_uri(w, nullptr, bundlepath))
+        {
+            lilv_world_load_bundle(w, b);
+            lilv_node_free(b);
+        }
+
+        const LilvPlugins* const wplugins = lilv_world_get_all_plugins(w);
+
+        LILV_FOREACH(plugins, iter, wplugins)
+        {
+            const LilvPlugin* const p = lilv_plugins_get(wplugins, iter);
+
+            pluginsInBundle.emplace_back(lilv_node_as_uri(lilv_plugin_get_uri(p)));
+        }
+
+        lilv_world_free(w);
+    }
+}
+
 // --------------------------------------------------------------------------------------------------------------------
 
 uint32_t Lv2World::getPluginCount() const noexcept
@@ -1011,6 +1083,16 @@ bool Lv2World::isPluginAvailable(const char* const uri) const
 std::unordered_map<std::string, float> Lv2World::loadPluginState(const char* const path) const
 {
     return impl->loadPluginState(path);
+}
+
+void Lv2World::bundleAdd(const char* const path)
+{
+    impl->bundleAdd(path);
+}
+
+void Lv2World::bundleRemove(const char* const path)
+{
+    impl->bundleRemove(path);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
