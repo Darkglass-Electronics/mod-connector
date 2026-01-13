@@ -216,14 +216,14 @@ struct IPC::Impl
     {
         if (blocking)
         {
-            assert(nonBlockingMode);
-            nonBlockingMode = false;
+            assert(nonBlockingWriteMode);
+            nonBlockingWriteMode = false;
             waitResponses();
         }
         else
         {
-            assert(! nonBlockingMode);
-            nonBlockingMode = true;
+            assert(! nonBlockingWriteMode);
+            nonBlockingWriteMode = true;
         }
     }
 
@@ -268,7 +268,7 @@ struct IPC::Impl
         }
 
         // retrieve response
-        if (nonBlockingMode)
+        if (nonBlockingWriteMode)
         {
             assert(resp == nullptr);
 
@@ -504,7 +504,7 @@ private:
     }
 
     bool dummyDevMode = false;
-    bool nonBlockingMode = false;
+    bool nonBlockingWriteMode = false;
     uint16_t numNonBlockingOps = 0;
 
     char* buffer = nullptr;
