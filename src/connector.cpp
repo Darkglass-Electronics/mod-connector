@@ -312,7 +312,7 @@ static inline constexpr T unnormalized(const Meta& meta, T value)
 
 static inline constexpr bool shouldSaveParameterToPreset(const uint32_t flags)
 {
-    if ((flags & Lv2ParameterNotAllowedToChange) != 0)
+    if ((flags & (Lv2ParameterNotAllowedToChange|Lv2ParameterValueChangesNotSaved)) != 0)
         return false;
     if ((flags & (Lv2ParameterHidden|Lv2ParameterSavedToPreset)) == Lv2ParameterHidden)
         return false;
@@ -321,7 +321,7 @@ static inline constexpr bool shouldSaveParameterToPreset(const uint32_t flags)
 
 static inline constexpr bool shouldSavePropertyToPreset(const uint32_t flags)
 {
-    if ((flags & Lv2PropertyNotAllowedToChange) != 0)
+    if ((flags & (Lv2PropertyNotAllowedToChange|Lv2ParameterValueChangesNotSaved)) != 0)
         return false;
     if ((flags & (Lv2ParameterHidden|Lv2ParameterSavedToPreset)) == Lv2ParameterHidden)
         return false;
@@ -2178,7 +2178,7 @@ bool HostConnector::saveBlockStateAsDefault(const uint8_t row, const uint8_t blo
                 Parameter& paramdata(blockdata.parameters[p]);
                 if (isNullURI(paramdata.symbol))
                     break;
-                if ((paramdata.meta.flags & (Lv2ParameterNotAllowedToChange | Lv2ParameterMayUpdateBlockedState)) != 0)
+                if ((paramdata.meta.flags & (Lv2ParameterNotAllowedToChange | Lv2ParameterMayUpdateBlockedState | Lv2ParameterValueChangesNotSaved)) != 0)
                     continue;
 
                 blockdataB.parameters[p].meta.def = paramdata.value;
@@ -2683,9 +2683,10 @@ bool HostConnector::addBlockBinding(const uint8_t hwid, const uint8_t row, const
 bool HostConnector::addBlockParameterBinding(const uint8_t hwid,
                                              const uint8_t row,
                                              const uint8_t block,
-                                             const uint8_t paramIndex)
+                                             const uint8_t paramIndex,
+                                             const bool bindingValueChangesNotSaved)
 {
-    mod_log_debug("addBlockParameterBinding(%u, %u, %u, %u)", hwid, row, block, paramIndex);
+    mod_log_debug("addBlockParameterBinding(%u, %u, %u, %u, %s)", hwid, row, block, paramIndex, bool2str(bindingValueChangesNotSaved));
     assert(hwid < NUM_BINDING_ACTUATORS);
     assert(row < NUM_BLOCK_CHAIN_ROWS);
     assert(block < NUM_BLOCKS_PER_PRESET);
@@ -2700,6 +2701,9 @@ bool HostConnector::addBlockParameterBinding(const uint8_t hwid,
     assert_return(paramdata.meta.hwbinding == UINT8_MAX, false);
 
     paramdata.meta.hwbinding = hwid;
+
+    if (bindingValueChangesNotSaved)
+        paramdata.meta.flags |= Lv2ParameterValueChangesNotSaved;
 
     const size_t numBindings = _current.bindings[hwid].parameters.size();
     if (numBindings == 0)
@@ -2891,7 +2895,10 @@ bool HostConnector::removeBindings(const uint8_t hwid)
                     break;
 
                 if (paramdata.meta.hwbinding == hwid)
+                {
                     paramdata.meta.hwbinding = UINT8_MAX;
+                    paramdata.meta.flags &= ~Lv2ParameterValueChangesNotSaved;
+                }
             }
 
             for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
@@ -2972,6 +2979,7 @@ bool HostConnector::removeBlockParameterBinding(const uint8_t hwid,
     assert_return(paramdata.meta.hwbinding != UINT8_MAX, false);
 
     paramdata.meta.hwbinding = UINT8_MAX;
+    paramdata.meta.flags &= ~Lv2ParameterValueChangesNotSaved;
 
     std::list<ParameterBinding>& bindings(_current.bindings[hwid].parameters);
     for (ParameterBindingIteratorConst it = bindings.cbegin(), end = bindings.cend(); it != end; ++it)
@@ -3127,7 +3135,8 @@ bool HostConnector::replaceBlockParameterBinding(const uint8_t hwid,
                                                  const uint8_t paramIndex,
                                                  const uint8_t rowB,
                                                  const uint8_t blockB,
-                                                 const uint8_t paramIndexB)
+                                                 const uint8_t paramIndexB,
+                                                 const bool bindingValueChangesNotSaved)
 {
     mod_log_debug("replaceBlockParameterBinding(%u, %u, %u, %u, %u, %u, %u)",
                   hwid, row, block, paramIndex, rowB, blockB, paramIndexB);
@@ -3177,6 +3186,11 @@ bool HostConnector::replaceBlockParameterBinding(const uint8_t hwid,
 
         paramdata.meta.hwbinding = UINT8_MAX;
         paramdataB.meta.hwbinding = hwid;
+        if (bindingValueChangesNotSaved)
+        {
+            paramdata.meta.flags &= ~Lv2ParameterValueChangesNotSaved;
+            paramdataB.meta.flags |= Lv2ParameterValueChangesNotSaved;
+        }
 
         if (_current.bindings[hwid].name == paramdata.meta.name)
             _current.bindings[hwid].name = paramdataB.meta.name;
@@ -5208,7 +5222,7 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
 
                         if (isNullURI(paramdata.symbol))
                             continue;
-                        if ((paramdata.meta.flags & Lv2ParameterNotAllowedToChange) != 0)
+                        if ((paramdata.meta.flags & (Lv2ParameterNotAllowedToChange|Lv2ParameterValueChangesNotSaved)) != 0)
                             continue;
 
                         paramdata.value = std::max(paramdata.meta.min,
@@ -7112,7 +7126,7 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
 
             if (isNullURI(paramdata.symbol))
                 continue;
-            if ((paramdata.meta.flags & Lv2ParameterNotAllowedToChange) != 0)
+            if ((paramdata.meta.flags & (Lv2ParameterNotAllowedToChange|Lv2ParameterValueChangesNotSaved)) != 0)
                 continue;
             if (paramdata.meta.state == Lv2ParameterStateBlocked)
                 continue;
