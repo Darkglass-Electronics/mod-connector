@@ -55,7 +55,7 @@ static constexpr const uint32_t Lv2ParameterNotAllowedInQuickPot
     = Lv2PortIsOutput|Lv2ParameterNotInQuickPot|Lv2ParameterMayUpdateBlockedState;
 
 static constexpr const uint32_t Lv2ParameterNotAllowedInScenes
-    = Lv2PortIsOutput|Lv2ParameterVirtual|Lv2ParameterExpensive|Lv2ParameterMayUpdateBlockedState;
+    = Lv2PortIsOutput|Lv2ParameterVirtual|Lv2ParameterExpensive|Lv2ParameterMayUpdateBlockedState|Lv2ParameterValueChangesNotSaved;
 
 // --------------------------------------------------------------------------------------------------------------------
 
@@ -2703,7 +2703,21 @@ bool HostConnector::addBlockParameterBinding(const uint8_t hwid,
     paramdata.meta.hwbinding = hwid;
 
     if (bindingValueChangesNotSaved)
+    {
         paramdata.meta.flags |= Lv2ParameterValueChangesNotSaved;
+
+        // clear Scenes
+        if ((paramdata.meta.flags & Lv2ParameterInScene) != 0)
+        {
+            --blockdata.meta.numParametersInScenes;
+            paramdata.meta.flags &= ~Lv2ParameterInScene;
+        }
+        for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
+        {
+            blockdata.sceneValues[s].parameters[paramIndex] = paramdata.value;
+            blockdata.lastSavedSceneValues[s].parameters[paramIndex] = paramdata.value;
+        }
+    }
 
     const size_t numBindings = _current.bindings[hwid].parameters.size();
     if (numBindings == 0)
@@ -3190,6 +3204,18 @@ bool HostConnector::replaceBlockParameterBinding(const uint8_t hwid,
         {
             paramdata.meta.flags &= ~Lv2ParameterValueChangesNotSaved;
             paramdataB.meta.flags |= Lv2ParameterValueChangesNotSaved;
+
+            // clear Scenes
+            if ((paramdataB.meta.flags & Lv2ParameterInScene) != 0)
+            {
+                --blockdataB.meta.numParametersInScenes;
+                paramdataB.meta.flags &= ~Lv2ParameterInScene;
+            }
+            for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
+            {
+                blockdataB.sceneValues[s].parameters[paramIndexB] = paramdataB.value;
+                blockdataB.lastSavedSceneValues[s].parameters[paramIndexB] = paramdataB.value;
+            }
         }
 
         if (_current.bindings[hwid].name == paramdata.meta.name)
@@ -3518,7 +3544,7 @@ void HostConnector::setBlockParameter(const uint8_t row,
     if (markPresetDirty)
         _current.dirty = true;
 
-    if ((paramdata.meta.flags & (Lv2ParameterExpensive|Lv2ParameterMayUpdateBlockedState)) == 0)
+    if ((paramdata.meta.flags & (Lv2ParameterExpensive|Lv2ParameterMayUpdateBlockedState|Lv2ParameterValueChangesNotSaved)) == 0)
     {
         switch (sceneMode)
         {
