@@ -2739,7 +2739,7 @@ bool HostConnector::addBlockParameterBinding(const uint8_t hwid,
     }
 
     _current.bindings[hwid].parameters.push_back({
-        row, block, paramdata.meta.min, paramdata.meta.max, paramdata.symbol, { paramIndex }
+        row, block, paramdata.meta.min, paramdata.meta.max, paramdata.symbol, { paramIndex }, bindingValueChangesNotSaved
     });
     _current.dirty = true;
     return true;
@@ -3202,6 +3202,7 @@ bool HostConnector::replaceBlockParameterBinding(const uint8_t hwid,
         paramdataB.meta.hwbinding = hwid;
         if (bindingValueChangesNotSaved)
         {
+            it->bindingValueChangesNotSaved = true;
             paramdata.meta.flags &= ~Lv2ParameterValueChangesNotSaved;
             paramdataB.meta.flags |= Lv2ParameterValueChangesNotSaved;
 
@@ -3541,7 +3542,7 @@ void HostConnector::setBlockParameter(const uint8_t row,
     assert_return((paramdata.meta.flags & Lv2ParameterNotAllowedToChange) == 0,);
     assert_return(paramdata.meta.state != Lv2ParameterStateBlocked,);
 
-    if (markPresetDirty)
+    if ((paramdata.meta.flags & Lv2ParameterValueChangesNotSaved) == 0)
         _current.dirty = true;
 
     if ((paramdata.meta.flags & (Lv2ParameterExpensive|Lv2ParameterMayUpdateBlockedState|Lv2ParameterValueChangesNotSaved)) == 0)
@@ -5248,7 +5249,7 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
 
                         if (isNullURI(paramdata.symbol))
                             continue;
-                        if ((paramdata.meta.flags & (Lv2ParameterNotAllowedToChange|Lv2ParameterValueChangesNotSaved)) != 0)
+                        if ((paramdata.meta.flags & Lv2ParameterNotAllowedToChange) != 0)
                             continue;
 
                         paramdata.value = std::max(paramdata.meta.min,
@@ -5629,6 +5630,17 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
                             } while (false);
                         }
 
+                        bool bindingValueChangesNotSaved = false;
+                        if (jbindingparam.contains("bindingValueChangesNotSaved"))
+                        {
+                            try {
+                                bindingValueChangesNotSaved = jbindingparam["bindingValueChangesNotSaved"].get<bool>();
+                            } catch (...) {
+                                mod_log_warn("jsonPresetLoad(): binding contains invalid bindingValueChangesNotSaved");
+                                continue;
+                            }
+                        }
+
                         Block& blockdata = presetdata.chains[row - 1].blocks[block - 1];
 
                         if (symbol == ":bypass")
@@ -5671,6 +5683,25 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
                             }
 
                             paramdata.meta.hwbinding = hwid;
+                            if (bindingValueChangesNotSaved)
+                            {
+                                paramdata.meta.flags |= Lv2ParameterValueChangesNotSaved;
+
+                                // set value to default just in case, although no values should have been stored in the preset
+                                paramdata.value = paramdata.meta.def;
+
+                                // clear Scenes
+                                if ((paramdata.meta.flags & Lv2ParameterInScene) != 0)
+                                {
+                                    --blockdata.meta.numParametersInScenes;
+                                    paramdata.meta.flags &= ~Lv2ParameterInScene;
+                                }
+                                for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
+                                {
+                                    blockdata.sceneValues[s].parameters[p] = paramdata.value;
+                                    blockdata.lastSavedSceneValues[s].parameters[p] = paramdata.value;
+                                }
+                            }
 
                             parameters.push_back({
                                 .row = static_cast<uint8_t>(row - 1),
@@ -5998,6 +6029,7 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann::json& jpr
                         { "min", bindingdata.min },
                         { "max", bindingdata.max },
                         { "symbol", bindingdata.parameterSymbol },
+                        { "bindingValueChangesNotSaved", bindingdata.bindingValueChangesNotSaved },
                     }));
                 }
             }
@@ -6464,6 +6496,13 @@ void HostConnector::hostSwitchPreset(const Current& prev)
                             continue;
                         if (inactparamdata.meta.state == Lv2ParameterStateBlocked)
                             continue;
+
+                        if ((defparamdata.meta.flags & Lv2ParameterValueChangesNotSaved) != 0)
+                        {
+                            // parameter value in _presets[] may have changed but not part of preset
+                            inactparamdata.value = defparamdata.meta.def;
+                        }
+
                         if (isEqual(defparamdata.value, oldparamdata.value))
                             continue;
 

@@ -243,6 +243,7 @@ struct HostConnector : Host::FeedbackCallback {
             // convenience meta-data, not stored in json state
             uint8_t parameterIndex;
         } meta;
+        bool bindingValueChangesNotSaved = false;
     };
 
     struct PropertyBinding {
