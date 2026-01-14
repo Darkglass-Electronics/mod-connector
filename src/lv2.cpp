@@ -5,12 +5,22 @@
 
 #include "lv2.hpp"
 #include "utils.hpp"
+#include "sha1/sha1.h"
 
 #include <algorithm>
+#include <climits>
 #include <cstring>
+#include <filesystem>
 #include <map>
 
 #include <lilv/lilv.h>
+
+#ifdef _WIN32
+#include <io.h>
+#else
+#include <pwd.h>
+#include <unistd.h>
+#endif
 
 #if defined(HAVE_LV2_1_18) || (defined(__has_include) && __has_include(<lv2/atom/atom.h>))
 #include <lv2/atom/atom.h>
@@ -64,17 +74,17 @@
 #define MOD__CVPort LILV_NS_MOD "CVPort"
 
 #ifdef _WIN32
-#define OS_SEP '\\'
+# define PATH_SEP_CHAR '\\'
+# define PATH_SEP_STR "\\"
 #else
-#define OS_SEP '/'
+# define PATH_SEP_CHAR '/'
+# define PATH_SEP_STR "/"
 #endif
 
 // --------------------------------------------------------------------------------------------------------------------
 // compatibility functions
 
 #ifdef _WIN32
-#include <io.h>
-
 static char* realpath(const char* const name, char* const resolved)
 {
     if (name == nullptr)
@@ -96,11 +106,53 @@ static char* realpath(const char* const name, char* const resolved)
 #endif
 
 // --------------------------------------------------------------------------------------------------------------------
+// get home directory
+
+static std::string _homedir()
+{
+#ifdef _WIN32
+    WCHAR wpath[MAX_PATH + 256];
+
+    if (SHGetSpecialFolderPathW(nullptr, wpath, CSIDL_MYDOCUMENTS, FALSE))
+    {
+        CHAR apath[MAX_PATH + 256];
+
+        if (WideCharToMultiByte(CP_UTF8, 0, wpath, -1, apath, MAX_PATH + 256, nullptr, nullptr))
+            return apath;
+    }
+#else
+    if (const char* const home = std::getenv("HOME"))
+        return home;
+    if (struct passwd* const pwd = getpwuid(getuid()))
+        return pwd->pw_dir;
+#endif
+    return "";
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+// get license keys directory
+// NOTE: returned value always has path separator as the last character
+
+static std::string _keysdir()
+{
+    if (const char* const keysdir = std::getenv("MOD_KEYS_PATH"))
+    {
+        assert(*keysdir != '\0');
+        assert(keysdir[std::strlen(keysdir) - 1] == PATH_SEP_CHAR);
+        return keysdir;
+    }
+
+    return _homedir() + PATH_SEP_STR "keys" PATH_SEP_STR;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
 // proper lilv_file_uri_parse function that returns absolute paths
 
-static char* lilv_file_abspath(const char* const path)
+static char* _lilv_file_abspath(const LilvNode* const node)
 {
-    if (char* const lilvpath = lilv_file_uri_parse(path, nullptr))
+    assert(lilv_node_is_uri(node));
+
+    if (char* const lilvpath = lilv_file_uri_parse(lilv_node_as_uri(node), nullptr))
     {
         char* const ret = realpath(lilvpath, nullptr);
         lilv_free(lilvpath);
@@ -111,31 +163,60 @@ static char* lilv_file_abspath(const char* const path)
 }
 
 // --------------------------------------------------------------------------------------------------------------------
-// custom function to fetch resource file within the plugin's bundle
+// check if a file path resides inside a known directory
 
-static std::string lilv_plugin_resource(const LilvPlugin* const plugin, const LilvNode* const node)
+static bool _path_contains(const std::string& path, const std::string& dir)
 {
-    if (LilvNodes* const rnodes = lilv_plugin_get_value(plugin, node))
+    return !dir.empty() &&
+        path.length() > dir.length() &&
+        path.at(dir.length() - 1) == PATH_SEP_CHAR &&
+        std::strncmp(path.c_str(), dir.c_str(), dir.length()) == 0;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+// adjust bundle safely to lilv, as it wants the last character as the separator
+// this also ensures paths are always written the same way
+// NOTE: returned value must not be freed or cached
+
+static const char* _realpath_with_terminator(const char* const bundle)
+{
+    static char _tmppath[PATH_MAX + 2];
+    char* const bundlepath = realpath(bundle, _tmppath);
+
+    if (bundlepath == nullptr)
+        return nullptr;
+
+    const size_t bundlepathsize = std::strlen(bundlepath);
+
+    if (bundlepathsize <= 1)
+        return nullptr;
+
+    if (bundlepath[bundlepathsize] != PATH_SEP_CHAR)
     {
-        LilvNode* const rnode = lilv_nodes_get_first(rnodes);
-        std::string resource;
-
-        if (lilv_node_is_uri(rnode))
-        {
-            const std::string bundle = lilv_file_abspath(lilv_node_as_string(lilv_plugin_get_bundle_uri(plugin)));
-            resource = lilv_file_abspath(lilv_node_as_uri(rnode));
-
-            // ensure the resource is inside the LV2 bundle
-            if (resource.length() <= bundle.length() ||
-                std::strncmp(resource.c_str(), bundle.c_str(), bundle.length()) != 0 ||
-                resource[bundle.length()] != OS_SEP)
-                resource.clear();
-        }
-
-        lilv_nodes_free(rnodes);
-        return resource;
+        bundlepath[bundlepathsize] = PATH_SEP_CHAR;
+        bundlepath[bundlepathsize + 1] = '\0';
     }
-    return {};
+
+    return bundlepath;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+// hash the contents of a string
+
+static std::string _sha1(const char* const cstring)
+{
+    sha1nfo s;
+    sha1_init(&s);
+    sha1_write(&s, cstring, strlen(cstring));
+
+    char hashdec[HASH_LENGTH * 2 + 1];
+
+    uint8_t* const hashenc = sha1_result(&s);
+    for (int i = 0; i < HASH_LENGTH; i++)
+        snprintf(hashdec + (i * 2), 3, "%02x", hashenc[i]);
+    hashdec[HASH_LENGTH * 2] = '\0';
+
+    return hashdec;
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -150,6 +231,7 @@ struct Lv2NamespaceDefinitions {
     LilvNode* const lv2core_maximum;
     LilvNode* const lv2core_portProperty;
     LilvNode* const lv2core_shortName;
+    LilvNode* const modlicense_interface;
     LilvNode* const patch_readable;
     LilvNode* const patch_writable;
     LilvNode* const rdf_type;
@@ -168,6 +250,7 @@ struct Lv2NamespaceDefinitions {
           lv2core_maximum(lilv_new_uri(world, LV2_CORE__maximum)),
           lv2core_portProperty(lilv_new_uri(world, LV2_CORE__portProperty)),
           lv2core_shortName(lilv_new_uri(world, LV2_CORE__shortName)),
+          modlicense_interface(lilv_new_uri(world, "http://moddevices.com/ns/ext/license#interface")),
           patch_readable(lilv_new_uri(world, LV2_PATCH__readable)),
           patch_writable(lilv_new_uri(world, LV2_PATCH__writable)),
           rdf_type(lilv_new_uri(world, LILV_NS_RDF "type")),
@@ -189,6 +272,7 @@ struct Lv2NamespaceDefinitions {
         lilv_node_free(lv2core_maximum);
         lilv_node_free(lv2core_portProperty);
         lilv_node_free(lv2core_shortName);
+        lilv_node_free(modlicense_interface);
         lilv_node_free(patch_readable);
         lilv_node_free(patch_writable);
         lilv_node_free(rdf_type);
@@ -251,27 +335,42 @@ struct Lv2World::Impl
 
         if (pluginscache[uri] == nullptr)
         {
-            LilvNode* const urinode = lilv_new_uri(world, uri);
+            std::string bundlepath;
+            const LilvPlugin* plugin;
 
-            if (urinode == nullptr)
+            if (LilvNode* const urinode = lilv_new_uri(world, uri))
+            {
+                plugin = lilv_plugins_get_by_uri(plugins, urinode);
+                lilv_node_free(urinode);
+
+                if (plugin == nullptr)
+                {
+                    last_error = "Invalid Plugin";
+                    return nullptr;
+                }
+
+                if (char* const lilvparsed = _lilv_file_abspath(lilv_plugin_get_bundle_uri(plugin)))
+                {
+                    bundlepath = _realpath_with_terminator(lilvparsed);
+                    lilv_free(lilvparsed);
+                }
+
+                if (bundlepath.empty())
+                {
+                    last_error = "Invalid Bundle path";
+                    return nullptr;
+                }
+            }
+            else
             {
                 last_error = "Invalid URI";
-                return nullptr;
-            }
-
-            const LilvPlugin* const plugin = lilv_plugins_get_by_uri(plugins, urinode);
-
-            lilv_node_free(urinode);
-
-            if (plugin == nullptr)
-            {
-                last_error = "Invalid Plugin";
                 return nullptr;
             }
 
             Lv2Plugin* const retplugin = new Lv2Plugin;
 
             retplugin->uri = uri;
+            retplugin->bundlepath = bundlepath;
 
             // --------------------------------------------------------------------------------------------------------
             // name
@@ -390,6 +489,40 @@ struct Lv2World::Impl
                 }
 
                 lilv_nodes_free(nodes);
+            }
+
+            // --------------------------------------------------------------------------------------------------------
+            // flags
+
+            {
+                static const std::string homedir = _homedir();
+
+                if (_path_contains(bundlepath, homedir))
+                    retplugin->flags |= Lv2PluginIsUserRemovable;
+            }
+
+            if (lilv_plugin_has_extension_data(plugin, ns.modlicense_interface))
+            {
+                retplugin->flags |= Lv2PluginIsCommercial;
+
+                static const std::string keysdir = _keysdir();
+
+                std::string licensefile;
+               #ifdef _DARKGLASS_DEVICE_PABLITO
+                // system plugins in Anagram all share the same license URI
+                // if bundle is not user removable, assume to be a system plugin
+                if ((retplugin->flags & Lv2PluginIsUserRemovable) == 0)
+                {
+                    licensefile = keysdir + "149e897c16e874bea75961557c8fef52567ad3db";
+                }
+                else
+               #endif
+                {
+                    licensefile = keysdir + _sha1(uri);
+                }
+
+                if (std::filesystem::exists(licensefile))
+                    retplugin->flags |= Lv2PluginIsLicensed;
             }
 
             // --------------------------------------------------------------------------------------------------------
@@ -759,7 +892,7 @@ struct Lv2World::Impl
                                 {
                                     if (LilvNode* const valuenode = lilv_world_get(world, statenode, keynode, nullptr))
                                     {
-                                        if (const char* const path = lilv_file_abspath(lilv_node_as_string(valuenode)))
+                                        if (const char* const path = _lilv_file_abspath(valuenode))
                                             property.defpath = path;
 
                                         lilv_node_free(valuenode);
@@ -827,9 +960,32 @@ struct Lv2World::Impl
                 }
             }
 
+            // --------------------------------------------------------------------------------------------------------
             // block images
-            retplugin->blockImageOff = lilv_plugin_resource(plugin, ns.darkglass_blockImageOff);
-            retplugin->blockImageOn = lilv_plugin_resource(plugin, ns.darkglass_blockImageOn);
+
+            {
+                std::string path;
+                const auto assignResourcePath = [&](std::string& resourcePathRef,
+                                                                           const LilvNode* const resource)
+                {
+                    if (LilvNodes* const nodes = lilv_plugin_get_value(plugin, resource))
+                    {
+                        const LilvNode* const node = lilv_nodes_get_first(nodes);
+                        if (lilv_node_is_uri(node))
+                        {
+                            path = _lilv_file_abspath(node);
+                            if (_path_contains(path, bundlepath))
+                                resourcePathRef = path;
+                        }
+                        lilv_nodes_free(nodes);
+                    }
+                };
+
+                assignResourcePath(retplugin->blockImageOff, ns.darkglass_blockImageOff);
+                assignResourcePath(retplugin->blockImageOn, ns.darkglass_blockImageOn);
+            }
+
+            // --------------------------------------------------------------------------------------------------------
 
             pluginscache[uri] = retplugin;
             return retplugin;
