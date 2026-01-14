@@ -61,7 +61,13 @@ enum Lv2Designation {
     kLv2DesignationQuickPot,
 };
 
-enum Lv2Flags {
+enum Lv2PluginFlags {
+    Lv2PluginIsCommercial    = 1 << 0,
+    Lv2PluginIsLicensed      = 1 << 1,
+    Lv2PluginIsUserRemovable = 1 << 2,
+};
+
+enum Lv2ParameterFlags {
     // port flags
     Lv2PortIsAudio                    = 1 << 0,
     Lv2PortIsControl                  = 1 << 1,
@@ -117,9 +123,12 @@ struct Lv2Property {
 
 struct Lv2Plugin {
     std::string uri;
+    // NOTE includes path separator as last character
+    std::string bundlepath;
     std::string name;
     std::string abbreviation;
     Lv2Category category = kLv2CategoryNone;
+    uint32_t flags = 0;
     std::vector<Lv2Port> ports;
     std::vector<Lv2Property> properties;
     // NOTE already in absolute path

@@ -102,6 +102,7 @@ if(PROJECT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR AND NOT MOD_CONNECTOR_TESTS)
       src/main.cpp
       src/utils.cpp
       src/websocket.cpp
+      src/sha1/sha1.c
       $<$<BOOL:${serialport_FOUND}>:src/hmi.cpp>
   )
 
@@ -138,6 +139,7 @@ if(PROJECT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR AND NOT MOD_CONNECTOR_TESTS)
       src/lv2.cpp
       src/tests.cpp
       src/utils.cpp
+      src/sha1/sha1.c
       $<$<BOOL:${serialport_FOUND}>:src/hmi.cpp>
   )
 
@@ -174,6 +176,7 @@ else()
       ${CMAKE_CURRENT_LIST_DIR}/src/instance_mapper.cpp
       ${CMAKE_CURRENT_LIST_DIR}/src/lv2.cpp
       ${CMAKE_CURRENT_LIST_DIR}/src/utils.cpp
+      ${CMAKE_CURRENT_LIST_DIR}/src/sha1/sha1.c
       $<$<BOOL:${serialport_FOUND}>:${CMAKE_CURRENT_LIST_DIR}/src/hmi.cpp>
   )
 
