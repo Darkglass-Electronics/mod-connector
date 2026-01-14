@@ -18,7 +18,7 @@ enum ExtraLv2Flags {
     Lv2ParameterVirtual = 1 << 12,
     Lv2ParameterInScene = 1 << 13,
     Lv2ParameterNotInQuickPot = 1 << 14,
-    Lv2ParameterValueChangesNotSaved = 1 << 15, // not from lv2, can be added/removed in runtime
+    Lv2ParameterValueChangesCurrentlyNotSavedToPreset = 1 << 15, // not from lv2, can be added/removed in runtime
 };
 
 enum Lv2ParameterState {
@@ -243,7 +243,7 @@ struct HostConnector : Host::FeedbackCallback {
             // convenience meta-data, not stored in json state
             uint8_t parameterIndex;
         } meta;
-        bool bindingValueChangesNotSaved = false;
+        bool valueChangesNotSavedToPreset = false;
     };
 
     struct PropertyBinding {
@@ -567,7 +567,7 @@ public:
     bool addBlockBinding(uint8_t hwid, uint8_t row, uint8_t block);
 
     // add a block parameter binding
-    bool addBlockParameterBinding(uint8_t hwid, uint8_t row, uint8_t block, uint8_t paramIndex, bool bindingValueChangesNotSaved = false);
+    bool addBlockParameterBinding(uint8_t hwid, uint8_t row, uint8_t block, uint8_t paramIndex, bool valueChangesNotSavedToPreset = false);
 
     // add a block property binding
     bool addBlockPropertyBinding(uint8_t hwid, uint8_t row, uint8_t block, uint8_t propIndex);
@@ -611,7 +611,7 @@ public:
                                       uint8_t rowB,
                                       uint8_t blockB,
                                       uint8_t paramIndexB,
-                                      bool bindingValueChangesNotSaved = false);
+                                      bool valueChangesNotSavedToPreset = false);
 
     // replace a block property binding with another
     // the binding to be replaced must already exist
