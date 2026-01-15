@@ -37,6 +37,10 @@ typedef enum {
 static constexpr const char* kBindingActuatorIDs[NUM_BINDING_ACTUATORS] = { BINDING_ACTUATOR_IDS };
 #endif
 
+#ifdef BINDING_ACTUATOR_PARAM_CHANGES_NOT_SAVED
+static constexpr const bool kBindingActuatorParamChangesNotSaved[NUM_BINDING_ACTUATORS] = { BINDING_ACTUATOR_PARAM_CHANGES_NOT_SAVED };
+#endif
+
 using ParameterBindingIterator = std::list<HostParameterBinding>::iterator;
 using ParameterBindingIteratorConst = std::list<HostParameterBinding>::const_iterator;
 
@@ -2682,10 +2686,9 @@ bool HostConnector::addBlockBinding(const uint8_t hwid, const uint8_t row, const
 bool HostConnector::addBlockParameterBinding(const uint8_t hwid,
                                              const uint8_t row,
                                              const uint8_t block,
-                                             const uint8_t paramIndex,
-                                             const bool valueChangesNotSavedToPreset)
+                                             const uint8_t paramIndex)
 {
-    mod_log_debug("addBlockParameterBinding(%u, %u, %u, %u, %s)", hwid, row, block, paramIndex, bool2str(valueChangesNotSavedToPreset));
+    mod_log_debug("addBlockParameterBinding(%u, %u, %u, %u)", hwid, row, block, paramIndex);
     assert(hwid < NUM_BINDING_ACTUATORS);
     assert(row < NUM_BLOCK_CHAIN_ROWS);
     assert(block < NUM_BLOCKS_PER_PRESET);
@@ -2701,7 +2704,8 @@ bool HostConnector::addBlockParameterBinding(const uint8_t hwid,
 
     paramdata.meta.hwbinding = hwid;
 
-    if (valueChangesNotSavedToPreset)
+   #ifdef BINDING_ACTUATOR_PARAM_CHANGES_NOT_SAVED
+    if (kBindingActuatorParamChangesNotSaved[hwid])
     {
         paramdata.meta.flags |= Lv2ParameteChangesNotSavedToPreset;
 
@@ -2717,6 +2721,7 @@ bool HostConnector::addBlockParameterBinding(const uint8_t hwid,
             blockdata.lastSavedSceneValues[s].parameters[paramIndex] = paramdata.value;
         }
     }
+   #endif
 
     const size_t numBindings = _current.bindings[hwid].parameters.size();
     if (numBindings == 0)
@@ -2738,7 +2743,7 @@ bool HostConnector::addBlockParameterBinding(const uint8_t hwid,
     }
 
     _current.bindings[hwid].parameters.push_back({
-        row, block, paramdata.meta.min, paramdata.meta.max, paramdata.symbol, { paramIndex }, valueChangesNotSavedToPreset
+        row, block, paramdata.meta.min, paramdata.meta.max, paramdata.symbol, { paramIndex }
     });
     _current.dirty = true;
     return true;
@@ -3148,8 +3153,7 @@ bool HostConnector::replaceBlockParameterBinding(const uint8_t hwid,
                                                  const uint8_t paramIndex,
                                                  const uint8_t rowB,
                                                  const uint8_t blockB,
-                                                 const uint8_t paramIndexB,
-                                                 const bool valueChangesNotSavedToPreset)
+                                                 const uint8_t paramIndexB)
 {
     mod_log_debug("replaceBlockParameterBinding(%u, %u, %u, %u, %u, %u, %u)",
                   hwid, row, block, paramIndex, rowB, blockB, paramIndexB);
@@ -3199,9 +3203,9 @@ bool HostConnector::replaceBlockParameterBinding(const uint8_t hwid,
 
         paramdata.meta.hwbinding = UINT8_MAX;
         paramdataB.meta.hwbinding = hwid;
-        if (valueChangesNotSavedToPreset)
+       #ifdef BINDING_ACTUATOR_PARAM_CHANGES_NOT_SAVED
+        if (kBindingActuatorParamChangesNotSaved[hwid])
         {
-            it->valueChangesNotSavedToPreset = true;
             paramdata.meta.flags &= ~Lv2ParameteChangesNotSavedToPreset;
             paramdataB.meta.flags |= Lv2ParameteChangesNotSavedToPreset;
 
@@ -3217,6 +3221,7 @@ bool HostConnector::replaceBlockParameterBinding(const uint8_t hwid,
                 blockdataB.lastSavedSceneValues[s].parameters[paramIndexB] = paramdataB.value;
             }
         }
+       #endif
 
         if (_current.bindings[hwid].name == paramdata.meta.name)
             _current.bindings[hwid].name = paramdataB.meta.name;
@@ -5623,17 +5628,6 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
                             } while (false);
                         }
 
-                        bool valueChangesNotSavedToPreset = false;
-                        if (jbindingparam.contains("valueChangesNotSavedToPreset"))
-                        {
-                            try {
-                                valueChangesNotSavedToPreset = jbindingparam["valueChangesNotSavedToPreset"].get<bool>();
-                            } catch (...) {
-                                mod_log_warn("jsonPresetLoad(): binding contains invalid valueChangesNotSavedToPreset");
-                                continue;
-                            }
-                        }
-
                         Block& blockdata = presetdata.chains[row - 1].blocks[block - 1];
 
                         if (symbol == ":bypass")
@@ -5676,7 +5670,8 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
                             }
 
                             paramdata.meta.hwbinding = hwid;
-                            if (valueChangesNotSavedToPreset)
+                           #ifdef BINDING_ACTUATOR_PARAM_CHANGES_NOT_SAVED
+                            if (kBindingActuatorParamChangesNotSaved[hwid])
                             {
                                 paramdata.meta.flags |= Lv2ParameteChangesNotSavedToPreset;
 
@@ -5695,6 +5690,7 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
                                     blockdata.lastSavedSceneValues[s].parameters[p] = paramdata.value;
                                 }
                             }
+                           #endif
 
                             parameters.push_back({
                                 .row = static_cast<uint8_t>(row - 1),
@@ -6022,7 +6018,6 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann::json& jpr
                         { "min", bindingdata.min },
                         { "max", bindingdata.max },
                         { "symbol", bindingdata.parameterSymbol },
-                        { "valueChangesNotSavedToPreset", bindingdata.valueChangesNotSavedToPreset },
                     }));
                 }
             }

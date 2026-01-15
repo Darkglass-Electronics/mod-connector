@@ -243,7 +243,6 @@ struct HostConnector : Host::FeedbackCallback {
             // convenience meta-data, not stored in json state
             uint8_t parameterIndex;
         } meta;
-        bool valueChangesNotSavedToPreset = false;
     };
 
     struct PropertyBinding {
@@ -567,7 +566,7 @@ public:
     bool addBlockBinding(uint8_t hwid, uint8_t row, uint8_t block);
 
     // add a block parameter binding
-    bool addBlockParameterBinding(uint8_t hwid, uint8_t row, uint8_t block, uint8_t paramIndex, bool valueChangesNotSavedToPreset = false);
+    bool addBlockParameterBinding(uint8_t hwid, uint8_t row, uint8_t block, uint8_t paramIndex);
 
     // add a block property binding
     bool addBlockPropertyBinding(uint8_t hwid, uint8_t row, uint8_t block, uint8_t propIndex);
@@ -610,8 +609,7 @@ public:
                                       uint8_t paramIndex,
                                       uint8_t rowB,
                                       uint8_t blockB,
-                                      uint8_t paramIndexB,
-                                      bool valueChangesNotSavedToPreset = false);
+                                      uint8_t paramIndexB);
 
     // replace a block property binding with another
     // the binding to be replaced must already exist
