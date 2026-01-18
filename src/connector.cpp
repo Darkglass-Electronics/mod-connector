@@ -4303,13 +4303,7 @@ bool HostConnector::bundleAdd(const char* const path)
     assert(path != nullptr && *path != '\0');
     assert(path[std::strlen(path) - 1] == PATH_SEP_CHAR);
 
-    if (_host.bundle_add(path))
-    {
-        _lv2world.bundleAdd(path);
-        return true;
-    }
-
-    return false;
+    return _lv2world.bundleAdd(path) && _host.bundle_add(path);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -4320,13 +4314,7 @@ bool HostConnector::bundleRemove(const char* path)
     assert(path != nullptr && *path != '\0');
     assert(path[std::strlen(path) - 1] == PATH_SEP_CHAR);
 
-    if (_host.bundle_remove(path))
-    {
-        _lv2world.bundleRemove(path);
-        return true;
-    }
-
-    return false;
+    return _lv2world.bundleRemove(path) && _host.bundle_remove(path);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
