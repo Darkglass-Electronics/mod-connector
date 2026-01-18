@@ -11,6 +11,7 @@
 #include <climits>
 #include <cstring>
 #include <filesystem>
+#include <list>
 #include <map>
 
 #include <lilv/lilv.h>
@@ -258,6 +259,19 @@ struct Lv2World::Impl
             const std::string uri(lilv_node_as_uri(lilv_plugin_get_uri(p)));
             pluginuris.emplace_back(uri);
             pluginscache[uri] = nullptr;
+
+            if (char* const lilvparsed = _lilv_file_abspath(lilv_plugin_get_bundle_uri(p)))
+            {
+                if (const char* const bundlepath = _realpath_with_terminator(lilvparsed))
+                {
+                    const std::string bundlestr = bundlepath;
+
+                    if (std::find(bundles.begin(), bundles.end(), bundlestr) == bundles.end())
+                        bundles.push_back(bundlestr);
+                }
+
+                lilv_free(lilvparsed);
+            }
         }
     }
 
@@ -279,13 +293,14 @@ struct Lv2World::Impl
 
     const Lv2Plugin* getPluginByIndex(const uint32_t index)
     {
+        assert(index < getPluginCount());
+
         return getPluginByURI(pluginuris[index].c_str());
     }
 
     const Lv2Plugin* getPluginByURI(const char* const uri)
     {
-        assert(uri != nullptr);
-        assert(*uri != '\0');
+        assert(uri != nullptr && *uri != '\0');
 
         if (pluginscache[uri] == nullptr)
         {
@@ -946,6 +961,9 @@ struct Lv2World::Impl
 
     const Lv2Port& getPluginPort(const char* const uri, const char* const symbol)
     {
+        assert(uri != nullptr && *uri != '\0');
+        assert(symbol != nullptr && *symbol != '\0');
+
         if (const Lv2Plugin* const plugin = getPluginByURI(uri))
         {
             for (const Lv2Port& port : plugin->ports)
@@ -961,14 +979,15 @@ struct Lv2World::Impl
 
     bool isPluginAvailable(const char* const uri) const
     {
-        assert(uri != nullptr);
-        assert(*uri != '\0');
+        assert(uri != nullptr && *uri != '\0');
 
         return pluginscache.find(uri) != pluginscache.end();
     }
 
     std::unordered_map<std::string, float> loadPluginState(const char* const path)
     {
+        assert(path != nullptr && *path != '\0');
+
         LV2_URID_Map uridMap = { this, _mapfn };
         LilvState* const state = lilv_state_new_from_file(world, &uridMap, nullptr, path);
         assert_return(state != nullptr, {});
@@ -980,18 +999,34 @@ struct Lv2World::Impl
         return values;
     }
 
-    void bundleAdd(const char* const path)
+    bool bundleAdd(const char* const path, std::vector<std::string>* pluginsInBundlePtr = nullptr)
     {
-        std::vector<std::string> pluginsInBundle;
-        _pluginsInBundle(pluginsInBundle, path);
-        assert_return(! pluginsInBundle.empty(),);
+        assert(path != nullptr && *path != '\0');
+        assert(path[std::strlen(path) - 1] == PATH_SEP_CHAR);
 
+        // stop now if bundle is already loaded
+        if (std::find(bundles.begin(), bundles.end(), path) != bundles.end())
+            return false;
+
+        // query plugins in bundle
+        std::vector<std::string> pluginsInBundleLocal;
+        std::vector<std::string>& pluginsInBundle = pluginsInBundlePtr != nullptr
+                                                  ? *pluginsInBundlePtr
+                                                  : pluginsInBundleLocal;
+        _pluginsInBundle(pluginsInBundle, path);
+        assert_return(! pluginsInBundle.empty(), false);
+
+        // load the bundle
         if (LilvNode* const b = lilv_new_file_uri(world, nullptr, path))
         {
             lilv_world_load_bundle(world, b);
             lilv_node_free(b);
         }
 
+        // add to loaded list
+        bundles.emplace_back(path);
+
+        // refresh cache
         plugins = lilv_world_get_all_plugins(world);
         pluginuris.reserve(lilv_plugins_size(plugins));
 
@@ -1002,20 +1037,38 @@ struct Lv2World::Impl
             pluginuris.emplace_back(uri);
             pluginscache[uri] = nullptr;
         }
+
+        return true;
     }
 
-    void bundleRemove(const char* const path)
+    bool bundleRemove(const char* const path, std::vector<std::string>* pluginsInBundlePtr = nullptr)
     {
-        std::vector<std::string> pluginsInBundle;
-        _pluginsInBundle(pluginsInBundle, path);
-        assert_return(! pluginsInBundle.empty(),);
+        assert(path != nullptr && *path != '\0');
+        assert(path[std::strlen(path) - 1] == PATH_SEP_CHAR);
 
+        // stop now if bundle is not loaded
+        if (std::find(bundles.begin(), bundles.end(), path) == bundles.end())
+            return false;
+
+        // query plugins in bundle
+        std::vector<std::string> pluginsInBundleLocal;
+        std::vector<std::string>& pluginsInBundle = pluginsInBundlePtr != nullptr
+                                                  ? *pluginsInBundlePtr
+                                                  : pluginsInBundleLocal;
+        _pluginsInBundle(pluginsInBundle, path);
+        assert_return(! pluginsInBundle.empty(), false);
+
+        // unload the bundle
         if (LilvNode* const b = lilv_new_file_uri(world, nullptr, path))
         {
             lilv_world_unload_bundle(world, b);
             lilv_node_free(b);
         }
 
+        // remove from loaded list
+        bundles.remove(path);
+
+        // refresh cache
         plugins = lilv_world_get_all_plugins(world);
 
         for (const std::string& uri : pluginsInBundle)
@@ -1026,8 +1079,19 @@ struct Lv2World::Impl
             pluginuris.erase(it);
             pluginscache.erase(uri);
         }
+
+        return true;
     }
 
+    static bool getPluginsInBundle(const char* const path, std::vector<std::string>& pluginsInBundle)
+    {
+        assert(path != nullptr && *path != '\0');
+        assert(path[std::strlen(path) - 1] == PATH_SEP_CHAR);
+
+        _pluginsInBundle(pluginsInBundle, path);
+
+        return ! pluginsInBundle.empty();
+    }
 
 private:
     std::string& last_error;
@@ -1036,6 +1100,7 @@ private:
     const LilvPlugins* plugins = nullptr;
 
     Lv2NamespaceDefinitions ns;
+    std::list<std::string> bundles;
     std::vector<std::string> pluginuris;
     std::unordered_map<std::string, const Lv2Plugin*> pluginscache;
 
@@ -1191,14 +1256,19 @@ std::unordered_map<std::string, float> Lv2World::loadPluginState(const char* con
     return impl->loadPluginState(path);
 }
 
-void Lv2World::bundleAdd(const char* const path)
+bool Lv2World::bundleAdd(const char* const path, std::vector<std::string>* pluginsInBundle)
 {
-    impl->bundleAdd(path);
+    return impl->bundleAdd(path, pluginsInBundle);
 }
 
-void Lv2World::bundleRemove(const char* const path)
+bool Lv2World::bundleRemove(const char* const path, std::vector<std::string>* pluginsInBundle)
 {
-    impl->bundleRemove(path);
+    return impl->bundleRemove(path, pluginsInBundle);
+}
+
+bool Lv2World::getPluginsInBundle(const char* const path, std::vector<std::string>& pluginsInBundle)
+{
+    return Impl::getPluginsInBundle(path, pluginsInBundle);
 }
 
 // --------------------------------------------------------------------------------------------------------------------

@@ -170,15 +170,23 @@ struct Lv2World {
 
    /**
     * add a bundle to the LV2 world
-    * @note path must end with OS-specific path separator (e.g. '/' under Linux)
+    * @arg pluginsInBundle can be passed to query the plugin URIs that got added
+    * @note path MUST end with OS-specific path separator (e.g. '/' under Linux)
     */
-    void bundleAdd(const char* path);
+    [[nodiscard]] bool bundleAdd(const char* path, std::vector<std::string>* pluginsInBundle = nullptr);
 
    /**
     * remove a bundle from the LV2 world
-    * @note path must end with OS-specific path separator (e.g. '/' under Linux)
+    * @arg pluginsInBundle can be passed to query the plugin URIs that got removed
+    * @note path MUST end with OS-specific path separator (e.g. '/' under Linux)
     */
-    void bundleRemove(const char* path);
+    [[nodiscard]] bool bundleRemove(const char* path, std::vector<std::string>* pluginsInBundle = nullptr);
+
+   /**
+    * get the plugin URIs present in an LV2 bundle
+    * @note path MUST end with OS-specific path separator (e.g. '/' under Linux)
+    */
+    static bool getPluginsInBundle(const char* path, std::vector<std::string>& pluginsInBundle);
 
     Lv2World();
     ~Lv2World();
