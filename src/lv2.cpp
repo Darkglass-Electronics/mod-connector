@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2024-2025 Filipe Coelho <falktx@darkglass.com>
+// SPDX-FileCopyrightText: 2024-2026 Filipe Coelho <falktx@darkglass.com>
 // SPDX-License-Identifier: ISC
 
 #define MOD_LOG_GROUP "lv2"
@@ -17,9 +17,6 @@
 
 #ifdef _WIN32
 #include <io.h>
-#else
-#include <pwd.h>
-#include <unistd.h>
 #endif
 
 #if defined(HAVE_LV2_1_18) || (defined(__has_include) && __has_include(<lv2/atom/atom.h>))
@@ -73,14 +70,6 @@
 #define LILV_NS_MOD "http://moddevices.com/ns/mod#"
 #define MOD__CVPort LILV_NS_MOD "CVPort"
 
-#ifdef _WIN32
-# define PATH_SEP_CHAR '\\'
-# define PATH_SEP_STR "\\"
-#else
-# define PATH_SEP_CHAR '/'
-# define PATH_SEP_STR "/"
-#endif
-
 // --------------------------------------------------------------------------------------------------------------------
 // compatibility functions
 
@@ -106,30 +95,6 @@ static char* realpath(const char* const name, char* const resolved)
 #endif
 
 // --------------------------------------------------------------------------------------------------------------------
-// get home directory
-
-static std::string _homedir()
-{
-#ifdef _WIN32
-    WCHAR wpath[MAX_PATH + 256];
-
-    if (SHGetSpecialFolderPathW(nullptr, wpath, CSIDL_MYDOCUMENTS, FALSE))
-    {
-        CHAR apath[MAX_PATH + 256];
-
-        if (WideCharToMultiByte(CP_UTF8, 0, wpath, -1, apath, MAX_PATH + 256, nullptr, nullptr))
-            return apath;
-    }
-#else
-    if (const char* const home = std::getenv("HOME"))
-        return home;
-    if (struct passwd* const pwd = getpwuid(getuid()))
-        return pwd->pw_dir;
-#endif
-    return "";
-}
-
-// --------------------------------------------------------------------------------------------------------------------
 // get license keys directory
 // NOTE: returned value always has path separator as the last character
 
@@ -142,7 +107,7 @@ static std::string _keysdir()
         return keysdir;
     }
 
-    return _homedir() + PATH_SEP_STR "keys" PATH_SEP_STR;
+    return homedir() + PATH_SEP_STR "keys" PATH_SEP_STR;
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -160,17 +125,6 @@ static char* _lilv_file_abspath(const LilvNode* const node)
     }
 
     return nullptr;
-}
-
-// --------------------------------------------------------------------------------------------------------------------
-// check if a file path resides inside a known directory
-
-static bool _path_contains(const std::string& path, const std::string& dir)
-{
-    return !dir.empty() &&
-        path.length() > dir.length() &&
-        path.at(dir.length() - 1) == PATH_SEP_CHAR &&
-        std::strncmp(path.c_str(), dir.c_str(), dir.length()) == 0;
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -494,12 +448,8 @@ struct Lv2World::Impl
             // --------------------------------------------------------------------------------------------------------
             // flags
 
-            {
-                static const std::string homedir = _homedir();
-
-                if (_path_contains(bundlepath, homedir))
-                    retplugin->flags |= Lv2PluginIsUserRemovable;
-            }
+            if (path_contains(bundlepath, homedir()))
+                retplugin->flags |= Lv2PluginIsUserRemovable;
 
             if (lilv_plugin_has_extension_data(plugin, ns.modlicense_interface))
             {
@@ -974,7 +924,7 @@ struct Lv2World::Impl
                         if (lilv_node_is_uri(node))
                         {
                             path = _lilv_file_abspath(node);
-                            if (_path_contains(path, bundlepath))
+                            if (path_contains(path, bundlepath))
                                 resourcePathRef = path;
                         }
                         lilv_nodes_free(nodes);

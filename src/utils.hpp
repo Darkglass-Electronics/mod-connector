@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2024-2025 Filipe Coelho <falktx@darkglass.com>
+// SPDX-FileCopyrightText: 2024-2026 Filipe Coelho <falktx@darkglass.com>
 // SPDX-License-Identifier: ISC
 
 #pragma once
@@ -118,6 +118,16 @@ int _mod_log_level();
     { if (_mod_log_level() >= 1) fprintf(stderr, "[" MOD_LOG_GROUP "] " MSG "\n" __VA_OPT__(,) __VA_ARGS__); }
 #define mod_log_warn(MSG, ...) \
     { if (_mod_log_level() >= 0) fprintf(stderr, "[" MOD_LOG_GROUP "] " MSG "\n" __VA_OPT__(,) __VA_ARGS__); }
+
+// --------------------------------------------------------------------------------------------------------------------
+// get home directory, return value will be cached
+
+std::string homedir();
+
+// --------------------------------------------------------------------------------------------------------------------
+// check if a file path resides inside a known directory
+
+bool path_contains(const std::string& path, const std::string& dir);
 
 // --------------------------------------------------------------------------------------------------------------------
 // utility function that formats a std::string via `vsnprintf`
