@@ -1,16 +1,19 @@
-// SPDX-FileCopyrightText: 2024-2025 Filipe Coelho <falktx@darkglass.com>
+// SPDX-FileCopyrightText: 2024-2026 Filipe Coelho <falktx@darkglass.com>
 // SPDX-License-Identifier: ISC
 
 #include "utils.hpp"
 #include "lv2.hpp"
 
 #include <cstdarg>
+#include <cstring>
 
 #ifdef _WIN32
 #include <winsock2.h>
 #include <windows.h>
 #else
 #include <ctime>
+#include <pwd.h>
+#include <unistd.h>
 #endif
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -28,6 +31,49 @@ int _mod_log_level()
 {
     static int level = _get_mod_log_level();
     return level;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+// get home directory, return value will be cached
+
+std::string homedir()
+{
+    static std::string _homedir;
+    static bool _once = true;
+
+    if (_once)
+    {
+        _once = false;
+       #ifdef _WIN32
+        WCHAR wpath[MAX_PATH + 256];
+
+        if (SHGetSpecialFolderPathW(nullptr, wpath, CSIDL_MYDOCUMENTS, FALSE))
+        {
+            CHAR apath[MAX_PATH + 256];
+
+            if (WideCharToMultiByte(CP_UTF8, 0, wpath, -1, apath, MAX_PATH + 256, nullptr, nullptr))
+                _homedir = apath;
+        }
+       #else
+        if (const char* const home = std::getenv("HOME"))
+            _homedir = home;
+        else if (struct passwd* const pwd = getpwuid(getuid()))
+            _homedir = pwd->pw_dir;
+       #endif
+    }
+
+    return _homedir;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+// check if a file path resides inside a known directory
+
+bool path_contains(const std::string& path, const std::string& dir)
+{
+    return !dir.empty() &&
+        path.length() > dir.length() &&
+        path.at(dir.length() - 1) == PATH_SEP_CHAR &&
+        std::strncmp(path.c_str(), dir.c_str(), dir.length()) == 0;
 }
 
 // --------------------------------------------------------------------------------------------------------------------
