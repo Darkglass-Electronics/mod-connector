@@ -18,6 +18,7 @@ enum ExtraLv2Flags {
     Lv2ParameterVirtual = 1 << 12,
     Lv2ParameterInScene = 1 << 13,
     Lv2ParameterNotInQuickPot = 1 << 14,
+    Lv2ParameteChangesNotSavedToPreset = 1 << 15, // not from lv2, can be added/removed in runtime
 };
 
 enum Lv2ParameterState {
@@ -133,7 +134,7 @@ struct HostConnector : Host::FeedbackCallback {
             TemporarySceneState tempSceneState;
             Lv2ParameterState state;
             float def, min, max;
-            float def2; // default from plugin ttl, which might not match initial state (default preset override)
+            float defttl; // default from plugin ttl, which might not match initial state (default preset override)
             std::string name;
             std::string shortname;
             std::string unit;
@@ -188,6 +189,7 @@ struct HostConnector : Host::FeedbackCallback {
             // convenience meta-data, not stored in json state
             struct {
                 bool hasScenes;
+                bool changesNotSavedToPreset;
                 uint8_t hwbinding;
                 TemporarySceneState tempSceneState;
             } enable;
@@ -890,6 +892,9 @@ private:
 
     void allocPreset(Preset& preset, bool init = true) const;
     void resetPreset(Preset& preset) const;
+
+    void setEnableChangesNotSavedToPreset(Block& blockdata, bool changesNotSavedToPreset) const;
+    void setParamChangesNotSavedToPreset(Block& blockdata, uint8_t paramIndex, bool changesNotSavedToPreset) const;
 };
 
 using HostBindings = HostConnector::Bindings;
