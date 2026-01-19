@@ -56,7 +56,7 @@ static constexpr const uint32_t Lv2ParameterNotAllowedInBindings
     = Lv2PortIsOutput|Lv2ParameterMayUpdateBlockedState;
 
 static constexpr const uint32_t Lv2ParameterNotAllowedInQuickPot
-    = Lv2PortIsOutput|Lv2ParameterNotInQuickPot|Lv2ParameterMayUpdateBlockedState;
+    = Lv2PortIsOutput|Lv2ParameterHidden|Lv2ParameterNotInQuickPot|Lv2ParameterMayUpdateBlockedState;
 
 static constexpr const uint32_t Lv2ParameterNotAllowedInScenes
     = Lv2PortIsOutput|Lv2ParameterVirtual|Lv2ParameterExpensive|Lv2ParameterMayUpdateBlockedState|Lv2ParameteChangesNotSavedToPreset;
@@ -7144,7 +7144,7 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
     {
         for (uint8_t p = 0; p < numParams; ++p)
         {
-            if ((blockdata.parameters[p].meta.flags & Lv2ParameterNotInQuickPot) != 0)
+            if ((blockdata.parameters[p].meta.flags & Lv2ParameterNotAllowedInQuickPot) != 0)
                 continue;
             blockdata.quickPotSymbol = blockdata.parameters[p].symbol;
             blockdata.meta.quickPotIndex = p;
