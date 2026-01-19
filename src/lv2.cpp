@@ -270,7 +270,7 @@ struct Lv2World::Impl
                         bundles.push_back(bundlestr);
                 }
 
-                lilv_free(lilvparsed);
+                std::free(lilvparsed);
             }
         }
     }
@@ -321,7 +321,7 @@ struct Lv2World::Impl
                 if (char* const lilvparsed = _lilv_file_abspath(lilv_plugin_get_bundle_uri(plugin)))
                 {
                     bundlepath = _realpath_with_terminator(lilvparsed);
-                    lilv_free(lilvparsed);
+                    std::free(lilvparsed);
                 }
 
                 if (bundlepath.empty())
@@ -857,8 +857,11 @@ struct Lv2World::Impl
                                 {
                                     if (LilvNode* const valuenode = lilv_world_get(world, statenode, keynode, nullptr))
                                     {
-                                        if (const char* const path = _lilv_file_abspath(valuenode))
+                                        if (char* const path = _lilv_file_abspath(valuenode))
+                                        {
                                             property.defpath = path;
+                                            std::free(path);
+                                        }
 
                                         lilv_node_free(valuenode);
                                     }
@@ -929,18 +932,20 @@ struct Lv2World::Impl
             // block images
 
             {
-                std::string path;
                 const auto assignResourcePath = [&](std::string& resourcePathRef,
-                                                                           const LilvNode* const resource)
+                                                    const LilvNode* const resource)
                 {
                     if (LilvNodes* const nodes = lilv_plugin_get_value(plugin, resource))
                     {
                         const LilvNode* const node = lilv_nodes_get_first(nodes);
                         if (lilv_node_is_uri(node))
                         {
-                            path = _lilv_file_abspath(node);
-                            if (path_contains(path, bundlepath))
-                                resourcePathRef = path;
+                            if (char* const path = _lilv_file_abspath(node))
+                            {
+                                if (path_contains(path, bundlepath))
+                                    resourcePathRef = path;
+                                std::free(path);
+                            }
                         }
                         lilv_nodes_free(nodes);
                     }
