@@ -2670,19 +2670,7 @@ bool HostConnector::addBlockBinding(const uint8_t hwid, const uint8_t row, const
    #ifdef BINDING_ACTUATOR_PARAM_CHANGES_NOT_SAVED
     if (kBindingActuatorParamChangesNotSaved[hwid])
     {
-        blockdata.meta.enable.changesNotSavedToPreset = true;
-
-        // clear Scenes
-        if (blockdata.meta.enable.hasScenes)
-        {
-            --blockdata.meta.numParametersInScenes;
-            blockdata.meta.enable.hasScenes = false;
-        }
-        for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
-        {
-            blockdata.sceneValues[s].enabled = blockdata.enabled;
-            blockdata.lastSavedSceneValues[s].enabled = blockdata.enabled;
-        }
+        setEnableChangesNotSavedToPreset(blockdata, true);
     }
    #endif
 
@@ -2730,19 +2718,7 @@ bool HostConnector::addBlockParameterBinding(const uint8_t hwid,
    #ifdef BINDING_ACTUATOR_PARAM_CHANGES_NOT_SAVED
     if (kBindingActuatorParamChangesNotSaved[hwid])
     {
-        paramdata.meta.flags |= Lv2ParameteChangesNotSavedToPreset;
-
-        // clear Scenes
-        if ((paramdata.meta.flags & Lv2ParameterInScene) != 0)
-        {
-            --blockdata.meta.numParametersInScenes;
-            paramdata.meta.flags &= ~Lv2ParameterInScene;
-        }
-        for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
-        {
-            blockdata.sceneValues[s].parameters[paramIndex] = paramdata.value;
-            blockdata.lastSavedSceneValues[s].parameters[paramIndex] = paramdata.value;
-        }
+        setParamChangesNotSavedToPreset(blockdata, paramIndex, true);
     }
    #endif
 
@@ -3154,20 +3130,8 @@ bool HostConnector::replaceBlockBinding(const uint8_t hwid,
        #ifdef BINDING_ACTUATOR_PARAM_CHANGES_NOT_SAVED
         if (kBindingActuatorParamChangesNotSaved[hwid])
         {
-            blockdata.meta.enable.changesNotSavedToPreset = false;
-            blockdataB.meta.enable.changesNotSavedToPreset = true;
-           
-            // clear Scenes
-            if (blockdataB.meta.enable.hasScenes)
-            {
-                --blockdataB.meta.numParametersInScenes;
-                blockdataB.meta.enable.hasScenes = false;
-            }
-            for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
-            {
-                blockdataB.sceneValues[s].enabled = blockdataB.enabled;
-                blockdataB.lastSavedSceneValues[s].enabled = blockdataB.enabled;
-            }
+            setEnableChangesNotSavedToPreset(blockdata, false);
+            setEnableChangesNotSavedToPreset(blockdataB, true);
         }
        #endif
 
@@ -3254,20 +3218,8 @@ bool HostConnector::replaceBlockParameterBinding(const uint8_t hwid,
        #ifdef BINDING_ACTUATOR_PARAM_CHANGES_NOT_SAVED
         if (kBindingActuatorParamChangesNotSaved[hwid])
         {
-            paramdata.meta.flags &= ~Lv2ParameteChangesNotSavedToPreset;
-            paramdataB.meta.flags |= Lv2ParameteChangesNotSavedToPreset;
-
-            // clear Scenes
-            if ((paramdataB.meta.flags & Lv2ParameterInScene) != 0)
-            {
-                --blockdataB.meta.numParametersInScenes;
-                paramdataB.meta.flags &= ~Lv2ParameterInScene;
-            }
-            for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
-            {
-                blockdataB.sceneValues[s].parameters[paramIndexB] = paramdataB.value;
-                blockdataB.lastSavedSceneValues[s].parameters[paramIndexB] = paramdataB.value;
-            }
+            setParamChangesNotSavedToPreset(blockdata, paramIndex, false);
+            setParamChangesNotSavedToPreset(blockdata, paramIndexB, true);
         }
        #endif
 
@@ -5685,19 +5637,7 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
                            #ifdef BINDING_ACTUATOR_PARAM_CHANGES_NOT_SAVED
                             if (kBindingActuatorParamChangesNotSaved[hwid])
                             {
-                                blockdata.meta.enable.changesNotSavedToPreset = true;
-
-                                // clear Scenes
-                                if (blockdata.meta.enable.hasScenes)
-                                {
-                                    --blockdata.meta.numParametersInScenes;
-                                    blockdata.meta.enable.hasScenes = false;
-                                }
-                                for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
-                                {
-                                    blockdata.sceneValues[s].enabled = blockdata.enabled;
-                                    blockdata.lastSavedSceneValues[s].enabled = blockdata.enabled;
-                                }
+                                setEnableChangesNotSavedToPreset(blockdata, true);
                             }
                            #endif
 
@@ -5740,22 +5680,7 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
                            #ifdef BINDING_ACTUATOR_PARAM_CHANGES_NOT_SAVED
                             if (kBindingActuatorParamChangesNotSaved[hwid])
                             {
-                                paramdata.meta.flags |= Lv2ParameteChangesNotSavedToPreset;
-
-                                // set value to default just in case, although no values should have been stored in the preset
-                                paramdata.value = paramdata.meta.def;
-
-                                // clear Scenes
-                                if ((paramdata.meta.flags & Lv2ParameterInScene) != 0)
-                                {
-                                    --blockdata.meta.numParametersInScenes;
-                                    paramdata.meta.flags &= ~Lv2ParameterInScene;
-                                }
-                                for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
-                                {
-                                    blockdata.sceneValues[s].parameters[p] = paramdata.value;
-                                    blockdata.lastSavedSceneValues[s].parameters[p] = paramdata.value;
-                                }
+                                setParamChangesNotSavedToPreset(blockdata, p, true);
                             }
                            #endif
 
@@ -6132,23 +6057,15 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann::json& jpr
                     continue;
 
                 const std::string jblockid = std::to_string(bl + 1);
-                auto& jblock = jblocks[jblockid] = 
-                    blockdata.meta.enable.changesNotSavedToPreset ?
-                        nlohmann::json::object({
-                            { "parameters", nlohmann::json::object({}) },
-                            { "properties", nlohmann::json::object({}) },
-                            { "quickpot", blockdata.quickPotSymbol },
-                            { "scenes", nlohmann::json::object({}) },
-                            { "uri", blockdata.uri },
-                        }) :
-                        nlohmann::json::object({
-                            { "enabled", blockdata.enabled },
-                            { "parameters", nlohmann::json::object({}) },
-                            { "properties", nlohmann::json::object({}) },
-                            { "quickpot", blockdata.quickPotSymbol },
-                            { "scenes", nlohmann::json::object({}) },
-                            { "uri", blockdata.uri },
-                        });
+                auto& jblock = jblocks[jblockid] = nlohmann::json::object({
+                    { "parameters", nlohmann::json::object({}) },
+                    { "properties", nlohmann::json::object({}) },
+                    { "quickpot", blockdata.quickPotSymbol },
+                    { "scenes", nlohmann::json::object({}) },
+                    { "uri", blockdata.uri },
+                });
+                if (! blockdata.meta.enable.changesNotSavedToPreset)
+                    jblock["enabled"] = blockdata.enabled;
 
                 {
                     auto& jparams = jblock["parameters"];
@@ -7430,6 +7347,54 @@ void HostConnector::resetPreset(Preset& preset) const
 
     for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
         preset.sceneNames[s].clear();
+}
+
+void HostConnector::setEnableChangesNotSavedToPreset(Block& blockdata, const bool changesNotSavedToPreset) const
+{
+    if (!changesNotSavedToPreset)
+    {
+        blockdata.meta.enable.changesNotSavedToPreset = false;
+        return;
+    }
+
+    blockdata.meta.enable.changesNotSavedToPreset = true;
+
+    // clear Scenes
+    if (blockdata.meta.enable.hasScenes)
+    {
+        --blockdata.meta.numParametersInScenes;
+        blockdata.meta.enable.hasScenes = false;
+    }
+    for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
+    {
+        blockdata.sceneValues[s].enabled = blockdata.enabled;
+        blockdata.lastSavedSceneValues[s].enabled = blockdata.enabled;
+    }
+}
+
+void HostConnector::setParamChangesNotSavedToPreset(Block& blockdata, const uint8_t paramIndex, const bool changesNotSavedToPreset) const
+{
+    Parameter& paramdata(blockdata.parameters[paramIndex]);
+
+    if (!changesNotSavedToPreset)
+    {
+        paramdata.meta.flags &= ~Lv2ParameteChangesNotSavedToPreset;
+        return;
+    }
+    
+    paramdata.meta.flags |= Lv2ParameteChangesNotSavedToPreset;
+
+    // clear Scenes
+    if ((paramdata.meta.flags & Lv2ParameterInScene) != 0)
+    {
+        --blockdata.meta.numParametersInScenes;
+        paramdata.meta.flags &= ~Lv2ParameterInScene;
+    }
+    for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
+    {
+        blockdata.sceneValues[s].parameters[paramIndex] = paramdata.value;
+        blockdata.lastSavedSceneValues[s].parameters[paramIndex] = paramdata.value;
+    }
 }
 
 // --------------------------------------------------------------------------------------------------------------------

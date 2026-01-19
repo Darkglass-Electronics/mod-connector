@@ -189,9 +189,9 @@ struct HostConnector : Host::FeedbackCallback {
             // convenience meta-data, not stored in json state
             struct {
                 bool hasScenes;
+                bool changesNotSavedToPreset;
                 uint8_t hwbinding;
                 TemporarySceneState tempSceneState;
-                bool changesNotSavedToPreset;
             } enable;
             uint8_t quickPotIndex;
             uint8_t numParametersInScenes;
@@ -892,6 +892,9 @@ private:
 
     void allocPreset(Preset& preset, bool init = true) const;
     void resetPreset(Preset& preset) const;
+
+    void setEnableChangesNotSavedToPreset(Block& blockdata, bool changesNotSavedToPreset) const;
+    void setParamChangesNotSavedToPreset(Block& blockdata, uint8_t paramIndex, bool changesNotSavedToPreset) const;
 };
 
 using HostBindings = HostConnector::Bindings;
