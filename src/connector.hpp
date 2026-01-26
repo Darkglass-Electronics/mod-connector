@@ -203,6 +203,7 @@ struct HostConnector : Host::FeedbackCallback {
             std::string name;
             std::string abbreviation;
             std::string brand;
+            Lv2Category category;
         } meta;
         std::vector<Parameter> parameters;
         std::vector<Property> properties;

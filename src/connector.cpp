@@ -7036,6 +7036,7 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
     blockdata.meta.numSideOutputs = numSideOutputs;
     blockdata.meta.name = plugin->name;
     blockdata.meta.abbreviation = plugin->abbreviation;
+    blockdata.meta.category = plugin->category;
 
     blockdata.parameterSymbolToIndexMap.clear();
     blockdata.propertyURIToIndexMap.clear();
@@ -7282,6 +7283,7 @@ void HostConnector::resetBlock(Block& blockdata) const
     blockdata.meta.numSideOutputs = 0;
     blockdata.meta.name.clear();
     blockdata.meta.abbreviation.clear();
+    blockdata.meta.category = kLv2CategoryNone;
 
     for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
         resetParameter(blockdata.parameters[p]);
