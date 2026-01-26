@@ -146,6 +146,10 @@ struct Lv2World {
     */
     [[nodiscard]] uint32_t getPluginCount() const noexcept;
 
+   /* get the plugin URI @a index
+    */
+    [[nodiscard]] const std::string& getPluginURI(uint32_t index) const;
+
    /* get the plugin @a index
     * can return null in case of error or the plugin requires unsupported features
     */

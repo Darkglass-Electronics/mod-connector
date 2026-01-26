@@ -291,6 +291,11 @@ struct Lv2World::Impl
         return pluginuris.size();
     }
 
+    const std::string& getPluginURI(const uint32_t index) const noexcept
+    {
+        return pluginuris[index];
+    }
+
     const Lv2Plugin* getPluginByIndex(const uint32_t index)
     {
         assert(index < getPluginCount());
@@ -978,7 +983,7 @@ struct Lv2World::Impl
             }
         }
 
-        static const Lv2Port fallback = {};
+        static const Lv2Port fallback;
         return fallback;
     }
 
@@ -1239,6 +1244,11 @@ void Lv2World::Impl::_pluginsInBundle(std::vector<std::string>& pluginsInBundle,
 uint32_t Lv2World::getPluginCount() const noexcept
 {
     return impl->getPluginCount();
+}
+
+const std::string& Lv2World::getPluginURI(const uint32_t index) const
+{
+    return impl->getPluginURI(index);
 }
 
 const Lv2Plugin* Lv2World::getPluginByIndex(const uint32_t index) const
