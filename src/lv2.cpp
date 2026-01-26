@@ -1082,7 +1082,12 @@ struct Lv2World::Impl
             assert_continue(it != pluginuris.cend());
 
             pluginuris.erase(it);
-            pluginscache.erase(uri);
+
+            const std::unordered_map<std::string, const Lv2Plugin*>::const_iterator it2 = pluginscache.find(uri);
+            assert_continue(it2 != pluginscache.cend());
+
+            delete it2->second;
+            pluginscache.erase(it2);
         }
 
         return true;
