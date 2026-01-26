@@ -100,6 +100,7 @@ std::string format(const char* format, ...)
     return ret;
 }
 
+#ifndef MOD_CONNECTOR_MINIMAL_LV2_WORLD
 // --------------------------------------------------------------------------------------------------------------------
 // check if a plugin has compatible IO, while also filling info regarding IO
 
@@ -138,6 +139,7 @@ bool getSupportedPluginIO(const Lv2Plugin* const plugin,
 
     return true;
 }
+#endif
 
 // --------------------------------------------------------------------------------------------------------------------
 // get a monotonically-increasing time in nanoseconds

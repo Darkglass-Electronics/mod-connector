@@ -125,15 +125,17 @@ struct Lv2Plugin {
     std::string uri;
     // NOTE includes path separator as last character
     std::string bundlepath;
+    uint32_t flags = 0;
+#ifndef MOD_CONNECTOR_MINIMAL_LV2_WORLD
     std::string name;
     std::string abbreviation;
     Lv2Category category = kLv2CategoryNone;
-    uint32_t flags = 0;
     std::vector<Lv2Port> ports;
     std::vector<Lv2Property> properties;
     // NOTE already in absolute path
     std::string blockImageOff;
     std::string blockImageOn;
+#endif
 };
 
 struct Lv2World {
@@ -160,6 +162,7 @@ struct Lv2World {
     */
     [[nodiscard]] const Lv2Plugin* getPluginByURI(const char* uri) const;
 
+#ifndef MOD_CONNECTOR_MINIMAL_LV2_WORLD
    /* get the plugin port with a known symbol
     */
     [[nodiscard]] const Lv2Port& getPluginPort(const char* uri, const char* symbol) const;
@@ -171,6 +174,7 @@ struct Lv2World {
    /* load a plugin state from disk and return a symbol -> value map
     */
     [[nodiscard]] std::unordered_map<std::string, float> loadPluginState(const char* path) const;
+#endif
 
    /**
     * add a bundle to the LV2 world

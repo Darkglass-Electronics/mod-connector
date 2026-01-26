@@ -347,6 +347,37 @@ struct Lv2World::Impl
             retplugin->bundlepath = bundlepath;
 
             // --------------------------------------------------------------------------------------------------------
+            // flags
+
+            if (path_contains(bundlepath, homedir()))
+                retplugin->flags |= Lv2PluginIsUserRemovable;
+
+            if (lilv_plugin_has_extension_data(plugin, ns.modlicense_interface))
+            {
+                retplugin->flags |= Lv2PluginIsCommercial;
+
+                static const std::string keysdir = _keysdir();
+
+                std::string licensefile;
+               #ifdef _DARKGLASS_DEVICE_PABLITO
+                // system plugins in Anagram all share the same license URI
+                // if bundle is not user removable, assume to be a system plugin
+                if ((retplugin->flags & Lv2PluginIsUserRemovable) == 0)
+                {
+                    licensefile = keysdir + "149e897c16e874bea75961557c8fef52567ad3db";
+                }
+                else
+               #endif
+                {
+                    licensefile = keysdir + _sha1(uri);
+                }
+
+                if (std::filesystem::exists(licensefile))
+                    retplugin->flags |= Lv2PluginIsLicensed;
+            }
+
+#ifndef MOD_CONNECTOR_MINIMAL_LV2_WORLD
+            // --------------------------------------------------------------------------------------------------------
             // name
 
             if (LilvNode* const node = lilv_plugin_get_name(plugin))
@@ -463,36 +494,6 @@ struct Lv2World::Impl
                 }
 
                 lilv_nodes_free(nodes);
-            }
-
-            // --------------------------------------------------------------------------------------------------------
-            // flags
-
-            if (path_contains(bundlepath, homedir()))
-                retplugin->flags |= Lv2PluginIsUserRemovable;
-
-            if (lilv_plugin_has_extension_data(plugin, ns.modlicense_interface))
-            {
-                retplugin->flags |= Lv2PluginIsCommercial;
-
-                static const std::string keysdir = _keysdir();
-
-                std::string licensefile;
-               #ifdef _DARKGLASS_DEVICE_PABLITO
-                // system plugins in Anagram all share the same license URI
-                // if bundle is not user removable, assume to be a system plugin
-                if ((retplugin->flags & Lv2PluginIsUserRemovable) == 0)
-                {
-                    licensefile = keysdir + "149e897c16e874bea75961557c8fef52567ad3db";
-                }
-                else
-               #endif
-                {
-                    licensefile = keysdir + _sha1(uri);
-                }
-
-                if (std::filesystem::exists(licensefile))
-                    retplugin->flags |= Lv2PluginIsLicensed;
             }
 
             // --------------------------------------------------------------------------------------------------------
@@ -961,6 +962,7 @@ struct Lv2World::Impl
             }
 
             // --------------------------------------------------------------------------------------------------------
+#endif
 
             pluginscache[uri] = retplugin;
             return retplugin;
@@ -969,6 +971,7 @@ struct Lv2World::Impl
         return pluginscache[uri];
     }
 
+#ifndef MOD_CONNECTOR_MINIMAL_LV2_WORLD
     const Lv2Port& getPluginPort(const char* const uri, const char* const symbol)
     {
         assert(uri != nullptr && *uri != '\0');
@@ -1008,6 +1011,7 @@ struct Lv2World::Impl
 
         return values;
     }
+#endif
 
     bool bundleAdd(const char* const path, std::vector<std::string>* pluginsInBundlePtr = nullptr)
     {
@@ -1261,6 +1265,7 @@ const Lv2Plugin* Lv2World::getPluginByURI(const char* const uri) const
     return impl->getPluginByURI(uri);
 }
 
+#ifndef MOD_CONNECTOR_MINIMAL_LV2_WORLD
 const Lv2Port& Lv2World::getPluginPort(const char* const uri, const char* const symbol) const
 {
     return impl->getPluginPort(uri, symbol);
@@ -1275,6 +1280,7 @@ std::unordered_map<std::string, float> Lv2World::loadPluginState(const char* con
 {
     return impl->loadPluginState(path);
 }
+#endif
 
 bool Lv2World::bundleAdd(const char* const path, std::vector<std::string>* pluginsInBundle)
 {
