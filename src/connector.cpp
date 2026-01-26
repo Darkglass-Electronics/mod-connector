@@ -6257,16 +6257,10 @@ void HostConnector::hostLoadPreset(const uint8_t preset)
     case 0:
         break;
     case 1:
-        if (active)
-            _host.add(uris.front(), instances.front());
-        else
-            _host.preload(uris.front(), instances.front());
+        _host.preload(uris.front(), instances.front());
         break;
     default:
-        if (active)
-            _host.multi_add(instances.size(), instances.data(), uris.data());
-        else
-            _host.multi_preload(instances.size(), instances.data(), uris.data());
+        _host.multi_preload(instances.size(), instances.data(), uris.data());
         break;
     }
 
@@ -6290,6 +6284,10 @@ void HostConnector::hostLoadPreset(const uint8_t preset)
             const HostBlockPair hbp = _mapper.get(preset, row, bl);
 
             hostSetupInstance(blockdata, hbp.id);
+            // activate after setup so that pre-run in activate uses preset's values
+            if (active)
+                _host.activate(hbp.id, true);
+
             hostSetupSideIO(preset, row, bl, hbp, nullptr);
         }
 
@@ -6603,10 +6601,12 @@ bool HostConnector::hostLoadInstance(const Block& blockdata, const uint16_t inst
 {
     assert(instance_number != kMaxHostInstances);
 
-    if (active ? _host.add(blockdata.uri.c_str(), instance_number)
-               : _host.preload(blockdata.uri.c_str(), instance_number))
+    if (_host.preload(blockdata.uri.c_str(), instance_number))
     {
         hostSetupInstance(blockdata, instance_number);
+        // activate after setup so that pre-run in activate uses preset's values
+        if (active) 
+            _host.activate(instance_number, true);
         return true;
     }
 
