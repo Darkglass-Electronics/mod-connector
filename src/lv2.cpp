@@ -1059,7 +1059,7 @@ struct Lv2World::Impl
     }
 
 #ifndef MOD_CONNECTOR_MINIMAL_LV2_WORLD
-    const CustomStyling::Block* getPluginCustomStyling(const char* const uri)
+    const CustomStyling::BlockSettings* getPluginCustomStyling(const char* const uri)
     {
         assert(uri != nullptr);
         assert(*uri != '\0');
@@ -1232,7 +1232,7 @@ struct Lv2World::Impl
             lilv_node_free(nodes);
         };
 
-        CustomStyling::Block* const styling = new CustomStyling::Block;
+        CustomStyling::BlockSettings* const styling = new CustomStyling::BlockSettings;
 
         if (LilvNode* const paddingNode = lilv_world_get(world, stylingNode, ns.dgbs_parameterStartPadding, nullptr))
         {
@@ -1387,7 +1387,7 @@ struct Lv2World::Impl
             delete it2->second;
             pluginscache.erase(it2);
 
-            const std::unordered_map<std::string, const CustomStyling::Block*>::const_iterator it3 = stylingcache.find(uri);
+            const std::unordered_map<std::string, const CustomStyling::BlockSettings*>::const_iterator it3 = stylingcache.find(uri);
             assert_continue(it3 != stylingcache.cend());
 
             delete it3->second;
@@ -1417,7 +1417,7 @@ private:
     std::list<std::string> bundles;
     std::vector<std::string> pluginuris;
     std::unordered_map<std::string, const Lv2Plugin*> pluginscache;
-    std::unordered_map<std::string, const CustomStyling::Block*> stylingcache;
+    std::unordered_map<std::string, const CustomStyling::BlockSettings*> stylingcache;
 
     static LV2_URID _mapfn(LV2_URID_Map_Handle handle, const char* uri);
     static void _portfn(const char* symbol, void* userData, const void* value, uint32_t size, uint32_t type);
@@ -1562,7 +1562,7 @@ const Lv2Plugin* Lv2World::getPluginByURI(const char* const uri) const
 }
 
 #ifndef MOD_CONNECTOR_MINIMAL_LV2_WORLD
-const CustomStyling::Block* Lv2World::getPluginCustomStyling(const char* uri) const
+const CustomStyling::BlockSettings* Lv2World::getPluginCustomStyling(const char* uri) const
 {
     return impl->getPluginCustomStyling(uri);
 }

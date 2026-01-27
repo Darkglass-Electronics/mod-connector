@@ -169,7 +169,7 @@ struct Lv2World {
    /* get the custom block styling of a plugin with a known uri
     * can return null in case of error or the plugin doesn't support styling
     */
-    [[nodiscard]] const CustomStyling::Block* getPluginCustomStyling(const char* uri) const;
+    [[nodiscard]] const CustomStyling::BlockSettings* getPluginCustomStyling(const char* uri) const;
 
    /* get the plugin port with a known symbol
     */
