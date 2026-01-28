@@ -93,11 +93,11 @@ struct BlockSettings {
     // Can contain multiple horizontal frames for paginated scrolling
     Image background;
 
-    // The block name can either be an image or a custom font
-    // Use of image takes precedence if both are provided
+    // The block name can either be a background image or a custom font
+    // Use of background image takes precedence if both are provided
     // It is 1 layer above the background
     struct {
-        Image image;
+        Image background;
         Font font;
     } blockName;
 
@@ -108,7 +108,7 @@ struct BlockSettings {
     // The settings' top-bar buttons are images without any alignment
     // These images must be the correct size or are otherwise rejected
     // They are 1 layer above the block name
-    struct SettingsTopbarButtons {
+    struct TopbarButtons {
         // 85x50
         std::string back;
         std::string close;

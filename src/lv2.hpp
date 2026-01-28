@@ -64,10 +64,13 @@ enum Lv2Designation {
 };
 
 enum Lv2PluginFlags {
-    Lv2PluginIsCommercial    = 1 << 0,
-    Lv2PluginIsLicensed      = 1 << 1,
-    Lv2PluginIsUserRemovable = 1 << 2,
-    Lv2PluginHasBlockStyling = 1 << 3,
+    Lv2PluginIsCommercial            = 1 << 0,
+    Lv2PluginIsLicensed              = 1 << 1,
+    Lv2PluginIsUserRemovable         = 1 << 2,
+#ifndef MOD_CONNECTOR_MINIMAL_LV2_WORLD
+    Lv2PluginHasBlockStyling         = 1 << 3,
+    Lv2PluginHasBlockSettingsStyling = 1 << 3,
+#endif
 };
 
 enum Lv2ParameterFlags {
@@ -169,7 +172,12 @@ struct Lv2World {
    /* get the custom block styling of a plugin with a known uri
     * can return null in case of error or the plugin doesn't support styling
     */
-    [[nodiscard]] const CustomStyling::BlockSettings* getPluginCustomStyling(const char* uri) const;
+    [[nodiscard]] const CustomStyling::Block* getPluginBlockStyling(const char* uri) const;
+
+   /* get the custom block settings styling of a plugin with a known uri
+    * can return null in case of error or the plugin doesn't support styling
+    */
+    [[nodiscard]] const CustomStyling::BlockSettings* getPluginBlockSettingsStyling(const char* uri) const;
 
    /* get the plugin port with a known symbol
     */
