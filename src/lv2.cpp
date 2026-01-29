@@ -68,7 +68,6 @@
 #define LV2_DARKGLASS_CUSTOM_STYLING_URI    "http://www.darkglass.com/lv2/ns/lv2ext/custom-styling"
 #define LV2_DARKGLASS_CUSTOM_STYLING_PREFIX LV2_DARKGLASS_CUSTOM_STYLING_URI "#"
 
-
 #define LV2_DARKGLASS_CUSTOM_STYLING__alignBottomLeft  LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "alignBottomLeft"
 #define LV2_DARKGLASS_CUSTOM_STYLING__alignBottomMid   LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "alignBottomMid"
 #define LV2_DARKGLASS_CUSTOM_STYLING__alignBottomRight LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "alignBottomRight"
@@ -85,25 +84,30 @@
 #define LV2_DARKGLASS_CUSTOM_STYLING__block            LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "block"
 #define LV2_DARKGLASS_CUSTOM_STYLING__blockName        LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "blockName"
 #define LV2_DARKGLASS_CUSTOM_STYLING__blockSettings    LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "blockSettings"
+#define LV2_DARKGLASS_CUSTOM_STYLING__blocked          LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "blocked"
 #define LV2_DARKGLASS_CUSTOM_STYLING__bypass           LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "bypass"
 #define LV2_DARKGLASS_CUSTOM_STYLING__circle           LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "circle"
 #define LV2_DARKGLASS_CUSTOM_STYLING__close            LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "close"
 #define LV2_DARKGLASS_CUSTOM_STYLING__fader            LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "fader"
 #define LV2_DARKGLASS_CUSTOM_STYLING__font             LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "font"
+#define LV2_DARKGLASS_CUSTOM_STYLING__inUse            LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "inUse"
+#define LV2_DARKGLASS_CUSTOM_STYLING__inactive         LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "inactive"
 #define LV2_DARKGLASS_CUSTOM_STYLING__list             LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "list"
 #define LV2_DARKGLASS_CUSTOM_STYLING__more             LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "more"
 #define LV2_DARKGLASS_CUSTOM_STYLING__paginationDots   LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "paginationDots"
 #define LV2_DARKGLASS_CUSTOM_STYLING__parameterStartPadding LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "parameterStartPadding"
+#define LV2_DARKGLASS_CUSTOM_STYLING__parameters       LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "parameters"
 #define LV2_DARKGLASS_CUSTOM_STYLING__path             LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "path"
 #define LV2_DARKGLASS_CUSTOM_STYLING__remove           LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "remove"
 #define LV2_DARKGLASS_CUSTOM_STYLING__size             LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "size"
 #define LV2_DARKGLASS_CUSTOM_STYLING__swap             LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "swap"
 #define LV2_DARKGLASS_CUSTOM_STYLING__toggle           LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "toggle"
 #define LV2_DARKGLASS_CUSTOM_STYLING__topBarButtons    LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "topBarButtons"
+#define LV2_DARKGLASS_CUSTOM_STYLING__unavailable      LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "unavailable"
 #define LV2_DARKGLASS_CUSTOM_STYLING__widget           LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "widget"
-#define LV2_DARKGLASS_CUSTOM_STYLING__widgets          LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "widgets"
 #define LV2_DARKGLASS_CUSTOM_STYLING__x                LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "x"
 #define LV2_DARKGLASS_CUSTOM_STYLING__y                LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "y"
+
 #define LILV_NS_KXSTUDIO "http://kxstudio.sf.net/ns/lv2ext/props"
 #define KXSTUDIO__Reset LILV_NS_KXSTUDIO "#Reset"
 
@@ -219,30 +223,36 @@ struct Lv2NamespaceDefinitions {
     LilvNode* const darkglass_abbreviation;
     LilvNode* const darkglass_blockImageOff;
     LilvNode* const darkglass_blockImageOn;
-    LilvNode* const dgbs_alignment;
-    LilvNode* const dgbs_back;
-    LilvNode* const dgbs_background;
-    LilvNode* const dgbs_backgroundScenes;
-    LilvNode* const dgbs_block;
-    LilvNode* const dgbs_blockName;
-    LilvNode* const dgbs_blockSettings;
-    LilvNode* const dgbs_bypass;
-    LilvNode* const dgbs_circle;
-    LilvNode* const dgbs_close;
-    LilvNode* const dgbs_fader;
-    LilvNode* const dgbs_font;
-    LilvNode* const dgbs_list;
-    LilvNode* const dgbs_more;
-    LilvNode* const dgbs_paginationDots;
-    LilvNode* const dgbs_parameterStartPadding;
-    LilvNode* const dgbs_path;
-    LilvNode* const dgbs_remove;
-    LilvNode* const dgbs_size;
-    LilvNode* const dgbs_swap;
-    LilvNode* const dgbs_toggle;
-    LilvNode* const dgbs_topbarButtons;
-    LilvNode* const dgbs_widget;
-    LilvNode* const dgbs_widgets;
+    LilvNode* const dgcs_alignment;
+    LilvNode* const dgcs_back;
+    LilvNode* const dgcs_background;
+    LilvNode* const dgcs_backgroundScenes;
+    LilvNode* const dgcs_block;
+    LilvNode* const dgcs_blockName;
+    LilvNode* const dgcs_blockSettings;
+    LilvNode* const dgcs_blocked;
+    LilvNode* const dgcs_bypass;
+    LilvNode* const dgcs_circle;
+    LilvNode* const dgcs_close;
+    LilvNode* const dgcs_fader;
+    LilvNode* const dgcs_font;
+    LilvNode* const dgcs_inUse;
+    LilvNode* const dgcs_inactive;
+    LilvNode* const dgcs_list;
+    LilvNode* const dgcs_more;
+    LilvNode* const dgcs_paginationDots;
+    LilvNode* const dgcs_parameterStartPadding;
+    LilvNode* const dgcs_parameters;
+    LilvNode* const dgcs_path;
+    LilvNode* const dgcs_remove;
+    LilvNode* const dgcs_size;
+    LilvNode* const dgcs_swap;
+    LilvNode* const dgcs_toggle;
+    LilvNode* const dgcs_topbarButtons;
+    LilvNode* const dgcs_unavailable;
+    LilvNode* const dgcs_widget;
+    LilvNode* const dgcs_x;
+    LilvNode* const dgcs_y;
     LilvNode* const lv2core_default;
     LilvNode* const lv2core_designation;
     LilvNode* const lv2core_minimum;
@@ -263,30 +273,36 @@ struct Lv2NamespaceDefinitions {
         : darkglass_abbreviation(lilv_new_uri(world, LV2_DARKGLASS_PROPERTIES__abbreviation)),
           darkglass_blockImageOff(lilv_new_uri(world, LV2_DARKGLASS_PROPERTIES__blockImageOff)),
           darkglass_blockImageOn(lilv_new_uri(world, LV2_DARKGLASS_PROPERTIES__blockImageOn)),
-          dgbs_alignment(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__alignment)),
-          dgbs_back(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__back)),
-          dgbs_background(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__background)),
-          dgbs_backgroundScenes(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__backgroundScenes)),
-          dgbs_block(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__block)),
-          dgbs_blockName(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__blockName)),
-          dgbs_blockSettings(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__blockSettings)),
-          dgbs_bypass(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__bypass)),
-          dgbs_circle(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__circle)),
-          dgbs_close(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__close)),
-          dgbs_fader(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__fader)),
-          dgbs_font(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__font)),
-          dgbs_list(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__list)),
-          dgbs_more(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__more)),
-          dgbs_paginationDots(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__paginationDots)),
-          dgbs_parameterStartPadding(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__parameterStartPadding)),
-          dgbs_path(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__path)),
-          dgbs_remove(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__remove)),
-          dgbs_size(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__size)),
-          dgbs_swap(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__swap)),
-          dgbs_toggle(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__toggle)),
-          dgbs_topbarButtons(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__topBarButtons)),
-          dgbs_widget(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__widget)),
-          dgbs_widgets(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__widgets)),
+          dgcs_alignment(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__alignment)),
+          dgcs_back(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__back)),
+          dgcs_background(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__background)),
+          dgcs_backgroundScenes(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__backgroundScenes)),
+          dgcs_block(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__block)),
+          dgcs_blockName(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__blockName)),
+          dgcs_blockSettings(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__blockSettings)),
+          dgcs_blocked(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__blocked)),
+          dgcs_bypass(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__bypass)),
+          dgcs_circle(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__circle)),
+          dgcs_close(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__close)),
+          dgcs_fader(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__fader)),
+          dgcs_font(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__font)),
+          dgcs_inUse(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__inUse)),
+          dgcs_inactive(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__inactive)),
+          dgcs_list(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__list)),
+          dgcs_more(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__more)),
+          dgcs_paginationDots(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__paginationDots)),
+          dgcs_parameterStartPadding(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__parameterStartPadding)),
+          dgcs_parameters(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__parameters)),
+          dgcs_path(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__path)),
+          dgcs_remove(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__remove)),
+          dgcs_size(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__size)),
+          dgcs_swap(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__swap)),
+          dgcs_toggle(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__toggle)),
+          dgcs_topbarButtons(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__topBarButtons)),
+          dgcs_unavailable(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__unavailable)),
+          dgcs_widget(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__widget)),
+          dgcs_x(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__x)),
+          dgcs_y(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__y)),
           lv2core_default(lilv_new_uri(world, LV2_CORE__default)),
           lv2core_designation(lilv_new_uri(world, LV2_CORE__designation)),
           lv2core_minimum(lilv_new_uri(world, LV2_CORE__minimum)),
@@ -310,30 +326,36 @@ struct Lv2NamespaceDefinitions {
         lilv_node_free(darkglass_abbreviation);
         lilv_node_free(darkglass_blockImageOff);
         lilv_node_free(darkglass_blockImageOn);
-        lilv_node_free(dgbs_alignment);
-        lilv_node_free(dgbs_back);
-        lilv_node_free(dgbs_background);
-        lilv_node_free(dgbs_backgroundScenes);
-        lilv_node_free(dgbs_block);
-        lilv_node_free(dgbs_blockName);
-        lilv_node_free(dgbs_blockSettings);
-        lilv_node_free(dgbs_bypass);
-        lilv_node_free(dgbs_circle);
-        lilv_node_free(dgbs_close);
-        lilv_node_free(dgbs_fader);
-        lilv_node_free(dgbs_font);
-        lilv_node_free(dgbs_list);
-        lilv_node_free(dgbs_more);
-        lilv_node_free(dgbs_paginationDots);
-        lilv_node_free(dgbs_parameterStartPadding);
-        lilv_node_free(dgbs_path);
-        lilv_node_free(dgbs_remove);
-        lilv_node_free(dgbs_size);
-        lilv_node_free(dgbs_swap);
-        lilv_node_free(dgbs_toggle);
-        lilv_node_free(dgbs_topbarButtons);
-        lilv_node_free(dgbs_widget);
-        lilv_node_free(dgbs_widgets);
+        lilv_node_free(dgcs_alignment);
+        lilv_node_free(dgcs_back);
+        lilv_node_free(dgcs_background);
+        lilv_node_free(dgcs_backgroundScenes);
+        lilv_node_free(dgcs_block);
+        lilv_node_free(dgcs_blockName);
+        lilv_node_free(dgcs_blockSettings);
+        lilv_node_free(dgcs_blocked);
+        lilv_node_free(dgcs_bypass);
+        lilv_node_free(dgcs_circle);
+        lilv_node_free(dgcs_close);
+        lilv_node_free(dgcs_fader);
+        lilv_node_free(dgcs_font);
+        lilv_node_free(dgcs_inUse);
+        lilv_node_free(dgcs_inactive);
+        lilv_node_free(dgcs_list);
+        lilv_node_free(dgcs_more);
+        lilv_node_free(dgcs_paginationDots);
+        lilv_node_free(dgcs_parameterStartPadding);
+        lilv_node_free(dgcs_parameters);
+        lilv_node_free(dgcs_path);
+        lilv_node_free(dgcs_remove);
+        lilv_node_free(dgcs_size);
+        lilv_node_free(dgcs_swap);
+        lilv_node_free(dgcs_toggle);
+        lilv_node_free(dgcs_topbarButtons);
+        lilv_node_free(dgcs_unavailable);
+        lilv_node_free(dgcs_widget);
+        lilv_node_free(dgcs_x);
+        lilv_node_free(dgcs_y);
         lilv_node_free(lv2core_default);
         lilv_node_free(lv2core_designation);
         lilv_node_free(lv2core_minimum);
@@ -502,10 +524,10 @@ struct Lv2World::Impl
             }
 
 #ifndef MOD_CONNECTOR_MINIMAL_LV2_WORLD
-            if (lilv_world_ask(world, urinode, ns.dgbs_block, nullptr))
+            if (lilv_world_ask(world, urinode, ns.dgcs_block, nullptr))
                 retplugin->flags |= Lv2PluginHasBlockStyling;
 
-            if (lilv_world_ask(world, urinode, ns.dgbs_blockSettings, nullptr))
+            if (lilv_world_ask(world, urinode, ns.dgcs_blockSettings, nullptr))
                 retplugin->flags |= Lv2PluginHasBlockSettingsStyling;
 
             // --------------------------------------------------------------------------------------------------------
@@ -1134,7 +1156,7 @@ struct Lv2World::Impl
                 return nullptr;
             }
 
-            LilvNodes* const stylingNodes = lilv_plugin_get_value(plugin, ns.dgbs_block);
+            LilvNodes* const stylingNodes = lilv_plugin_get_value(plugin, ns.dgcs_block);
             if (stylingNodes == nullptr)
             {
                 last_error = "Plugin does not contain block styling";
@@ -1148,7 +1170,70 @@ struct Lv2World::Impl
 
         CustomStyling::Block* const styling = new CustomStyling::Block;
 
-        // TODO
+        const auto assignImage = [&](CustomStyling::Image& imageRef,
+                                     const LilvNode* const subject,
+                                     const LilvNode* const predicate,
+                                     const CustomStyling::Alignment alignmentDefault = CustomStyling::kAlignNone)
+        {
+            _assignImage(imageRef, retplugin->bundlepath, subject, predicate, alignmentDefault);
+        };
+        const auto assignParameterFromNode = [&](CustomStyling::Block::Parameter& paramRef,
+                                                 const LilvNode* const node)
+        {
+            assignImage(paramRef.background, node, ns.dgcs_background);
+
+            if (LilvNode* const xNode = lilv_world_get(world, node, ns.dgcs_x, nullptr))
+            {
+                if (lilv_node_is_int(xNode))
+                    styling->bypass.x = std::max(0, lilv_node_as_int(xNode));
+
+                lilv_node_free(xNode);
+            }
+
+            if (LilvNode* const yNode = lilv_world_get(world, node, ns.dgcs_y, nullptr))
+            {
+                if (lilv_node_is_int(yNode))
+                    styling->bypass.x = std::max(0, lilv_node_as_int(yNode));
+
+                lilv_node_free(yNode);
+            }
+        };
+        const auto assignParameter = [&](CustomStyling::Block::Parameter& paramRef,
+                                         const LilvNode* const subject,
+                                         const LilvNode* const predicate)
+        {
+            if (LilvNode* const node = lilv_world_get(world, subject, predicate, nullptr))
+            {
+                assignParameterFromNode(paramRef, node);
+                lilv_node_free(node);
+            }
+        };
+
+        assignImage(styling->background, stylingNode, ns.dgcs_background);
+        assignParameter(styling->bypass, stylingNode, ns.dgcs_bypass);
+
+        if (LilvNodes* const parametersNodes = lilv_world_find_nodes(world, stylingNode, ns.dgcs_parameters, nullptr))
+        {
+            LILV_FOREACH(nodes, iter, parametersNodes)
+            {
+                const LilvNode* const parameterNode = lilv_nodes_get(parametersNodes, iter);
+
+                LilvNode* const symbolNode = lilv_world_get(world, parameterNode, ns.lv2core_symbol, nullptr);
+                if (symbolNode == nullptr)
+                    continue;
+
+                if (lilv_node_is_string(symbolNode))
+                {
+                    const char* const symbol = lilv_node_as_string(symbolNode);
+
+                    assignParameterFromNode(styling->parameters[symbol], parameterNode);
+                }
+
+                lilv_node_free(symbolNode);
+            }
+
+            lilv_nodes_free(parametersNodes);
+        }
 
         lilv_node_free(stylingNode);
 
@@ -1190,10 +1275,10 @@ struct Lv2World::Impl
                 return nullptr;
             }
 
-            LilvNodes* const stylingNodes = lilv_plugin_get_value(plugin, ns.dgbs_blockSettings);
+            LilvNodes* const stylingNodes = lilv_plugin_get_value(plugin, ns.dgcs_blockSettings);
             if (stylingNodes == nullptr)
             {
-                last_error = "Plugin does not contain block styling";
+                last_error = "Plugin does not contain block settings styling";
                 return nullptr;
             }
 
@@ -1202,130 +1287,37 @@ struct Lv2World::Impl
             lilv_nodes_free(stylingNodes);
         }
 
-        const auto assignFont = [&](CustomStyling::Font& fontRef,
-                                    const LilvNode* const subject,
-                                    const LilvNode* const predicate)
+        const auto assignFont = [&](CustomStyling::Font& fontRef, const LilvNode* const subject)
         {
-            LilvNode* const fontNode = lilv_world_get(world, subject, predicate, nullptr);
-            if (fontNode == nullptr)
-                return;
-
-            LilvNode* const fontPathNode = lilv_world_get(world, fontNode, ns.dgbs_path, nullptr);
-            if (fontPathNode == nullptr)
-            {
-                lilv_node_free(fontNode);
-                return;
-            }
-
-            char* const path = _lilv_file_abspath(fontPathNode);
-            if (path == nullptr)
-            {
-                lilv_node_free(fontPathNode);
-                lilv_node_free(fontNode);
-                return;
-            }
-
-            if (path_contains(path, retplugin->bundlepath))
-            {
-                if (LilvNode* const fontSizeNode = lilv_world_get(world, fontNode, ns.dgbs_size, nullptr))
-                {
-                    if (lilv_node_is_int(fontSizeNode))
-                    {
-                        fontRef.path = path;
-                        fontRef.size = lilv_node_as_int(fontSizeNode);
-                    }
-                    lilv_node_free(fontSizeNode);
-                }
-            }
-
-            std::free(path);
-            lilv_node_free(fontPathNode);
-            lilv_node_free(fontNode);
+            _assignFont(fontRef, retplugin->bundlepath, subject);
         };
-
-        const auto assignImage = [&](
-            CustomStyling::Image& imageRef,
-            const LilvNode* const subject,
-            const LilvNode* const predicate,
-            const CustomStyling::Alignment alignmentDefault = CustomStyling::kAlignCenter)
+        const auto assignImage = [&](CustomStyling::Image& imageRef,
+                                     const LilvNode* const subject,
+                                     const LilvNode* const predicate,
+                                     const CustomStyling::Alignment alignmentDefault = CustomStyling::kAlignCenter)
         {
-            assert(alignmentDefault != CustomStyling::kAlignNone);
-
-            LilvNode* const imageNode = lilv_world_get(world, subject, predicate, nullptr);
-            if (imageNode == nullptr)
-                return;
-
-            LilvNode* const imagePathNode = lilv_world_get(world, imageNode, ns.dgbs_path, nullptr);
-            if (imagePathNode == nullptr)
-            {
-                lilv_node_free(imageNode);
-                return;
-            }
-
-            char* const path = _lilv_file_abspath(imagePathNode);
-            if (path == nullptr)
-            {
-                lilv_node_free(imagePathNode);
-                lilv_node_free(imageNode);
-                return;
-            }
-
-            if (path_contains(path, retplugin->bundlepath))
-            {
-                imageRef.alignment = alignmentDefault;
-                imageRef.path = path;
-
-                if (LilvNode* const alignmentNode = lilv_world_get(world, imageNode, ns.dgbs_alignment, nullptr))
-                {
-                    const char* alignmentURI = lilv_node_is_uri(alignmentNode)
-                                             ? lilv_node_as_uri(alignmentNode)
-                                             : nullptr;
-
-                    if (alignmentURI != nullptr && std::strstr(alignmentURI, LV2_DARKGLASS_CUSTOM_STYLING_PREFIX) != nullptr)
-                    {
-                        alignmentURI += std::strlen(LV2_DARKGLASS_CUSTOM_STYLING_PREFIX);
-
-                        /**/ if (std::strcmp(alignmentURI, "alignBottomLeft") == 0)
-                            imageRef.alignment = CustomStyling::kAlignBottomLeft;
-                        else if (std::strcmp(alignmentURI, "alignBottomMid") == 0)
-                            imageRef.alignment = CustomStyling::kAlignBottomMid;
-                        else if (std::strcmp(alignmentURI, "alignBottomRight") == 0)
-                            imageRef.alignment = CustomStyling::kAlignBottomRight;
-                        else if (std::strcmp(alignmentURI, "alignCenter") == 0)
-                            imageRef.alignment = CustomStyling::kAlignCenter;
-                        else if (std::strcmp(alignmentURI, "alignLeftMid") == 0)
-                            imageRef.alignment = CustomStyling::kAlignLeftMid;
-                        else if (std::strcmp(alignmentURI, "alignRightMid") == 0)
-                            imageRef.alignment = CustomStyling::kAlignRightMid;
-                        else if (std::strcmp(alignmentURI, "alignTopLeft") == 0)
-                            imageRef.alignment = CustomStyling::kAlignTopLeft;
-                        else if (std::strcmp(alignmentURI, "alignTopMid") == 0)
-                            imageRef.alignment = CustomStyling::kAlignTopMid;
-                        else if (std::strcmp(alignmentURI, "alignTopRight") == 0)
-                            imageRef.alignment = CustomStyling::kAlignTopRight;
-                    }
-                    lilv_node_free(alignmentNode);
-                }
-            }
-
-            std::free(path);
-            lilv_node_free(imagePathNode);
-            lilv_node_free(imageNode);
+            _assignImage(imageRef, retplugin->bundlepath, subject, predicate, alignmentDefault);
         };
-        // template <class ParameterOrBypass>
-        const auto assignParameterFromNode = [&](auto& paramRef, const LilvNode* const node)
+        const auto assignOverlay = [&](CustomStyling::Overlay& overlayRef,
+                                       const LilvNode* const subject,
+                                       const LilvNode* const predicate)
         {
-            assignImage(paramRef.background, node, ns.dgbs_background);
-            assignImage(paramRef.backgroundScenes, node, ns.dgbs_backgroundScenes);
-            assignImage(paramRef.widget, node, ns.dgbs_widget);
-
-            // TODO overlays
-
-            // if constexpr (std::is_same(typeof(paramRef), CustomStyling::Parameter))
-            {
-            }
+            _assignImage(overlayRef, retplugin->bundlepath, subject, predicate, CustomStyling::kAlignNone);
         };
-        const auto assignParameter = [&](auto& paramRef, const LilvNode* const subject, const LilvNode* const predicate)
+        const auto assignParameterFromNode = [&](CustomStyling::BlockSettings::Parameter& paramRef,
+                                                 const LilvNode* const node)
+        {
+            assignImage(paramRef.background, node, ns.dgcs_background);
+            assignImage(paramRef.backgroundScenes, node, ns.dgcs_backgroundScenes);
+            assignImage(paramRef.widget, node, ns.dgcs_widget);
+            assignOverlay(paramRef.overlays.blocked, node, ns.dgcs_blocked);
+            assignOverlay(paramRef.overlays.inactive, node, ns.dgcs_inactive);
+            assignOverlay(paramRef.overlays.inUse, node, ns.dgcs_inUse);
+            assignOverlay(paramRef.overlays.unavailable, node, ns.dgcs_unavailable);
+        };
+        const auto assignParameter = [&](CustomStyling::BlockSettings::Parameter& paramRef,
+                                         const LilvNode* const subject,
+                                         const LilvNode* const predicate)
         {
             if (LilvNode* const node = lilv_world_get(world, subject, predicate, nullptr))
             {
@@ -1336,19 +1328,19 @@ struct Lv2World::Impl
 
         CustomStyling::BlockSettings* const styling = new CustomStyling::BlockSettings;
 
-        assignImage(styling->background, stylingNode, ns.dgbs_background, CustomStyling::kAlignBottomRight);
+        assignImage(styling->background, stylingNode, ns.dgcs_background, CustomStyling::kAlignBottomRight);
 
-        if (LilvNode* const blockNameNode = lilv_world_get(world, stylingNode, ns.dgbs_blockName, nullptr))
+        if (LilvNode* const blockNameNode = lilv_world_get(world, stylingNode, ns.dgcs_blockName, nullptr))
         {
-            assignImage(styling->blockName.background, blockNameNode, ns.dgbs_background, CustomStyling::kAlignTopLeft);
-            assignFont(styling->blockName.font, blockNameNode, ns.dgbs_font);
+            assignImage(styling->blockName.background, blockNameNode, ns.dgcs_background, CustomStyling::kAlignTopLeft);
+            assignFont(styling->blockName.font, blockNameNode);
 
             lilv_node_free(blockNameNode);
         }
 
-        assignImage(styling->paginationDots, stylingNode, ns.dgbs_paginationDots, CustomStyling::kAlignBottomMid);
+        assignImage(styling->paginationDots, stylingNode, ns.dgcs_paginationDots, CustomStyling::kAlignBottomMid);
 
-        if (LilvNode* const topbarButtonsNode = lilv_world_get(world, stylingNode, ns.dgbs_topbarButtons, nullptr))
+        if (LilvNode* const topbarButtonsNode = lilv_world_get(world, stylingNode, ns.dgcs_topbarButtons, nullptr))
         {
             const auto assignPath = [&](std::string& pathRef, const LilvNode* const predicate)
             {
@@ -1366,18 +1358,25 @@ struct Lv2World::Impl
                 lilv_node_free(pathNode);
             };
 
-            assignPath(styling->topBarButtons.back, ns.dgbs_back);
-            assignPath(styling->topBarButtons.close, ns.dgbs_close);
-            assignPath(styling->topBarButtons.more, ns.dgbs_more);
-            assignPath(styling->topBarButtons.remove, ns.dgbs_remove);
-            assignPath(styling->topBarButtons.swap, ns.dgbs_swap);
+            assignPath(styling->topBarButtons.back, ns.dgcs_back);
+            assignPath(styling->topBarButtons.close, ns.dgcs_close);
+            assignPath(styling->topBarButtons.more, ns.dgcs_more);
+            assignPath(styling->topBarButtons.remove, ns.dgcs_remove);
+            assignPath(styling->topBarButtons.swap, ns.dgcs_swap);
 
             lilv_node_free(topbarButtonsNode);
         }
 
-        assignParameter(styling->bypass, stylingNode, ns.dgbs_bypass);
+        if (LilvNode* const node = lilv_world_get(world, stylingNode, ns.dgcs_bypass, nullptr))
+        {
+            assignImage(styling->bypass.background, node, ns.dgcs_background);
+            assignImage(styling->bypass.backgroundScenes, node, ns.dgcs_backgroundScenes);
+            assignImage(styling->bypass.widget, node, ns.dgcs_widget);
+            assignOverlay(styling->bypass.overlays.inUse, node, ns.dgcs_inUse);
+            lilv_node_free(node);
+        }
 
-        if (LilvNode* const paddingNode = lilv_world_get(world, stylingNode, ns.dgbs_parameterStartPadding, nullptr))
+        if (LilvNode* const paddingNode = lilv_world_get(world, stylingNode, ns.dgcs_parameterStartPadding, nullptr))
         {
             if (lilv_node_is_int(paddingNode))
                 styling->parameterStartPadding = std::clamp(lilv_node_as_int(paddingNode), 0, CustomStyling::kMaxParameterStartPadding);
@@ -1385,18 +1384,18 @@ struct Lv2World::Impl
             lilv_node_free(paddingNode);
         }
 
-        assignParameter(styling->defaultWidgets.circle, stylingNode, ns.dgbs_circle);
-        assignParameter(styling->defaultWidgets.fader, stylingNode, ns.dgbs_fader);
-        assignParameter(styling->defaultWidgets.list, stylingNode, ns.dgbs_list);
-        assignParameter(styling->defaultWidgets.toggle, stylingNode, ns.dgbs_toggle);
+        assignParameter(styling->defaultParameters.circle, stylingNode, ns.dgcs_circle);
+        assignParameter(styling->defaultParameters.fader, stylingNode, ns.dgcs_fader);
+        assignParameter(styling->defaultParameters.list, stylingNode, ns.dgcs_list);
+        assignParameter(styling->defaultParameters.toggle, stylingNode, ns.dgcs_toggle);
 
-        if (LilvNodes* const widgetNodes = lilv_world_find_nodes(world, stylingNode, ns.dgbs_widgets, nullptr))
+        if (LilvNodes* const parametersNodes = lilv_world_find_nodes(world, stylingNode, ns.dgcs_parameters, nullptr))
         {
-            LILV_FOREACH(nodes, iter, widgetNodes)
+            LILV_FOREACH(nodes, iter, parametersNodes)
             {
-                const LilvNode* const widgetNode = lilv_nodes_get(widgetNodes, iter);
+                const LilvNode* const parameterNode = lilv_nodes_get(parametersNodes, iter);
 
-                LilvNode* const symbolNode = lilv_world_get(world, widgetNode, ns.lv2core_symbol, nullptr);
+                LilvNode* const symbolNode = lilv_world_get(world, parameterNode, ns.lv2core_symbol, nullptr);
                 if (symbolNode == nullptr)
                     continue;
 
@@ -1404,19 +1403,131 @@ struct Lv2World::Impl
                 {
                     const char* const symbol = lilv_node_as_string(symbolNode);
 
-                    assignParameterFromNode(styling->customWidgets[symbol], widgetNode);
+                    assignParameterFromNode(styling->parameters[symbol], parameterNode);
                 }
 
                 lilv_node_free(symbolNode);
             }
 
-            lilv_nodes_free(widgetNodes);
+            lilv_nodes_free(parametersNodes);
         }
 
         lilv_node_free(stylingNode);
 
         cache.blockSettingsStyling = styling;
         return styling;
+    }
+
+    // helpers used for block and block settings
+    void _assignFont(CustomStyling::Font& fontRef, const std::string& bundlepath, const LilvNode* const subject)
+    {
+        LilvNode* const fontNode = lilv_world_get(world, subject, ns.dgcs_font, nullptr);
+        if (fontNode == nullptr)
+            return;
+
+        LilvNode* const fontPathNode = lilv_world_get(world, fontNode, ns.dgcs_path, nullptr);
+        if (fontPathNode == nullptr)
+        {
+            lilv_node_free(fontNode);
+            return;
+        }
+
+        char* const path = _lilv_file_abspath(fontPathNode);
+        if (path == nullptr)
+        {
+            lilv_node_free(fontPathNode);
+            lilv_node_free(fontNode);
+            return;
+        }
+
+        if (path_contains(path, bundlepath))
+        {
+            if (LilvNode* const fontSizeNode = lilv_world_get(world, fontNode, ns.dgcs_size, nullptr))
+            {
+                if (lilv_node_is_int(fontSizeNode))
+                {
+                    fontRef.path = path;
+                    fontRef.size = lilv_node_as_int(fontSizeNode);
+                }
+                lilv_node_free(fontSizeNode);
+            }
+        }
+
+        std::free(path);
+        lilv_node_free(fontPathNode);
+        lilv_node_free(fontNode);
+    }
+
+    template<class ImageClass = CustomStyling::Image>
+    void _assignImage(ImageClass& imageRef,
+                      const std::string& bundlepath,
+                      const LilvNode* const subject,
+                      const LilvNode* const predicate,
+                      const CustomStyling::Alignment alignmentDefault)
+    {
+        LilvNode* const imageNode = lilv_world_get(world, subject, predicate, nullptr);
+        if (imageNode == nullptr)
+            return;
+
+        LilvNode* const imagePathNode = lilv_world_get(world, imageNode, ns.dgcs_path, nullptr);
+        if (imagePathNode == nullptr)
+        {
+            lilv_node_free(imageNode);
+            return;
+        }
+
+        char* const path = _lilv_file_abspath(imagePathNode);
+        if (path == nullptr)
+        {
+            lilv_node_free(imagePathNode);
+            lilv_node_free(imageNode);
+            return;
+        }
+
+        if (path_contains(path, bundlepath))
+        {
+            imageRef.alignment = alignmentDefault;
+            imageRef.path = path;
+
+            if (LilvNode* const alignmentNode = lilv_world_get(world, imageNode, ns.dgcs_alignment, nullptr))
+            {
+                const char* alignmentURI = lilv_node_is_uri(alignmentNode)
+                                         ? lilv_node_as_uri(alignmentNode)
+                                         : nullptr;
+
+                if (alignmentURI != nullptr && std::strstr(alignmentURI, LV2_DARKGLASS_CUSTOM_STYLING_PREFIX) != nullptr)
+                {
+                    alignmentURI += std::strlen(LV2_DARKGLASS_CUSTOM_STYLING_PREFIX);
+
+                    /**/ if (std::strcmp(alignmentURI, "alignBottomLeft") == 0)
+                        imageRef.alignment = CustomStyling::kAlignBottomLeft;
+                    else if (std::strcmp(alignmentURI, "alignBottomMid") == 0)
+                        imageRef.alignment = CustomStyling::kAlignBottomMid;
+                    else if (std::strcmp(alignmentURI, "alignBottomRight") == 0)
+                        imageRef.alignment = CustomStyling::kAlignBottomRight;
+                    else if (std::strcmp(alignmentURI, "alignCenter") == 0)
+                        imageRef.alignment = CustomStyling::kAlignCenter;
+                    else if (std::strcmp(alignmentURI, "alignLeftMid") == 0)
+                        imageRef.alignment = CustomStyling::kAlignLeftMid;
+                    else if (std::strcmp(alignmentURI, "alignRightMid") == 0)
+                        imageRef.alignment = CustomStyling::kAlignRightMid;
+                    else if (std::strcmp(alignmentURI, "alignTopLeft") == 0)
+                        imageRef.alignment = CustomStyling::kAlignTopLeft;
+                    else if (std::strcmp(alignmentURI, "alignTopMid") == 0)
+                        imageRef.alignment = CustomStyling::kAlignTopMid;
+                    else if (std::strcmp(alignmentURI, "alignTopRight") == 0)
+                        imageRef.alignment = CustomStyling::kAlignTopRight;
+                }
+                lilv_node_free(alignmentNode);
+            }
+
+            if constexpr (std::is_same_v<ImageClass, CustomStyling::Overlay>)
+                _assignFont(imageRef.font, bundlepath, imageNode);
+        }
+
+        std::free(path);
+        lilv_node_free(imagePathNode);
+        lilv_node_free(imageNode);
     }
 
     const Lv2Port& getPluginPort(const char* const uri, const char* const symbol)

@@ -28,7 +28,7 @@ enum Alignment {
     kAlignCenter,
 };
 
-// A font requires a path and size, default size 0 means unused
+// A font requires a path and size
 struct Font {
     std::string path;
     int size = 0;
@@ -36,8 +36,9 @@ struct Font {
 };
 
 // An image requires a path, alignment is optional as it is not always relevant
-// If the image belongs to a parameter widget, animation frames must be used (from min to max), we recommend using 100 steps
-// If the image belongs to a bypass widget, at least 2 animation frames are required (on/processing position first, then off/bypassed)
+// If the image belongs to a parameter widget, animation frames must be used (from min to max)
+// If the image belongs to a bypass widget, at least 2 animation frames are required (on is first, then off/bypassed)
+// If the image belongs to a block, same rules as bypass apply
 struct Image {
     Alignment alignment = kAlignNone;
     std::string path;
@@ -47,16 +48,17 @@ struct Image {
 // An overlay always uses an image for background, optionally a custom font too
 struct Overlay : Image {
     Font font;
+    operator bool() const noexcept { return !path.empty(); }
 };
 
 // A block contains a background and parameters
 struct Block {
     // A block parameter uses a single image and x,y coordinates for positioning
     struct Parameter {
-        Image image;
+        Image background;
         uint16_t x;
         uint16_t y;
-        operator bool() const noexcept { return image.alignment != kAlignNone; }
+        operator bool() const noexcept { return !background.path.empty(); }
     };
 
     // The background image
@@ -66,7 +68,7 @@ struct Block {
     // Bypass parameter
     Parameter bypass;
 
-    // Parameters indexed by control port symbol or patch property URI
+    // Parameters indexed by control port symbol
     std::unordered_map<std::string, Parameter> parameters;
 };
 
@@ -80,7 +82,7 @@ struct BlockSettings {
         Image background;
         Image backgroundScenes;
         Image widget;
-        struct {
+        struct Overlays {
             Overlay blocked;
             Overlay inactive;
             Overlay inUse;
@@ -90,13 +92,13 @@ struct BlockSettings {
     };
 
     // The bottom-most background image
-    // Can contain multiple horizontal frames for paginated scrolling
+    // Can contain multiple horizontal frames for paginated scrolling, in which case it must be a multiple of 1424px
     Image background;
 
     // The block name can either be a background image or a custom font
     // Use of background image takes precedence if both are provided
     // It is 1 layer above the background
-    struct {
+    struct BlockName {
         Image background;
         Font font;
     } blockName;
@@ -126,7 +128,7 @@ struct BlockSettings {
         Image background;
         Image backgroundScenes;
         Image widget;
-        struct {
+        struct Overlays {
             Overlay inUse;
         } overlays;
         operator bool() const noexcept { return !widget.path.empty(); }
@@ -141,10 +143,10 @@ struct BlockSettings {
         Parameter fader;
         Parameter list;
         Parameter toggle;
-    } defaultWidgets;
+    } defaultParameters;
 
-    // Custom styling for individual parameters, indexed by control port symbol or patch property URI
-    std::unordered_map<std::string, Parameter> customWidgets;
+    // Custom styling for individual parameters, indexed by control port symbol
+    std::unordered_map<std::string, Parameter> parameters;
 };
 
 } // namespace CustomStyling
