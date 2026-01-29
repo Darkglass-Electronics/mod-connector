@@ -338,6 +338,7 @@ struct Lv2NamespaceDefinitions {
         lilv_node_free(dgcs_blocked);
         lilv_node_free(dgcs_bypass);
         lilv_node_free(dgcs_close);
+        lilv_node_free(dgcs_control);
         lilv_node_free(dgcs_font);
         lilv_node_free(dgcs_inUse);
         lilv_node_free(dgcs_inactive);
@@ -355,7 +356,6 @@ struct Lv2NamespaceDefinitions {
         lilv_node_free(dgcs_toggle);
         lilv_node_free(dgcs_topbarButtons);
         lilv_node_free(dgcs_unavailable);
-        lilv_node_free(dgcs_control);
         lilv_node_free(dgcs_x);
         lilv_node_free(dgcs_y);
         lilv_node_free(lv2core_default);
