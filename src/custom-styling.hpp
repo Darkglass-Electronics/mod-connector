@@ -36,8 +36,8 @@ struct Font {
 };
 
 // An image requires a path, alignment is optional as it is not always relevant
-// If the image belongs to a parameter widget, animation frames must be used (from min to max)
-// If the image belongs to a bypass widget, at least 2 animation frames are required (on is first, then off/bypassed)
+// If the image belongs to a parameter control, animation frames must be used (from min to max)
+// If the image belongs to a bypass control, at least 2 animation frames are required (on is first, then off/bypassed)
 // If the image belongs to a block, same rules as bypass apply
 struct Image {
     Alignment alignment = kAlignNone;
@@ -74,21 +74,21 @@ struct Block {
 
 // Settings for a Block, contains many elements
 struct BlockSettings {
-    // A block settings parameter uses images for background, background-with-scenes and widget
+    // A block settings parameter uses images for background, background-with-scenes and control
     // Additionally it has overlays for many parameter statuses
-    // The widget depends on the type of parameter and can be one of: circle (knob), list, fader or toggle (switch)
-    // Only the widget is required, everything else is optional
+    // The control depends on the type of parameter and can be one of: knob, list, meter or toggle/switch
+    // Only the control is required, everything else is optional
     struct Parameter {
         Image background;
         Image backgroundScenes;
-        Image widget;
+        Image control;
         struct Overlays {
             Overlay blocked;
             Overlay inactive;
             Overlay inUse;
             Overlay unavailable;
         } overlays;
-        operator bool() const noexcept { return !widget.path.empty(); }
+        operator bool() const noexcept { return !control.path.empty(); }
     };
 
     // The bottom-most background image
@@ -121,17 +121,17 @@ struct BlockSettings {
     } topBarButtons;
 
     // Bypass control in the top-bar
-    // The bypass control uses images for background, background-with-scenes and toggle-switch widget
+    // The bypass control uses images for background, background-with-scenes and toggle-switch control
     // Additionally it has an overlay for "in use"
-    // Only the widget is required, everything else is optional
+    // Only the control is required, everything else is optional
     struct Bypass {
         Image background;
         Image backgroundScenes;
-        Image widget;
+        Image control;
         struct Overlays {
             Overlay inUse;
         } overlays;
-        operator bool() const noexcept { return !widget.path.empty(); }
+        operator bool() const noexcept { return !control.path.empty(); }
     } bypass;
 
     // padding of empty slots until parameters begin
@@ -139,11 +139,11 @@ struct BlockSettings {
 
     // Parameter widgets (defaults in case a specific parameter is not specified)
     struct {
-        Parameter circle;
-        Parameter fader;
+        Parameter knob;
         Parameter list;
+        Parameter meter;
         Parameter toggle;
-    } defaultParameters;
+    } defaultWidgets;
 
     // Custom styling for individual parameters, indexed by control port symbol
     std::unordered_map<std::string, Parameter> parameters;

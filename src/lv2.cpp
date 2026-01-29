@@ -54,6 +54,8 @@
 #define LV2_CORE__shortName LV2_CORE_PREFIX "shortName"
 #endif
 
+// TODO include extension headers instead of redefining things here
+
 #define LV2_DARKGLASS_PROPERTIES_URI    "http://www.darkglass.com/lv2/ns"
 #define LV2_DARKGLASS_PROPERTIES_PREFIX LV2_DARKGLASS_PROPERTIES_URI "#"
 
@@ -86,13 +88,14 @@
 #define LV2_DARKGLASS_CUSTOM_STYLING__blockSettings    LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "blockSettings"
 #define LV2_DARKGLASS_CUSTOM_STYLING__blocked          LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "blocked"
 #define LV2_DARKGLASS_CUSTOM_STYLING__bypass           LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "bypass"
-#define LV2_DARKGLASS_CUSTOM_STYLING__circle           LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "circle"
 #define LV2_DARKGLASS_CUSTOM_STYLING__close            LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "close"
-#define LV2_DARKGLASS_CUSTOM_STYLING__fader            LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "fader"
+#define LV2_DARKGLASS_CUSTOM_STYLING__control          LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "control"
 #define LV2_DARKGLASS_CUSTOM_STYLING__font             LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "font"
 #define LV2_DARKGLASS_CUSTOM_STYLING__inUse            LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "inUse"
 #define LV2_DARKGLASS_CUSTOM_STYLING__inactive         LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "inactive"
+#define LV2_DARKGLASS_CUSTOM_STYLING__knob             LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "knob"
 #define LV2_DARKGLASS_CUSTOM_STYLING__list             LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "list"
+#define LV2_DARKGLASS_CUSTOM_STYLING__meter            LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "meter"
 #define LV2_DARKGLASS_CUSTOM_STYLING__more             LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "more"
 #define LV2_DARKGLASS_CUSTOM_STYLING__paginationDots   LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "paginationDots"
 #define LV2_DARKGLASS_CUSTOM_STYLING__parameterStartPadding LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "parameterStartPadding"
@@ -104,7 +107,6 @@
 #define LV2_DARKGLASS_CUSTOM_STYLING__toggle           LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "toggle"
 #define LV2_DARKGLASS_CUSTOM_STYLING__topBarButtons    LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "topBarButtons"
 #define LV2_DARKGLASS_CUSTOM_STYLING__unavailable      LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "unavailable"
-#define LV2_DARKGLASS_CUSTOM_STYLING__widget           LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "widget"
 #define LV2_DARKGLASS_CUSTOM_STYLING__x                LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "x"
 #define LV2_DARKGLASS_CUSTOM_STYLING__y                LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "y"
 
@@ -232,13 +234,14 @@ struct Lv2NamespaceDefinitions {
     LilvNode* const dgcs_blockSettings;
     LilvNode* const dgcs_blocked;
     LilvNode* const dgcs_bypass;
-    LilvNode* const dgcs_circle;
     LilvNode* const dgcs_close;
-    LilvNode* const dgcs_fader;
+    LilvNode* const dgcs_control;
     LilvNode* const dgcs_font;
     LilvNode* const dgcs_inUse;
     LilvNode* const dgcs_inactive;
+    LilvNode* const dgcs_knob;
     LilvNode* const dgcs_list;
+    LilvNode* const dgcs_meter;
     LilvNode* const dgcs_more;
     LilvNode* const dgcs_paginationDots;
     LilvNode* const dgcs_parameterStartPadding;
@@ -250,7 +253,6 @@ struct Lv2NamespaceDefinitions {
     LilvNode* const dgcs_toggle;
     LilvNode* const dgcs_topbarButtons;
     LilvNode* const dgcs_unavailable;
-    LilvNode* const dgcs_widget;
     LilvNode* const dgcs_x;
     LilvNode* const dgcs_y;
     LilvNode* const lv2core_default;
@@ -282,13 +284,14 @@ struct Lv2NamespaceDefinitions {
           dgcs_blockSettings(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__blockSettings)),
           dgcs_blocked(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__blocked)),
           dgcs_bypass(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__bypass)),
-          dgcs_circle(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__circle)),
           dgcs_close(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__close)),
-          dgcs_fader(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__fader)),
+          dgcs_control(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__control)),
           dgcs_font(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__font)),
           dgcs_inUse(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__inUse)),
           dgcs_inactive(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__inactive)),
+          dgcs_knob(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__knob)),
           dgcs_list(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__list)),
+          dgcs_meter(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__meter)),
           dgcs_more(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__more)),
           dgcs_paginationDots(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__paginationDots)),
           dgcs_parameterStartPadding(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__parameterStartPadding)),
@@ -300,7 +303,6 @@ struct Lv2NamespaceDefinitions {
           dgcs_toggle(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__toggle)),
           dgcs_topbarButtons(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__topBarButtons)),
           dgcs_unavailable(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__unavailable)),
-          dgcs_widget(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__widget)),
           dgcs_x(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__x)),
           dgcs_y(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__y)),
           lv2core_default(lilv_new_uri(world, LV2_CORE__default)),
@@ -335,13 +337,13 @@ struct Lv2NamespaceDefinitions {
         lilv_node_free(dgcs_blockSettings);
         lilv_node_free(dgcs_blocked);
         lilv_node_free(dgcs_bypass);
-        lilv_node_free(dgcs_circle);
         lilv_node_free(dgcs_close);
-        lilv_node_free(dgcs_fader);
         lilv_node_free(dgcs_font);
         lilv_node_free(dgcs_inUse);
         lilv_node_free(dgcs_inactive);
+        lilv_node_free(dgcs_knob);
         lilv_node_free(dgcs_list);
+        lilv_node_free(dgcs_meter);
         lilv_node_free(dgcs_more);
         lilv_node_free(dgcs_paginationDots);
         lilv_node_free(dgcs_parameterStartPadding);
@@ -353,7 +355,7 @@ struct Lv2NamespaceDefinitions {
         lilv_node_free(dgcs_toggle);
         lilv_node_free(dgcs_topbarButtons);
         lilv_node_free(dgcs_unavailable);
-        lilv_node_free(dgcs_widget);
+        lilv_node_free(dgcs_control);
         lilv_node_free(dgcs_x);
         lilv_node_free(dgcs_y);
         lilv_node_free(lv2core_default);
@@ -1309,7 +1311,7 @@ struct Lv2World::Impl
         {
             assignImage(paramRef.background, node, ns.dgcs_background);
             assignImage(paramRef.backgroundScenes, node, ns.dgcs_backgroundScenes);
-            assignImage(paramRef.widget, node, ns.dgcs_widget);
+            assignImage(paramRef.control, node, ns.dgcs_control);
             assignOverlay(paramRef.overlays.blocked, node, ns.dgcs_blocked);
             assignOverlay(paramRef.overlays.inactive, node, ns.dgcs_inactive);
             assignOverlay(paramRef.overlays.inUse, node, ns.dgcs_inUse);
@@ -1371,7 +1373,7 @@ struct Lv2World::Impl
         {
             assignImage(styling->bypass.background, node, ns.dgcs_background);
             assignImage(styling->bypass.backgroundScenes, node, ns.dgcs_backgroundScenes);
-            assignImage(styling->bypass.widget, node, ns.dgcs_widget);
+            assignImage(styling->bypass.control, node, ns.dgcs_control);
             assignOverlay(styling->bypass.overlays.inUse, node, ns.dgcs_inUse);
             lilv_node_free(node);
         }
@@ -1384,10 +1386,10 @@ struct Lv2World::Impl
             lilv_node_free(paddingNode);
         }
 
-        assignParameter(styling->defaultParameters.circle, stylingNode, ns.dgcs_circle);
-        assignParameter(styling->defaultParameters.fader, stylingNode, ns.dgcs_fader);
-        assignParameter(styling->defaultParameters.list, stylingNode, ns.dgcs_list);
-        assignParameter(styling->defaultParameters.toggle, stylingNode, ns.dgcs_toggle);
+        assignParameter(styling->defaultWidgets.knob, stylingNode, ns.dgcs_knob);
+        assignParameter(styling->defaultWidgets.list, stylingNode, ns.dgcs_list);
+        assignParameter(styling->defaultWidgets.meter, stylingNode, ns.dgcs_meter);
+        assignParameter(styling->defaultWidgets.toggle, stylingNode, ns.dgcs_toggle);
 
         if (LilvNodes* const parametersNodes = lilv_world_find_nodes(world, stylingNode, ns.dgcs_parameters, nullptr))
         {
