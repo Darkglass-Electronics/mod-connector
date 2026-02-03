@@ -54,6 +54,8 @@
 #define LV2_CORE__shortName LV2_CORE_PREFIX "shortName"
 #endif
 
+// TODO include extension headers instead of redefining things here
+
 #define LV2_DARKGLASS_PROPERTIES_URI    "http://www.darkglass.com/lv2/ns"
 #define LV2_DARKGLASS_PROPERTIES_PREFIX LV2_DARKGLASS_PROPERTIES_URI "#"
 
@@ -64,6 +66,51 @@
 #define LV2_DARKGLASS_PROPERTIES__oneDecimalPoint       LV2_DARKGLASS_PROPERTIES_PREFIX "oneDecimalPoint"
 #define LV2_DARKGLASS_PROPERTIES__quickPot              LV2_DARKGLASS_PROPERTIES_PREFIX "quickPot"
 #define LV2_DARKGLASS_PROPERTIES__savedToPreset         LV2_DARKGLASS_PROPERTIES_PREFIX "savedToPreset"
+
+#define LV2_DARKGLASS_CUSTOM_STYLING_URI    "http://www.darkglass.com/lv2/ns/lv2ext/custom-styling"
+#define LV2_DARKGLASS_CUSTOM_STYLING_PREFIX LV2_DARKGLASS_CUSTOM_STYLING_URI "#"
+
+#define LV2_DARKGLASS_CUSTOM_STYLING__alignBottomLeft  LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "alignBottomLeft"
+#define LV2_DARKGLASS_CUSTOM_STYLING__alignBottomMid   LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "alignBottomMid"
+#define LV2_DARKGLASS_CUSTOM_STYLING__alignBottomRight LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "alignBottomRight"
+#define LV2_DARKGLASS_CUSTOM_STYLING__alignCenter      LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "alignCenter"
+#define LV2_DARKGLASS_CUSTOM_STYLING__alignLeftMid     LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "alignLeftMid"
+#define LV2_DARKGLASS_CUSTOM_STYLING__alignRightMid    LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "alignRightMid"
+#define LV2_DARKGLASS_CUSTOM_STYLING__alignTopLeft     LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "alignTopLeft"
+#define LV2_DARKGLASS_CUSTOM_STYLING__alignTopMid      LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "alignTopMid"
+#define LV2_DARKGLASS_CUSTOM_STYLING__alignTopRight    LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "alignTopRight"
+#define LV2_DARKGLASS_CUSTOM_STYLING__alignment        LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "alignment"
+#define LV2_DARKGLASS_CUSTOM_STYLING__back             LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "back"
+#define LV2_DARKGLASS_CUSTOM_STYLING__background       LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "background"
+#define LV2_DARKGLASS_CUSTOM_STYLING__backgroundScenes LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "backgroundScenes"
+#define LV2_DARKGLASS_CUSTOM_STYLING__blockImage       LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "blockImage"
+#define LV2_DARKGLASS_CUSTOM_STYLING__blockName        LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "blockName"
+#define LV2_DARKGLASS_CUSTOM_STYLING__blockSettings    LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "blockSettings"
+#define LV2_DARKGLASS_CUSTOM_STYLING__blocked          LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "blocked"
+#define LV2_DARKGLASS_CUSTOM_STYLING__bypass           LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "bypass"
+#define LV2_DARKGLASS_CUSTOM_STYLING__close            LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "close"
+#define LV2_DARKGLASS_CUSTOM_STYLING__control          LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "control"
+#define LV2_DARKGLASS_CUSTOM_STYLING__font             LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "font"
+#define LV2_DARKGLASS_CUSTOM_STYLING__height           LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "height"
+#define LV2_DARKGLASS_CUSTOM_STYLING__inUse            LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "inUse"
+#define LV2_DARKGLASS_CUSTOM_STYLING__inactive         LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "inactive"
+#define LV2_DARKGLASS_CUSTOM_STYLING__knob             LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "knob"
+#define LV2_DARKGLASS_CUSTOM_STYLING__list             LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "list"
+#define LV2_DARKGLASS_CUSTOM_STYLING__meter            LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "meter"
+#define LV2_DARKGLASS_CUSTOM_STYLING__more             LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "more"
+#define LV2_DARKGLASS_CUSTOM_STYLING__paginationDots   LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "paginationDots"
+#define LV2_DARKGLASS_CUSTOM_STYLING__parameterStartPadding LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "parameterStartPadding"
+#define LV2_DARKGLASS_CUSTOM_STYLING__parameters       LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "parameters"
+#define LV2_DARKGLASS_CUSTOM_STYLING__path             LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "path"
+#define LV2_DARKGLASS_CUSTOM_STYLING__remove           LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "remove"
+#define LV2_DARKGLASS_CUSTOM_STYLING__size             LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "size"
+#define LV2_DARKGLASS_CUSTOM_STYLING__swap             LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "swap"
+#define LV2_DARKGLASS_CUSTOM_STYLING__toggle           LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "toggle"
+#define LV2_DARKGLASS_CUSTOM_STYLING__topBarButtons    LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "topBarButtons"
+#define LV2_DARKGLASS_CUSTOM_STYLING__unavailable      LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "unavailable"
+#define LV2_DARKGLASS_CUSTOM_STYLING__width            LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "width"
+#define LV2_DARKGLASS_CUSTOM_STYLING__x                LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "x"
+#define LV2_DARKGLASS_CUSTOM_STYLING__y                LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "y"
 
 #define LILV_NS_KXSTUDIO "http://kxstudio.sf.net/ns/lv2ext/props"
 #define KXSTUDIO__Reset LILV_NS_KXSTUDIO "#Reset"
@@ -180,12 +227,45 @@ struct Lv2NamespaceDefinitions {
     LilvNode* const darkglass_abbreviation;
     LilvNode* const darkglass_blockImageOff;
     LilvNode* const darkglass_blockImageOn;
+    LilvNode* const dgcs_alignment;
+    LilvNode* const dgcs_back;
+    LilvNode* const dgcs_background;
+    LilvNode* const dgcs_backgroundScenes;
+    LilvNode* const dgcs_blockImage;
+    LilvNode* const dgcs_blockName;
+    LilvNode* const dgcs_blockSettings;
+    LilvNode* const dgcs_blocked;
+    LilvNode* const dgcs_bypass;
+    LilvNode* const dgcs_close;
+    LilvNode* const dgcs_control;
+    LilvNode* const dgcs_font;
+    LilvNode* const dgcs_height;
+    LilvNode* const dgcs_inUse;
+    LilvNode* const dgcs_inactive;
+    LilvNode* const dgcs_knob;
+    LilvNode* const dgcs_list;
+    LilvNode* const dgcs_meter;
+    LilvNode* const dgcs_more;
+    LilvNode* const dgcs_paginationDots;
+    LilvNode* const dgcs_parameterStartPadding;
+    LilvNode* const dgcs_parameters;
+    LilvNode* const dgcs_path;
+    LilvNode* const dgcs_remove;
+    LilvNode* const dgcs_size;
+    LilvNode* const dgcs_swap;
+    LilvNode* const dgcs_toggle;
+    LilvNode* const dgcs_topbarButtons;
+    LilvNode* const dgcs_unavailable;
+    LilvNode* const dgcs_width;
+    LilvNode* const dgcs_x;
+    LilvNode* const dgcs_y;
     LilvNode* const lv2core_default;
     LilvNode* const lv2core_designation;
     LilvNode* const lv2core_minimum;
     LilvNode* const lv2core_maximum;
     LilvNode* const lv2core_portProperty;
     LilvNode* const lv2core_shortName;
+    LilvNode* const lv2core_symbol;
     LilvNode* const modlicense_interface;
     LilvNode* const patch_readable;
     LilvNode* const patch_writable;
@@ -199,12 +279,45 @@ struct Lv2NamespaceDefinitions {
         : darkglass_abbreviation(lilv_new_uri(world, LV2_DARKGLASS_PROPERTIES__abbreviation)),
           darkglass_blockImageOff(lilv_new_uri(world, LV2_DARKGLASS_PROPERTIES__blockImageOff)),
           darkglass_blockImageOn(lilv_new_uri(world, LV2_DARKGLASS_PROPERTIES__blockImageOn)),
+          dgcs_alignment(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__alignment)),
+          dgcs_back(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__back)),
+          dgcs_background(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__background)),
+          dgcs_backgroundScenes(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__backgroundScenes)),
+          dgcs_blockImage(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__blockImage)),
+          dgcs_blockName(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__blockName)),
+          dgcs_blockSettings(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__blockSettings)),
+          dgcs_blocked(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__blocked)),
+          dgcs_bypass(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__bypass)),
+          dgcs_close(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__close)),
+          dgcs_control(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__control)),
+          dgcs_font(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__font)),
+          dgcs_height(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__height)),
+          dgcs_inUse(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__inUse)),
+          dgcs_inactive(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__inactive)),
+          dgcs_knob(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__knob)),
+          dgcs_list(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__list)),
+          dgcs_meter(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__meter)),
+          dgcs_more(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__more)),
+          dgcs_paginationDots(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__paginationDots)),
+          dgcs_parameterStartPadding(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__parameterStartPadding)),
+          dgcs_parameters(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__parameters)),
+          dgcs_path(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__path)),
+          dgcs_remove(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__remove)),
+          dgcs_size(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__size)),
+          dgcs_swap(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__swap)),
+          dgcs_toggle(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__toggle)),
+          dgcs_topbarButtons(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__topBarButtons)),
+          dgcs_unavailable(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__unavailable)),
+          dgcs_width(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__width)),
+          dgcs_x(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__x)),
+          dgcs_y(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__y)),
           lv2core_default(lilv_new_uri(world, LV2_CORE__default)),
           lv2core_designation(lilv_new_uri(world, LV2_CORE__designation)),
           lv2core_minimum(lilv_new_uri(world, LV2_CORE__minimum)),
           lv2core_maximum(lilv_new_uri(world, LV2_CORE__maximum)),
           lv2core_portProperty(lilv_new_uri(world, LV2_CORE__portProperty)),
           lv2core_shortName(lilv_new_uri(world, LV2_CORE__shortName)),
+          lv2core_symbol(lilv_new_uri(world, LV2_CORE__symbol)),
           modlicense_interface(lilv_new_uri(world, "http://moddevices.com/ns/ext/license#interface")),
           patch_readable(lilv_new_uri(world, LV2_PATCH__readable)),
           patch_writable(lilv_new_uri(world, LV2_PATCH__writable)),
@@ -221,12 +334,45 @@ struct Lv2NamespaceDefinitions {
         lilv_node_free(darkglass_abbreviation);
         lilv_node_free(darkglass_blockImageOff);
         lilv_node_free(darkglass_blockImageOn);
+        lilv_node_free(dgcs_alignment);
+        lilv_node_free(dgcs_back);
+        lilv_node_free(dgcs_background);
+        lilv_node_free(dgcs_backgroundScenes);
+        lilv_node_free(dgcs_blockImage);
+        lilv_node_free(dgcs_blockName);
+        lilv_node_free(dgcs_blockSettings);
+        lilv_node_free(dgcs_blocked);
+        lilv_node_free(dgcs_bypass);
+        lilv_node_free(dgcs_close);
+        lilv_node_free(dgcs_control);
+        lilv_node_free(dgcs_font);
+        lilv_node_free(dgcs_height);
+        lilv_node_free(dgcs_inUse);
+        lilv_node_free(dgcs_inactive);
+        lilv_node_free(dgcs_knob);
+        lilv_node_free(dgcs_list);
+        lilv_node_free(dgcs_meter);
+        lilv_node_free(dgcs_more);
+        lilv_node_free(dgcs_paginationDots);
+        lilv_node_free(dgcs_parameterStartPadding);
+        lilv_node_free(dgcs_parameters);
+        lilv_node_free(dgcs_path);
+        lilv_node_free(dgcs_remove);
+        lilv_node_free(dgcs_size);
+        lilv_node_free(dgcs_swap);
+        lilv_node_free(dgcs_toggle);
+        lilv_node_free(dgcs_topbarButtons);
+        lilv_node_free(dgcs_unavailable);
+        lilv_node_free(dgcs_width);
+        lilv_node_free(dgcs_x);
+        lilv_node_free(dgcs_y);
         lilv_node_free(lv2core_default);
         lilv_node_free(lv2core_designation);
         lilv_node_free(lv2core_minimum);
         lilv_node_free(lv2core_maximum);
         lilv_node_free(lv2core_portProperty);
         lilv_node_free(lv2core_shortName);
+        lilv_node_free(lv2core_symbol);
         lilv_node_free(modlicense_interface);
         lilv_node_free(patch_readable);
         lilv_node_free(patch_writable);
@@ -250,15 +396,15 @@ struct Lv2World::Impl
         lilv_world_load_all(world);
 
         plugins = lilv_world_get_all_plugins(world);
-        pluginuris.reserve(lilv_plugins_size(plugins));
+        pluginURIs.reserve(lilv_plugins_size(plugins));
 
         LILV_FOREACH(plugins, it, plugins)
         {
             const LilvPlugin* const p = lilv_plugins_get(plugins, it);
 
             const std::string uri(lilv_node_as_uri(lilv_plugin_get_uri(p)));
-            pluginuris.emplace_back(uri);
-            pluginscache[uri] = nullptr;
+            pluginURIs.emplace_back(uri);
+            pluginsCache[uri] = {};
 
             if (char* const lilvparsed = _lilv_file_abspath(lilv_plugin_get_bundle_uri(p)))
             {
@@ -277,8 +423,13 @@ struct Lv2World::Impl
 
     ~Impl()
     {
-        for (const auto& pair : pluginscache)
-            delete pair.second;
+        for (const auto& pair : pluginsCache)
+        {
+            const PluginCache& cache = pair.second;
+            delete cache.plugin;
+            delete cache.blockImageStyling;
+            delete cache.blockSettingsStyling;
+        }
 
         ns.free();
         lilv_world_free(world);
@@ -288,26 +439,30 @@ struct Lv2World::Impl
 
     uint32_t getPluginCount() const noexcept
     {
-        return pluginuris.size();
+        return pluginURIs.size();
     }
 
     const std::string& getPluginURI(const uint32_t index) const noexcept
     {
-        return pluginuris[index];
+        return pluginURIs[index];
     }
 
     const Lv2Plugin* getPluginByIndex(const uint32_t index)
     {
         assert(index < getPluginCount());
 
-        return getPluginByURI(pluginuris[index].c_str());
+        return getPluginByURI(pluginURIs[index].c_str());
     }
 
     const Lv2Plugin* getPluginByURI(const char* const uri)
     {
         assert(uri != nullptr && *uri != '\0');
 
-        if (pluginscache[uri] == nullptr)
+        PluginCache& cache = pluginsCache[uri];
+
+        // TODO invert for != nullptr early return after merging PR
+
+        if (cache.plugin == nullptr)
         {
             std::string bundlepath;
             const LilvPlugin* plugin;
@@ -346,6 +501,8 @@ struct Lv2World::Impl
             retplugin->uri = uri;
             retplugin->bundlepath = bundlepath;
 
+            const LilvNode* const urinode = lilv_plugin_get_uri(plugin);
+
             // --------------------------------------------------------------------------------------------------------
             // flags
 
@@ -377,6 +534,12 @@ struct Lv2World::Impl
             }
 
 #ifndef MOD_CONNECTOR_MINIMAL_LV2_WORLD
+            if (lilv_world_ask(world, urinode, ns.dgcs_blockImage, nullptr))
+                retplugin->flags |= Lv2PluginHasBlockImageStyling;
+
+            if (lilv_world_ask(world, urinode, ns.dgcs_blockSettings, nullptr))
+                retplugin->flags |= Lv2PluginHasBlockSettingsStyling;
+
             // --------------------------------------------------------------------------------------------------------
             // name
 
@@ -792,10 +955,7 @@ struct Lv2World::Impl
                         Lv2Property property;
 
                         // used to fetch default path value
-                        LilvNode* const statenode = lilv_world_get(world,
-                                                                   lilv_plugin_get_uri(plugin),
-                                                                   ns.state_state,
-                                                                   nullptr);
+                        LilvNode* const statenode = lilv_world_get(world, urinode, ns.state_state, nullptr);
 
                         LILV_FOREACH(nodes, itpatches, patches)
                         {
@@ -964,14 +1124,457 @@ struct Lv2World::Impl
             // --------------------------------------------------------------------------------------------------------
 #endif
 
-            pluginscache[uri] = retplugin;
+            cache.plugin = retplugin;
             return retplugin;
         }
 
-        return pluginscache[uri];
+        return cache.plugin;
     }
 
 #ifndef MOD_CONNECTOR_MINIMAL_LV2_WORLD
+    const CustomStyling::BlockImage* getPluginBlockImageStyling(const char* const uri)
+    {
+        assert(uri != nullptr);
+        assert(*uri != '\0');
+
+        PluginCache& cache = pluginsCache[uri];
+
+        if (cache.plugin == nullptr)
+            getPluginByURI(uri);
+
+        const Lv2Plugin* const retplugin = cache.plugin;
+        assert_return(retplugin != nullptr, nullptr);
+        assert_return(retplugin->flags & Lv2PluginHasBlockImageStyling, nullptr);
+
+        if (cache.blockImageStyling != nullptr)
+            return cache.blockImageStyling;
+
+        LilvNode* stylingNode = nullptr;
+        {
+            LilvNode* const urinode = lilv_new_uri(world, uri);
+
+            if (urinode == nullptr)
+            {
+                last_error = "Invalid URI";
+                return nullptr;
+            }
+
+            const LilvPlugin* const plugin = lilv_plugins_get_by_uri(plugins, urinode);
+
+            lilv_node_free(urinode);
+
+            if (plugin == nullptr)
+            {
+                last_error = "Invalid Plugin";
+                return nullptr;
+            }
+
+            LilvNodes* const stylingNodes = lilv_plugin_get_value(plugin, ns.dgcs_blockImage);
+            if (stylingNodes == nullptr)
+            {
+                last_error = "Plugin does not contain block styling";
+                return nullptr;
+            }
+
+            stylingNode = lilv_node_duplicate(lilv_nodes_get_first(stylingNodes));
+
+            lilv_nodes_free(stylingNodes);
+        }
+
+        CustomStyling::BlockImage* const styling = new CustomStyling::BlockImage;
+
+        const auto assignParameterFromNode = [&](CustomStyling::BlockImage::Parameter& paramRef,
+                                                 const LilvNode* const node)
+        {
+            if (LilvNode* const pathNode = lilv_world_get(world, node, ns.dgcs_path, nullptr))
+            {
+                if (char* const path = _lilv_file_abspath(pathNode))
+                {
+                    if (path_contains(path, retplugin->bundlepath))
+                        paramRef.path = path;
+
+                    std::free(path);
+                }
+
+                lilv_node_free(pathNode);
+            }
+
+            if (LilvNode* const xNode = lilv_world_get(world, node, ns.dgcs_x, nullptr))
+            {
+                if (lilv_node_is_int(xNode))
+                    paramRef.x = std::max(0, lilv_node_as_int(xNode));
+
+                lilv_node_free(xNode);
+            }
+
+            if (LilvNode* const yNode = lilv_world_get(world, node, ns.dgcs_y, nullptr))
+            {
+                if (lilv_node_is_int(yNode))
+                    paramRef.y = std::max(0, lilv_node_as_int(yNode));
+
+                lilv_node_free(yNode);
+            }
+
+            if (LilvNode* const widthNode = lilv_world_get(world, node, ns.dgcs_width, nullptr))
+            {
+                if (lilv_node_is_int(widthNode))
+                    paramRef.width = std::max(0, lilv_node_as_int(widthNode));
+
+                lilv_node_free(widthNode);
+            }
+
+            if (LilvNode* const heightNode = lilv_world_get(world, node, ns.dgcs_height, nullptr))
+            {
+                if (lilv_node_is_int(heightNode))
+                    paramRef.height = std::max(0, lilv_node_as_int(heightNode));
+
+                lilv_node_free(heightNode);
+            }
+        };
+        const auto assignParameter = [&](CustomStyling::BlockImage::Parameter& paramRef,
+                                         const LilvNode* const subject,
+                                         const LilvNode* const predicate)
+        {
+            if (LilvNode* const node = lilv_world_get(world, subject, predicate, nullptr))
+            {
+                assignParameterFromNode(paramRef, node);
+                lilv_node_free(node);
+            }
+        };
+
+        if (LilvNode* const pathNode = lilv_world_get(world, stylingNode, ns.dgcs_path, nullptr))
+        {
+            if (char* const path = _lilv_file_abspath(pathNode))
+            {
+                if (path_contains(path, retplugin->bundlepath))
+                    styling->path = path;
+
+                std::free(path);
+            }
+
+            lilv_node_free(pathNode);
+        }
+
+        assignParameter(styling->bypass, stylingNode, ns.dgcs_bypass);
+
+        if (LilvNodes* const parametersNodes = lilv_world_find_nodes(world, stylingNode, ns.dgcs_parameters, nullptr))
+        {
+            LILV_FOREACH(nodes, iter, parametersNodes)
+            {
+                const LilvNode* const parameterNode = lilv_nodes_get(parametersNodes, iter);
+
+                LilvNode* const symbolNode = lilv_world_get(world, parameterNode, ns.lv2core_symbol, nullptr);
+                if (symbolNode == nullptr)
+                    continue;
+
+                if (lilv_node_is_string(symbolNode))
+                {
+                    const char* const symbol = lilv_node_as_string(symbolNode);
+
+                    assignParameterFromNode(styling->parameters[symbol], parameterNode);
+                }
+
+                lilv_node_free(symbolNode);
+            }
+
+            lilv_nodes_free(parametersNodes);
+        }
+
+        lilv_node_free(stylingNode);
+
+        cache.blockImageStyling = styling;
+        return styling;
+    }
+
+    const CustomStyling::BlockSettings* getPluginBlockSettingsStyling(const char* const uri)
+    {
+        assert(uri != nullptr);
+        assert(*uri != '\0');
+
+        PluginCache& cache = pluginsCache[uri];
+
+        const Lv2Plugin* const retplugin = cache.plugin;
+        assert_return(retplugin != nullptr, nullptr);
+        assert_return(retplugin->flags & Lv2PluginHasBlockSettingsStyling, nullptr);
+
+        if (cache.blockSettingsStyling != nullptr)
+            return cache.blockSettingsStyling;
+
+        LilvNode* stylingNode = nullptr;
+        {
+            LilvNode* const urinode = lilv_new_uri(world, uri);
+
+            if (urinode == nullptr)
+            {
+                last_error = "Invalid URI";
+                return nullptr;
+            }
+
+            const LilvPlugin* const plugin = lilv_plugins_get_by_uri(plugins, urinode);
+
+            lilv_node_free(urinode);
+
+            if (plugin == nullptr)
+            {
+                last_error = "Invalid Plugin";
+                return nullptr;
+            }
+
+            LilvNodes* const stylingNodes = lilv_plugin_get_value(plugin, ns.dgcs_blockSettings);
+            if (stylingNodes == nullptr)
+            {
+                last_error = "Plugin does not contain block settings styling";
+                return nullptr;
+            }
+
+            stylingNode = lilv_node_duplicate(lilv_nodes_get_first(stylingNodes));
+
+            lilv_nodes_free(stylingNodes);
+        }
+
+        const auto assignFont = [&](CustomStyling::Font& fontRef, const LilvNode* const subject)
+        {
+            _assignFont(fontRef, retplugin->bundlepath, subject);
+        };
+        const auto assignImage = [&](CustomStyling::Image& imageRef,
+                                     const LilvNode* const subject,
+                                     const LilvNode* const predicate,
+                                     const CustomStyling::Alignment alignmentDefault = CustomStyling::kAlignCenter)
+        {
+            _assignImage(imageRef, retplugin->bundlepath, subject, predicate, alignmentDefault);
+        };
+        const auto assignOverlay = [&](CustomStyling::Overlay& overlayRef,
+                                       const LilvNode* const subject,
+                                       const LilvNode* const predicate)
+        {
+            _assignImage(overlayRef, retplugin->bundlepath, subject, predicate, CustomStyling::kAlignNone);
+        };
+        const auto assignParameterFromNode = [&](CustomStyling::BlockSettings::Parameter& paramRef,
+                                                 const LilvNode* const node)
+        {
+            assignImage(paramRef.background, node, ns.dgcs_background);
+            assignImage(paramRef.backgroundScenes, node, ns.dgcs_backgroundScenes);
+            assignImage(paramRef.control, node, ns.dgcs_control);
+            assignOverlay(paramRef.overlays.blocked, node, ns.dgcs_blocked);
+            assignOverlay(paramRef.overlays.inactive, node, ns.dgcs_inactive);
+            assignOverlay(paramRef.overlays.inUse, node, ns.dgcs_inUse);
+            assignOverlay(paramRef.overlays.unavailable, node, ns.dgcs_unavailable);
+        };
+        const auto assignParameter = [&](CustomStyling::BlockSettings::Parameter& paramRef,
+                                         const LilvNode* const subject,
+                                         const LilvNode* const predicate)
+        {
+            if (LilvNode* const node = lilv_world_get(world, subject, predicate, nullptr))
+            {
+                assignParameterFromNode(paramRef, node);
+                lilv_node_free(node);
+            }
+        };
+
+        CustomStyling::BlockSettings* const styling = new CustomStyling::BlockSettings;
+
+        assignImage(styling->background, stylingNode, ns.dgcs_background, CustomStyling::kAlignBottomRight);
+
+        if (LilvNode* const blockNameNode = lilv_world_get(world, stylingNode, ns.dgcs_blockName, nullptr))
+        {
+            assignImage(styling->blockName.background, blockNameNode, ns.dgcs_background, CustomStyling::kAlignTopLeft);
+            assignFont(styling->blockName.font, blockNameNode);
+
+            lilv_node_free(blockNameNode);
+        }
+
+        assignImage(styling->paginationDots, stylingNode, ns.dgcs_paginationDots, CustomStyling::kAlignBottomMid);
+
+        if (LilvNode* const topbarButtonsNode = lilv_world_get(world, stylingNode, ns.dgcs_topbarButtons, nullptr))
+        {
+            const auto assignPath = [&](std::string& pathRef, const LilvNode* const predicate)
+            {
+                LilvNode* const pathNode = lilv_world_get(world, topbarButtonsNode, predicate, nullptr);
+                if (pathNode == nullptr)
+                    return;
+
+                char* const path = _lilv_file_abspath(pathNode);
+                if (path != nullptr && path_contains(path, retplugin->bundlepath))
+                {
+                    pathRef = path;
+                }
+
+                std::free(path);
+                lilv_node_free(pathNode);
+            };
+
+            assignPath(styling->topBarButtons.back, ns.dgcs_back);
+            assignPath(styling->topBarButtons.close, ns.dgcs_close);
+            assignPath(styling->topBarButtons.more, ns.dgcs_more);
+            assignPath(styling->topBarButtons.remove, ns.dgcs_remove);
+            assignPath(styling->topBarButtons.swap, ns.dgcs_swap);
+
+            lilv_node_free(topbarButtonsNode);
+        }
+
+        if (LilvNode* const node = lilv_world_get(world, stylingNode, ns.dgcs_bypass, nullptr))
+        {
+            assignImage(styling->bypass.background, node, ns.dgcs_background);
+            assignImage(styling->bypass.backgroundScenes, node, ns.dgcs_backgroundScenes);
+            assignImage(styling->bypass.control, node, ns.dgcs_control);
+            assignOverlay(styling->bypass.overlays.inUse, node, ns.dgcs_inUse);
+            lilv_node_free(node);
+        }
+
+        if (LilvNode* const paddingNode = lilv_world_get(world, stylingNode, ns.dgcs_parameterStartPadding, nullptr))
+        {
+            if (lilv_node_is_int(paddingNode))
+                styling->parameterStartPadding = std::clamp(lilv_node_as_int(paddingNode), 0, CustomStyling::kMaxParameterStartPadding);
+
+            lilv_node_free(paddingNode);
+        }
+
+        assignParameter(styling->defaultWidgets.knob, stylingNode, ns.dgcs_knob);
+        assignParameter(styling->defaultWidgets.list, stylingNode, ns.dgcs_list);
+        assignParameter(styling->defaultWidgets.meter, stylingNode, ns.dgcs_meter);
+        assignParameter(styling->defaultWidgets.toggle, stylingNode, ns.dgcs_toggle);
+
+        if (LilvNodes* const parametersNodes = lilv_world_find_nodes(world, stylingNode, ns.dgcs_parameters, nullptr))
+        {
+            LILV_FOREACH(nodes, iter, parametersNodes)
+            {
+                const LilvNode* const parameterNode = lilv_nodes_get(parametersNodes, iter);
+
+                LilvNode* const symbolNode = lilv_world_get(world, parameterNode, ns.lv2core_symbol, nullptr);
+                if (symbolNode == nullptr)
+                    continue;
+
+                if (lilv_node_is_string(symbolNode))
+                {
+                    const char* const symbol = lilv_node_as_string(symbolNode);
+
+                    assignParameterFromNode(styling->parameters[symbol], parameterNode);
+                }
+
+                lilv_node_free(symbolNode);
+            }
+
+            lilv_nodes_free(parametersNodes);
+        }
+
+        lilv_node_free(stylingNode);
+
+        cache.blockSettingsStyling = styling;
+        return styling;
+    }
+
+    // helpers used for block and block settings
+    void _assignFont(CustomStyling::Font& fontRef, const std::string& bundlepath, const LilvNode* const subject)
+    {
+        LilvNode* const fontNode = lilv_world_get(world, subject, ns.dgcs_font, nullptr);
+        if (fontNode == nullptr)
+            return;
+
+        LilvNode* const fontPathNode = lilv_world_get(world, fontNode, ns.dgcs_path, nullptr);
+        if (fontPathNode == nullptr)
+        {
+            lilv_node_free(fontNode);
+            return;
+        }
+
+        char* const path = _lilv_file_abspath(fontPathNode);
+        if (path == nullptr)
+        {
+            lilv_node_free(fontPathNode);
+            lilv_node_free(fontNode);
+            return;
+        }
+
+        if (path_contains(path, bundlepath))
+        {
+            if (LilvNode* const fontSizeNode = lilv_world_get(world, fontNode, ns.dgcs_size, nullptr))
+            {
+                if (lilv_node_is_int(fontSizeNode))
+                {
+                    fontRef.path = path;
+                    fontRef.size = lilv_node_as_int(fontSizeNode);
+                }
+                lilv_node_free(fontSizeNode);
+            }
+        }
+
+        std::free(path);
+        lilv_node_free(fontPathNode);
+        lilv_node_free(fontNode);
+    }
+
+    template<class ImageClass = CustomStyling::Image>
+    void _assignImage(ImageClass& imageRef,
+                      const std::string& bundlepath,
+                      const LilvNode* const subject,
+                      const LilvNode* const predicate,
+                      const CustomStyling::Alignment alignmentDefault)
+    {
+        LilvNode* const imageNode = lilv_world_get(world, subject, predicate, nullptr);
+        if (imageNode == nullptr)
+            return;
+
+        LilvNode* const imagePathNode = lilv_world_get(world, imageNode, ns.dgcs_path, nullptr);
+        if (imagePathNode == nullptr)
+        {
+            lilv_node_free(imageNode);
+            return;
+        }
+
+        char* const path = _lilv_file_abspath(imagePathNode);
+        if (path == nullptr)
+        {
+            lilv_node_free(imagePathNode);
+            lilv_node_free(imageNode);
+            return;
+        }
+
+        if (path_contains(path, bundlepath))
+        {
+            imageRef.alignment = alignmentDefault;
+            imageRef.path = path;
+
+            if (LilvNode* const alignmentNode = lilv_world_get(world, imageNode, ns.dgcs_alignment, nullptr))
+            {
+                const char* alignmentURI = lilv_node_is_uri(alignmentNode)
+                                         ? lilv_node_as_uri(alignmentNode)
+                                         : nullptr;
+
+                if (alignmentURI != nullptr && std::strstr(alignmentURI, LV2_DARKGLASS_CUSTOM_STYLING_PREFIX) != nullptr)
+                {
+                    alignmentURI += std::strlen(LV2_DARKGLASS_CUSTOM_STYLING_PREFIX);
+
+                    /**/ if (std::strcmp(alignmentURI, "alignBottomLeft") == 0)
+                        imageRef.alignment = CustomStyling::kAlignBottomLeft;
+                    else if (std::strcmp(alignmentURI, "alignBottomMid") == 0)
+                        imageRef.alignment = CustomStyling::kAlignBottomMid;
+                    else if (std::strcmp(alignmentURI, "alignBottomRight") == 0)
+                        imageRef.alignment = CustomStyling::kAlignBottomRight;
+                    else if (std::strcmp(alignmentURI, "alignCenter") == 0)
+                        imageRef.alignment = CustomStyling::kAlignCenter;
+                    else if (std::strcmp(alignmentURI, "alignLeftMid") == 0)
+                        imageRef.alignment = CustomStyling::kAlignLeftMid;
+                    else if (std::strcmp(alignmentURI, "alignRightMid") == 0)
+                        imageRef.alignment = CustomStyling::kAlignRightMid;
+                    else if (std::strcmp(alignmentURI, "alignTopLeft") == 0)
+                        imageRef.alignment = CustomStyling::kAlignTopLeft;
+                    else if (std::strcmp(alignmentURI, "alignTopMid") == 0)
+                        imageRef.alignment = CustomStyling::kAlignTopMid;
+                    else if (std::strcmp(alignmentURI, "alignTopRight") == 0)
+                        imageRef.alignment = CustomStyling::kAlignTopRight;
+                }
+                lilv_node_free(alignmentNode);
+            }
+
+            if constexpr (std::is_same_v<ImageClass, CustomStyling::Overlay>)
+                _assignFont(imageRef.font, bundlepath, imageNode);
+        }
+
+        std::free(path);
+        lilv_node_free(imagePathNode);
+        lilv_node_free(imageNode);
+    }
+
     const Lv2Port& getPluginPort(const char* const uri, const char* const symbol)
     {
         assert(uri != nullptr && *uri != '\0');
@@ -994,7 +1597,7 @@ struct Lv2World::Impl
     {
         assert(uri != nullptr && *uri != '\0');
 
-        return pluginscache.find(uri) != pluginscache.end();
+        return pluginsCache.find(uri) != pluginsCache.end();
     }
 
     std::unordered_map<std::string, float> loadPluginState(const char* const path)
@@ -1042,14 +1645,14 @@ struct Lv2World::Impl
 
         // refresh cache
         plugins = lilv_world_get_all_plugins(world);
-        pluginuris.reserve(lilv_plugins_size(plugins));
+        pluginURIs.reserve(lilv_plugins_size(plugins));
 
         for (const std::string& uri : pluginsInBundle)
         {
-            assert(pluginscache.find(uri) == pluginscache.end());
+            assert(pluginsCache.find(uri) == pluginsCache.end());
 
-            pluginuris.emplace_back(uri);
-            pluginscache[uri] = nullptr;
+            pluginURIs.emplace_back(uri);
+            pluginsCache[uri] = {};
         }
 
         return true;
@@ -1087,16 +1690,19 @@ struct Lv2World::Impl
 
         for (const std::string& uri : pluginsInBundle)
         {
-            const std::vector<std::string>::const_iterator it = std::find(pluginuris.cbegin(), pluginuris.cend(), uri);
-            assert_continue(it != pluginuris.cend());
+            const std::vector<std::string>::const_iterator it = std::find(pluginURIs.cbegin(), pluginURIs.cend(), uri);
+            assert_continue(it != pluginURIs.cend());
 
-            pluginuris.erase(it);
+            pluginURIs.erase(it);
 
-            const std::unordered_map<std::string, const Lv2Plugin*>::const_iterator it2 = pluginscache.find(uri);
-            assert_continue(it2 != pluginscache.cend());
+            const std::unordered_map<std::string, PluginCache>::const_iterator it2 = pluginsCache.find(uri);
+            assert_continue(it2 != pluginsCache.cend());
 
-            delete it2->second;
-            pluginscache.erase(it2);
+            const PluginCache& cache = it2->second;
+            delete cache.plugin;
+            delete cache.blockImageStyling;
+            delete cache.blockSettingsStyling;
+            pluginsCache.erase(it2);
         }
 
         return true;
@@ -1120,8 +1726,14 @@ private:
 
     Lv2NamespaceDefinitions ns;
     std::list<std::string> bundles;
-    std::vector<std::string> pluginuris;
-    std::unordered_map<std::string, const Lv2Plugin*> pluginscache;
+    std::vector<std::string> pluginURIs;
+
+    struct PluginCache {
+        const Lv2Plugin* plugin = nullptr;
+        const CustomStyling::BlockImage* blockImageStyling = nullptr;
+        const CustomStyling::BlockSettings* blockSettingsStyling = nullptr;
+    };
+    std::unordered_map<std::string, PluginCache> pluginsCache;
 
     static LV2_URID _mapfn(LV2_URID_Map_Handle handle, const char* uri);
     static void _portfn(const char* symbol, void* userData, const void* value, uint32_t size, uint32_t type);
@@ -1266,6 +1878,16 @@ const Lv2Plugin* Lv2World::getPluginByURI(const char* const uri) const
 }
 
 #ifndef MOD_CONNECTOR_MINIMAL_LV2_WORLD
+const CustomStyling::BlockImage* Lv2World::getPluginBlockImageStyling(const char* uri) const
+{
+    return impl->getPluginBlockImageStyling(uri);
+}
+
+const CustomStyling::BlockSettings* Lv2World::getPluginBlockSettingsStyling(const char* uri) const
+{
+    return impl->getPluginBlockSettingsStyling(uri);
+}
+
 const Lv2Port& Lv2World::getPluginPort(const char* const uri, const char* const symbol) const
 {
     return impl->getPluginPort(uri, symbol);

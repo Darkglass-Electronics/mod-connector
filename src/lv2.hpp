@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "custom-styling.hpp"
+
 #include <cstdint>
 #include <string>
 #include <unordered_map>
@@ -62,9 +64,13 @@ enum Lv2Designation {
 };
 
 enum Lv2PluginFlags {
-    Lv2PluginIsCommercial    = 1 << 0,
-    Lv2PluginIsLicensed      = 1 << 1,
-    Lv2PluginIsUserRemovable = 1 << 2,
+    Lv2PluginIsCommercial            = 1 << 0,
+    Lv2PluginIsLicensed              = 1 << 1,
+    Lv2PluginIsUserRemovable         = 1 << 2,
+#ifndef MOD_CONNECTOR_MINIMAL_LV2_WORLD
+    Lv2PluginHasBlockImageStyling    = 1 << 3,
+    Lv2PluginHasBlockSettingsStyling = 1 << 4,
+#endif
 };
 
 enum Lv2ParameterFlags {
@@ -163,6 +169,16 @@ struct Lv2World {
     [[nodiscard]] const Lv2Plugin* getPluginByURI(const char* uri) const;
 
 #ifndef MOD_CONNECTOR_MINIMAL_LV2_WORLD
+   /* get the custom block styling of a plugin with a known uri
+    * can return null in case of error or the plugin doesn't support styling
+    */
+    [[nodiscard]] const CustomStyling::BlockImage* getPluginBlockImageStyling(const char* uri) const;
+
+   /* get the custom block settings styling of a plugin with a known uri
+    * can return null in case of error or the plugin doesn't support styling
+    */
+    [[nodiscard]] const CustomStyling::BlockSettings* getPluginBlockSettingsStyling(const char* uri) const;
+
    /* get the plugin port with a known symbol
     */
     [[nodiscard]] const Lv2Port& getPluginPort(const char* uri, const char* symbol) const;
