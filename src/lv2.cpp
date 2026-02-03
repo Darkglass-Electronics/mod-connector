@@ -83,7 +83,7 @@
 #define LV2_DARKGLASS_CUSTOM_STYLING__back             LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "back"
 #define LV2_DARKGLASS_CUSTOM_STYLING__background       LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "background"
 #define LV2_DARKGLASS_CUSTOM_STYLING__backgroundScenes LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "backgroundScenes"
-#define LV2_DARKGLASS_CUSTOM_STYLING__block            LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "block"
+#define LV2_DARKGLASS_CUSTOM_STYLING__blockImage       LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "blockImage"
 #define LV2_DARKGLASS_CUSTOM_STYLING__blockName        LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "blockName"
 #define LV2_DARKGLASS_CUSTOM_STYLING__blockSettings    LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "blockSettings"
 #define LV2_DARKGLASS_CUSTOM_STYLING__blocked          LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "blocked"
@@ -229,7 +229,7 @@ struct Lv2NamespaceDefinitions {
     LilvNode* const dgcs_back;
     LilvNode* const dgcs_background;
     LilvNode* const dgcs_backgroundScenes;
-    LilvNode* const dgcs_block;
+    LilvNode* const dgcs_blockImage;
     LilvNode* const dgcs_blockName;
     LilvNode* const dgcs_blockSettings;
     LilvNode* const dgcs_blocked;
@@ -279,7 +279,7 @@ struct Lv2NamespaceDefinitions {
           dgcs_back(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__back)),
           dgcs_background(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__background)),
           dgcs_backgroundScenes(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__backgroundScenes)),
-          dgcs_block(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__block)),
+          dgcs_blockImage(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__blockImage)),
           dgcs_blockName(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__blockName)),
           dgcs_blockSettings(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__blockSettings)),
           dgcs_blocked(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__blocked)),
@@ -332,7 +332,7 @@ struct Lv2NamespaceDefinitions {
         lilv_node_free(dgcs_back);
         lilv_node_free(dgcs_background);
         lilv_node_free(dgcs_backgroundScenes);
-        lilv_node_free(dgcs_block);
+        lilv_node_free(dgcs_blockImage);
         lilv_node_free(dgcs_blockName);
         lilv_node_free(dgcs_blockSettings);
         lilv_node_free(dgcs_blocked);
@@ -419,7 +419,7 @@ struct Lv2World::Impl
         {
             const PluginCache& cache = pair.second;
             delete cache.plugin;
-            delete cache.blockStyling;
+            delete cache.blockImageStyling;
             delete cache.blockSettingsStyling;
         }
 
@@ -526,8 +526,8 @@ struct Lv2World::Impl
             }
 
 #ifndef MOD_CONNECTOR_MINIMAL_LV2_WORLD
-            if (lilv_world_ask(world, urinode, ns.dgcs_block, nullptr))
-                retplugin->flags |= Lv2PluginHasBlockStyling;
+            if (lilv_world_ask(world, urinode, ns.dgcs_blockImage, nullptr))
+                retplugin->flags |= Lv2PluginHasBlockImageStyling;
 
             if (lilv_world_ask(world, urinode, ns.dgcs_blockSettings, nullptr))
                 retplugin->flags |= Lv2PluginHasBlockSettingsStyling;
@@ -1124,7 +1124,7 @@ struct Lv2World::Impl
     }
 
 #ifndef MOD_CONNECTOR_MINIMAL_LV2_WORLD
-    const CustomStyling::Block* getPluginBlockStyling(const char* const uri)
+    const CustomStyling::BlockImage* getPluginBlockImageStyling(const char* const uri)
     {
         assert(uri != nullptr);
         assert(*uri != '\0');
@@ -1133,10 +1133,10 @@ struct Lv2World::Impl
 
         const Lv2Plugin* const retplugin = cache.plugin;
         assert_return(retplugin != nullptr, nullptr);
-        assert_return(retplugin->flags & Lv2PluginHasBlockStyling, nullptr);
+        assert_return(retplugin->flags & Lv2PluginHasBlockImageStyling, nullptr);
 
-        if (cache.blockStyling != nullptr)
-            return cache.blockStyling;
+        if (cache.blockImageStyling != nullptr)
+            return cache.blockImageStyling;
 
         LilvNode* stylingNode = nullptr;
         {
@@ -1158,7 +1158,7 @@ struct Lv2World::Impl
                 return nullptr;
             }
 
-            LilvNodes* const stylingNodes = lilv_plugin_get_value(plugin, ns.dgcs_block);
+            LilvNodes* const stylingNodes = lilv_plugin_get_value(plugin, ns.dgcs_blockImage);
             if (stylingNodes == nullptr)
             {
                 last_error = "Plugin does not contain block styling";
@@ -1170,19 +1170,12 @@ struct Lv2World::Impl
             lilv_nodes_free(stylingNodes);
         }
 
-        CustomStyling::Block* const styling = new CustomStyling::Block;
+        CustomStyling::BlockImage* const styling = new CustomStyling::BlockImage;
 
-        const auto assignImage = [&](CustomStyling::Image& imageRef,
-                                     const LilvNode* const subject,
-                                     const LilvNode* const predicate,
-                                     const CustomStyling::Alignment alignmentDefault = CustomStyling::kAlignNone)
-        {
-            _assignImage(imageRef, retplugin->bundlepath, subject, predicate, alignmentDefault);
-        };
-        const auto assignParameterFromNode = [&](CustomStyling::Block::Parameter& paramRef,
+        const auto assignParameterFromNode = [&](CustomStyling::BlockImage::Parameter& paramRef,
                                                  const LilvNode* const node)
         {
-            assignImage(paramRef.background, node, ns.dgcs_background);
+            _assignImage(paramRef.background, retplugin->bundlepath, node, ns.dgcs_background, CustomStyling::kAlignNone);
 
             if (LilvNode* const xNode = lilv_world_get(world, node, ns.dgcs_x, nullptr))
             {
@@ -1200,7 +1193,7 @@ struct Lv2World::Impl
                 lilv_node_free(yNode);
             }
         };
-        const auto assignParameter = [&](CustomStyling::Block::Parameter& paramRef,
+        const auto assignParameter = [&](CustomStyling::BlockImage::Parameter& paramRef,
                                          const LilvNode* const subject,
                                          const LilvNode* const predicate)
         {
@@ -1211,7 +1204,19 @@ struct Lv2World::Impl
             }
         };
 
-        assignImage(styling->background, stylingNode, ns.dgcs_background);
+        if (LilvNode* const backgroundNode = lilv_world_get(world, stylingNode, ns.dgcs_path, nullptr))
+        {
+            if (char* const path = _lilv_file_abspath(backgroundNode))
+            {
+                if (path_contains(path, retplugin->bundlepath))
+                    styling->path = path;
+
+                std::free(path);
+            }
+
+            lilv_node_free(backgroundNode);
+        }
+
         assignParameter(styling->bypass, stylingNode, ns.dgcs_bypass);
 
         if (LilvNodes* const parametersNodes = lilv_world_find_nodes(world, stylingNode, ns.dgcs_parameters, nullptr))
@@ -1239,7 +1244,7 @@ struct Lv2World::Impl
 
         lilv_node_free(stylingNode);
 
-        cache.blockStyling = styling;
+        cache.blockImageStyling = styling;
         return styling;
     }
 
@@ -1657,7 +1662,7 @@ struct Lv2World::Impl
 
             const PluginCache& cache = it2->second;
             delete cache.plugin;
-            delete cache.blockStyling;
+            delete cache.blockImageStyling;
             delete cache.blockSettingsStyling;
             pluginsCache.erase(it2);
         }
@@ -1687,7 +1692,7 @@ private:
 
     struct PluginCache {
         const Lv2Plugin* plugin = nullptr;
-        const CustomStyling::Block* blockStyling = nullptr;
+        const CustomStyling::BlockImage* blockImageStyling = nullptr;
         const CustomStyling::BlockSettings* blockSettingsStyling = nullptr;
     };
     std::unordered_map<std::string, PluginCache> pluginsCache;
@@ -1835,9 +1840,9 @@ const Lv2Plugin* Lv2World::getPluginByURI(const char* const uri) const
 }
 
 #ifndef MOD_CONNECTOR_MINIMAL_LV2_WORLD
-const CustomStyling::Block* Lv2World::getPluginBlockStyling(const char* uri) const
+const CustomStyling::BlockImage* Lv2World::getPluginBlockImageStyling(const char* uri) const
 {
-    return impl->getPluginBlockStyling(uri);
+    return impl->getPluginBlockImageStyling(uri);
 }
 
 const CustomStyling::BlockSettings* Lv2World::getPluginBlockSettingsStyling(const char* uri) const

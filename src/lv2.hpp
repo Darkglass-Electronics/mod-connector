@@ -68,8 +68,8 @@ enum Lv2PluginFlags {
     Lv2PluginIsLicensed              = 1 << 1,
     Lv2PluginIsUserRemovable         = 1 << 2,
 #ifndef MOD_CONNECTOR_MINIMAL_LV2_WORLD
-    Lv2PluginHasBlockStyling         = 1 << 3,
-    Lv2PluginHasBlockSettingsStyling = 1 << 3,
+    Lv2PluginHasBlockImageStyling    = 1 << 3,
+    Lv2PluginHasBlockSettingsStyling = 1 << 4,
 #endif
 };
 
@@ -172,7 +172,7 @@ struct Lv2World {
    /* get the custom block styling of a plugin with a known uri
     * can return null in case of error or the plugin doesn't support styling
     */
-    [[nodiscard]] const CustomStyling::Block* getPluginBlockStyling(const char* uri) const;
+    [[nodiscard]] const CustomStyling::BlockImage* getPluginBlockImageStyling(const char* uri) const;
 
    /* get the custom block settings styling of a plugin with a known uri
     * can return null in case of error or the plugin doesn't support styling

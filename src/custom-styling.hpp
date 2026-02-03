@@ -51,8 +51,8 @@ struct Overlay : Image {
     operator bool() const noexcept { return !path.empty(); }
 };
 
-// A block contains a background and parameters
-struct Block {
+// A block image contains a path (for the image itself) and parameters
+struct BlockImage {
     // A block parameter uses a single image and x,y coordinates for positioning
     struct Parameter {
         Image background;
@@ -61,9 +61,9 @@ struct Block {
         operator bool() const noexcept { return !background.path.empty(); }
     };
 
-    // The background image
+    // The block image path
     // It should contain at least 2 frames for on/off
-    Image background;
+    std::string path;
 
     // Bypass parameter
     Parameter bypass;
