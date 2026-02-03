@@ -7027,6 +7027,7 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
     blockdata.meta.enable.hwbinding = UINT8_MAX;
     blockdata.meta.enable.tempSceneState = kTemporarySceneNone;
     blockdata.meta.enable.changesNotSavedToPreset = false;
+    blockdata.meta.flags = plugin->flags;
     blockdata.meta.quickPotIndex = 0;
     blockdata.meta.numParametersInScenes = 0;
     blockdata.meta.numPropertiesInScenes = 0;
@@ -7274,6 +7275,7 @@ void HostConnector::resetBlock(Block& blockdata) const
     blockdata.meta.enable.hwbinding = UINT8_MAX;
     blockdata.meta.enable.tempSceneState = kTemporarySceneNone;
     blockdata.meta.enable.changesNotSavedToPreset = false;
+    blockdata.meta.flags = 0;
     blockdata.meta.quickPotIndex = 0;
     blockdata.meta.numParametersInScenes = 0;
     blockdata.meta.numPropertiesInScenes = 0;

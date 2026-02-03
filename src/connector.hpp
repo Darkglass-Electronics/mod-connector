@@ -193,6 +193,7 @@ struct HostConnector : Host::FeedbackCallback {
                 uint8_t hwbinding;
                 TemporarySceneState tempSceneState;
             } enable;
+            uint32_t flags;
             uint8_t quickPotIndex;
             uint8_t numParametersInScenes;
             uint8_t numPropertiesInScenes;
