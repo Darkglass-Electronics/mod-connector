@@ -91,6 +91,7 @@
 #define LV2_DARKGLASS_CUSTOM_STYLING__close            LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "close"
 #define LV2_DARKGLASS_CUSTOM_STYLING__control          LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "control"
 #define LV2_DARKGLASS_CUSTOM_STYLING__font             LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "font"
+#define LV2_DARKGLASS_CUSTOM_STYLING__height           LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "height"
 #define LV2_DARKGLASS_CUSTOM_STYLING__inUse            LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "inUse"
 #define LV2_DARKGLASS_CUSTOM_STYLING__inactive         LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "inactive"
 #define LV2_DARKGLASS_CUSTOM_STYLING__knob             LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "knob"
@@ -107,6 +108,7 @@
 #define LV2_DARKGLASS_CUSTOM_STYLING__toggle           LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "toggle"
 #define LV2_DARKGLASS_CUSTOM_STYLING__topBarButtons    LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "topBarButtons"
 #define LV2_DARKGLASS_CUSTOM_STYLING__unavailable      LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "unavailable"
+#define LV2_DARKGLASS_CUSTOM_STYLING__width            LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "width"
 #define LV2_DARKGLASS_CUSTOM_STYLING__x                LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "x"
 #define LV2_DARKGLASS_CUSTOM_STYLING__y                LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "y"
 
@@ -237,6 +239,7 @@ struct Lv2NamespaceDefinitions {
     LilvNode* const dgcs_close;
     LilvNode* const dgcs_control;
     LilvNode* const dgcs_font;
+    LilvNode* const dgcs_height;
     LilvNode* const dgcs_inUse;
     LilvNode* const dgcs_inactive;
     LilvNode* const dgcs_knob;
@@ -253,6 +256,7 @@ struct Lv2NamespaceDefinitions {
     LilvNode* const dgcs_toggle;
     LilvNode* const dgcs_topbarButtons;
     LilvNode* const dgcs_unavailable;
+    LilvNode* const dgcs_width;
     LilvNode* const dgcs_x;
     LilvNode* const dgcs_y;
     LilvNode* const lv2core_default;
@@ -287,6 +291,7 @@ struct Lv2NamespaceDefinitions {
           dgcs_close(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__close)),
           dgcs_control(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__control)),
           dgcs_font(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__font)),
+          dgcs_height(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__height)),
           dgcs_inUse(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__inUse)),
           dgcs_inactive(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__inactive)),
           dgcs_knob(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__knob)),
@@ -303,6 +308,7 @@ struct Lv2NamespaceDefinitions {
           dgcs_toggle(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__toggle)),
           dgcs_topbarButtons(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__topBarButtons)),
           dgcs_unavailable(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__unavailable)),
+          dgcs_width(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__width)),
           dgcs_x(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__x)),
           dgcs_y(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__y)),
           lv2core_default(lilv_new_uri(world, LV2_CORE__default)),
@@ -340,6 +346,7 @@ struct Lv2NamespaceDefinitions {
         lilv_node_free(dgcs_close);
         lilv_node_free(dgcs_control);
         lilv_node_free(dgcs_font);
+        lilv_node_free(dgcs_height);
         lilv_node_free(dgcs_inUse);
         lilv_node_free(dgcs_inactive);
         lilv_node_free(dgcs_knob);
@@ -356,6 +363,7 @@ struct Lv2NamespaceDefinitions {
         lilv_node_free(dgcs_toggle);
         lilv_node_free(dgcs_topbarButtons);
         lilv_node_free(dgcs_unavailable);
+        lilv_node_free(dgcs_width);
         lilv_node_free(dgcs_x);
         lilv_node_free(dgcs_y);
         lilv_node_free(lv2core_default);
@@ -1131,6 +1139,9 @@ struct Lv2World::Impl
 
         PluginCache& cache = pluginsCache[uri];
 
+        if (cache.plugin == nullptr)
+            getPluginByURI(uri);
+
         const Lv2Plugin* const retplugin = cache.plugin;
         assert_return(retplugin != nullptr, nullptr);
         assert_return(retplugin->flags & Lv2PluginHasBlockImageStyling, nullptr);
@@ -1191,7 +1202,7 @@ struct Lv2World::Impl
             if (LilvNode* const xNode = lilv_world_get(world, node, ns.dgcs_x, nullptr))
             {
                 if (lilv_node_is_int(xNode))
-                    styling->bypass.x = std::max(0, lilv_node_as_int(xNode));
+                    paramRef.x = std::max(0, lilv_node_as_int(xNode));
 
                 lilv_node_free(xNode);
             }
@@ -1199,9 +1210,25 @@ struct Lv2World::Impl
             if (LilvNode* const yNode = lilv_world_get(world, node, ns.dgcs_y, nullptr))
             {
                 if (lilv_node_is_int(yNode))
-                    styling->bypass.x = std::max(0, lilv_node_as_int(yNode));
+                    paramRef.y = std::max(0, lilv_node_as_int(yNode));
 
                 lilv_node_free(yNode);
+            }
+
+            if (LilvNode* const widthNode = lilv_world_get(world, node, ns.dgcs_width, nullptr))
+            {
+                if (lilv_node_is_int(widthNode))
+                    paramRef.width = std::max(0, lilv_node_as_int(widthNode));
+
+                lilv_node_free(widthNode);
+            }
+
+            if (LilvNode* const heightNode = lilv_world_get(world, node, ns.dgcs_height, nullptr))
+            {
+                if (lilv_node_is_int(heightNode))
+                    paramRef.height = std::max(0, lilv_node_as_int(heightNode));
+
+                lilv_node_free(heightNode);
             }
         };
         const auto assignParameter = [&](CustomStyling::BlockImage::Parameter& paramRef,

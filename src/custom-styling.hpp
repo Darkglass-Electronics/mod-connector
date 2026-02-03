@@ -54,10 +54,13 @@ struct Overlay : Image {
 // A block image contains a path (for the image itself) and parameters
 struct BlockImage {
     // A block parameter uses a single image path and x,y coordinates for positioning
+    // The width and height are optional helpers
     struct Parameter {
         std::string path;
         uint16_t x;
         uint16_t y;
+        uint16_t width;
+        uint16_t height;
         operator bool() const noexcept { return !path.empty(); }
     };
 
