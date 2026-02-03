@@ -1175,7 +1175,18 @@ struct Lv2World::Impl
         const auto assignParameterFromNode = [&](CustomStyling::BlockImage::Parameter& paramRef,
                                                  const LilvNode* const node)
         {
-            _assignImage(paramRef.background, retplugin->bundlepath, node, ns.dgcs_background, CustomStyling::kAlignNone);
+            if (LilvNode* const pathNode = lilv_world_get(world, node, ns.dgcs_path, nullptr))
+            {
+                if (char* const path = _lilv_file_abspath(pathNode))
+                {
+                    if (path_contains(path, retplugin->bundlepath))
+                        paramRef.path = path;
+
+                    std::free(path);
+                }
+
+                lilv_node_free(pathNode);
+            }
 
             if (LilvNode* const xNode = lilv_world_get(world, node, ns.dgcs_x, nullptr))
             {
@@ -1204,9 +1215,9 @@ struct Lv2World::Impl
             }
         };
 
-        if (LilvNode* const backgroundNode = lilv_world_get(world, stylingNode, ns.dgcs_path, nullptr))
+        if (LilvNode* const pathNode = lilv_world_get(world, stylingNode, ns.dgcs_path, nullptr))
         {
-            if (char* const path = _lilv_file_abspath(backgroundNode))
+            if (char* const path = _lilv_file_abspath(pathNode))
             {
                 if (path_contains(path, retplugin->bundlepath))
                     styling->path = path;
@@ -1214,7 +1225,7 @@ struct Lv2World::Impl
                 std::free(path);
             }
 
-            lilv_node_free(backgroundNode);
+            lilv_node_free(pathNode);
         }
 
         assignParameter(styling->bypass, stylingNode, ns.dgcs_bypass);
