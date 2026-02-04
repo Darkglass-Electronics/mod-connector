@@ -11,7 +11,13 @@
 
 namespace CustomStyling {
 
+#ifdef _DARKGLASS_DEVICE_PABLITO
+// On Anagram the maximum allowed start padding of parameters is number-of-knobs - 1
 static constexpr const int kMaxParameterStartPadding = 5;
+#else
+// The maximum that fits into a `uint8_t`
+static constexpr const int kMaxParameterStartPadding = UINT8_MAX;
+#endif
 
 // Alignment for images when they don't match the full size of the container
 // This enum intentionally matches lv_align_t so it can be used without conversions
@@ -65,7 +71,7 @@ struct BlockImage {
     };
 
     // The block image path
-    // It should contain at least 2 frames for on/off
+    // It can contain multiple frames for on/off animation (on is first, then off/bypassed)
     std::string path;
 
     // Bypass parameter
@@ -95,7 +101,9 @@ struct BlockSettings {
     };
 
     // The bottom-most background image
-    // Can contain multiple horizontal frames for paginated scrolling, in which case it must be a multiple of 1424px
+    // Can contain multiple horizontal frames for paginated scrolling,
+    // in which case it must be a multiple of the screen width
+    // (on Anagram this is 1424px)
     Image background;
 
     // The block name can either be a background image or a custom font
