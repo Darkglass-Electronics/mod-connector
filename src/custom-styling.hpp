@@ -44,7 +44,7 @@ struct Font {
 // An image requires a path, alignment is optional as it is not always relevant
 // If the image belongs to a parameter control, animation frames must be used (from min to max)
 // If the image belongs to a bypass control, at least 2 animation frames are required (on is first, then off/bypassed)
-// If the image belongs to a block, same rules as bypass apply
+// If the image belongs to a block, animation frames are optional (if present: on is first, then off/bypassed)
 struct Image {
     Alignment alignment = kAlignNone;
     std::string path;
@@ -59,7 +59,7 @@ struct Overlay : Image {
 
 // A block image contains a path (for the image itself) and parameters
 struct BlockImage {
-    // A block parameter uses a single image path and x,y coordinates for positioning
+    // A block image parameter uses a single image path and x,y coordinates for positioning
     // The width and height are optional helpers
     struct Parameter {
         std::string path;
@@ -87,7 +87,7 @@ struct BlockSettings {
     // Additionally it has overlays for many parameter statuses
     // The control depends on the type of parameter and can be one of: knob, list, meter or toggle/switch
     // Only the control is required, everything else is optional
-    struct Parameter {
+    struct ParameterWidget {
         Image background;
         Image backgroundScenes;
         Image control;
@@ -121,7 +121,7 @@ struct BlockSettings {
     // The settings' top-bar buttons are images without any alignment
     // These images must be the correct size or are otherwise rejected
     // They are 1 layer above the block name
-    struct TopbarButtons {
+    struct TopBarButtons {
         // 85x50
         std::string back;
         std::string close;
@@ -148,16 +148,16 @@ struct BlockSettings {
     // padding of empty slots until parameters begin
     uint8_t parameterStartPadding = 0;
 
-    // Parameter widgets (defaults in case a specific parameter is not specified)
+    // Default parameter widgets in case a specific parameter is not specified
     struct {
-        Parameter knob;
-        Parameter list;
-        Parameter meter;
-        Parameter toggle;
+        ParameterWidget knob;
+        ParameterWidget list;
+        ParameterWidget meter;
+        ParameterWidget toggle;
     } defaultWidgets;
 
-    // Custom styling for individual parameters, indexed by control port symbol
-    std::unordered_map<std::string, Parameter> parameters;
+    // Parameter-specific widgets, indexed by control port symbol
+    std::unordered_map<std::string, ParameterWidget> parameters;
 };
 
 } // namespace CustomStyling

@@ -1349,7 +1349,7 @@ struct Lv2World::Impl
         {
             _assignImage(overlayRef, retplugin->bundlepath, subject, predicate, CustomStyling::kAlignNone);
         };
-        const auto assignParameterFromNode = [&](CustomStyling::BlockSettings::Parameter& paramRef,
+        const auto assignParameterFromNode = [&](CustomStyling::BlockSettings::ParameterWidget& paramRef,
                                                  const LilvNode* const node)
         {
             assignImage(paramRef.background, node, ns.dgcs_background);
@@ -1360,7 +1360,7 @@ struct Lv2World::Impl
             assignOverlay(paramRef.overlays.inUse, node, ns.dgcs_inUse);
             assignOverlay(paramRef.overlays.unavailable, node, ns.dgcs_unavailable);
         };
-        const auto assignParameter = [&](CustomStyling::BlockSettings::Parameter& paramRef,
+        const auto assignParameter = [&](CustomStyling::BlockSettings::ParameterWidget& paramRef,
                                          const LilvNode* const subject,
                                          const LilvNode* const predicate)
         {
