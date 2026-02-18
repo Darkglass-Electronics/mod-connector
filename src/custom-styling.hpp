@@ -118,6 +118,20 @@ struct BlockSettings {
     // They are 1 layer above the background
     Image paginationDots;
 
+    // The scene control can either be all + active images or background + font
+    // Use of all + active images takes precedence if both are provided
+    // It is 1 layer above the background
+    struct SceneControl {
+        struct WithBackground {
+            Image background;
+            Font font;
+        } withBackground;
+        struct WithImages {
+            Image controllingAllScenes;
+            Image controllingActiveScene;
+        } withImages;
+    } sceneControl;
+
     // The settings' top-bar buttons are images without any alignment
     // These images must be the correct size or are otherwise rejected
     // They are 1 layer above the block name
