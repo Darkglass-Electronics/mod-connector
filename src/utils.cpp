@@ -60,6 +60,9 @@ std::string homedir()
         else if (struct passwd* const pwd = getpwuid(getuid()))
             _homedir = pwd->pw_dir;
        #endif
+
+        if (! _homedir.empty())
+            _homedir += PATH_SEP_CHAR;
     }
 
     return _homedir;

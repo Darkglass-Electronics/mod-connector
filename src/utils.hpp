@@ -121,11 +121,13 @@ int _mod_log_level();
 
 // --------------------------------------------------------------------------------------------------------------------
 // get home directory, return value will be cached
+// NOTE: returned value always has path separator as the last character
 
 std::string homedir();
 
 // --------------------------------------------------------------------------------------------------------------------
 // check if a file path resides inside a known directory
+// NOTE dir must terminate with path separator
 
 bool path_contains(const std::string& path, const std::string& dir);
 

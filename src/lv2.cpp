@@ -155,7 +155,7 @@ static std::string _keysdir()
         return keysdir;
     }
 
-    return homedir() + PATH_SEP_STR "keys" PATH_SEP_STR;
+    return homedir() + "keys" PATH_SEP_STR;
 }
 
 // --------------------------------------------------------------------------------------------------------------------
