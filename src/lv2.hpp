@@ -131,6 +131,7 @@ struct Lv2Plugin {
     std::string uri;
     // NOTE includes path separator as last character
     std::string bundlepath;
+    std::string version;
     uint32_t flags = 0;
 #ifndef MOD_CONNECTOR_MINIMAL_LV2_WORLD
     std::string name;
