@@ -117,7 +117,7 @@ struct BlockSettings {
         // The top-bar image cannot contain multiple frames
         Image background;
 
-        // The top-bar block name in the can either be a background image or a custom font
+        // The top-bar block name can either be a background image or a custom font
         // Use of background image takes precedence if both are provided
         struct BlockName {
             Image background;
@@ -136,7 +136,7 @@ struct BlockSettings {
             std::string swap;
         } buttons;
 
-        // The the top-bar scene control can either be images or background + font
+        // The top-bar scene control can either be images or background + font
         // Use of images takes precedence if both are provided
         struct SceneControl {
             struct {
