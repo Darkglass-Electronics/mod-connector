@@ -106,30 +106,51 @@ struct BlockSettings {
     // (on Anagram this is 1424px)
     Image background;
 
-    // The block name can either be a background image or a custom font
-    // Use of background image takes precedence if both are provided
-    // It is 1 layer above the background
-    struct BlockName {
-        Image background;
-        Font font;
-    } blockName;
-
-    // The pagination dots assume a number of frames equivalent to the number of parameter pages
+    // The pagination dots
+    // The image is assumed to have a number of frames equivalent to the number of parameter pages
     // They are 1 layer above the background
     Image paginationDots;
 
-    // The settings' top-bar buttons are images without any alignment
-    // These images must be the correct size or are otherwise rejected
-    // They are 1 layer above the block name
-    struct TopBarButtons {
-        // 85x50
-        std::string back;
-        std::string close;
-        // 50x50
-        std::string more;
-        std::string remove;
-        std::string swap;
-    } topBarButtons;
+    // The top-bar background and buttons
+    // It is 1 layer above the background
+    struct TopBar {
+        // The top-bar image cannot contain multiple frames
+        Image background;
+
+        // The top-bar block name can either be a background image or a custom font
+        // Use of background image takes precedence if both are provided
+        struct BlockName {
+            Image background;
+            Font font;
+        } blockName;
+
+        // The top-bar buttons are images without any alignment
+        // These images must be the correct size or are otherwise rejected
+        struct Buttons {
+            // 85x50
+            std::string back;
+            std::string close;
+            // 50x50
+            std::string more;
+            std::string remove;
+            std::string swap;
+        } buttons;
+
+        // The top-bar scene control can either be images or background + font
+        // Use of images takes precedence if both are provided
+        struct SceneControl {
+            struct {
+                Image background;
+                Font font;
+                operator bool() const noexcept { return !background.path.empty() && font.size != 0; }
+            } withBackgroundAndFont;
+            struct {
+                Image allScenes;
+                Image activeScene;
+                operator bool() const noexcept { return !allScenes.path.empty() && !activeScene.path.empty(); }
+            } withImages;
+        } sceneControl;
+    } topBar;
 
     // Bypass control in the top-bar
     // The bypass control uses images for background, background-with-scenes and toggle-switch control

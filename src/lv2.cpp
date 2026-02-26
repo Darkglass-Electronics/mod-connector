@@ -70,47 +70,51 @@
 #define LV2_DARKGLASS_CUSTOM_STYLING_URI    "http://www.darkglass.com/lv2/ns/lv2ext/custom-styling"
 #define LV2_DARKGLASS_CUSTOM_STYLING_PREFIX LV2_DARKGLASS_CUSTOM_STYLING_URI "#"
 
-#define LV2_DARKGLASS_CUSTOM_STYLING__alignBottomLeft  LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "alignBottomLeft"
-#define LV2_DARKGLASS_CUSTOM_STYLING__alignBottomMid   LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "alignBottomMid"
-#define LV2_DARKGLASS_CUSTOM_STYLING__alignBottomRight LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "alignBottomRight"
-#define LV2_DARKGLASS_CUSTOM_STYLING__alignCenter      LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "alignCenter"
-#define LV2_DARKGLASS_CUSTOM_STYLING__alignLeftMid     LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "alignLeftMid"
-#define LV2_DARKGLASS_CUSTOM_STYLING__alignRightMid    LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "alignRightMid"
-#define LV2_DARKGLASS_CUSTOM_STYLING__alignTopLeft     LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "alignTopLeft"
-#define LV2_DARKGLASS_CUSTOM_STYLING__alignTopMid      LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "alignTopMid"
-#define LV2_DARKGLASS_CUSTOM_STYLING__alignTopRight    LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "alignTopRight"
-#define LV2_DARKGLASS_CUSTOM_STYLING__alignment        LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "alignment"
-#define LV2_DARKGLASS_CUSTOM_STYLING__back             LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "back"
-#define LV2_DARKGLASS_CUSTOM_STYLING__background       LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "background"
-#define LV2_DARKGLASS_CUSTOM_STYLING__backgroundScenes LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "backgroundScenes"
-#define LV2_DARKGLASS_CUSTOM_STYLING__blockImage       LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "blockImage"
-#define LV2_DARKGLASS_CUSTOM_STYLING__blockName        LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "blockName"
-#define LV2_DARKGLASS_CUSTOM_STYLING__blockSettings    LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "blockSettings"
-#define LV2_DARKGLASS_CUSTOM_STYLING__blocked          LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "blocked"
-#define LV2_DARKGLASS_CUSTOM_STYLING__bypass           LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "bypass"
-#define LV2_DARKGLASS_CUSTOM_STYLING__close            LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "close"
-#define LV2_DARKGLASS_CUSTOM_STYLING__control          LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "control"
-#define LV2_DARKGLASS_CUSTOM_STYLING__font             LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "font"
-#define LV2_DARKGLASS_CUSTOM_STYLING__height           LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "height"
-#define LV2_DARKGLASS_CUSTOM_STYLING__inUse            LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "inUse"
-#define LV2_DARKGLASS_CUSTOM_STYLING__inactive         LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "inactive"
-#define LV2_DARKGLASS_CUSTOM_STYLING__knob             LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "knob"
-#define LV2_DARKGLASS_CUSTOM_STYLING__list             LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "list"
-#define LV2_DARKGLASS_CUSTOM_STYLING__meter            LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "meter"
-#define LV2_DARKGLASS_CUSTOM_STYLING__more             LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "more"
-#define LV2_DARKGLASS_CUSTOM_STYLING__paginationDots   LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "paginationDots"
-#define LV2_DARKGLASS_CUSTOM_STYLING__parameterStartPadding LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "parameterStartPadding"
-#define LV2_DARKGLASS_CUSTOM_STYLING__parameters       LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "parameters"
-#define LV2_DARKGLASS_CUSTOM_STYLING__path             LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "path"
-#define LV2_DARKGLASS_CUSTOM_STYLING__remove           LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "remove"
-#define LV2_DARKGLASS_CUSTOM_STYLING__size             LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "size"
-#define LV2_DARKGLASS_CUSTOM_STYLING__swap             LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "swap"
-#define LV2_DARKGLASS_CUSTOM_STYLING__toggle           LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "toggle"
-#define LV2_DARKGLASS_CUSTOM_STYLING__topBarButtons    LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "topBarButtons"
-#define LV2_DARKGLASS_CUSTOM_STYLING__unavailable      LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "unavailable"
-#define LV2_DARKGLASS_CUSTOM_STYLING__width            LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "width"
-#define LV2_DARKGLASS_CUSTOM_STYLING__x                LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "x"
-#define LV2_DARKGLASS_CUSTOM_STYLING__y                LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "y"
+#define LV2_DARKGLASS_CUSTOM_STYLING__alignBottomLeft         LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "alignBottomLeft"
+#define LV2_DARKGLASS_CUSTOM_STYLING__alignBottomMid          LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "alignBottomMid"
+#define LV2_DARKGLASS_CUSTOM_STYLING__alignBottomRight        LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "alignBottomRight"
+#define LV2_DARKGLASS_CUSTOM_STYLING__alignCenter             LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "alignCenter"
+#define LV2_DARKGLASS_CUSTOM_STYLING__alignLeftMid            LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "alignLeftMid"
+#define LV2_DARKGLASS_CUSTOM_STYLING__alignRightMid           LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "alignRightMid"
+#define LV2_DARKGLASS_CUSTOM_STYLING__alignTopLeft            LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "alignTopLeft"
+#define LV2_DARKGLASS_CUSTOM_STYLING__alignTopMid             LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "alignTopMid"
+#define LV2_DARKGLASS_CUSTOM_STYLING__alignTopRight           LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "alignTopRight"
+#define LV2_DARKGLASS_CUSTOM_STYLING__alignment               LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "alignment"
+#define LV2_DARKGLASS_CUSTOM_STYLING__background              LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "background"
+#define LV2_DARKGLASS_CUSTOM_STYLING__backgroundScenes        LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "backgroundScenes"
+#define LV2_DARKGLASS_CUSTOM_STYLING__blockImage              LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "blockImage"
+#define LV2_DARKGLASS_CUSTOM_STYLING__blockSettings           LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "blockSettings"
+#define LV2_DARKGLASS_CUSTOM_STYLING__blocked                 LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "blocked"
+#define LV2_DARKGLASS_CUSTOM_STYLING__buttonBack              LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "buttonBack"
+#define LV2_DARKGLASS_CUSTOM_STYLING__buttonClose             LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "buttonClose"
+#define LV2_DARKGLASS_CUSTOM_STYLING__buttonMore              LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "buttonMore"
+#define LV2_DARKGLASS_CUSTOM_STYLING__buttonRemove            LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "buttonRemove"
+#define LV2_DARKGLASS_CUSTOM_STYLING__buttonSwap              LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "buttonSwap"
+#define LV2_DARKGLASS_CUSTOM_STYLING__bypass                  LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "bypass"
+#define LV2_DARKGLASS_CUSTOM_STYLING__control                 LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "control"
+#define LV2_DARKGLASS_CUSTOM_STYLING__font                    LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "font"
+#define LV2_DARKGLASS_CUSTOM_STYLING__height                  LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "height"
+#define LV2_DARKGLASS_CUSTOM_STYLING__inUse                   LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "inUse"
+#define LV2_DARKGLASS_CUSTOM_STYLING__inactive                LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "inactive"
+#define LV2_DARKGLASS_CUSTOM_STYLING__knob                    LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "knob"
+#define LV2_DARKGLASS_CUSTOM_STYLING__list                    LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "list"
+#define LV2_DARKGLASS_CUSTOM_STYLING__meter                   LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "meter"
+#define LV2_DARKGLASS_CUSTOM_STYLING__paginationDots          LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "paginationDots"
+#define LV2_DARKGLASS_CUSTOM_STYLING__parameterStartPadding   LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "parameterStartPadding"
+#define LV2_DARKGLASS_CUSTOM_STYLING__parameters              LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "parameters"
+#define LV2_DARKGLASS_CUSTOM_STYLING__path                    LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "path"
+#define LV2_DARKGLASS_CUSTOM_STYLING__sceneControlActiveScene LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "sceneControlActiveScene"
+#define LV2_DARKGLASS_CUSTOM_STYLING__sceneControlAllScenes   LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "sceneControlAllScenes"
+#define LV2_DARKGLASS_CUSTOM_STYLING__size                    LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "size"
+#define LV2_DARKGLASS_CUSTOM_STYLING__toggle                  LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "toggle"
+#define LV2_DARKGLASS_CUSTOM_STYLING__topBar                  LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "topBar"
+#define LV2_DARKGLASS_CUSTOM_STYLING__topBarBlockName         LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "topBarBlockName"
+#define LV2_DARKGLASS_CUSTOM_STYLING__topBarButtons           LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "topBarButtons"
+#define LV2_DARKGLASS_CUSTOM_STYLING__topBarSceneControl      LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "topBarSceneControl"
+#define LV2_DARKGLASS_CUSTOM_STYLING__unavailable             LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "unavailable"
+#define LV2_DARKGLASS_CUSTOM_STYLING__width                   LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "width"
+#define LV2_DARKGLASS_CUSTOM_STYLING__x                       LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "x"
+#define LV2_DARKGLASS_CUSTOM_STYLING__y                       LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "y"
 
 #define LILV_NS_KXSTUDIO "http://kxstudio.sf.net/ns/lv2ext/props"
 #define KXSTUDIO__Reset LILV_NS_KXSTUDIO "#Reset"
@@ -228,15 +232,17 @@ struct Lv2NamespaceDefinitions {
     LilvNode* const darkglass_blockImageOff;
     LilvNode* const darkglass_blockImageOn;
     LilvNode* const dgcs_alignment;
-    LilvNode* const dgcs_back;
     LilvNode* const dgcs_background;
     LilvNode* const dgcs_backgroundScenes;
     LilvNode* const dgcs_blockImage;
-    LilvNode* const dgcs_blockName;
     LilvNode* const dgcs_blockSettings;
     LilvNode* const dgcs_blocked;
+    LilvNode* const dgcs_buttonBack;
+    LilvNode* const dgcs_buttonClose;
+    LilvNode* const dgcs_buttonMore;
+    LilvNode* const dgcs_buttonRemove;
+    LilvNode* const dgcs_buttonSwap;
     LilvNode* const dgcs_bypass;
-    LilvNode* const dgcs_close;
     LilvNode* const dgcs_control;
     LilvNode* const dgcs_font;
     LilvNode* const dgcs_height;
@@ -245,16 +251,18 @@ struct Lv2NamespaceDefinitions {
     LilvNode* const dgcs_knob;
     LilvNode* const dgcs_list;
     LilvNode* const dgcs_meter;
-    LilvNode* const dgcs_more;
     LilvNode* const dgcs_paginationDots;
     LilvNode* const dgcs_parameterStartPadding;
     LilvNode* const dgcs_parameters;
     LilvNode* const dgcs_path;
-    LilvNode* const dgcs_remove;
+    LilvNode* const dgcs_sceneControlActiveScene;
+    LilvNode* const dgcs_sceneControlAllScenes;
     LilvNode* const dgcs_size;
-    LilvNode* const dgcs_swap;
     LilvNode* const dgcs_toggle;
-    LilvNode* const dgcs_topbarButtons;
+    LilvNode* const dgcs_topBar;
+    LilvNode* const dgcs_topBarBlockName;
+    LilvNode* const dgcs_topBarButtons;
+    LilvNode* const dgcs_topBarSceneControl;
     LilvNode* const dgcs_unavailable;
     LilvNode* const dgcs_width;
     LilvNode* const dgcs_x;
@@ -283,15 +291,17 @@ struct Lv2NamespaceDefinitions {
           darkglass_blockImageOff(lilv_new_uri(world, LV2_DARKGLASS_PROPERTIES__blockImageOff)),
           darkglass_blockImageOn(lilv_new_uri(world, LV2_DARKGLASS_PROPERTIES__blockImageOn)),
           dgcs_alignment(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__alignment)),
-          dgcs_back(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__back)),
           dgcs_background(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__background)),
           dgcs_backgroundScenes(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__backgroundScenes)),
           dgcs_blockImage(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__blockImage)),
-          dgcs_blockName(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__blockName)),
           dgcs_blockSettings(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__blockSettings)),
           dgcs_blocked(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__blocked)),
+          dgcs_buttonBack(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__buttonBack)),
+          dgcs_buttonClose(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__buttonClose)),
+          dgcs_buttonMore(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__buttonMore)),
+          dgcs_buttonRemove(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__buttonRemove)),
+          dgcs_buttonSwap(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__buttonSwap)),
           dgcs_bypass(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__bypass)),
-          dgcs_close(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__close)),
           dgcs_control(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__control)),
           dgcs_font(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__font)),
           dgcs_height(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__height)),
@@ -300,16 +310,18 @@ struct Lv2NamespaceDefinitions {
           dgcs_knob(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__knob)),
           dgcs_list(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__list)),
           dgcs_meter(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__meter)),
-          dgcs_more(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__more)),
           dgcs_paginationDots(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__paginationDots)),
           dgcs_parameterStartPadding(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__parameterStartPadding)),
           dgcs_parameters(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__parameters)),
           dgcs_path(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__path)),
-          dgcs_remove(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__remove)),
+          dgcs_sceneControlActiveScene(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__sceneControlActiveScene)),
+          dgcs_sceneControlAllScenes(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__sceneControlActiveScene)),
           dgcs_size(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__size)),
-          dgcs_swap(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__swap)),
           dgcs_toggle(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__toggle)),
-          dgcs_topbarButtons(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__topBarButtons)),
+          dgcs_topBar(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__topBar)),
+          dgcs_topBarBlockName(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__topBarBlockName)),
+          dgcs_topBarButtons(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__topBarButtons)),
+          dgcs_topBarSceneControl(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__topBarSceneControl)),
           dgcs_unavailable(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__unavailable)),
           dgcs_width(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__width)),
           dgcs_x(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__x)),
@@ -341,15 +353,17 @@ struct Lv2NamespaceDefinitions {
         lilv_node_free(darkglass_blockImageOff);
         lilv_node_free(darkglass_blockImageOn);
         lilv_node_free(dgcs_alignment);
-        lilv_node_free(dgcs_back);
         lilv_node_free(dgcs_background);
         lilv_node_free(dgcs_backgroundScenes);
         lilv_node_free(dgcs_blockImage);
-        lilv_node_free(dgcs_blockName);
         lilv_node_free(dgcs_blockSettings);
         lilv_node_free(dgcs_blocked);
+        lilv_node_free(dgcs_buttonBack);
+        lilv_node_free(dgcs_buttonClose);
+        lilv_node_free(dgcs_buttonMore);
+        lilv_node_free(dgcs_buttonRemove);
+        lilv_node_free(dgcs_buttonSwap);
         lilv_node_free(dgcs_bypass);
-        lilv_node_free(dgcs_close);
         lilv_node_free(dgcs_control);
         lilv_node_free(dgcs_font);
         lilv_node_free(dgcs_height);
@@ -358,16 +372,18 @@ struct Lv2NamespaceDefinitions {
         lilv_node_free(dgcs_knob);
         lilv_node_free(dgcs_list);
         lilv_node_free(dgcs_meter);
-        lilv_node_free(dgcs_more);
         lilv_node_free(dgcs_paginationDots);
         lilv_node_free(dgcs_parameterStartPadding);
         lilv_node_free(dgcs_parameters);
         lilv_node_free(dgcs_path);
-        lilv_node_free(dgcs_remove);
+        lilv_node_free(dgcs_sceneControlActiveScene);
+        lilv_node_free(dgcs_sceneControlAllScenes);
         lilv_node_free(dgcs_size);
-        lilv_node_free(dgcs_swap);
         lilv_node_free(dgcs_toggle);
-        lilv_node_free(dgcs_topbarButtons);
+        lilv_node_free(dgcs_topBar);
+        lilv_node_free(dgcs_topBarBlockName);
+        lilv_node_free(dgcs_topBarButtons);
+        lilv_node_free(dgcs_topBarSceneControl);
         lilv_node_free(dgcs_unavailable);
         lilv_node_free(dgcs_width);
         lilv_node_free(dgcs_x);
@@ -1419,41 +1435,59 @@ struct Lv2World::Impl
 
         assignImage(styling->background, stylingNode, ns.dgcs_background, CustomStyling::kAlignBottomRight);
 
-        if (LilvNode* const blockNameNode = lilv_world_get(world, stylingNode, ns.dgcs_blockName, nullptr))
-        {
-            assignImage(styling->blockName.background, blockNameNode, ns.dgcs_background, CustomStyling::kAlignTopLeft);
-            assignFont(styling->blockName.font, blockNameNode);
-
-            lilv_node_free(blockNameNode);
-        }
-
         assignImage(styling->paginationDots, stylingNode, ns.dgcs_paginationDots, CustomStyling::kAlignBottomMid);
 
-        if (LilvNode* const topbarButtonsNode = lilv_world_get(world, stylingNode, ns.dgcs_topbarButtons, nullptr))
+        if (LilvNode* const topBarNode = lilv_world_get(world, stylingNode, ns.dgcs_topBar, nullptr))
         {
-            const auto assignPath = [&](std::string& pathRef, const LilvNode* const predicate)
+            assignImage(styling->topBar.background, topBarNode, ns.dgcs_background);
+
+            if (LilvNode* const blockNameNode = lilv_world_get(world, topBarNode, ns.dgcs_topBarBlockName, nullptr))
             {
-                LilvNode* const pathNode = lilv_world_get(world, topbarButtonsNode, predicate, nullptr);
-                if (pathNode == nullptr)
-                    return;
+                assignImage(styling->topBar.blockName.background, blockNameNode, ns.dgcs_background, CustomStyling::kAlignTopLeft);
+                assignFont(styling->topBar.blockName.font, blockNameNode);
 
-                char* const path = _lilv_file_abspath(pathNode);
-                if (path != nullptr && path_contains(path, retplugin->bundlepath))
+                lilv_node_free(blockNameNode);
+            }
+
+            if (LilvNode* const buttonsNode = lilv_world_get(world, topBarNode, ns.dgcs_topBarButtons, nullptr))
+            {
+                const auto assignPath = [&](std::string& pathRef, const LilvNode* const predicate)
                 {
-                    pathRef = path;
-                }
+                    LilvNode* const pathNode = lilv_world_get(world, buttonsNode, predicate, nullptr);
+                    if (pathNode == nullptr)
+                        return;
 
-                std::free(path);
-                lilv_node_free(pathNode);
-            };
+                    char* const path = _lilv_file_abspath(pathNode);
+                    if (path != nullptr && path_contains(path, retplugin->bundlepath))
+                    {
+                        pathRef = path;
+                    }
 
-            assignPath(styling->topBarButtons.back, ns.dgcs_back);
-            assignPath(styling->topBarButtons.close, ns.dgcs_close);
-            assignPath(styling->topBarButtons.more, ns.dgcs_more);
-            assignPath(styling->topBarButtons.remove, ns.dgcs_remove);
-            assignPath(styling->topBarButtons.swap, ns.dgcs_swap);
+                    std::free(path);
+                    lilv_node_free(pathNode);
+                };
 
-            lilv_node_free(topbarButtonsNode);
+                assignPath(styling->topBar.buttons.back, ns.dgcs_buttonBack);
+                assignPath(styling->topBar.buttons.close, ns.dgcs_buttonClose);
+                assignPath(styling->topBar.buttons.more, ns.dgcs_buttonMore);
+                assignPath(styling->topBar.buttons.remove, ns.dgcs_buttonRemove);
+                assignPath(styling->topBar.buttons.swap, ns.dgcs_buttonSwap);
+
+                lilv_node_free(buttonsNode);
+            }
+
+            if (LilvNode* const sceneControlNode = lilv_world_get(world, topBarNode, ns.dgcs_topBarSceneControl, nullptr))
+            {
+                assignImage(styling->topBar.sceneControl.withBackgroundAndFont.background, sceneControlNode, ns.dgcs_background);
+                assignFont(styling->topBar.sceneControl.withBackgroundAndFont.font, sceneControlNode);
+
+                assignImage(styling->topBar.sceneControl.withImages.activeScene, sceneControlNode, ns.dgcs_sceneControlActiveScene);
+                assignImage(styling->topBar.sceneControl.withImages.allScenes, sceneControlNode, ns.dgcs_sceneControlAllScenes);
+
+                lilv_node_free(sceneControlNode);
+            }
+
+            lilv_node_free(topBarNode);
         }
 
         if (LilvNode* const node = lilv_world_get(world, stylingNode, ns.dgcs_bypass, nullptr))
