@@ -1,0 +1,9 @@
+[submodule "src/darkglass-lv2-extensions"]
+	path = src/darkglass-lv2-extensions
+	url = https://github.com/Darkglass-Electronics/LV2-Extensions.git
+[submodule "src/kxstudio-lv2-extensions"]
+	path = src/kxstudio-lv2-extensions
+	url = https://github.com/KXStudio/LV2-Extensions.git
+[submodule "src/mod-lv2-extensions"]
+	path = src/mod-lv2-extensions
+	url = https://github.com/mod-audio/mod-lv2-extensions.git
