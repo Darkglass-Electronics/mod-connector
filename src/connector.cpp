@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2024-2025 Filipe Coelho <falktx@darkglass.com>
+// SPDX-FileCopyrightText: 2024-2026 Filipe Coelho <falktx@darkglass.com>
 // SPDX-License-Identifier: ISC
 
 #define MOD_LOG_GROUP "connector"
@@ -6,6 +6,8 @@
 #include "connector.hpp"
 #include "json.hpp"
 #include "utils.hpp"
+
+#include "kxstudio-lv2-extensions/kx-properties.lv2/props.h"
 
 #include <cstddef>
 #include <cstring>
@@ -21,13 +23,6 @@
 #ifdef __linux__
 #include <fcntl.h>
 #endif
-
-// Possible values for LV2_KXSTUDIO_PROPERTIES__Reset
-typedef enum {
-    LV2_KXSTUDIO_PROPERTIES_RESET_NONE = 0, // No reset
-    LV2_KXSTUDIO_PROPERTIES_RESET_FULL = 1, // Full reset
-    LV2_KXSTUDIO_PROPERTIES_RESET_SOFT = 2  // Soft reset, e.g. reset filter state but do not clear audio buffers
-} LV2_KXStudio_Properties_Reset;
 
 #define JSON_PRESET_VERSION_CURRENT 1
 #define JSON_PRESET_VERSION_MIN_SUPPORTED 1
