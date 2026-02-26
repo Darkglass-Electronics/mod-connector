@@ -18,6 +18,8 @@ jobs:
       image: ${{ matrix.image }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - name: install dependencies
         shell: bash
         run: |
@@ -44,6 +46,8 @@ jobs:
       image: ${{ matrix.image }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - name: install dependencies
         shell: bash
         run: |
@@ -70,6 +74,8 @@ jobs:
       image: ${{ matrix.image }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - name: install dependencies
         shell: bash
         run: |
@@ -90,6 +96,8 @@ jobs:
     runs-on: ${{ matrix.target }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - name: install dependencies
         shell: bash
         run: |
@@ -111,6 +119,8 @@ jobs:
     runs-on: ${{ matrix.target }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - name: install dependencies
         shell: bash
         run: |
