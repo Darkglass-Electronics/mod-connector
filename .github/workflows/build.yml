@@ -7,15 +7,7 @@ env:
 
 jobs:
   linux-lib:
-    strategy:
-      matrix:
-        image:
-          - debian:12
-          - ubuntu:22.04
-          - ubuntu:24.04
     runs-on: ubuntu-latest
-    container:
-      image: ${{ matrix.image }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -23,8 +15,8 @@ jobs:
       - name: install dependencies
         shell: bash
         run: |
-          apt-get update -qq
-          apt-get install -yqq cmake g++ liblilv-dev lv2-dev pkg-config
+          sudo apt-get update -qq
+          sudo apt-get install -yqq cmake g++ liblilv-dev lv2-dev pkg-config
       - name: build
         shell: bash
         run: |
@@ -34,16 +26,10 @@ jobs:
   linux-qt5:
     strategy:
       matrix:
-        image:
-          - debian:12
-          - ubuntu:22.04
-          - ubuntu:24.04
         pkgs:
           - libqt5websockets5-dev
           - libqt5websockets5-dev libsystemd-dev
     runs-on: ubuntu-latest
-    container:
-      image: ${{ matrix.image }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -51,8 +37,8 @@ jobs:
       - name: install dependencies
         shell: bash
         run: |
-          apt-get update -qq
-          apt-get install -yqq cmake g++ libjack-jackd2-dev liblilv-dev lv2-dev pkg-config ${{ matrix.pkgs }}
+          sudo apt-get update -qq
+          sudo apt-get install -yqq cmake g++ libjack-jackd2-dev liblilv-dev lv2-dev pkg-config ${{ matrix.pkgs }}
       - name: build
         shell: bash
         run: |
@@ -62,16 +48,10 @@ jobs:
   linux-qt6:
     strategy:
       matrix:
-        image:
-          - debian:12
-          - ubuntu:22.04
-          - ubuntu:24.04
         pkgs:
           - libqt6websockets6-dev
           - libqt6websockets6-dev libsystemd-dev
     runs-on: ubuntu-latest
-    container:
-      image: ${{ matrix.image }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -79,8 +59,8 @@ jobs:
       - name: install dependencies
         shell: bash
         run: |
-          apt-get update -qq
-          apt-get install -yqq cmake g++ libjack-jackd2-dev liblilv-dev lv2-dev pkg-config ${{ matrix.pkgs }}
+          sudo apt-get update -qq
+          sudo apt-get install -yqq cmake g++ libjack-jackd2-dev liblilv-dev lv2-dev pkg-config ${{ matrix.pkgs }}
       - name: build
         shell: bash
         run: |
