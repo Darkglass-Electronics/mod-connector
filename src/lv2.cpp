@@ -7,6 +7,12 @@
 #include "utils.hpp"
 #include "sha1/sha1.h"
 
+#include "darkglass-lv2-extensions/dg-custom-styling.lv2/custom-styling.h"
+#include "darkglass-lv2-extensions/dg-properties.lv2/props.h"
+#include "kxstudio-lv2-extensions/kx-properties.lv2/props.h"
+#include "mod-lv2-extensions/mod.lv2/mod.h"
+#include "mod-lv2-extensions/mod-license.lv2/mod-license.h"
+
 #include <algorithm>
 #include <climits>
 #include <cstring>
@@ -38,6 +44,7 @@
 #include <lv2/lv2plug.in/ns/ext/units/units.h>
 #endif
 
+// Fix compatibility with old LV2 versions which don't provide these properties
 #ifndef LV2_CORE__Parameter
 #define LV2_CORE__Parameter LV2_CORE_PREFIX "Parameter"
 #endif
@@ -53,74 +60,6 @@
 #ifndef LV2_CORE__shortName
 #define LV2_CORE__shortName LV2_CORE_PREFIX "shortName"
 #endif
-
-// TODO include extension headers instead of redefining things here
-
-#define LV2_DARKGLASS_PROPERTIES_URI    "http://www.darkglass.com/lv2/ns"
-#define LV2_DARKGLASS_PROPERTIES_PREFIX LV2_DARKGLASS_PROPERTIES_URI "#"
-
-#define LV2_DARKGLASS_PROPERTIES__abbreviation          LV2_DARKGLASS_PROPERTIES_PREFIX "abbreviation"
-#define LV2_DARKGLASS_PROPERTIES__blockImageOff         LV2_DARKGLASS_PROPERTIES_PREFIX "blockImageOff"
-#define LV2_DARKGLASS_PROPERTIES__blockImageOn          LV2_DARKGLASS_PROPERTIES_PREFIX "blockImageOn"
-#define LV2_DARKGLASS_PROPERTIES__mayUpdateBlockedState LV2_DARKGLASS_PROPERTIES_PREFIX "mayUpdateBlockedState"
-#define LV2_DARKGLASS_PROPERTIES__oneDecimalPoint       LV2_DARKGLASS_PROPERTIES_PREFIX "oneDecimalPoint"
-#define LV2_DARKGLASS_PROPERTIES__quickPot              LV2_DARKGLASS_PROPERTIES_PREFIX "quickPot"
-#define LV2_DARKGLASS_PROPERTIES__savedToPreset         LV2_DARKGLASS_PROPERTIES_PREFIX "savedToPreset"
-
-#define LV2_DARKGLASS_CUSTOM_STYLING_URI    "http://www.darkglass.com/lv2/ns/lv2ext/custom-styling"
-#define LV2_DARKGLASS_CUSTOM_STYLING_PREFIX LV2_DARKGLASS_CUSTOM_STYLING_URI "#"
-
-#define LV2_DARKGLASS_CUSTOM_STYLING__alignBottomLeft         LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "alignBottomLeft"
-#define LV2_DARKGLASS_CUSTOM_STYLING__alignBottomMid          LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "alignBottomMid"
-#define LV2_DARKGLASS_CUSTOM_STYLING__alignBottomRight        LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "alignBottomRight"
-#define LV2_DARKGLASS_CUSTOM_STYLING__alignCenter             LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "alignCenter"
-#define LV2_DARKGLASS_CUSTOM_STYLING__alignLeftMid            LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "alignLeftMid"
-#define LV2_DARKGLASS_CUSTOM_STYLING__alignRightMid           LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "alignRightMid"
-#define LV2_DARKGLASS_CUSTOM_STYLING__alignTopLeft            LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "alignTopLeft"
-#define LV2_DARKGLASS_CUSTOM_STYLING__alignTopMid             LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "alignTopMid"
-#define LV2_DARKGLASS_CUSTOM_STYLING__alignTopRight           LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "alignTopRight"
-#define LV2_DARKGLASS_CUSTOM_STYLING__alignment               LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "alignment"
-#define LV2_DARKGLASS_CUSTOM_STYLING__background              LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "background"
-#define LV2_DARKGLASS_CUSTOM_STYLING__backgroundScenes        LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "backgroundScenes"
-#define LV2_DARKGLASS_CUSTOM_STYLING__blockImage              LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "blockImage"
-#define LV2_DARKGLASS_CUSTOM_STYLING__blockSettings           LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "blockSettings"
-#define LV2_DARKGLASS_CUSTOM_STYLING__blocked                 LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "blocked"
-#define LV2_DARKGLASS_CUSTOM_STYLING__buttonBack              LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "buttonBack"
-#define LV2_DARKGLASS_CUSTOM_STYLING__buttonClose             LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "buttonClose"
-#define LV2_DARKGLASS_CUSTOM_STYLING__buttonMore              LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "buttonMore"
-#define LV2_DARKGLASS_CUSTOM_STYLING__buttonRemove            LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "buttonRemove"
-#define LV2_DARKGLASS_CUSTOM_STYLING__buttonSwap              LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "buttonSwap"
-#define LV2_DARKGLASS_CUSTOM_STYLING__bypass                  LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "bypass"
-#define LV2_DARKGLASS_CUSTOM_STYLING__control                 LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "control"
-#define LV2_DARKGLASS_CUSTOM_STYLING__font                    LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "font"
-#define LV2_DARKGLASS_CUSTOM_STYLING__height                  LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "height"
-#define LV2_DARKGLASS_CUSTOM_STYLING__inUse                   LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "inUse"
-#define LV2_DARKGLASS_CUSTOM_STYLING__inactive                LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "inactive"
-#define LV2_DARKGLASS_CUSTOM_STYLING__knob                    LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "knob"
-#define LV2_DARKGLASS_CUSTOM_STYLING__list                    LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "list"
-#define LV2_DARKGLASS_CUSTOM_STYLING__meter                   LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "meter"
-#define LV2_DARKGLASS_CUSTOM_STYLING__paginationDots          LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "paginationDots"
-#define LV2_DARKGLASS_CUSTOM_STYLING__parameterStartPadding   LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "parameterStartPadding"
-#define LV2_DARKGLASS_CUSTOM_STYLING__parameters              LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "parameters"
-#define LV2_DARKGLASS_CUSTOM_STYLING__path                    LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "path"
-#define LV2_DARKGLASS_CUSTOM_STYLING__sceneControlActiveScene LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "sceneControlActiveScene"
-#define LV2_DARKGLASS_CUSTOM_STYLING__sceneControlAllScenes   LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "sceneControlAllScenes"
-#define LV2_DARKGLASS_CUSTOM_STYLING__size                    LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "size"
-#define LV2_DARKGLASS_CUSTOM_STYLING__toggle                  LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "toggle"
-#define LV2_DARKGLASS_CUSTOM_STYLING__topBar                  LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "topBar"
-#define LV2_DARKGLASS_CUSTOM_STYLING__topBarBlockName         LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "topBarBlockName"
-#define LV2_DARKGLASS_CUSTOM_STYLING__topBarButtons           LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "topBarButtons"
-#define LV2_DARKGLASS_CUSTOM_STYLING__topBarSceneControl      LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "topBarSceneControl"
-#define LV2_DARKGLASS_CUSTOM_STYLING__unavailable             LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "unavailable"
-#define LV2_DARKGLASS_CUSTOM_STYLING__width                   LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "width"
-#define LV2_DARKGLASS_CUSTOM_STYLING__x                       LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "x"
-#define LV2_DARKGLASS_CUSTOM_STYLING__y                       LV2_DARKGLASS_CUSTOM_STYLING_PREFIX "y"
-
-#define LILV_NS_KXSTUDIO "http://kxstudio.sf.net/ns/lv2ext/props"
-#define KXSTUDIO__Reset LILV_NS_KXSTUDIO "#Reset"
-
-#define LILV_NS_MOD "http://moddevices.com/ns/mod#"
-#define MOD__CVPort LILV_NS_MOD "CVPort"
 
 // --------------------------------------------------------------------------------------------------------------------
 // compatibility functions
@@ -335,8 +274,8 @@ struct Lv2NamespaceDefinitions {
           lv2core_portProperty(lilv_new_uri(world, LV2_CORE__portProperty)),
           lv2core_shortName(lilv_new_uri(world, LV2_CORE__shortName)),
           lv2core_symbol(lilv_new_uri(world, LV2_CORE__symbol)),
-          mod_releaseNumber(lilv_new_uri(world, "http://moddevices.com/ns/mod#releaseNumber")),
-          modlicense_interface(lilv_new_uri(world, "http://moddevices.com/ns/ext/license#interface")),
+          mod_releaseNumber(lilv_new_uri(world, LV2_MOD__releaseNumber)),
+          modlicense_interface(lilv_new_uri(world, MOD_LICENSE__interface)),
           patch_readable(lilv_new_uri(world, LV2_PATCH__readable)),
           patch_writable(lilv_new_uri(world, LV2_PATCH__writable)),
           rdf_type(lilv_new_uri(world, LILV_NS_RDF "type")),
@@ -780,7 +719,7 @@ struct Lv2World::Impl
                             isGood = true;
                             continue;
                         }
-                        if (std::strcmp(typestr, MOD__CVPort) == 0) {
+                        if (std::strcmp(typestr, LV2_MOD__CVPort) == 0) {
                             isGood = true;
                             continue;
                         }
@@ -894,7 +833,7 @@ struct Lv2World::Impl
                             retport.designation = kLv2DesignationBPM;
                         else if (std::strcmp(designation, LV2_DARKGLASS_PROPERTIES__quickPot) == 0)
                             retport.designation = kLv2DesignationQuickPot;
-                        else if (std::strcmp(designation, KXSTUDIO__Reset) == 0)
+                        else if (std::strcmp(designation, LV2_KXSTUDIO_PROPERTIES__Reset) == 0)
                             retport.designation = kLv2DesignationReset;
 
                         lilv_nodes_free(xdesignation);
