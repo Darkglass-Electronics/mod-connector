@@ -41,12 +41,14 @@ struct Font {
     operator bool() const noexcept { return !path.empty() && size != 0; }
 };
 
-// An image requires a path, alignment is optional as it is not always relevant
+// An image requires a path, alignment and offset are optional as they are not always relevant
 // If the image belongs to a parameter control, animation frames must be used (from min to max)
 // If the image belongs to a bypass control, at least 2 animation frames are required (on is first, then off/bypassed)
 // If the image belongs to a block, animation frames are optional (if present: on is first, then off/bypassed)
 struct Image {
     Alignment alignment = kAlignNone;
+    int16_t offsetX = 0;
+    int16_t offsetY = 0;
     std::string path;
     operator bool() const noexcept { return !path.empty(); }
 };

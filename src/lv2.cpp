@@ -190,6 +190,8 @@ struct Lv2NamespaceDefinitions {
     LilvNode* const dgcs_knob;
     LilvNode* const dgcs_list;
     LilvNode* const dgcs_meter;
+    LilvNode* const dgcs_offsetX;
+    LilvNode* const dgcs_offsetY;
     LilvNode* const dgcs_paginationDots;
     LilvNode* const dgcs_parameterStartPadding;
     LilvNode* const dgcs_parameters;
@@ -249,6 +251,8 @@ struct Lv2NamespaceDefinitions {
           dgcs_knob(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__knob)),
           dgcs_list(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__list)),
           dgcs_meter(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__meter)),
+          dgcs_offsetX(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__offsetX)),
+          dgcs_offsetY(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__offsetY)),
           dgcs_paginationDots(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__paginationDots)),
           dgcs_parameterStartPadding(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__parameterStartPadding)),
           dgcs_parameters(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__parameters)),
@@ -311,6 +315,8 @@ struct Lv2NamespaceDefinitions {
         lilv_node_free(dgcs_knob);
         lilv_node_free(dgcs_list);
         lilv_node_free(dgcs_meter);
+        lilv_node_free(dgcs_offsetX);
+        lilv_node_free(dgcs_offsetY);
         lilv_node_free(dgcs_paginationDots);
         lilv_node_free(dgcs_parameterStartPadding);
         lilv_node_free(dgcs_parameters);
@@ -1581,6 +1587,20 @@ struct Lv2World::Impl
                         imageRef.alignment = CustomStyling::kAlignTopRight;
                 }
                 lilv_node_free(alignmentNode);
+            }
+
+            if (LilvNode* const offsetNode = lilv_world_get(world, imageNode, ns.dgcs_offsetX, nullptr))
+            {
+                if (lilv_node_is_int(offsetNode))
+                    imageRef.offsetX = lilv_node_as_int(offsetNode);
+                lilv_node_free(offsetNode);
+            }
+
+            if (LilvNode* const offsetNode = lilv_world_get(world, imageNode, ns.dgcs_offsetY, nullptr))
+            {
+                if (lilv_node_is_int(offsetNode))
+                    imageRef.offsetY = lilv_node_as_int(offsetNode);
+                lilv_node_free(offsetNode);
             }
 
             if constexpr (std::is_same_v<ImageClass, CustomStyling::Overlay>)
