@@ -210,6 +210,7 @@ struct Lv2NamespaceDefinitions {
     LilvNode* const dgcs_y;
     LilvNode* const lv2core_default;
     LilvNode* const lv2core_designation;
+    LilvNode* const lv2core_index;
     LilvNode* const lv2core_minimum;
     LilvNode* const lv2core_maximum;
     LilvNode* const lv2core_microVersion;
@@ -271,6 +272,7 @@ struct Lv2NamespaceDefinitions {
           dgcs_y(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__y)),
           lv2core_default(lilv_new_uri(world, LV2_CORE__default)),
           lv2core_designation(lilv_new_uri(world, LV2_CORE__designation)),
+          lv2core_index(lilv_new_uri(world, LV2_CORE__index)),
           lv2core_minimum(lilv_new_uri(world, LV2_CORE__minimum)),
           lv2core_maximum(lilv_new_uri(world, LV2_CORE__maximum)),
           lv2core_microVersion(lilv_new_uri(world, LV2_CORE__microVersion)),
@@ -335,6 +337,7 @@ struct Lv2NamespaceDefinitions {
         lilv_node_free(dgcs_y);
         lilv_node_free(lv2core_default);
         lilv_node_free(lv2core_designation);
+        lilv_node_free(lv2core_index);
         lilv_node_free(lv2core_minimum);
         lilv_node_free(lv2core_maximum);
         lilv_node_free(lv2core_microVersion);
@@ -1470,6 +1473,17 @@ struct Lv2World::Impl
                 if (lilv_node_is_string(symbolNode))
                 {
                     const char* const symbol = lilv_node_as_string(symbolNode);
+
+                    if (LilvNode* const indexNode = lilv_world_get(world, parameterNode, ns.lv2core_index, nullptr))
+                    {
+                        if (lilv_node_is_int(indexNode))
+                        {
+                            if (const int index = lilv_node_as_int(indexNode); index >= 0)
+                                styling->parameterPositions[index] = symbol;
+                        }
+
+                        lilv_node_free(indexNode);
+                    }
 
                     assignParameterFromNode(styling->parameters[symbol], parameterNode);
                 }

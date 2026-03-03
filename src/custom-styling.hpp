@@ -21,7 +21,7 @@ static constexpr const int kMaxParameterStartPadding = UINT8_MAX;
 
 // Alignment for images when they don't match the full size of the container
 // This enum intentionally matches lv_align_t so it can be used without conversions
-enum Alignment {
+enum Alignment : uint8_t {
     kAlignNone,
     kAlignTopLeft,
     kAlignTopMid,
@@ -181,6 +181,9 @@ struct BlockSettings {
 
     // Parameter-specific widgets, indexed by control port symbol
     std::unordered_map<std::string, ParameterWidget> parameters;
+
+    // Custom positions for widgets, mapping index to control port symbol
+    std::unordered_map<uint32_t, std::string> parameterPositions;
 };
 
 } // namespace CustomStyling
