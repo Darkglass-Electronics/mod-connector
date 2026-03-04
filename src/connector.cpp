@@ -1666,18 +1666,14 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
             if (! params.empty())
             {
                 hostParamsFlushBlockPair(hbp, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params);
-                // de-activate and re-activate to get pre-run
-                // FIXME: to be removed if mod-host has a separate pre-run command or reset while not processing includes it
                 if (hbp.pair == kMaxHostInstances) 
                 {
-                    _host.activate(hbp.id, false);
-                    _host.activate(hbp.id, true);
+                    // TODO (requires mod-host function): pre-run hbp.id
                 }
                 else 
                 {
-                    std::array<int16_t, 2> instances;
-                    _host.multi_activate(false, 2, instances.data());
-                    _host.multi_activate(true, 2, instances.data());   
+                    const int16_t instances[2] = { static_cast<int16_t>(hbp.id), static_cast<int16_t>(hbp.pair) };
+                    // TODO (requires mod-host function): pre-run instances
                 }
             }
 
@@ -2150,18 +2146,14 @@ bool HostConnector::resetBlock(const uint8_t row, const uint8_t block, const boo
     if (! params.empty())
     {
         hostParamsFlushBlockPair(hbp, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params);
-        // de-activate and re-activate to get pre-run
-        // FIXME: to be removed if mod-host has a separate pre-run command or reset while not processing includes it
         if (hbp.pair == kMaxHostInstances) 
         {
-            _host.activate(hbp.id, false);
-            _host.activate(hbp.id, true);
+            // TODO (requires mod-host function): pre-run hbp.id
         }
         else 
         {
-            std::array<int16_t, 2> instances;
-            _host.multi_activate(false, 2, instances.data());
-            _host.multi_activate(true, 2, instances.data());   
+            const int16_t instances[2] = { static_cast<int16_t>(hbp.id), static_cast<int16_t>(hbp.pair) };
+            // TODO (requires mod-host function): pre-run instances
         }
     }
 
@@ -4799,10 +4791,7 @@ void HostConnector::hostEnsureStereoChain(const uint8_t preset,
                 // reset original block instance so the pair of blocks are in sync
                 const HostBlockPair hbp = _mapper.get(preset, row, bl);
                 _host.params_flush(hbp.id, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, 0, nullptr);
-                // de-activate and re-activate to get pre-run
-                // FIXME: to be removed if mod-host has a separate pre-run command or reset while not processing includes it
-                _host.activate(hbp.id, false);
-                _host.activate(hbp.id, true);
+                // TODO (requires mod-host function): pre-run hbp.id
             }
             else
             {
