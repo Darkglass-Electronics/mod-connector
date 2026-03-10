@@ -366,6 +366,9 @@ struct Lv2World::Impl
           world(lilv_world_new()),
           ns(world)
     {
+       #ifdef LILV_OPTION_OBJECT_INDEX
+        lilv_world_set_option(world, LILV_OPTION_OBJECT_INDEX, nullptr);
+       #endif
         lilv_world_load_all(world);
 
         plugins = lilv_world_get_all_plugins(world);
@@ -1887,6 +1890,10 @@ void Lv2World::Impl::_pluginsInBundle(std::vector<std::string>& pluginsInBundle,
 {
     if (LilvWorld* const w = lilv_world_new())
     {
+       #ifdef LILV_OPTION_OBJECT_INDEX
+        lilv_world_set_option(w, LILV_OPTION_OBJECT_INDEX, nullptr);
+       #endif
+
         if (LilvNode* const b = lilv_new_file_uri(w, nullptr, bundlepath))
         {
             lilv_world_load_bundle(w, b);
