@@ -270,7 +270,7 @@ class HostConnectorTests : public QObject
         assert_return(connector.current.bindings[hw_id2].name.empty(), false);
 
         // ensure no bindings
-        for (uint8_t i = 0; i < 3; ++i)
+        for (uint8_t i = 0; i < 6; ++i)
         {
             assert_return(connector.current.block(0, i).meta.enable.hwbinding == UINT8_MAX, false);
         }
@@ -283,12 +283,18 @@ class HostConnectorTests : public QObject
             assert_return(connector.current.block(0, 0).meta.enable.hwbinding == UINT8_MAX, false);
             assert_return(connector.current.block(0, 1).meta.enable.hwbinding == hw_id1, false);
             assert_return(connector.current.block(0, 2).meta.enable.hwbinding == UINT8_MAX, false);
+            assert_return(connector.current.block(0, 3).meta.enable.hwbinding == UINT8_MAX, false);
+            assert_return(connector.current.block(0, 4).meta.enable.hwbinding == UINT8_MAX, false);
+            assert_return(connector.current.block(0, 5).meta.enable.hwbinding == UINT8_MAX, false);
 
             // now replace 0,1 with 0,2
             assert_return(connector.replaceBlockBinding(hw_id1, 0, 1, 0, 2), false);
             assert_return(connector.current.block(0, 0).meta.enable.hwbinding == UINT8_MAX, false);
             assert_return(connector.current.block(0, 1).meta.enable.hwbinding == UINT8_MAX, false);
             assert_return(connector.current.block(0, 2).meta.enable.hwbinding == hw_id1, false);
+            assert_return(connector.current.block(0, 3).meta.enable.hwbinding == UINT8_MAX, false);
+            assert_return(connector.current.block(0, 4).meta.enable.hwbinding == UINT8_MAX, false);
+            assert_return(connector.current.block(0, 5).meta.enable.hwbinding == UINT8_MAX, false);
         }
 
         // reorder bindings
@@ -296,6 +302,50 @@ class HostConnectorTests : public QObject
         assert_return(connector.current.block(0, 0).meta.enable.hwbinding == UINT8_MAX, false);
         assert_return(connector.current.block(0, 1).meta.enable.hwbinding == UINT8_MAX, false);
         assert_return(connector.current.block(0, 2).meta.enable.hwbinding == hw_id2, false);
+        assert_return(connector.current.block(0, 3).meta.enable.hwbinding == UINT8_MAX, false);
+        assert_return(connector.current.block(0, 4).meta.enable.hwbinding == UINT8_MAX, false);
+        assert_return(connector.current.block(0, 5).meta.enable.hwbinding == UINT8_MAX, false);
+
+        // test reordering of blocks here too
+        {
+            // making my life more difficult: add an extra binding in the middle
+            assert_return(connector.addBlockBinding(hw_id1, 0, 1), false);
+
+            // initial state
+            assert_return(connector.current.block(0, 0).meta.enable.hwbinding == UINT8_MAX, false);
+            assert_return(connector.current.block(0, 1).meta.enable.hwbinding == hw_id1, false);
+            assert_return(connector.current.block(0, 2).meta.enable.hwbinding == hw_id2, false);
+            assert_return(connector.current.block(0, 3).meta.enable.hwbinding == UINT8_MAX, false);
+            assert_return(connector.current.block(0, 4).meta.enable.hwbinding == UINT8_MAX, false);
+            assert_return(connector.current.block(0, 5).meta.enable.hwbinding == UINT8_MAX, false);
+
+            // simple swap
+            assert_return(connector.reorderBlock(0, 2, 3), false);
+            assert_return(connector.current.block(0, 0).meta.enable.hwbinding == UINT8_MAX, false);
+            assert_return(connector.current.block(0, 1).meta.enable.hwbinding == hw_id1, false);
+            assert_return(connector.current.block(0, 2).meta.enable.hwbinding == UINT8_MAX, false);
+            assert_return(connector.current.block(0, 3).meta.enable.hwbinding == hw_id2, false);
+            assert_return(connector.current.block(0, 4).meta.enable.hwbinding == UINT8_MAX, false);
+            assert_return(connector.current.block(0, 5).meta.enable.hwbinding == UINT8_MAX, false);
+
+            // move last block to start, off-setting everything by 1
+            assert_return(connector.reorderBlock(0, 5, 0), false);
+            assert_return(connector.current.block(0, 0).meta.enable.hwbinding == UINT8_MAX, false);
+            assert_return(connector.current.block(0, 1).meta.enable.hwbinding == UINT8_MAX, false);
+            assert_return(connector.current.block(0, 2).meta.enable.hwbinding == hw_id1, false);
+            assert_return(connector.current.block(0, 3).meta.enable.hwbinding == UINT8_MAX, false);
+            assert_return(connector.current.block(0, 4).meta.enable.hwbinding == hw_id2, false);
+            assert_return(connector.current.block(0, 5).meta.enable.hwbinding == UINT8_MAX, false);
+
+            // move 2nd binding to the start
+            assert_return(connector.reorderBlock(0, 4, 0), false);
+            assert_return(connector.current.block(0, 0).meta.enable.hwbinding == hw_id2, false);
+            assert_return(connector.current.block(0, 1).meta.enable.hwbinding == UINT8_MAX, false);
+            assert_return(connector.current.block(0, 2).meta.enable.hwbinding == UINT8_MAX, false);
+            assert_return(connector.current.block(0, 3).meta.enable.hwbinding == hw_id1, false);
+            assert_return(connector.current.block(0, 4).meta.enable.hwbinding == UINT8_MAX, false);
+            assert_return(connector.current.block(0, 5).meta.enable.hwbinding == UINT8_MAX, false);
+        }
 
         // cleanup
         connector.clearCurrentPreset();
