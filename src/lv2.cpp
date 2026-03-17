@@ -259,7 +259,7 @@ struct Lv2NamespaceDefinitions {
           dgcs_parameters(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__parameters)),
           dgcs_path(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__path)),
           dgcs_sceneControlActiveScene(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__sceneControlActiveScene)),
-          dgcs_sceneControlAllScenes(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__sceneControlActiveScene)),
+          dgcs_sceneControlAllScenes(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__sceneControlAllScenes)),
           dgcs_size(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__size)),
           dgcs_toggle(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__toggle)),
           dgcs_topBar(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__topBar)),
