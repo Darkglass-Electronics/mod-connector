@@ -6,6 +6,7 @@
 #include "custom-styling.hpp"
 
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -162,23 +163,23 @@ struct Lv2World {
    /* get the plugin @a index
     * can return null in case of error or the plugin requires unsupported features
     */
-    [[nodiscard]] const Lv2Plugin* getPluginByIndex(uint32_t index) const;
+    [[nodiscard]] std::shared_ptr<const Lv2Plugin> getPluginByIndex(uint32_t index) const;
 
    /* get the plugin with a known uri
     * can return null in case of error or the plugin requires unsupported features
     */
-    [[nodiscard]] const Lv2Plugin* getPluginByURI(const char* uri) const;
+    [[nodiscard]] std::shared_ptr<const Lv2Plugin> getPluginByURI(const char* uri) const;
 
 #ifndef MOD_CONNECTOR_MINIMAL_LV2_WORLD
    /* get the custom block styling of a plugin with a known uri
     * can return null in case of error or the plugin doesn't support styling
     */
-    [[nodiscard]] const CustomStyling::BlockImage* getPluginBlockImageStyling(const char* uri) const;
+    [[nodiscard]] std::shared_ptr<const CustomStyling::BlockImage> getPluginBlockImageStyling(const char* uri) const;
 
    /* get the custom block settings styling of a plugin with a known uri
     * can return null in case of error or the plugin doesn't support styling
     */
-    [[nodiscard]] const CustomStyling::BlockSettings* getPluginBlockSettingsStyling(const char* uri) const;
+    [[nodiscard]] std::shared_ptr<const CustomStyling::BlockSettings> getPluginBlockSettingsStyling(const char* uri) const;
 
    /* get the plugin port with a known symbol
     */

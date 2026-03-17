@@ -1718,7 +1718,7 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
 
     if (!isNullURI(uri))
     {
-        const Lv2Plugin* const plugin = lv2world.getPluginByURI(uri);
+        std::shared_ptr<const Lv2Plugin> plugin = lv2world.getPluginByURI(uri);
         assert_return(plugin != nullptr, false);
 
         // we only do changes after verifying that the requested plugin exists and is valid
@@ -3867,7 +3867,7 @@ void HostConnector::connectBlock2Tool(const uint8_t row,
     const bool toolStereoIn = toolInSymbolR != nullptr && *toolInSymbolR != '\0';
 
     const Block& blockdata(_current.chains[row].blocks[block]);
-    const Lv2Plugin* const plugin = lv2world.getPluginByURI(blockdata.uri.c_str());
+    std::shared_ptr<const Lv2Plugin> plugin = lv2world.getPluginByURI(blockdata.uri.c_str());
     assert_return(plugin != nullptr,);
 
     const HostBlockPair hbp = _mapper.get(_current.preset, row, block);
@@ -3971,7 +3971,7 @@ void HostConnector::connectBlockAudioInput2Tool(const uint8_t row,
     assert(toolInSymbolL != nullptr && *toolInSymbolL != '\0');
 
     const Block& blockdata(_current.chains[row].blocks[block]);
-    const Lv2Plugin* const plugin = lv2world.getPluginByURI(blockdata.uri.c_str());
+    std::shared_ptr<const Lv2Plugin> plugin = lv2world.getPluginByURI(blockdata.uri.c_str());
     assert_return(plugin != nullptr,);
 
     const HostBlockPair hbp = _mapper.get(_current.preset, row, block);
@@ -4324,10 +4324,10 @@ void HostConnector::hostConnectBlockToBlock(const uint8_t row, const uint8_t blo
     Block& blockdataA(_current.chains[row].blocks[blockA]);
     Block& blockdataB(_current.chains[row].blocks[blockB]);
 
-    const Lv2Plugin* const pluginA = lv2world.getPluginByURI(blockdataA.uri.c_str());
+    std::shared_ptr<const Lv2Plugin> pluginA = lv2world.getPluginByURI(blockdataA.uri.c_str());
     assert_return(pluginA != nullptr,);
 
-    const Lv2Plugin* const pluginB = lv2world.getPluginByURI(blockdataB.uri.c_str());
+    std::shared_ptr<const Lv2Plugin> pluginB = lv2world.getPluginByURI(blockdataB.uri.c_str());
     assert_return(pluginB != nullptr,);
 
     const HostBlockPair hbpA = _mapper.get(_current.preset, row, blockA);
@@ -4583,7 +4583,7 @@ void HostConnector::hostConnectChainInputAction(const uint8_t row, const uint8_t
     assert(block < NUM_BLOCKS_PER_PRESET);
     assert(!isNullBlock(_current.chains[row].blocks[block]));
 
-    const Lv2Plugin* const plugin = lv2world.getPluginByURI(_current.chains[row].blocks[block].uri.c_str());
+    std::shared_ptr<const Lv2Plugin> plugin = lv2world.getPluginByURI(_current.chains[row].blocks[block].uri.c_str());
     assert_return(plugin != nullptr,);
 
     const HostBlockPair hbp = _mapper.get(_current.preset, row, block);
@@ -4632,7 +4632,7 @@ void HostConnector::hostConnectChainOutputAction(const uint8_t row, const uint8_
 
     assert(!chain.playback[1].empty());
 
-    const Lv2Plugin* const plugin = lv2world.getPluginByURI(chain.blocks[block].uri.c_str());
+    std::shared_ptr<const Lv2Plugin> plugin = lv2world.getPluginByURI(chain.blocks[block].uri.c_str());
     assert_return(plugin != nullptr,);
 
     const HostBlockPair hbp = _mapper.get(_current.preset, row, block);
@@ -4678,7 +4678,7 @@ void HostConnector::hostDisconnectBlockAction(const Block& blockdata,
     assert(!isNullBlock(blockdata));
     assert(hbp.id != kMaxHostInstances);
 
-    const Lv2Plugin* const plugin = lv2world.getPluginByURI(blockdata.uri.c_str());
+    std::shared_ptr<const Lv2Plugin> plugin = lv2world.getPluginByURI(blockdata.uri.c_str());
     assert_return(plugin != nullptr,);
 
     const unsigned int ioflags = Lv2PortIsAudio | (outputs ? Lv2PortIsOutput : 0);
@@ -4869,9 +4869,9 @@ void HostConnector::hostSetupSideIO(const uint8_t preset,
                                     const uint8_t row,
                                     const uint8_t block,
                                     const HostBlockPair hbp,
-                                    const Lv2Plugin* plugin)
+                                    std::shared_ptr<const Lv2Plugin> plugin)
 {
-    mod_log_debug("hostSetupSideIO(%u, %u, %u, {%u, %u}, %p)", preset, row, block, hbp.id, hbp.pair, plugin);
+    mod_log_debug("hostSetupSideIO(%u, %u, %u, {%u, %u}, %p)", preset, row, block, hbp.id, hbp.pair, plugin.get());
     assert(row < NUM_BLOCK_CHAIN_ROWS);
     assert(block < NUM_BLOCKS_PER_PRESET);
     assert(hbp.id != kMaxHostInstances);
@@ -5165,9 +5165,9 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
                     continue;
                 }
 
-                const Lv2Plugin* const plugin = !isNullURI(uri)
-                                                ? lv2world.getPluginByURI(uri.c_str())
-                                                : nullptr;
+                std::shared_ptr<const Lv2Plugin> plugin = !isNullURI(uri)
+                                                        ? lv2world.getPluginByURI(uri.c_str())
+                                                        : nullptr;
 
                 if (plugin == nullptr)
                 {
@@ -7006,7 +7006,7 @@ void HostConnector::setDirty(const bool dirty)
 // --------------------------------------------------------------------------------------------------------------------
 
 void HostConnector::initBlock(HostConnector::Block& blockdata,
-                              const Lv2Plugin* const plugin,
+                              const std::shared_ptr<const Lv2Plugin>& plugin,
                               const uint8_t numInputs,
                               const uint8_t numOutputs,
                               const uint8_t numSideInputs,

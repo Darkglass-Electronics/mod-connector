@@ -107,7 +107,7 @@ std::string format(const char* format, ...)
 // --------------------------------------------------------------------------------------------------------------------
 // check if a plugin has compatible IO, while also filling info regarding IO
 
-bool getSupportedPluginIO(const Lv2Plugin* const plugin,
+bool getSupportedPluginIO(const std::shared_ptr<const Lv2Plugin>& plugin,
                           uint8_t& numInputs,
                           uint8_t& numOutputs,
                           uint8_t& numSideInputs,
