@@ -65,10 +65,10 @@ struct BlockImage {
     // The width and height are optional helpers
     struct Parameter {
         std::string path;
-        uint16_t x;
-        uint16_t y;
-        uint16_t width;
-        uint16_t height;
+        uint16_t x = 0;
+        uint16_t y = 0;
+        uint16_t width = 0;
+        uint16_t height = 0;
         operator bool() const noexcept { return !path.empty(); }
     };
 
@@ -161,7 +161,10 @@ struct BlockSettings {
     struct Bypass {
         Image background;
         Image backgroundScenes;
-        Image control;
+        struct ControlImage : Image {
+            uint16_t width = 0;
+            uint16_t height = 0;
+        } control;
         struct Overlays {
             Overlay inUse;
         } overlays;

@@ -1354,6 +1354,12 @@ struct Lv2World::Impl
         {
             _assignImage(imageRef, retplugin->bundlepath, subject, predicate, alignmentDefault);
         };
+        const auto assignBypassControlImage = [&](CustomStyling::BlockSettings::Bypass::ControlImage& imageRef,
+                                                  const LilvNode* const subject,
+                                                  const LilvNode* const predicate)
+        {
+            _assignImage(imageRef, retplugin->bundlepath, subject, predicate, CustomStyling::kAlignCenter);
+        };
         const auto assignOverlay = [&](CustomStyling::Overlay& overlayRef,
                                        const LilvNode* const subject,
                                        const LilvNode* const predicate)
@@ -1445,7 +1451,7 @@ struct Lv2World::Impl
         {
             assignImage(styling->bypass.background, node, ns.dgcs_background);
             assignImage(styling->bypass.backgroundScenes, node, ns.dgcs_backgroundScenes);
-            assignImage(styling->bypass.control, node, ns.dgcs_control);
+            assignBypassControlImage(styling->bypass.control, node, ns.dgcs_control);
             assignOverlay(styling->bypass.overlays.inUse, node, ns.dgcs_inUse);
             lilv_node_free(node);
         }
@@ -1618,6 +1624,25 @@ struct Lv2World::Impl
                 if (lilv_node_is_int(offsetNode))
                     imageRef.offsetY = lilv_node_as_int(offsetNode);
                 lilv_node_free(offsetNode);
+            }
+
+            if constexpr (std::is_same_v<ImageClass, CustomStyling::BlockSettings::Bypass::ControlImage>)
+            {
+                if (LilvNode* const widthNode = lilv_world_get(world, imageNode, ns.dgcs_width, nullptr))
+                {
+                    if (lilv_node_is_int(widthNode))
+                        imageRef.width = std::max(0, lilv_node_as_int(widthNode));
+
+                    lilv_node_free(widthNode);
+                }
+
+                if (LilvNode* const heightNode = lilv_world_get(world, imageNode, ns.dgcs_height, nullptr))
+                {
+                    if (lilv_node_is_int(heightNode))
+                        imageRef.height = std::max(0, lilv_node_as_int(heightNode));
+
+                    lilv_node_free(heightNode);
+                }
             }
 
             if constexpr (std::is_same_v<ImageClass, CustomStyling::Overlay>)
