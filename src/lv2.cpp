@@ -399,13 +399,7 @@ struct Lv2World::Impl
 
     ~Impl()
     {
-        for (const auto& pair : pluginsCache)
-        {
-            const PluginCache& cache = pair.second;
-            delete cache.plugin;
-            delete cache.blockImageStyling;
-            delete cache.blockSettingsStyling;
-        }
+        pluginsCache.clear();
 
         ns.free();
         lilv_world_free(world);
@@ -423,14 +417,14 @@ struct Lv2World::Impl
         return pluginURIs[index];
     }
 
-    const Lv2Plugin* getPluginByIndex(const uint32_t index)
+    std::shared_ptr<const Lv2Plugin> getPluginByIndex(const uint32_t index)
     {
         assert(index < getPluginCount());
 
         return getPluginByURI(pluginURIs[index].c_str());
     }
 
-    const Lv2Plugin* getPluginByURI(const char* const uri)
+    std::shared_ptr<const Lv2Plugin> getPluginByURI(const char* const uri)
     {
         assert(uri != nullptr && *uri != '\0');
 
@@ -1138,12 +1132,12 @@ struct Lv2World::Impl
         // ------------------------------------------------------------------------------------------------------------
        #endif // MOD_CONNECTOR_MINIMAL_LV2_WORLD
 
-        cache.plugin = retplugin;
-        return retplugin;
+        cache.plugin = std::shared_ptr<const Lv2Plugin>(retplugin);
+        return cache.plugin;
     }
 
 #ifndef MOD_CONNECTOR_MINIMAL_LV2_WORLD
-    const CustomStyling::BlockImage* getPluginBlockImageStyling(const char* const uri)
+    std::shared_ptr<const CustomStyling::BlockImage> getPluginBlockImageStyling(const char* const uri)
     {
         assert(uri != nullptr);
         assert(*uri != '\0');
@@ -1153,7 +1147,7 @@ struct Lv2World::Impl
         if (cache.plugin == nullptr)
             getPluginByURI(uri);
 
-        const Lv2Plugin* const retplugin = cache.plugin;
+        std::shared_ptr<const Lv2Plugin> retplugin = cache.plugin;
         assert_return(retplugin != nullptr, nullptr);
         assert_return(retplugin->flags & Lv2PluginHasBlockImageStyling, nullptr);
 
@@ -1293,18 +1287,18 @@ struct Lv2World::Impl
 
         lilv_node_free(stylingNode);
 
-        cache.blockImageStyling = styling;
-        return styling;
+        cache.blockImageStyling = std::shared_ptr<const CustomStyling::BlockImage>(styling);
+        return cache.blockImageStyling;
     }
 
-    const CustomStyling::BlockSettings* getPluginBlockSettingsStyling(const char* const uri)
+    std::shared_ptr<const CustomStyling::BlockSettings> getPluginBlockSettingsStyling(const char* const uri)
     {
         assert(uri != nullptr);
         assert(*uri != '\0');
 
         PluginCache& cache = pluginsCache[uri];
 
-        const Lv2Plugin* const retplugin = cache.plugin;
+        std::shared_ptr<const Lv2Plugin> retplugin = cache.plugin;
         assert_return(retplugin != nullptr, nullptr);
         assert_return(retplugin->flags & Lv2PluginHasBlockSettingsStyling, nullptr);
 
@@ -1505,8 +1499,8 @@ struct Lv2World::Impl
 
         lilv_node_free(stylingNode);
 
-        cache.blockSettingsStyling = styling;
-        return styling;
+        cache.blockSettingsStyling = std::shared_ptr<const CustomStyling::BlockSettings>(styling);
+        return cache.blockSettingsStyling;
     }
 
     // helpers used for block and block settings
@@ -1659,7 +1653,7 @@ struct Lv2World::Impl
         assert(uri != nullptr && *uri != '\0');
         assert(symbol != nullptr && *symbol != '\0');
 
-        if (const Lv2Plugin* const plugin = getPluginByURI(uri))
+        if (std::shared_ptr<const Lv2Plugin> plugin = getPluginByURI(uri))
         {
             for (const Lv2Port& port : plugin->ports)
             {
@@ -1777,10 +1771,6 @@ struct Lv2World::Impl
             const std::unordered_map<std::string, PluginCache>::const_iterator it2 = pluginsCache.find(uri);
             assert_continue(it2 != pluginsCache.cend());
 
-            const PluginCache& cache = it2->second;
-            delete cache.plugin;
-            delete cache.blockImageStyling;
-            delete cache.blockSettingsStyling;
             pluginsCache.erase(it2);
         }
 
@@ -1808,9 +1798,9 @@ private:
     std::vector<std::string> pluginURIs;
 
     struct PluginCache {
-        const Lv2Plugin* plugin = nullptr;
-        const CustomStyling::BlockImage* blockImageStyling = nullptr;
-        const CustomStyling::BlockSettings* blockSettingsStyling = nullptr;
+        std::shared_ptr<const Lv2Plugin> plugin;
+        std::shared_ptr<const CustomStyling::BlockImage> blockImageStyling;
+        std::shared_ptr<const CustomStyling::BlockSettings> blockSettingsStyling;
     };
     std::unordered_map<std::string, PluginCache> pluginsCache;
 
@@ -1950,23 +1940,23 @@ const std::string& Lv2World::getPluginURI(const uint32_t index) const
     return impl->getPluginURI(index);
 }
 
-const Lv2Plugin* Lv2World::getPluginByIndex(const uint32_t index) const
+std::shared_ptr<const Lv2Plugin> Lv2World::getPluginByIndex(const uint32_t index) const
 {
     return impl->getPluginByIndex(index);
 }
 
-const Lv2Plugin* Lv2World::getPluginByURI(const char* const uri) const
+std::shared_ptr<const Lv2Plugin> Lv2World::getPluginByURI(const char* const uri) const
 {
     return impl->getPluginByURI(uri);
 }
 
 #ifndef MOD_CONNECTOR_MINIMAL_LV2_WORLD
-const CustomStyling::BlockImage* Lv2World::getPluginBlockImageStyling(const char* uri) const
+std::shared_ptr<const CustomStyling::BlockImage> Lv2World::getPluginBlockImageStyling(const char* uri) const
 {
     return impl->getPluginBlockImageStyling(uri);
 }
 
-const CustomStyling::BlockSettings* Lv2World::getPluginBlockSettingsStyling(const char* uri) const
+std::shared_ptr<const CustomStyling::BlockSettings> Lv2World::getPluginBlockSettingsStyling(const char* uri) const
 {
     return impl->getPluginBlockSettingsStyling(uri);
 }

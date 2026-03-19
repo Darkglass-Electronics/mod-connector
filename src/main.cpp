@@ -45,7 +45,7 @@ static void copyJsonObjectValue(QJsonObject& dst, const QJsonObject& src)
 
 // --------------------------------------------------------------------------------------------------------------------
 
-static void lv2_plugin_to_json(const Lv2Plugin* const plugin, QJsonObject& json)
+static void lv2_plugin_to_json(const std::shared_ptr<const Lv2Plugin>& plugin, QJsonObject& json)
 {
     json["uri"] = QString::fromStdString(plugin->uri);
     json["name"] = QString::fromStdString(plugin->name);
@@ -153,7 +153,7 @@ struct WebSocketConnector : QObject,
             {
                 for (uint32_t i = 0; i < pcount; ++i)
                 {
-                    if (const Lv2Plugin* const plugin = lv2world.getPluginByIndex(i))
+                    if (const std::shared_ptr<const Lv2Plugin> plugin = lv2world.getPluginByIndex(i))
                     {
                         QJsonObject jsonObj;
                         lv2_plugin_to_json(plugin, jsonObj);

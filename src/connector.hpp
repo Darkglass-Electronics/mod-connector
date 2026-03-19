@@ -852,7 +852,11 @@ protected:
 
     void hostEnsureStereoChain(uint8_t preset, uint8_t row, uint8_t blockStart = 0, bool recursive = false);
 
-    void hostSetupSideIO(uint8_t preset, uint8_t row, uint8_t block, HostBlockPair hbp, const Lv2Plugin* plugin);
+    void hostSetupSideIO(uint8_t preset,
+                         uint8_t row,
+                         uint8_t block,
+                         HostBlockPair hbp,
+                         std::shared_ptr<const Lv2Plugin> plugin);
 
     // remove all bindings related to a block
     void hostRemoveAllBlockBindings(uint8_t row, uint8_t block);
@@ -899,7 +903,7 @@ private:
 
     // init block using plugin default values, optionally fill index maps
     void initBlock(Block& blockdata,
-                   const Lv2Plugin* plugin,
+                   const std::shared_ptr<const Lv2Plugin>& plugin,
                    uint8_t numInputs,
                    uint8_t numOutputs,
                    uint8_t numSideInputs,
