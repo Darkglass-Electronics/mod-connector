@@ -144,7 +144,7 @@ struct BlockSettings {
             struct {
                 Image background;
                 Font font;
-                operator bool() const noexcept { return !background.path.empty() && font.size != 0; }
+                operator bool() const noexcept { return !background.path.empty() || font.size != 0; }
             } withBackgroundAndFont;
             struct {
                 Image allScenes;
