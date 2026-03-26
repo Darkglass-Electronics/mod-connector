@@ -108,9 +108,15 @@ struct BlockSettings {
     // (on Anagram this is 1424px)
     Image background;
 
-    // The pagination dots
-    // The image is assumed to have a number of frames equivalent to the number of parameter pages
-    // They are 1 layer above the background
+    // The pagination button is assumed to have a number of frames equivalent to the number of parameter pages
+    // It is 1 layer above the top-bar
+    // If both pagination button and dots are provided, button takes precedence
+    // Note: Pagination through scrolling is disabled when this button is present
+    Image paginationButton;
+
+    // The pagination dots are assumed to have a number of frames equivalent to the number of parameter pages
+    // They are 1 layer above the top-bar
+    // If both pagination button and dots are provided, button takes precedence
     Image paginationDots;
 
     // The top-bar background and buttons

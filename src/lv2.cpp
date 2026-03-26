@@ -192,6 +192,7 @@ struct Lv2NamespaceDefinitions {
     LilvNode* const dgcs_meter;
     LilvNode* const dgcs_offsetX;
     LilvNode* const dgcs_offsetY;
+    LilvNode* const dgcs_paginationButton;
     LilvNode* const dgcs_paginationDots;
     LilvNode* const dgcs_parameterStartPadding;
     LilvNode* const dgcs_parameters;
@@ -254,6 +255,7 @@ struct Lv2NamespaceDefinitions {
           dgcs_meter(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__meter)),
           dgcs_offsetX(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__offsetX)),
           dgcs_offsetY(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__offsetY)),
+          dgcs_paginationButton(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__paginationButton)),
           dgcs_paginationDots(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__paginationDots)),
           dgcs_parameterStartPadding(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__parameterStartPadding)),
           dgcs_parameters(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__parameters)),
@@ -319,6 +321,7 @@ struct Lv2NamespaceDefinitions {
         lilv_node_free(dgcs_meter);
         lilv_node_free(dgcs_offsetX);
         lilv_node_free(dgcs_offsetY);
+        lilv_node_free(dgcs_paginationButton);
         lilv_node_free(dgcs_paginationDots);
         lilv_node_free(dgcs_parameterStartPadding);
         lilv_node_free(dgcs_parameters);
@@ -1385,6 +1388,8 @@ struct Lv2World::Impl
         CustomStyling::BlockSettings* const styling = new CustomStyling::BlockSettings;
 
         assignImage(styling->background, stylingNode, ns.dgcs_background, CustomStyling::kAlignBottomRight);
+
+        assignImage(styling->paginationButton, stylingNode, ns.dgcs_paginationButton);
 
         assignImage(styling->paginationDots, stylingNode, ns.dgcs_paginationDots, CustomStyling::kAlignBottomMid);
 
