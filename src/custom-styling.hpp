@@ -115,7 +115,7 @@ struct BlockSettings {
     Image paginationButton;
 
     // The pagination dots are assumed to have a number of frames equivalent to the number of parameter pages
-    // They are 1 layer above the top-bar
+    // They are 1 layer above the background
     // If both pagination button and dots are provided, button takes precedence
     Image paginationDots;
 

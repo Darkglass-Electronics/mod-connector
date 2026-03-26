@@ -1389,7 +1389,7 @@ struct Lv2World::Impl
 
         assignImage(styling->background, stylingNode, ns.dgcs_background, CustomStyling::kAlignBottomRight);
 
-        assignImage(styling->paginationButton, stylingNode, ns.dgcs_paginationButton);
+        assignImage(styling->paginationButton, stylingNode, ns.dgcs_paginationButton, CustomStyling::kAlignNone);
 
         assignImage(styling->paginationDots, stylingNode, ns.dgcs_paginationDots, CustomStyling::kAlignBottomMid);
 
