@@ -183,12 +183,15 @@ struct Lv2NamespaceDefinitions {
     LilvNode* const dgcs_buttonSwap;
     LilvNode* const dgcs_bypass;
     LilvNode* const dgcs_control;
+    LilvNode* const dgcs_fader;
     LilvNode* const dgcs_font;
     LilvNode* const dgcs_height;
     LilvNode* const dgcs_inUse;
     LilvNode* const dgcs_inactive;
     LilvNode* const dgcs_knob;
     LilvNode* const dgcs_list;
+    LilvNode* const dgcs_listWith2Slots;
+    LilvNode* const dgcs_listWith3Slots;
     LilvNode* const dgcs_meter;
     LilvNode* const dgcs_offsetX;
     LilvNode* const dgcs_offsetY;
@@ -200,6 +203,7 @@ struct Lv2NamespaceDefinitions {
     LilvNode* const dgcs_sceneControlActiveScene;
     LilvNode* const dgcs_sceneControlAllScenes;
     LilvNode* const dgcs_size;
+    LilvNode* const dgcs_style;
     LilvNode* const dgcs_toggle;
     LilvNode* const dgcs_topBar;
     LilvNode* const dgcs_topBarBlockName;
@@ -246,12 +250,15 @@ struct Lv2NamespaceDefinitions {
           dgcs_buttonSwap(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__buttonSwap)),
           dgcs_bypass(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__bypass)),
           dgcs_control(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__control)),
+          dgcs_fader(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__fader)),
           dgcs_font(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__font)),
           dgcs_height(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__height)),
           dgcs_inUse(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__inUse)),
           dgcs_inactive(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__inactive)),
           dgcs_knob(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__knob)),
           dgcs_list(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__list)),
+          dgcs_listWith2Slots(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__listWith2Slots)),
+          dgcs_listWith3Slots(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__listWith3Slots)),
           dgcs_meter(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__meter)),
           dgcs_offsetX(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__offsetX)),
           dgcs_offsetY(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__offsetY)),
@@ -263,6 +270,7 @@ struct Lv2NamespaceDefinitions {
           dgcs_sceneControlActiveScene(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__sceneControlActiveScene)),
           dgcs_sceneControlAllScenes(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__sceneControlAllScenes)),
           dgcs_size(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__size)),
+          dgcs_style(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__style)),
           dgcs_toggle(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__toggle)),
           dgcs_topBar(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__topBar)),
           dgcs_topBarBlockName(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__topBarBlockName)),
@@ -313,11 +321,14 @@ struct Lv2NamespaceDefinitions {
         lilv_node_free(dgcs_bypass);
         lilv_node_free(dgcs_control);
         lilv_node_free(dgcs_font);
+        lilv_node_free(dgcs_fader);
         lilv_node_free(dgcs_height);
         lilv_node_free(dgcs_inUse);
         lilv_node_free(dgcs_inactive);
         lilv_node_free(dgcs_knob);
         lilv_node_free(dgcs_list);
+        lilv_node_free(dgcs_listWith2Slots);
+        lilv_node_free(dgcs_listWith3Slots);
         lilv_node_free(dgcs_meter);
         lilv_node_free(dgcs_offsetX);
         lilv_node_free(dgcs_offsetY);
@@ -329,6 +340,7 @@ struct Lv2NamespaceDefinitions {
         lilv_node_free(dgcs_sceneControlActiveScene);
         lilv_node_free(dgcs_sceneControlAllScenes);
         lilv_node_free(dgcs_size);
+        lilv_node_free(dgcs_style);
         lilv_node_free(dgcs_toggle);
         lilv_node_free(dgcs_topBar);
         lilv_node_free(dgcs_topBarBlockName);
@@ -1373,6 +1385,26 @@ struct Lv2World::Impl
             assignOverlay(paramRef.overlays.inactive, node, ns.dgcs_inactive);
             assignOverlay(paramRef.overlays.inUse, node, ns.dgcs_inUse);
             assignOverlay(paramRef.overlays.unavailable, node, ns.dgcs_unavailable);
+
+            if (LilvNode* const styleNode = lilv_world_get(world, node, ns.dgcs_style, nullptr))
+            {
+                const char* styleURI = lilv_node_is_uri(styleNode)
+                                     ? lilv_node_as_uri(styleNode)
+                                     : nullptr;
+
+                if (styleURI != nullptr && std::strstr(styleURI, LV2_DARKGLASS_CUSTOM_STYLING_PREFIX) != nullptr)
+                {
+                    styleURI += std::strlen(LV2_DARKGLASS_CUSTOM_STYLING_PREFIX);
+
+                    /**/ if (std::strcmp(styleURI, "fader") == 0)
+                        paramRef.style = CustomStyling::BlockSettings::ParameterWidget::kStyleFader;
+                    else if (std::strcmp(styleURI, "listWith2Slots") == 0)
+                        paramRef.style = CustomStyling::BlockSettings::ParameterWidget::kStyleListWith2Slots;
+                    else if (std::strcmp(styleURI, "listWith3Slots") == 0)
+                        paramRef.style = CustomStyling::BlockSettings::ParameterWidget::kStyleListWith3Slots;
+                }
+                lilv_node_free(styleNode);
+            }
         };
         const auto assignParameter = [&](CustomStyling::BlockSettings::ParameterWidget& paramRef,
                                          const LilvNode* const subject,
@@ -1388,8 +1420,6 @@ struct Lv2World::Impl
         CustomStyling::BlockSettings* const styling = new CustomStyling::BlockSettings;
 
         assignImage(styling->background, stylingNode, ns.dgcs_background, CustomStyling::kAlignBottomRight);
-
-        assignImage(styling->paginationButton, stylingNode, ns.dgcs_paginationButton, CustomStyling::kAlignNone);
 
         assignImage(styling->paginationDots, stylingNode, ns.dgcs_paginationDots, CustomStyling::kAlignBottomMid);
 
@@ -1431,6 +1461,8 @@ struct Lv2World::Impl
 
                 lilv_node_free(buttonsNode);
             }
+
+            assignImage(styling->topBar.paginationButton, topBarNode, ns.dgcs_paginationButton, CustomStyling::kAlignNone);
 
             if (LilvNode* const sceneControlNode = lilv_world_get(world, topBarNode, ns.dgcs_topBarSceneControl, nullptr))
             {

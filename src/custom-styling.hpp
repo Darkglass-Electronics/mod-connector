@@ -99,6 +99,13 @@ struct BlockSettings {
             Overlay inUse;
             Overlay unavailable;
         } overlays;
+        // Alternative style to apply to a parameter widget
+        enum Style : uint8_t {
+            kStyleDefault,
+            kStyleFader,
+            kStyleListWith2Slots,
+            kStyleListWith3Slots,
+        } style = kStyleDefault;
         operator bool() const noexcept { return !control.path.empty(); }
     };
 
@@ -108,13 +115,7 @@ struct BlockSettings {
     // (on Anagram this is 1424px)
     Image background;
 
-    // The pagination button is assumed to have a number of frames equivalent to the number of parameter pages
-    // It is 1 layer above the top-bar
-    // If both pagination button and dots are provided, button takes precedence
-    // Note: Pagination through scrolling is disabled when this button is present
-    Image paginationButton;
-
-    // The pagination dots are assumed to have a number of frames equivalent to the number of parameter pages
+    // The pagination dots have a number of frames equivalent to the number of parameter pages
     // They are 1 layer above the background
     // If both pagination button and dots are provided, button takes precedence
     Image paginationDots;
@@ -143,6 +144,11 @@ struct BlockSettings {
             std::string remove;
             std::string swap;
         } buttons;
+
+        // The top-bar pagination button has a number of frames equivalent to the number of parameter pages
+        // If both top-bar pagination button and pagination dots are provided, the top-bar button takes precedence
+        // Note: Pagination through scrolling is disabled when this button is present
+        Image paginationButton;
 
         // The top-bar scene control can either be images or background + font
         // Use of images takes precedence if both are provided
