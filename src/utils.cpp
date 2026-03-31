@@ -9,6 +9,7 @@
 
 #ifdef _WIN32
 #include <winsock2.h>
+#include <shlobj.h>
 #include <windows.h>
 #else
 #include <ctime>
