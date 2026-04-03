@@ -1769,7 +1769,7 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
             if (! params.empty())
                 hostParamsFlushBlockPair(hbp, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params);
 
-            hostSetupSideIO(_current.preset, row, block, hbp, plugin);
+            hostSetupSideIO(_current.preset, row, block, hbp);
         }
         else
         {
@@ -3867,8 +3867,7 @@ void HostConnector::connectBlock2Tool(const uint8_t row,
     const bool toolStereoIn = toolInSymbolR != nullptr && *toolInSymbolR != '\0';
 
     const Block& blockdata(_current.chains[row].blocks[block]);
-    const std::shared_ptr<const Lv2Plugin> plugin = lv2world.getPluginByURI(blockdata.uri.c_str());
-    assert_return(plugin != nullptr,);
+    assert_return(blockdata.plugin != nullptr,);
 
     const HostBlockPair hbp = _mapper.get(_current.preset, row, block);
     assert_return(hbp.id != kMaxHostInstances,);
@@ -3878,7 +3877,7 @@ void HostConnector::connectBlock2Tool(const uint8_t row,
     ports.reserve(2);
 
     constexpr uint32_t testFlags = Lv2PortIsAudio|Lv2PortIsOutput|Lv2PortIsSidechain;
-    for (const Lv2Port& port : plugin->ports)
+    for (const Lv2Port& port : blockdata.plugin->ports)
     {
         if ((port.flags & testFlags) != (Lv2PortIsAudio|Lv2PortIsOutput))
             continue;
@@ -3922,7 +3921,7 @@ void HostConnector::connectBlock2Tool(const uint8_t row,
 
     // collect sidechain audio ports from block
     ports.clear();
-    for (const Lv2Port& port : plugin->ports)
+    for (const Lv2Port& port : blockdata.plugin->ports)
     {
         if ((port.flags & testFlags) != (Lv2PortIsAudio|Lv2PortIsOutput|Lv2PortIsSidechain))
             continue;
@@ -3971,8 +3970,7 @@ void HostConnector::connectBlockAudioInput2Tool(const uint8_t row,
     assert(toolInSymbolL != nullptr && *toolInSymbolL != '\0');
 
     const Block& blockdata(_current.chains[row].blocks[block]);
-    const std::shared_ptr<const Lv2Plugin> plugin = lv2world.getPluginByURI(blockdata.uri.c_str());
-    assert_return(plugin != nullptr,);
+    assert_return(blockdata.plugin != nullptr,);
 
     const HostBlockPair hbp = _mapper.get(_current.preset, row, block);
     assert_return(hbp.id != kMaxHostInstances,);
@@ -3982,7 +3980,7 @@ void HostConnector::connectBlockAudioInput2Tool(const uint8_t row,
     ports.reserve(2);
 
     constexpr uint32_t testFlags = Lv2PortIsAudio|Lv2PortIsOutput|Lv2PortIsSidechain;
-    for (const Lv2Port& port : plugin->ports)
+    for (const Lv2Port& port : blockdata.plugin->ports)
     {
         if ((port.flags & testFlags) != Lv2PortIsAudio)
             continue;
@@ -4011,7 +4009,7 @@ void HostConnector::connectBlockAudioInput2Tool(const uint8_t row,
 
     // collect sidechain audio ports from block
     ports.clear();
-    for (const Lv2Port& port : plugin->ports)
+    for (const Lv2Port& port : blockdata.plugin->ports)
     {
         if ((port.flags & testFlags) != (Lv2PortIsAudio|Lv2PortIsSidechain))
             continue;
@@ -4322,13 +4320,10 @@ void HostConnector::hostConnectBlockToBlock(const uint8_t row, const uint8_t blo
     assert(blockB < NUM_BLOCKS_PER_PRESET);
 
     Block& blockdataA(_current.chains[row].blocks[blockA]);
+    assert_return(blockdataA.plugin != nullptr,);
+
     Block& blockdataB(_current.chains[row].blocks[blockB]);
-
-    const std::shared_ptr<const Lv2Plugin> pluginA = lv2world.getPluginByURI(blockdataA.uri.c_str());
-    assert_return(pluginA != nullptr,);
-
-    const std::shared_ptr<const Lv2Plugin> pluginB = lv2world.getPluginByURI(blockdataB.uri.c_str());
-    assert_return(pluginB != nullptr,);
+    assert_return(blockdataB.plugin != nullptr,);
 
     const HostBlockPair hbpA = _mapper.get(_current.preset, row, blockA);
     assert_return(hbpA.id != kMaxHostInstances,);
@@ -4345,7 +4340,7 @@ void HostConnector::hostConnectBlockToBlock(const uint8_t row, const uint8_t blo
     portsB.reserve(2);
 
     constexpr uint32_t testFlags = Lv2PortIsAudio|Lv2PortIsOutput|Lv2PortIsSidechain;
-    for (const Lv2Port& port : pluginA->ports)
+    for (const Lv2Port& port : blockdataA.plugin->ports)
     {
         if ((port.flags & testFlags) != (Lv2PortIsAudio|Lv2PortIsOutput))
             continue;
@@ -4359,7 +4354,7 @@ void HostConnector::hostConnectBlockToBlock(const uint8_t row, const uint8_t blo
         }
     }
 
-    for (const Lv2Port& port : pluginB->ports)
+    for (const Lv2Port& port : blockdataB.plugin->ports)
     {
         if ((port.flags & testFlags) != Lv2PortIsAudio)
             continue;
@@ -4583,8 +4578,8 @@ void HostConnector::hostConnectChainInputAction(const uint8_t row, const uint8_t
     assert(block < NUM_BLOCKS_PER_PRESET);
     assert(!isNullBlock(_current.chains[row].blocks[block]));
 
-    const std::shared_ptr<const Lv2Plugin> plugin = lv2world.getPluginByURI(_current.chains[row].blocks[block].uri.c_str());
-    assert_return(plugin != nullptr,);
+    Block& blockdata(_current.chains[row].blocks[block]);
+    assert_return(blockdata.plugin != nullptr,);
 
     const HostBlockPair hbp = _mapper.get(_current.preset, row, block);
     assert_return(hbp.id != kMaxHostInstances,);
@@ -4592,22 +4587,22 @@ void HostConnector::hostConnectChainInputAction(const uint8_t row, const uint8_t
     bool (Host::*const call)(const char*, const char*, bool) = connect ? &Host::connect : &Host::disconnect;
     std::string origin, target;
 
-    for (size_t i = 0, j = 0; i < plugin->ports.size() && j < 2; ++i)
+    for (size_t i = 0, j = 0; i < blockdata.plugin->ports.size() && j < 2; ++i)
     {
-        if ((plugin->ports[i].flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != Lv2PortIsAudio)
+        if ((blockdata.plugin->ports[i].flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != Lv2PortIsAudio)
             continue;
-        if ((plugin->ports[i].flags & Lv2PortIsSidechain) != 0)
+        if ((blockdata.plugin->ports[i].flags & Lv2PortIsSidechain) != 0)
             continue;
 
         origin = _current.chains[row].capture[j++];
-        target = format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbp.id, plugin->ports[i].symbol.c_str());
+        target = format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbp.id, blockdata.plugin->ports[i].symbol.c_str());
         assert_continue(!origin.empty());
         (_host.*call)(origin.c_str(), target.c_str(), false);
 
         if (hbp.pair != kMaxHostInstances)
         {
             origin = _current.chains[row].capture[j++];
-            target = format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbp.pair, plugin->ports[i].symbol.c_str());
+            target = format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbp.pair, blockdata.plugin->ports[i].symbol.c_str());
             assert_continue(!origin.empty());
             (_host.*call)(origin.c_str(), target.c_str(), false);
             return;
@@ -4632,8 +4627,8 @@ void HostConnector::hostConnectChainOutputAction(const uint8_t row, const uint8_
 
     assert(!chain.playback[1].empty());
 
-    const std::shared_ptr<const Lv2Plugin> plugin = lv2world.getPluginByURI(chain.blocks[block].uri.c_str());
-    assert_return(plugin != nullptr,);
+    const Block& blockdata(chain.blocks[block]);
+    assert_return(blockdata.plugin != nullptr,);
 
     const HostBlockPair hbp = _mapper.get(_current.preset, row, block);
     assert_return(hbp.id != kMaxHostInstances,);
@@ -4642,20 +4637,20 @@ void HostConnector::hostConnectChainOutputAction(const uint8_t row, const uint8_
     std::string origin, target;
     int dsti = 0;
 
-    for (size_t i = 0; i < plugin->ports.size() && dsti < 2; ++i)
+    for (size_t i = 0; i < blockdata.plugin->ports.size() && dsti < 2; ++i)
     {
-        if ((plugin->ports[i].flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != (Lv2PortIsAudio|Lv2PortIsOutput))
+        if ((blockdata.plugin->ports[i].flags & (Lv2PortIsAudio|Lv2PortIsOutput)) != (Lv2PortIsAudio|Lv2PortIsOutput))
             continue;
-        if ((plugin->ports[i].flags & Lv2PortIsSidechain) != 0)
+        if ((blockdata.plugin->ports[i].flags & Lv2PortIsSidechain) != 0)
             continue;
 
-        origin = format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbp.id, plugin->ports[i].symbol.c_str());
+        origin = format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbp.id, blockdata.plugin->ports[i].symbol.c_str());
         target = chain.playback[dsti++];
         (_host.*call)(origin.c_str(), target.c_str(), false);
 
         if (hbp.pair != kMaxHostInstances)
         {
-            origin = format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbp.pair, plugin->ports[i].symbol.c_str());
+            origin = format(MOD_HOST_EFFECT_PREFIX "%d:%s", hbp.pair, blockdata.plugin->ports[i].symbol.c_str());
             target = chain.playback[dsti++];
             (_host.*call)(origin.c_str(), target.c_str(), false);
             return;
@@ -4678,8 +4673,7 @@ void HostConnector::hostDisconnectBlockAction(const Block& blockdata,
     assert(!isNullBlock(blockdata));
     assert(hbp.id != kMaxHostInstances);
 
-    const std::shared_ptr<const Lv2Plugin> plugin = lv2world.getPluginByURI(blockdata.uri.c_str());
-    assert_return(plugin != nullptr,);
+    assert_return(blockdata.plugin != nullptr,);
 
     const unsigned int ioflags = Lv2PortIsAudio | (outputs ? Lv2PortIsOutput : 0);
     unsigned int flagsToCheck = Lv2PortIsAudio | Lv2PortIsOutput;
@@ -4687,7 +4681,7 @@ void HostConnector::hostDisconnectBlockAction(const Block& blockdata,
         flagsToCheck |= Lv2PortIsSidechain;
     std::string origin;
 
-    for (const Lv2Port& port : plugin->ports)
+    for (const Lv2Port& port : blockdata.plugin->ports)
     {
         if ((port.flags & flagsToCheck) != ioflags)
             continue;
@@ -4783,7 +4777,7 @@ void HostConnector::hostEnsureStereoChain(const uint8_t preset,
 
         // redo sideIO (if applicable) due to add/remove
         const HostBlockPair hbp = _mapper.get(preset, row, bl);
-        hostSetupSideIO(preset, row, bl, hbp, nullptr);
+        hostSetupSideIO(preset, row, bl, hbp);
 
         // NOTE: sidechain update not needed if mono -> dual mono update of sidechain playback target block
         // was triggered from sidechain (recursive == true)
@@ -4868,10 +4862,9 @@ void HostConnector::hostEnsureStereoChain(const uint8_t preset,
 void HostConnector::hostSetupSideIO(const uint8_t preset,
                                     const uint8_t row,
                                     const uint8_t block,
-                                    const HostBlockPair hbp,
-                                    std::shared_ptr<const Lv2Plugin> plugin)
+                                    const HostBlockPair hbp)
 {
-    mod_log_debug("hostSetupSideIO(%u, %u, %u, {%u, %u}, %p)", preset, row, block, hbp.id, hbp.pair, plugin.get());
+    mod_log_debug("hostSetupSideIO(%u, %u, %u, {%u, %u})", preset, row, block, hbp.id, hbp.pair);
     assert(row < NUM_BLOCK_CHAIN_ROWS);
     assert(block < NUM_BLOCKS_PER_PRESET);
     assert(hbp.id != kMaxHostInstances);
@@ -4879,7 +4872,8 @@ void HostConnector::hostSetupSideIO(const uint8_t preset,
     const bool active = _current.preset == preset;
     const Block& blockdata(active ? _current.chains[row].blocks[block] : _presets[preset].chains[row].blocks[block]);
     assert(!isNullBlock(blockdata));
-    
+    assert_return(blockdata.plugin != nullptr,);
+
     if (blockdata.meta.numSideInputs == 0 && blockdata.meta.numSideOutputs == 0)
         return;
 
@@ -4887,10 +4881,6 @@ void HostConnector::hostSetupSideIO(const uint8_t preset,
     assert_return(row + 1 < NUM_BLOCK_CHAIN_ROWS,);
 
     ChainRow& nextChainRow = active ? _current.chains[row + 1] : _presets[preset].chains[row + 1];
-
-    if (plugin == nullptr)
-        plugin = lv2world.getPluginByURI(blockdata.uri.c_str());
-    assert_return(plugin != nullptr,);
 
     // side input requires something to connect from
     if (blockdata.meta.numSideInputs != 0)
@@ -4902,7 +4892,7 @@ void HostConnector::hostSetupSideIO(const uint8_t preset,
         constexpr uint32_t flagsToCheck = Lv2PortIsAudio|Lv2PortIsSidechain|Lv2PortIsOutput;
         constexpr uint32_t flagsWanted = Lv2PortIsAudio|Lv2PortIsSidechain;
 
-        for (const Lv2Port& port : plugin->ports)
+        for (const Lv2Port& port : blockdata.plugin->ports)
         {
             if ((port.flags & flagsToCheck) != flagsWanted)
                 continue;
@@ -4932,7 +4922,7 @@ void HostConnector::hostSetupSideIO(const uint8_t preset,
     {
         constexpr uint32_t flags = Lv2PortIsAudio|Lv2PortIsSidechain|Lv2PortIsOutput;
 
-        for (const Lv2Port& port : plugin->ports)
+        for (const Lv2Port& port : blockdata.plugin->ports)
         {
             if ((port.flags & flags) != flags)
                 continue;
@@ -6285,7 +6275,7 @@ void HostConnector::hostLoadPreset(const uint8_t preset)
             const HostBlockPair hbp = _mapper.get(preset, row, bl);
 
             hostSetupInstance(blockdata, hbp.id);
-            hostSetupSideIO(preset, row, bl, hbp, nullptr);
+            hostSetupSideIO(preset, row, bl, hbp);
         }
 
         if (active)
@@ -6427,7 +6417,7 @@ void HostConnector::hostSwitchPreset(const Current& prev)
                 else
                     hostConnectBlockToBlock(row, last, bl);
 
-                hostSetupSideIO(_current.preset, row, bl, hbp, nullptr);
+                hostSetupSideIO(_current.preset, row, bl, hbp);
 
                 last = bl;
                 ++numLoadedPlugins;
@@ -7017,6 +7007,7 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
     blockdata.enabled = true;
     blockdata.uri = plugin->uri;
     blockdata.quickPotSymbol.clear();
+    blockdata.plugin = plugin;
 
     blockdata.meta.enable.hasScenes = false;
     blockdata.meta.enable.hwbinding = UINT8_MAX;
@@ -7266,6 +7257,7 @@ void HostConnector::resetBlock(Block& blockdata) const
     blockdata.enabled = false;
     blockdata.uri.clear();
     blockdata.quickPotSymbol.clear();
+    blockdata.plugin.reset();
     blockdata.meta.enable.hasScenes = false;
     blockdata.meta.enable.hwbinding = UINT8_MAX;
     blockdata.meta.enable.tempSceneState = kTemporarySceneNone;
