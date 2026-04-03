@@ -187,6 +187,7 @@ struct HostConnector : Host::FeedbackCallback {
         std::string uri;
         struct {
             // convenience meta-data, not stored in json state
+            // TODO remove details directly provided by plugin data
             struct {
                 bool hasScenes;
                 bool changesNotSavedToPreset;
@@ -209,6 +210,9 @@ struct HostConnector : Host::FeedbackCallback {
         std::vector<Parameter> parameters;
         std::vector<Property> properties;
         std::array<SceneValues, NUM_SCENES_PER_PRESET> sceneValues;
+
+        // keep hold of plugin data
+        std::shared_ptr<const Lv2Plugin> plugin;
 
         inline uint8_t parameterIndexForSymbol(const std::string& parameterSymbol) const
         {
@@ -852,11 +856,7 @@ protected:
 
     void hostEnsureStereoChain(uint8_t preset, uint8_t row, uint8_t blockStart = 0, bool recursive = false);
 
-    void hostSetupSideIO(uint8_t preset,
-                         uint8_t row,
-                         uint8_t block,
-                         HostBlockPair hbp,
-                         std::shared_ptr<const Lv2Plugin> plugin);
+    void hostSetupSideIO(uint8_t preset, uint8_t row, uint8_t block, HostBlockPair hbp);
 
     // remove all bindings related to a block
     void hostRemoveAllBlockBindings(uint8_t row, uint8_t block);
