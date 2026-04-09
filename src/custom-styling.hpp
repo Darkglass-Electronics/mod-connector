@@ -133,15 +133,17 @@ struct BlockSettings {
             Font font;
         } blockName;
 
-        // The top-bar buttons are images without any alignment
-        // These images must be the correct size or are otherwise rejected
+        // The top-bar buttons are images with a fixed horizontal position and always centered vertically
         struct Buttons {
-            // 85x50
+            // left-most back button, used in quickpot and binding param select screens
             std::string back;
+            // left-most close button, used in regular block settings screen
             std::string close;
-            // 50x50
+            // a 3-vertical dots "more" button on the right side, used for showing a submenu with extra actions
             std::string more;
+            // a delete/remote button on the right side, used for removing a block from the chain
             std::string remove;
+            // a swap button on the right side, used for swapping the current block with another one
             std::string swap;
         } buttons;
 
@@ -194,7 +196,7 @@ struct BlockSettings {
         ParameterWidget toggle;
     } defaultWidgets;
 
-    // Parameter-specific widgets, indexed by control port symbol
+    // Parameter-specific widgets, connected to a control port by symbol
     std::unordered_map<std::string, ParameterWidget> parameters;
 
     // Custom positions for widgets, mapping index to control port symbol
