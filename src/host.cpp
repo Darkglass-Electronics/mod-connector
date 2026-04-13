@@ -1439,6 +1439,33 @@ bool Host::multi_params_flush(const uint8_t reset_value,
     return impl->writeMessageAndWait(msg);
 }
 
+bool Host::multi_pre_run(const uint8_t reset_value,
+                         const unsigned int param_count,
+                         const flushed_param* const params,
+                         const unsigned int instance_count,
+                         const int16_t* const instances)
+{
+    VALIDATE_INSTANCE_COUNT(instance_count);
+
+    std::string msg = format("multi_pre_run %u %u", reset_value, instance_count);
+
+    for (unsigned int i = 0; i < instance_count; ++i)
+    {
+        VALIDATE_INSTANCE_NUMBER(instances[i])
+        msg += format(" %d", instances[i]);
+    }
+
+    msg += format(" %u", param_count);
+
+    for (unsigned int i = 0; i < param_count; ++i)
+    {
+        VALIDATE_SYMBOL(params[i].symbol)
+        msg += format(" %s %f", params[i].symbol, params[i].value);
+    }
+
+    return impl->writeMessageAndWait(msg);
+}
+
 bool Host::poll_feedback(FeedbackCallback* const callback) const
 {
     return impl->poll(callback);

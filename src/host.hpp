@@ -483,12 +483,23 @@ struct Host {
 
    /**
      * flush several param values at once and trigger reset if available (multiple instance variant)
+     * all instances must be in activated state
      */
     bool multi_params_flush(uint8_t reset_value,
                             unsigned int param_count,
                             const flushed_param* params,
                             unsigned int instance_count,
                             const int16_t* instances);
+
+   /**
+     * pre-run and flush several param values at once and trigger reset if available (for multiple instance)
+     * all instances must be in deactivated state
+     */
+    bool multi_pre_run(uint8_t reset_value,
+                       unsigned int param_count,
+                       const flushed_param* params,
+                       unsigned int instance_count,
+                       const int16_t* instances);
 
    /**
      * poll feedback port for messages, triggering a callback for each one
