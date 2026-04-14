@@ -4781,8 +4781,7 @@ void HostConnector::hostEnsureStereoChain(const uint8_t preset,
 
                 // reset original block instance so the pair of blocks are in sync
                 const HostBlockPair hbp = _mapper.get(preset, row, bl);
-                const int16_t instances[1] = { static_cast<int16_t>(hbp.id) };
-                _host.multi_pre_run(LV2_KXSTUDIO_PROPERTIES_RESET_FULL, 0, nullptr, 1, instances);
+                _host.pre_run(hbp.id, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, 0, nullptr);
             }
             else
             {
@@ -6638,8 +6637,7 @@ void HostConnector::hostSetupInstance(const Block& blockdata, const uint16_t ins
             params.push_back({ paramdata.symbol.c_str(), paramdata.value });
     }
 
-    const int16_t instances[1] = { static_cast<int16_t>(instance_number) };
-    _host.multi_pre_run(LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params.size(), params.data(), 1, instances);
+    _host.pre_run(instance_number, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params.size(), params.data());
 
     for (const Property& propdata : blockdata.properties)
     {
@@ -6736,9 +6734,7 @@ void HostConnector::hostPrerunBlockPair(const HostBlockPair& hbp,
     }
     else
     {
-        const int16_t instances[1] = { static_cast<int16_t>(hbp.id) };
-
-        _host.multi_pre_run(reset_value, params.size(), params.data(), 1, instances);
+        _host.pre_run(hbp.id, reset_value, params.size(), params.data());
     }
 }
 
@@ -7021,7 +7017,7 @@ void HostConnector::enableAudioProcessing(const bool enable)
             break;
         case 1:
             _host.activate(instances.front(), false);
-            _host.multi_pre_run(LV2_KXSTUDIO_PROPERTIES_RESET_FULL, 0, nullptr, 1, instances.data());
+            _host.pre_run(instances.front(), LV2_KXSTUDIO_PROPERTIES_RESET_FULL, 0, nullptr);
             break;
         default:
             _host.multi_activate(false, instances.size(), instances.data());
