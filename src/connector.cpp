@@ -7026,7 +7026,7 @@ void HostConnector::enableAudioProcessing(const bool enable)
             break;
         default:
             _host.multi_activate(false, instances.size(), instances.data());
-            _host.multi_pre_run(LV2_KXSTUDIO_PROPERTIES_RESET_FULL, 0, nullptr, 1, instances.data());
+            _host.multi_pre_run(LV2_KXSTUDIO_PROPERTIES_RESET_FULL, 0, nullptr, instances.size(), instances.data());
             break;
         }
     }
