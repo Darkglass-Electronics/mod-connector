@@ -1664,7 +1664,11 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
             }
 
             if (! params.empty())
+            {
+                // TODO: potentially replace with a prerun later
+                // this would require a prerun for activated block
                 hostParamsFlushBlockPair(hbp, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params);
+            }
 
             for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
             {
@@ -1738,7 +1742,7 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
 
         HostBlockPair hbp = { _mapper.add(_current.preset, row, block), kMaxHostInstances };
 
-        bool added = _host.add(uri, hbp.id);
+        bool added = _host.preload(uri, hbp.id);
         if (added)
         {
             mod_log_debug("block %u loaded plugin %s", block, uri);
@@ -1762,12 +1766,23 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
                     continue;
 
                 // if defttl (default from ttl) does not match running value, make sure to inform the plugin
+                // FIXME: should compare to def instead of defttl?
                 if (isNotEqual(paramdata.value, paramdata.meta.defttl))
                     params.push_back({ paramdata.symbol.c_str(), paramdata.value });
             }
 
-            if (! params.empty())
-                hostParamsFlushBlockPair(hbp, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params);
+            hostPrerunBlockPair(hbp, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params);
+
+            // activate block pair
+            if (hbp.pair != kMaxHostInstances)
+            {
+                const int16_t instances[2] = { static_cast<int16_t>(hbp.id), static_cast<int16_t>(hbp.pair) };
+                _host.multi_activate(true, 2, instances);
+            }
+            else
+            {
+                _host.activate(hbp.id, true);
+            }
 
             hostSetupSideIO(_current.preset, row, block, hbp);
         }
@@ -1988,6 +2003,7 @@ bool HostConnector::replaceBlockWhileKeepingCurrentData(const uint8_t row, const
             hostBypassBlockPair(hbp, true);
         }
 
+        // TODO: should be replaced with prerun, but that needs to be done in replaceBlock before activation and connections
         hostParamsFlushBlockPair(hbp, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params);
         
         for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
@@ -2133,7 +2149,11 @@ bool HostConnector::resetBlock(const uint8_t row, const uint8_t block, const boo
     const Host::NonBlockingScopeWithAudioFades hnbs(_host);
 
     if (! params.empty())
+    {
+        // TODO: potentially replace with a prerun later
+        // this would require a prerun for activated block
         hostParamsFlushBlockPair(hbp, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params);
+    }
 
     for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
     {
@@ -4762,7 +4782,8 @@ void HostConnector::hostEnsureStereoChain(const uint8_t preset,
 
                 // reset original block instance so the pair of blocks are in sync
                 const HostBlockPair hbp = _mapper.get(preset, row, bl);
-                _host.params_flush(hbp.id, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, 0, nullptr);
+                const int16_t instances[1] = { static_cast<int16_t>(hbp.id) };
+                _host.multi_pre_run(LV2_KXSTUDIO_PROPERTIES_RESET_FULL, 0, nullptr, 1, instances);
             }
             else
             {
@@ -6242,16 +6263,10 @@ void HostConnector::hostLoadPreset(const uint8_t preset)
     case 0:
         break;
     case 1:
-        if (active)
-            _host.add(uris.front(), instances.front());
-        else
-            _host.preload(uris.front(), instances.front());
+        _host.preload(uris.front(), instances.front());
         break;
     default:
-        if (active)
-            _host.multi_add(instances.size(), instances.data(), uris.data());
-        else
-            _host.multi_preload(instances.size(), instances.data(), uris.data());
+        _host.multi_preload(instances.size(), instances.data(), uris.data());
         break;
     }
 
@@ -6275,6 +6290,9 @@ void HostConnector::hostLoadPreset(const uint8_t preset)
             const HostBlockPair hbp = _mapper.get(preset, row, bl);
 
             hostSetupInstance(blockdata, hbp.id);
+            if (active)
+                _host.activate(hbp.id, true);
+
             hostSetupSideIO(preset, row, bl, hbp);
         }
 
@@ -6519,7 +6537,8 @@ void HostConnector::hostSwitchPreset(const Current& prev)
                         hostPatchSetBlockPair(hbp, defpropdata);
                     }
 
-                    hostParamsFlushBlockPair(hbp, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params);
+                    // Already "pre-running" now so the preset is all ready for switching back to
+                    hostPrerunBlockPair(hbp, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params);
                     
                     continue;
                 }
@@ -6572,7 +6591,8 @@ void HostConnector::hostSwitchPreset(const Current& prev)
                     hostPatchSetBlockPair(hbp, defpropdata);
                 }
 
-                hostParamsFlushBlockPair(hbp, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params);
+                // Already "pre-running" now so the preset is all ready for switching back to
+                hostPrerunBlockPair(hbp, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params);
             }
         }
 
@@ -6588,10 +6608,11 @@ bool HostConnector::hostLoadInstance(const Block& blockdata, const uint16_t inst
 {
     assert(instance_number != kMaxHostInstances);
 
-    if (active ? _host.add(blockdata.uri.c_str(), instance_number)
-               : _host.preload(blockdata.uri.c_str(), instance_number))
+    if (_host.preload(blockdata.uri.c_str(), instance_number))
     {
         hostSetupInstance(blockdata, instance_number);
+        if (active) 
+            _host.activate(instance_number, true);
         return true;
     }
 
@@ -6618,8 +6639,8 @@ void HostConnector::hostSetupInstance(const Block& blockdata, const uint16_t ins
             params.push_back({ paramdata.symbol.c_str(), paramdata.value });
     }
 
-    if (! params.empty())
-        _host.params_flush(instance_number, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params.size(), params.data());
+    const int16_t instances[1] = { static_cast<int16_t>(instance_number) };
+    _host.multi_pre_run(LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params.size(), params.data(), 1, instances);
 
     for (const Property& propdata : blockdata.properties)
     {
@@ -6697,6 +6718,28 @@ void HostConnector::hostParamsFlushBlockPair(const HostBlockPair& hbp,
     else
     {
         _host.params_flush(hbp.id, reset_value, params.size(), params.data());
+    }
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::hostPrerunBlockPair(const HostBlockPair& hbp,
+                                        const uint8_t reset_value,
+                                        const std::vector<flushed_param>& params)
+{
+    assert(hbp.id != kMaxHostInstances);
+
+    if (hbp.pair != kMaxHostInstances)
+    {
+        const int16_t instances[2] = { static_cast<int16_t>(hbp.id), static_cast<int16_t>(hbp.pair) };
+
+        _host.multi_pre_run(reset_value, params.size(), params.data(), 2, instances);
+    }
+    else
+    {
+        const int16_t instances[1] = { static_cast<int16_t>(hbp.id) };
+
+        _host.multi_pre_run(reset_value, params.size(), params.data(), 1, instances);
     }
 }
 
@@ -6972,15 +7015,18 @@ void HostConnector::enableAudioProcessing(const bool enable)
             }
         }
 
+        // prerun all plugins to get complete resetting and to be ready for next activation
         switch (instances.size())
         {
         case 0:
             break;
         case 1:
             _host.activate(instances.front(), false);
+            _host.multi_pre_run(LV2_KXSTUDIO_PROPERTIES_RESET_FULL, 0, nullptr, 1, instances.data());
             break;
         default:
             _host.multi_activate(false, instances.size(), instances.data());
+            _host.multi_pre_run(LV2_KXSTUDIO_PROPERTIES_RESET_FULL, 0, nullptr, 1, instances.data());
             break;
         }
     }

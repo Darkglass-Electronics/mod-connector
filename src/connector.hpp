@@ -895,8 +895,11 @@ private:
     // patch_set for block and its pair if exists
     void hostPatchSetBlockPair(const HostBlockPair& hbp, const Property& propdata);
 
-    // params_flush for block and its pair if exists
+    // params_flush for an activated block and its pair if exists
     void hostParamsFlushBlockPair(const HostBlockPair& hbp, uint8_t reset_value, const std::vector<flushed_param>& params);
+
+    // multi_prerun for a deactivated block and its pair if exists
+    void hostPrerunBlockPair(const HostBlockPair& hbp, uint8_t reset_value, const std::vector<flushed_param>& params);
 
     // internal feedback handling, for updating parameter values
     void hostFeedbackCallback(const HostFeedbackData& data) override;
