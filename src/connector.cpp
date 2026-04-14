@@ -1766,7 +1766,6 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
                     continue;
 
                 // if defttl (default from ttl) does not match running value, make sure to inform the plugin
-                // FIXME: should compare to def instead of defttl?
                 if (isNotEqual(paramdata.value, paramdata.meta.defttl))
                     params.push_back({ paramdata.symbol.c_str(), paramdata.value });
             }
