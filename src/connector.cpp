@@ -1563,7 +1563,7 @@ bool HostConnector::reorderBlock(const uint8_t row, const uint8_t orig, const ui
 
 // --------------------------------------------------------------------------------------------------------------------
 
-bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const char* const uri, bool clearBindingsForReplacementBlock)
+bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const char* const uri, bool clearBindingsForReplacementBlock, const Block * const blockDataToCopy)
 {
     mod_log_debug("replaceBlock(%u, %u, \"%s\")", row, block, uri);
     assert(row < NUM_BLOCK_CHAIN_ROWS);
@@ -1757,6 +1757,41 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
             ++_current.numLoadedPlugins;
             initBlock(blockdata, plugin, numInputs, numOutputs, numSideInputs, numSideOutputs);
 
+            // copy data from old block
+            if (blockDataToCopy != nullptr)
+            {
+                const Block& blockcopy(*blockDataToCopy);
+                blockdata.enabled = blockcopy.enabled;
+                blockdata.quickPotSymbol = blockcopy.quickPotSymbol;
+                blockdata.meta.enable = blockcopy.meta.enable;
+                blockdata.meta.quickPotIndex = blockcopy.meta.quickPotIndex;
+                blockdata.meta.numParametersInScenes = blockcopy.meta.numParametersInScenes;
+                blockdata.meta.numPropertiesInScenes = blockcopy.meta.numPropertiesInScenes;
+                blockdata.parameters = blockcopy.parameters;
+                blockdata.properties = blockcopy.properties;
+                blockdata.sceneValues = blockcopy.sceneValues;
+                blockdata.lastSavedSceneValues = blockcopy.lastSavedSceneValues;
+
+                if (!blockdata.enabled)
+                {
+                    hostBypassBlockPair(hbp, true);
+                }
+
+                // TODO: check if also needed for regular replace case
+                // previously used only in replaceBlockWhileKeepingData
+                for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                {
+                    const Property& propdata(blockdata.properties[p]);
+                    if (isNullURI(propdata.uri))
+                        break;
+                    if ((propdata.meta.flags & Lv2PropertyNotAllowedToChange) != 0)
+                        continue;
+
+                    if (propdata.value != propdata.meta.defpath)
+                        hostPatchSetBlockPair(hbp, propdata);
+                }
+            }
+
             for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
             {
                 Parameter& paramdata(blockdata.parameters[p]);
@@ -1768,8 +1803,12 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
                 // if defttl (default from ttl) does not match running value, make sure to inform the plugin
                 if (isNotEqual(paramdata.value, paramdata.meta.defttl))
                     params.push_back({ paramdata.symbol.c_str(), paramdata.value });
+                
+                // initialize states, because there will be no updates on initial Lv2ParameterStateNone state
+                if (blockDataToCopy != nullptr)
+                    _current.chains[row].blocks[block].parameters[p].meta.state = Lv2ParameterStateNone;
             }
-
+            
             hostPrerunBlockPair(hbp, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params);
 
             // activate block pair
@@ -1956,67 +1995,8 @@ bool HostConnector::replaceBlockWhileKeepingCurrentData(const uint8_t row, const
         return false;
     }
 
-    if (! replaceBlock(row, block, uri, false))
+    if (! replaceBlock(row, block, uri, false, &blockcopy))
         return false;
-
-    {
-        Block& blockdata = _current.chains[row].blocks[block];
-        blockdata.enabled = blockcopy.enabled;
-        blockdata.quickPotSymbol = blockcopy.quickPotSymbol;
-        blockdata.meta.enable = blockcopy.meta.enable;
-        blockdata.meta.quickPotIndex = blockcopy.meta.quickPotIndex;
-        blockdata.meta.numParametersInScenes = blockcopy.meta.numParametersInScenes;
-        blockdata.meta.numPropertiesInScenes = blockcopy.meta.numPropertiesInScenes;
-        blockdata.parameters = blockcopy.parameters;
-        blockdata.properties = blockcopy.properties;
-        blockdata.sceneValues = blockcopy.sceneValues;
-        blockdata.lastSavedSceneValues = blockcopy.lastSavedSceneValues;
-    }
-
-    const HostBlockPair hbp = _mapper.get(_current.preset, row, block);
-    assert_return(hbp.id != kMaxHostInstances, false);
-
-    std::vector<flushed_param> params;
-    params.reserve(MAX_PARAMS_PER_BLOCK);
-
-    for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
-    {
-        const Parameter& paramdata(blockcopy.parameters[p]);
-        if (isNullURI(paramdata.symbol))
-            break;
-        if ((paramdata.meta.flags & Lv2ParameterNotAllowedToChange) != 0)
-            continue;
-
-        if (isNotEqual(paramdata.value, paramdata.meta.def))
-            params.push_back({ paramdata.symbol.c_str(), paramdata.value });
-
-        // initialize states, because there will be no updates on initial Lv2ParameterStateNone state
-        _current.chains[row].blocks[block].parameters[p].meta.state = Lv2ParameterStateNone;
-    }
-
-    {
-        const Host::NonBlockingScopeWithAudioFades hnbs(_host);
-
-        if (!blockcopy.enabled)
-        {
-            hostBypassBlockPair(hbp, true);
-        }
-
-        // TODO: should be replaced with prerun, but that needs to be done in replaceBlock before activation and connections
-        hostParamsFlushBlockPair(hbp, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params);
-        
-        for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
-        {
-            const Property& propdata(blockcopy.properties[p]);
-            if (isNullURI(propdata.uri))
-                break;
-            if ((propdata.meta.flags & Lv2PropertyNotAllowedToChange) != 0)
-                continue;
-
-            if (propdata.value != propdata.meta.defpath)
-                hostPatchSetBlockPair(hbp, propdata);
-        }
-    }
 
     _current.dirty = true;
     return true;
