@@ -1445,7 +1445,7 @@ bool Host::multi_pre_run(const uint8_t reset_value,
                          const unsigned int instance_count,
                          const int16_t* const instances)
 {
-    VALIDATE_INSTANCE_COUNT(instance_count);
+    VALIDATE(instance_count >= 1 && instance_count < kMaxHostInstances)
 
     std::string msg = format("multi_pre_run %u %u", reset_value, instance_count);
 
