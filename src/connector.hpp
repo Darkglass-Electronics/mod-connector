@@ -512,7 +512,11 @@ public:
     // returning false means the block was unchanged
     // use clearBindingsForReplacementBlock=false only when making sure the new plugin has same control inputs
     // blockDataToCopy is ignored if replacing block with itself, block is still cleared
-    bool replaceBlock(uint8_t row, uint8_t block, const char* uri, bool clearBindingsForReplacementBlock = true, const Block * const blockDataToCopy = nullptr);
+    bool replaceBlock(uint8_t row, 
+                      uint8_t block, 
+                      const char* uri, 
+                      bool clearBindingsForReplacementBlock = true, 
+                      const Block* blockDataToCopy = nullptr);
 
     // replace a block with another lv2 plugin that matches current one (referenced by its URI)
     // the current and new plugin must have the exact same parameters and properties

@@ -1563,7 +1563,11 @@ bool HostConnector::reorderBlock(const uint8_t row, const uint8_t orig, const ui
 
 // --------------------------------------------------------------------------------------------------------------------
 
-bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const char* const uri, bool clearBindingsForReplacementBlock, const Block * const blockDataToCopy)
+bool HostConnector::replaceBlock(const uint8_t row, 
+                                 const uint8_t block, 
+                                 const char* const uri, 
+                                 bool clearBindingsForReplacementBlock, 
+                                 const Block * const blockDataToCopy)
 {
     mod_log_debug("replaceBlock(%u, %u, \"%s\")", row, block, uri);
     assert(row < NUM_BLOCK_CHAIN_ROWS);
@@ -1808,7 +1812,7 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
                 if (blockDataToCopy != nullptr)
                     _current.chains[row].blocks[block].parameters[p].meta.state = Lv2ParameterStateNone;
             }
-            
+
             hostPrerunBlockPair(hbp, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params);
 
             // activate block pair
