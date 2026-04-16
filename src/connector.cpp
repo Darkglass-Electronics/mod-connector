@@ -1566,8 +1566,8 @@ bool HostConnector::reorderBlock(const uint8_t row, const uint8_t orig, const ui
 bool HostConnector::replaceBlock(const uint8_t row, 
                                  const uint8_t block, 
                                  const char* const uri, 
-                                 bool clearBindingsForReplacementBlock, 
-                                 const Block * const blockDataToCopy)
+                                 const bool clearBindingsForReplacementBlock, 
+                                 const Block* const blockDataToCopy)
 {
     mod_log_debug("replaceBlock(%u, %u, \"%s\")", row, block, uri);
     assert(row < NUM_BLOCK_CHAIN_ROWS);
