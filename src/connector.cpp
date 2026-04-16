@@ -1759,23 +1759,11 @@ bool HostConnector::replaceBlock(const uint8_t row,
         if (added)
         {
             ++_current.numLoadedPlugins;
-            initBlock(blockdata, plugin, numInputs, numOutputs, numSideInputs, numSideOutputs);
+            initBlock(blockdata, plugin, numInputs, numOutputs, numSideInputs, numSideOutputs, blockDataToCopy);
 
             // copy data from old block
             if (blockDataToCopy != nullptr)
             {
-                const Block& blockcopy(*blockDataToCopy);
-                blockdata.enabled = blockcopy.enabled;
-                blockdata.quickPotSymbol = blockcopy.quickPotSymbol;
-                blockdata.meta.enable = blockcopy.meta.enable;
-                blockdata.meta.quickPotIndex = blockcopy.meta.quickPotIndex;
-                blockdata.meta.numParametersInScenes = blockcopy.meta.numParametersInScenes;
-                blockdata.meta.numPropertiesInScenes = blockcopy.meta.numPropertiesInScenes;
-                blockdata.parameters = blockcopy.parameters;
-                blockdata.properties = blockcopy.properties;
-                blockdata.sceneValues = blockcopy.sceneValues;
-                blockdata.lastSavedSceneValues = blockcopy.lastSavedSceneValues;
-
                 if (!blockdata.enabled)
                 {
                     hostBypassBlockPair(hbp, true);
@@ -7025,23 +7013,14 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
                               const uint8_t numInputs,
                               const uint8_t numOutputs,
                               const uint8_t numSideInputs,
-                              const uint8_t numSideOutputs) const
+                              const uint8_t numSideOutputs, 
+                              const Block* const blockDataToCopy) const
 {
     assert(plugin != nullptr);
 
-    blockdata.enabled = true;
     blockdata.uri = plugin->uri;
-    blockdata.quickPotSymbol.clear();
     blockdata.plugin = plugin;
-
-    blockdata.meta.enable.hasScenes = false;
-    blockdata.meta.enable.hwbinding = UINT8_MAX;
-    blockdata.meta.enable.tempSceneState = kTemporarySceneNone;
-    blockdata.meta.enable.changesNotSavedToPreset = false;
     blockdata.meta.flags = plugin->flags;
-    blockdata.meta.quickPotIndex = 0;
-    blockdata.meta.numParametersInScenes = 0;
-    blockdata.meta.numPropertiesInScenes = 0;
     blockdata.meta.numInputs = numInputs;
     blockdata.meta.numOutputs = numOutputs;
     blockdata.meta.numSideInputs = numSideInputs;
@@ -7049,6 +7028,41 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
     blockdata.meta.name = plugin->name;
     blockdata.meta.abbreviation = plugin->abbreviation;
     blockdata.meta.category = plugin->category;
+
+    if (blockDataToCopy != nullptr)
+    {
+        const Block& blockcopy(*blockDataToCopy);
+        
+        blockdata.enabled = blockcopy.enabled;
+        blockdata.quickPotSymbol = blockcopy.quickPotSymbol;
+
+        blockdata.meta.enable = blockcopy.meta.enable;
+        blockdata.meta.quickPotIndex = blockcopy.meta.quickPotIndex;
+        blockdata.meta.numParametersInScenes = blockcopy.meta.numParametersInScenes;
+        blockdata.meta.numPropertiesInScenes = blockcopy.meta.numPropertiesInScenes;
+
+        blockdata.parameters = blockcopy.parameters;
+        blockdata.properties = blockcopy.properties;
+        blockdata.sceneValues = blockcopy.sceneValues;
+        blockdata.lastSavedSceneValues = blockcopy.lastSavedSceneValues;
+
+        // no need to do init of parameters, properties, scenes below
+        // as they were all just copied
+        return;
+    }
+    else
+    {
+        blockdata.enabled = true;
+        blockdata.quickPotSymbol.clear();
+
+        blockdata.meta.enable.hasScenes = false;
+        blockdata.meta.enable.hwbinding = UINT8_MAX;
+        blockdata.meta.enable.tempSceneState = kTemporarySceneNone;
+        blockdata.meta.enable.changesNotSavedToPreset = false;
+        blockdata.meta.quickPotIndex = 0;
+        blockdata.meta.numParametersInScenes = 0;
+        blockdata.meta.numPropertiesInScenes = 0;
+    }
 
     blockdata.parameterSymbolToIndexMap.clear();
     blockdata.propertyURIToIndexMap.clear();

@@ -910,12 +910,15 @@ private:
     void hostFeedbackCallback(const HostFeedbackData& data) override;
 
     // init block using plugin default values, optionally fill index maps
+    // optionally copy data from another block 
+    // blockDataToCopy and new plugin must have the exact same parameters and properties
     void initBlock(Block& blockdata,
                    const std::shared_ptr<const Lv2Plugin>& plugin,
                    uint8_t numInputs,
                    uint8_t numOutputs,
                    uint8_t numSideInputs,
-                   uint8_t numSideOutputs) const;
+                   uint8_t numSideOutputs, 
+                   const Block* blockDataToCopy = nullptr) const;
 
     void allocBlock(Block& blockdata) const;
     void resetBlock(Block& blockdata) const;
