@@ -1567,7 +1567,7 @@ bool HostConnector::replaceBlock(const uint8_t row,
                                  const uint8_t block, 
                                  const char* const uri, 
                                  const bool clearBindingsForReplacementBlock, 
-                                 const Block* const blockDataToCopy)
+                                 const bool keepCurrentData)
 {
     mod_log_debug("replaceBlock(%u, %u, \"%s\")", row, block, uri);
     assert(row < NUM_BLOCK_CHAIN_ROWS);
@@ -1759,22 +1759,20 @@ bool HostConnector::replaceBlock(const uint8_t row,
         if (added)
         {
             ++_current.numLoadedPlugins;
-            initBlock(blockdata, plugin, numInputs, numOutputs, numSideInputs, numSideOutputs);
 
-            // copy data from old block
-            if (blockDataToCopy != nullptr)
+            if (keepCurrentData)
             {
-                const Block& blockcopy(*blockDataToCopy);
-                blockdata.enabled = blockcopy.enabled;
-                blockdata.quickPotSymbol = blockcopy.quickPotSymbol;
-                blockdata.meta.enable = blockcopy.meta.enable;
-                blockdata.meta.quickPotIndex = blockcopy.meta.quickPotIndex;
-                blockdata.meta.numParametersInScenes = blockcopy.meta.numParametersInScenes;
-                blockdata.meta.numPropertiesInScenes = blockcopy.meta.numPropertiesInScenes;
-                blockdata.parameters = blockcopy.parameters;
-                blockdata.properties = blockcopy.properties;
-                blockdata.sceneValues = blockcopy.sceneValues;
-                blockdata.lastSavedSceneValues = blockcopy.lastSavedSceneValues;
+                // the only parts of blockdata that should be updated from new plugin's info
+                blockdata.uri = plugin->uri;
+                blockdata.plugin = plugin;
+                blockdata.meta.flags = plugin->flags;
+                blockdata.meta.numInputs = numInputs;
+                blockdata.meta.numOutputs = numOutputs;
+                blockdata.meta.numSideInputs = numSideInputs;
+                blockdata.meta.numSideOutputs = numSideOutputs;
+                blockdata.meta.name = plugin->name;
+                blockdata.meta.abbreviation = plugin->abbreviation;
+                blockdata.meta.category = plugin->category;
 
                 if (!blockdata.enabled)
                 {
@@ -1795,6 +1793,10 @@ bool HostConnector::replaceBlock(const uint8_t row,
                         hostPatchSetBlockPair(hbp, propdata);
                 }
             }
+            else
+            {
+                initBlock(blockdata, plugin, numInputs, numOutputs, numSideInputs, numSideOutputs);
+            }
 
             for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
             {
@@ -1809,7 +1811,7 @@ bool HostConnector::replaceBlock(const uint8_t row,
                     params.push_back({ paramdata.symbol.c_str(), paramdata.value });
                 
                 // initialize states, because there will be no updates on initial Lv2ParameterStateNone state
-                if (blockDataToCopy != nullptr)
+                if (keepCurrentData)
                     _current.chains[row].blocks[block].parameters[p].meta.state = Lv2ParameterStateNone;
             }
 
@@ -1999,7 +2001,7 @@ bool HostConnector::replaceBlockWhileKeepingCurrentData(const uint8_t row, const
         return false;
     }
 
-    if (! replaceBlock(row, block, uri, false, &blockcopy))
+    if (! replaceBlock(row, block, uri, false, true))
         return false;
 
     _current.dirty = true;

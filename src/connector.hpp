@@ -511,12 +511,13 @@ public:
     // passing null, empty string or URI of the current block as the URI means clearing the block
     // returning false means the block was unchanged
     // use clearBindingsForReplacementBlock=false only when making sure the new plugin has same control inputs
-    // blockDataToCopy is ignored if replacing block with itself, block is still cleared
+    // keepCurrentData can only be used if new and old block have the exact same parameters and properties
+    // keepCurrentData is ignored if replacing block with itself, block is still cleared
     bool replaceBlock(uint8_t row, 
                       uint8_t block, 
                       const char* uri, 
                       bool clearBindingsForReplacementBlock = true, 
-                      const Block* blockDataToCopy = nullptr);
+                      bool keepCurrentData = false);
 
     // replace a block with another lv2 plugin that matches current one (referenced by its URI)
     // the current and new plugin must have the exact same parameters and properties
