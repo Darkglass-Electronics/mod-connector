@@ -3499,6 +3499,13 @@ void HostConnector::requestHostUpdates()
 
 // --------------------------------------------------------------------------------------------------------------------
 
+void HostConnector::waitAudioCycle()
+{
+    _host.wait_audio_cycle();
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 void HostConnector::enableCpuLoadUpdates(const bool enable)
 {
     _host.feature_enable(Host::kFeatureCpuLoad, enable ? 1 : 0);

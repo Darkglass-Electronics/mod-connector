@@ -1484,6 +1484,11 @@ bool Host::multi_pre_run(const uint8_t reset_value,
     return impl->writeMessageAndWait(msg);
 }
 
+bool Host::wait_audio_cycle()
+{
+    return impl->writeMessageAndWait("wait_audio_cycle");
+}
+
 bool Host::poll_feedback(FeedbackCallback* const callback) const
 {
     return impl->poll(callback);
