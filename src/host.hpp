@@ -511,6 +511,11 @@ struct Host {
                        const int16_t* instances);
 
    /**
+     * wait for at least 1 audio cycle to pass
+     */
+    bool wait_audio_cycle();
+
+   /**
      * poll feedback port for messages, triggering a callback for each one
      */
     bool poll_feedback(FeedbackCallback* callback) const;

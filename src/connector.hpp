@@ -373,6 +373,9 @@ public:
     // request more host updates
     void requestHostUpdates();
 
+    // wait for at least 1 audio cycle to pass
+    void waitAudioCycle();
+
     // ----------------------------------------------------------------------------------------------------------------
     // debug helpers
 
