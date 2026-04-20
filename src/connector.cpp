@@ -4781,9 +4781,7 @@ void HostConnector::hostEnsureStereoChain(const uint8_t preset,
 
                 // reset original block instance so the pair of blocks are in sync
                 const HostBlockPair hbp = _mapper.get(preset, row, bl);
-                _host.activate(hbp.id, false);
                 _host.pre_run(hbp.id, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, 0, nullptr);
-                _host.activate(hbp.id, true);
             }
             else
             {
