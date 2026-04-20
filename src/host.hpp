@@ -240,7 +240,7 @@ struct Host {
 
     /**
      * pre-run and flush several param values at once and trigger reset if available
-     * instance must be in deactivated state
+     * instance must be in deactivated state or global processing disabled (and plugin does not have isLive flag)
      */
     bool pre_run(int16_t instance_number,
                  uint8_t reset_value,
@@ -502,7 +502,7 @@ struct Host {
 
    /**
      * pre-run and flush several param values at once and trigger reset if available (multiple instance variant)
-     * all instances must be in deactivated state
+     * all instances must be in deactivated state or global processing disabled (and plugins do not have isLive flag)
      */
     bool multi_pre_run(uint8_t reset_value,
                        unsigned int param_count,
