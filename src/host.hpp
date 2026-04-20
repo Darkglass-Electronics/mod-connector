@@ -239,6 +239,15 @@ struct Host {
                       const flushed_param* params);
 
     /**
+     * pre-run and flush several param values at once and trigger reset if available
+     * instance must be in deactivated state or global processing disabled (and plugin does not have isLive flag)
+     */
+    bool pre_run(int16_t instance_number,
+                 uint8_t reset_value,
+                 unsigned int param_count,
+                 const flushed_param* params);
+
+    /**
      * set the value of a patch property
      */
     bool patch_set(int16_t instance_number, const char* property_uri, const char* value);
@@ -483,12 +492,23 @@ struct Host {
 
    /**
      * flush several param values at once and trigger reset if available (multiple instance variant)
+     * all instances must be in activated state
      */
     bool multi_params_flush(uint8_t reset_value,
                             unsigned int param_count,
                             const flushed_param* params,
                             unsigned int instance_count,
                             const int16_t* instances);
+
+   /**
+     * pre-run and flush several param values at once and trigger reset if available (multiple instance variant)
+     * all instances must be in deactivated state or global processing disabled (and plugins do not have isLive flag)
+     */
+    bool multi_pre_run(uint8_t reset_value,
+                       unsigned int param_count,
+                       const flushed_param* params,
+                       unsigned int instance_count,
+                       const int16_t* instances);
 
    /**
      * poll feedback port for messages, triggering a callback for each one

@@ -964,6 +964,24 @@ bool Host::params_flush(const int16_t instance_number,
     return impl->writeMessageAndWait(msg);
 }
 
+bool Host::pre_run(const int16_t instance_number,
+                   const uint8_t reset_value,
+                   const unsigned int param_count,
+                   const flushed_param* const params)
+{
+    VALIDATE_INSTANCE_NUMBER(instance_number)
+
+    std::string msg = format("pre_run %d %u %u", instance_number, reset_value, param_count);
+
+    for (unsigned int i = 0; i < param_count; ++i)
+    {
+        VALIDATE_SYMBOL(params[i].symbol)
+        msg += format(" %s %f", params[i].symbol, params[i].value);
+    }
+
+    return impl->writeMessageAndWait(msg);
+}
+
 bool Host::patch_set(const int16_t instance_number, const char* const property_uri, const char* const value)
 {
     VALIDATE_INSTANCE_NUMBER(instance_number)
@@ -1421,6 +1439,33 @@ bool Host::multi_params_flush(const uint8_t reset_value,
     VALIDATE_INSTANCE_COUNT(instance_count);
 
     std::string msg = format("multi_params_flush %u %u", reset_value, instance_count);
+
+    for (unsigned int i = 0; i < instance_count; ++i)
+    {
+        VALIDATE_INSTANCE_NUMBER(instances[i])
+        msg += format(" %d", instances[i]);
+    }
+
+    msg += format(" %u", param_count);
+
+    for (unsigned int i = 0; i < param_count; ++i)
+    {
+        VALIDATE_SYMBOL(params[i].symbol)
+        msg += format(" %s %f", params[i].symbol, params[i].value);
+    }
+
+    return impl->writeMessageAndWait(msg);
+}
+
+bool Host::multi_pre_run(const uint8_t reset_value,
+                         const unsigned int param_count,
+                         const flushed_param* const params,
+                         const unsigned int instance_count,
+                         const int16_t* const instances)
+{
+    VALIDATE_INSTANCE_COUNT(instance_count);
+
+    std::string msg = format("multi_pre_run %u %u", reset_value, instance_count);
 
     for (unsigned int i = 0; i < instance_count; ++i)
     {
