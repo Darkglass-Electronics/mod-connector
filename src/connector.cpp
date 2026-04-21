@@ -1762,8 +1762,12 @@ bool HostConnector::replaceBlock(const uint8_t row,
 
             if (keepCurrentData)
             {
-                // the only parts of blockdata that should be updated from new plugin's info
                 // name, abbreviation and category assumed to be same between old and new plugin
+                assert(blockdata.meta.name == plugin->name);
+                assert(blockdata.meta.abbreviation == plugin->abbreviation);
+                assert(blockdata.meta.category == plugin->category);
+                
+                // the only parts of blockdata that should be updated from new plugin's info
                 blockdata.uri = plugin->uri;
                 blockdata.plugin = plugin;
                 blockdata.meta.flags = plugin->flags;
