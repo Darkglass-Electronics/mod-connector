@@ -4543,10 +4543,18 @@ void HostConnector::hostClearAndLoadCurrentBank()
         _current.chains[row].playbackId.fill(kMaxHostInstances);
     }
 
-    for (uint8_t pr = 0; pr < NUM_PRESETS_PER_BANK; ++pr)
-        hostLoadPreset(pr);
+    // load, setup, prerun and activate current preset
+    hostLoadPreset(_current.preset);
 
     _host.feature_enable(Host::kFeatureProcessing, Host::kProcessingOnWithFadeIn);
+
+    // load, setup and prerun other presets while already processing current preset
+    for (uint8_t pr = 0; pr < NUM_PRESETS_PER_BANK; ++pr)
+    {
+        if (pr == _current.preset)
+            continue;
+        hostLoadPreset(pr);
+    }
 }
 
 // --------------------------------------------------------------------------------------------------------------------
