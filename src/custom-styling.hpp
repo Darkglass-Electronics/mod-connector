@@ -109,6 +109,12 @@ struct BlockSettings {
         operator bool() const noexcept { return !control.path.empty(); }
     };
 
+    // The about page background image
+    // Can contain multiple horizontal frames for paginated scrolling,
+    // in which case it must be a multiple of the screen width
+    // (on Anagram this is 1424px)
+    Image about;
+
     // The bottom-most background image
     // Can contain multiple horizontal frames for paginated scrolling,
     // in which case it must be a multiple of the screen width
