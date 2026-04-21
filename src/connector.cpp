@@ -1665,9 +1665,7 @@ bool HostConnector::replaceBlock(const uint8_t row, const uint8_t block, const c
 
             if (! params.empty())
             {
-                // TODO: potentially replace with a prerun later
-                // this would require a prerun for activated block
-                hostParamsFlushBlockPair(hbp, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params);
+                hostPrerunBlockPair(hbp, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params);
             }
 
             for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
