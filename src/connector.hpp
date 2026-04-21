@@ -511,13 +511,20 @@ public:
     bool reorderBlock(uint8_t row, uint8_t orig, uint8_t dest);
 
     // replace a block with another lv2 plugin (referenced by its URI)
-    // passing null or empty string as the URI means clearing the block
+    // passing null, empty string or URI of the current block as the URI means clearing the block
     // returning false means the block was unchanged
     // use clearBindingsForReplacementBlock=false only when making sure the new plugin has same control inputs
-    bool replaceBlock(uint8_t row, uint8_t block, const char* uri, bool clearBindingsForReplacementBlock = true);
+    // keepCurrentData can only be used if new and old block have the exact same parameters and properties
+    // keepCurrentData is ignored if replacing block with itself, block is still cleared
+    bool replaceBlock(uint8_t row, 
+                      uint8_t block, 
+                      const char* uri, 
+                      bool clearBindingsForReplacementBlock = true, 
+                      bool keepCurrentData = false);
 
     // replace a block with another lv2 plugin that matches current one (referenced by its URI)
-    // the current and new plugin must have the exact same parameters and properties
+    // the current and new plugin must have the exact same parameters, properties, name, 
+    // abbreviation and category
     // returning false means the block was unchanged
     bool replaceBlockWhileKeepingCurrentData(uint8_t row, uint8_t block, const char* uri);
 
