@@ -520,7 +520,8 @@ public:
                       bool keepCurrentData = false);
 
     // replace a block with another lv2 plugin that matches current one (referenced by its URI)
-    // the current and new plugin must have the exact same parameters and properties
+    // the current and new plugin must have the exact same parameters, properties, name, 
+    // abbreviation and category
     // returning false means the block was unchanged
     bool replaceBlockWhileKeepingCurrentData(uint8_t row, uint8_t block, const char* uri);
 

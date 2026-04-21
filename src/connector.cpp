@@ -1763,6 +1763,7 @@ bool HostConnector::replaceBlock(const uint8_t row,
             if (keepCurrentData)
             {
                 // the only parts of blockdata that should be updated from new plugin's info
+                // name, abbreviation and category assumed to be same between old and new plugin
                 blockdata.uri = plugin->uri;
                 blockdata.plugin = plugin;
                 blockdata.meta.flags = plugin->flags;
@@ -1770,9 +1771,6 @@ bool HostConnector::replaceBlock(const uint8_t row,
                 blockdata.meta.numOutputs = numOutputs;
                 blockdata.meta.numSideInputs = numSideInputs;
                 blockdata.meta.numSideOutputs = numSideOutputs;
-                blockdata.meta.name = plugin->name;
-                blockdata.meta.abbreviation = plugin->abbreviation;
-                blockdata.meta.category = plugin->category;
 
                 if (!blockdata.enabled)
                 {
@@ -1812,7 +1810,7 @@ bool HostConnector::replaceBlock(const uint8_t row,
                 
                 // initialize states, because there will be no updates on initial Lv2ParameterStateNone state
                 if (keepCurrentData)
-                    _current.chains[row].blocks[block].parameters[p].meta.state = Lv2ParameterStateNone;
+                    blockdata.parameters[p].meta.state = Lv2ParameterStateNone;
             }
 
             hostPrerunBlockPair(hbp, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params);
