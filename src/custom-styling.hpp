@@ -110,9 +110,7 @@ struct BlockSettings {
     };
 
     // The about page background image
-    // Can contain multiple horizontal frames for paginated scrolling,
-    // in which case it must be a multiple of the screen width
-    // (on Anagram this is 1424px)
+    // There are no strict restrictions on size, it will be scrollable if necessary
     Image about;
 
     // The bottom-most background image
