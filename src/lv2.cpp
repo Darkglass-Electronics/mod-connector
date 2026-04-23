@@ -170,6 +170,7 @@ struct Lv2NamespaceDefinitions {
     LilvNode* const darkglass_abbreviation;
     LilvNode* const darkglass_blockImageOff;
     LilvNode* const darkglass_blockImageOn;
+    LilvNode* const dgcs_about;
     LilvNode* const dgcs_alignment;
     LilvNode* const dgcs_background;
     LilvNode* const dgcs_backgroundScenes;
@@ -237,6 +238,7 @@ struct Lv2NamespaceDefinitions {
         : darkglass_abbreviation(lilv_new_uri(world, LV2_DARKGLASS_PROPERTIES__abbreviation)),
           darkglass_blockImageOff(lilv_new_uri(world, LV2_DARKGLASS_PROPERTIES__blockImageOff)),
           darkglass_blockImageOn(lilv_new_uri(world, LV2_DARKGLASS_PROPERTIES__blockImageOn)),
+          dgcs_about(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__about)),
           dgcs_alignment(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__alignment)),
           dgcs_background(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__background)),
           dgcs_backgroundScenes(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__backgroundScenes)),
@@ -307,6 +309,7 @@ struct Lv2NamespaceDefinitions {
         lilv_node_free(darkglass_abbreviation);
         lilv_node_free(darkglass_blockImageOff);
         lilv_node_free(darkglass_blockImageOn);
+        lilv_node_free(dgcs_about);
         lilv_node_free(dgcs_alignment);
         lilv_node_free(dgcs_background);
         lilv_node_free(dgcs_backgroundScenes);
@@ -1419,6 +1422,7 @@ struct Lv2World::Impl
 
         CustomStyling::BlockSettings* const styling = new CustomStyling::BlockSettings;
 
+        assignImage(styling->about, stylingNode, ns.dgcs_about, CustomStyling::kAlignBottomRight);
         assignImage(styling->background, stylingNode, ns.dgcs_background, CustomStyling::kAlignBottomRight);
 
         assignImage(styling->paginationDots, stylingNode, ns.dgcs_paginationDots, CustomStyling::kAlignBottomMid);

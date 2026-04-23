@@ -109,6 +109,10 @@ struct BlockSettings {
         operator bool() const noexcept { return !control.path.empty(); }
     };
 
+    // The about page background image
+    // There are no strict restrictions on size, it will be scrollable if necessary
+    Image about;
+
     // The bottom-most background image
     // Can contain multiple horizontal frames for paginated scrolling,
     // in which case it must be a multiple of the screen width
