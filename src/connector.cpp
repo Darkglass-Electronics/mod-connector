@@ -6822,33 +6822,48 @@ void HostConnector::hostFeedbackCallback(const HostFeedbackData& data)
         assert(data.paramState.effect_id < MAX_MOD_HOST_INSTANCES);
         assert(data.paramState.value >= Lv2ParameterStateNone && data.paramState.value <= Lv2ParameterStateBlocked);
 
-        const HostBlockAndRow hbar = _mapper.get_block_with_id(_current.preset, data.paramState.effect_id);
-        if (hbar.row == NUM_BLOCK_CHAIN_ROWS || hbar.block == NUM_BLOCKS_PER_PRESET)
-            return;
+        bool sendUpdate = false;
 
-        Block& blockdata = _current.chains[hbar.row].blocks[hbar.block];
-
-        uint8_t p = 0;
-        for (; p < MAX_PARAMS_PER_BLOCK; ++p)
+        for (uint8_t preset = 0; preset < NUM_PRESETS_PER_BANK; ++preset)
         {
-            if (isNullURI(blockdata.parameters[p].symbol))
-                return;
-            if (blockdata.parameters[p].symbol == data.paramState.symbol)
+            const HostBlockAndRow hbar = _mapper.get_block_with_id(preset, data.paramState.effect_id);
+            if (hbar.row == NUM_BLOCK_CHAIN_ROWS || hbar.block == NUM_BLOCKS_PER_PRESET)
+                continue;
+
+            Block& blockdata = preset == _current.preset ? _current.chains[hbar.row].blocks[hbar.block] 
+                                                         : _presets[preset].chains[hbar.row].blocks[hbar.block];
+
+            uint8_t p = 0;
+            for (; p < MAX_PARAMS_PER_BLOCK; ++p)
+            {
+                if (isNullURI(blockdata.parameters[p].symbol))
+                    p = MAX_PARAMS_PER_BLOCK;
+                if (blockdata.parameters[p].symbol == data.paramState.symbol)
+                    break;
+            }
+
+            if (p == MAX_PARAMS_PER_BLOCK)
                 break;
+
+            const Lv2ParameterState stateValue = static_cast<Lv2ParameterState>(data.paramState.value);
+            blockdata.parameters[p].meta.state = stateValue;
+
+            if (preset != _current.preset)
+                break;
+
+            cdata.type = HostCallbackData::kParameterState;
+            cdata.parameterState.row = hbar.row;
+            cdata.parameterState.block = hbar.block;
+            cdata.parameterState.index = p;
+            cdata.parameterState.symbol = data.paramState.symbol;
+            cdata.parameterState.state = stateValue;
+            
+            sendUpdate = true;
+            break;
         }
 
-        if (p == MAX_PARAMS_PER_BLOCK)
+        if (!sendUpdate)
             return;
-
-        const Lv2ParameterState stateValue = static_cast<Lv2ParameterState>(data.paramState.value);
-        blockdata.parameters[p].meta.state = stateValue;
-
-        cdata.type = HostCallbackData::kParameterState;
-        cdata.parameterState.row = hbar.row;
-        cdata.parameterState.block = hbar.block;
-        cdata.parameterState.index = p;
-        cdata.parameterState.symbol = data.paramState.symbol;
-        cdata.parameterState.state = stateValue;
     }
         break;
 
