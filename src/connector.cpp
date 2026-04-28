@@ -456,6 +456,32 @@ const std::string& HostConnector::getLastError() const
 
 // --------------------------------------------------------------------------------------------------------------------
 
+void HostConnector::monitorBlocksCPULoad(const bool enable)
+{
+    if (_current.numLoadedPlugins == 0)
+        return;
+
+    std::vector<int16_t> instances;
+    instances.reserve(NUM_BLOCK_CHAIN_ROWS * NUM_BLOCKS_PER_PRESET);
+
+    for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
+    {
+        for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
+        {
+            if (isNullBlock(_current.chains[row].blocks[bl]))
+                continue;
+
+            if (const HostBlockPair hbp = _mapper.get(_current.preset, row, bl); hbp.id != kMaxHostInstances)
+                instances.push_back(hbp.id);
+        }
+    }
+
+    if (! instances.empty())
+        _host.monitor_cpu_load(enable, instances.size(), instances.data());
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 bool HostConnector::monitorMidiControl(const uint8_t midiChannel, const bool enable)
 {
     return _host.monitor_midi_control(midiChannel, enable);
@@ -6752,6 +6778,21 @@ void HostConnector::hostFeedbackCallback(const HostFeedbackData& data)
         cdata.cpuLoad.max = data.cpuLoad.max;
         cdata.cpuLoad.xruns = data.cpuLoad.xruns;
         break;
+
+    case HostFeedbackData::kFeedbackCpuMonitor:
+        assert(data.cpuMonitor.effect_id >= 0);
+        assert(data.cpuMonitor.effect_id < MAX_MOD_HOST_PLUGIN_INSTANCES);
+
+        if (const HostBlockAndRow hbar = _mapper.get_block_with_id(_current.preset, data.cpuMonitor.effect_id);
+            hbar.row != NUM_BLOCK_CHAIN_ROWS && hbar.block != NUM_BLOCKS_PER_PRESET)
+        {
+            cdata.type = HostCallbackData::kCpuMonitor;
+            cdata.cpuMonitor.row = hbar.row;
+            cdata.cpuMonitor.block = hbar.block;
+            cdata.cpuMonitor.cpuLoad = data.cpuMonitor.cpu_load;
+            break;
+        }
+        return;
 
     case HostFeedbackData::kFeedbackLog:
         cdata.type = HostCallbackData::kLog;
