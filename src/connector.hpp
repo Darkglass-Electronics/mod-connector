@@ -35,6 +35,7 @@ struct HostConnector : Host::FeedbackCallback {
             enum {
                 kAudioMonitor,
                 kCpuLoad,
+                kCpuMonitor,
                 kLog,
                 kParameterSet,
                 kParameterState,
@@ -57,6 +58,12 @@ struct HostConnector : Host::FeedbackCallback {
                     float max;
                     uint32_t xruns;
                 } cpuLoad;
+                // kCpuMonitor
+                struct {
+                    uint8_t row;
+                    uint8_t block;
+                    float cpuLoad;
+                } cpuMonitor;
                 // kLog
                 struct {
                     char type;
@@ -359,6 +366,10 @@ public:
 
     // get last error from host in case something failed
     [[nodiscard]] const std::string& getLastError() const;
+
+    // monitor cpu load for all blocks (non-tools)
+    // NOTE only relates to current blocks, not future ones
+    void monitorBlocksCPULoad(bool enable);
 
     // listen to MIDI control change messages
     bool monitorMidiControl(uint8_t midiChannel, bool enable);

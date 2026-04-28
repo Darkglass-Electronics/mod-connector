@@ -257,6 +257,26 @@ private:
 
             callback->hostFeedbackCallback(d);
         }
+        else if (std::strncmp(buffer, "cpu_monitor ", 12) == 0)
+        {
+            assert(bytesRead > 14);
+            HostFeedbackData d = { HostFeedbackData::kFeedbackCpuMonitor, {} };
+
+            char* msgbuffer;
+            char* sep = buffer + 12;
+
+            // 1st arg: int index
+            msgbuffer = sep;
+            sep = std::strchr(sep, ' ');
+            *sep++ = '\0';
+            d.cpuMonitor.effect_id = std::atoi(msgbuffer);
+
+            // 2nd arg: float value
+            msgbuffer = sep;
+            d.cpuMonitor.cpu_load = std::atof(msgbuffer);
+
+            callback->hostFeedbackCallback(d);
+        }
         else if (std::strncmp(buffer, "cpu_load ", 9) == 0)
         {
             assert(bytesRead > 11);
@@ -1067,6 +1087,21 @@ bool Host::monitor_audio_levels(const char* const source_port_name, bool enable)
     VALIDATE_JACK_PORT(source_port_name)
 
     return impl->writeMessageAndWait(format("monitor_audio_levels %s %d", source_port_name, enable ? 1 : 0));
+}
+
+bool Host::monitor_cpu_load(const bool enable, const unsigned int instance_count, const int16_t* const instances)
+{
+    VALIDATE_INSTANCE_COUNT(instance_count);
+
+    std::string msg = format("monitor_cpu_load %d %u", enable ? 1 : 0, instance_count);
+
+    for (unsigned int i = 0; i < instance_count; ++i)
+    {
+        VALIDATE_INSTANCE_NUMBER(instances[i])
+        msg += format(" %d", instances[i]);
+    }
+
+    return impl->writeMessageAndWait(msg);
 }
 
 bool Host::monitor_midi_control(const uint8_t midi_channel, const bool enable)

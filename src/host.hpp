@@ -76,6 +76,7 @@ struct Host {
                 kFeedbackNullType = 0,
                 kFeedbackAudioMonitor,
                 kFeedbackCpuLoad,
+                kFeedbackCpuMonitor,
                 kFeedbackParameterSet,
                 kFeedbackParameterState,
                 kFeedbackPatchSet,
@@ -107,6 +108,10 @@ struct Host {
                     float max;
                     uint32_t xruns;
                 } cpuLoad;
+                struct {
+                    int effect_id;
+                    float cpu_load;
+                } cpuMonitor;
                 struct {
                     int effect_id;
                     const char* key;
@@ -298,6 +303,11 @@ struct Host {
      * monitor audio levels for a specific jack port (on the feedback port)
      */
     bool monitor_audio_levels(const char *source_port_name, bool enable);
+
+    /**
+     * monitor cpu load for specific instances
+     */
+    bool monitor_cpu_load(bool enable, unsigned int instance_count, const int16_t* instances);
 
     /**
      * listen to MIDI control change messages (on the feedback port)
