@@ -6859,6 +6859,7 @@ void HostConnector::hostFeedbackCallback(const HostFeedbackData& data)
             cdata.parameterState.state = stateValue;
             
             sendUpdate = true;
+            break;
         }
 
         if (!sendUpdate)
