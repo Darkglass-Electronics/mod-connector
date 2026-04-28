@@ -6843,7 +6843,7 @@ void HostConnector::hostFeedbackCallback(const HostFeedbackData& data)
             }
 
             if (p == MAX_PARAMS_PER_BLOCK)
-                continue;
+                break;
 
             const Lv2ParameterState stateValue = static_cast<Lv2ParameterState>(data.paramState.value);
             blockdata.parameters[p].meta.state = stateValue;
