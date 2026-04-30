@@ -729,7 +729,7 @@ public:
     // enable a "system tool" lv2 plugin (referenced by its URI)
     // passing null or empty string as the URI means disabling the tool
     // NOTE toolIndex must be < 10 and != 5
-    bool enableTool(uint8_t toolIndex, const char* uri);
+    bool enableTool(uint8_t toolIndex, const char* uri, bool prerun = false);
 
     // connect a tool audio input port to an arbitrary jack output port
     void connectToolAudioInput(uint8_t toolIndex, const char* symbol, const char* jackPort, bool safe = false);
