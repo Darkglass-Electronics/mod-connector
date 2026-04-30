@@ -3794,14 +3794,27 @@ bool HostConnector::transport(const bool rolling, const double beatsPerBar, cons
 
 // --------------------------------------------------------------------------------------------------------------------
 
-bool HostConnector::enableTool(const uint8_t toolIndex, const char* const uri)
+bool HostConnector::enableTool(const uint8_t toolIndex, const char* const uri, const bool prerun)
 {
     mod_log_debug("enableTool(%u, \"%s\")", toolIndex, uri);
     assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
     assert(toolIndex != 5);
 
-    return isNullURI(uri) ? _host.remove(MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex)
-                          : _host.add(uri, MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex);
+    const uint16_t instance = MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex;
+
+    if (isNullURI(uri))
+        return _host.remove(instance);
+
+    if (prerun)
+    {
+        return (
+            _host.preload(uri, instance) &&
+            _host.pre_run(instance, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, 0, nullptr) &&
+            _host.activate(instance, true)
+        );
+    }
+
+    return _host.add(uri, instance);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
