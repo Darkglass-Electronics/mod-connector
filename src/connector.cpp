@@ -1720,14 +1720,20 @@ bool HostConnector::replaceBlock(const uint8_t row,
     // store for later use after we change change blockdata
     const uint8_t oldNumSideInputs = blockdata.meta.numSideInputs;
 
+    // early check that we are adding a valid plugin, return early in case of error
+    std::shared_ptr<const Lv2Plugin> plugin;
+    if (!isNullURI(uri))
+    {
+        plugin = lv2world.getPluginByURI(uri);
+        assert_return(plugin != nullptr, false);
+    }
+
+    // we only do changes after verifying that the requested plugin exists and is valid
+    // (or if removing a block, so uri is null)
     const Host::NonBlockingScopeWithAudioFades hnbs(_host);
 
     if (!isNullURI(uri))
     {
-        const std::shared_ptr<const Lv2Plugin> plugin = lv2world.getPluginByURI(uri);
-        assert_return(plugin != nullptr, false);
-
-        // we only do changes after verifying that the requested plugin exists and is valid
         uint8_t numInputs, numOutputs, numSideInputs, numSideOutputs;
         if (!getSupportedPluginIO(plugin, numInputs, numOutputs, numSideInputs, numSideOutputs))
         {
