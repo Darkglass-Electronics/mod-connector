@@ -2631,6 +2631,60 @@ bool HostConnector::switchScene(const uint8_t scene)
         }
     }
 
+    // update binding values
+    for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
+    {
+        Bindings& bindings(_current.bindings[hwid]);
+
+        if (bindings.parameters.empty())
+            continue;
+
+        bool foundNonBoolean = false;
+
+        for (const ParameterBinding& binding : bindings.parameters)
+        {
+            if (binding.parameterSymbol == ":bypass")
+                continue;
+
+            assert(binding.meta.parameterIndex < NUM_BLOCKS_PER_PRESET);
+
+            const Block& blockdata = _current.chains[binding.row].blocks[binding.block];
+            const Parameter& paramdata = blockdata.parameters[binding.meta.parameterIndex];
+            if ((paramdata.meta.flags & Lv2ParameterToggled) != 0)
+                continue;
+
+            if (binding.min < binding.max)
+                bindings.value = normalized(paramdata.value , binding.min, binding.max);
+            else
+                bindings.value = 1.f - normalized(paramdata.value , binding.max, binding.min);
+
+            foundNonBoolean = true;
+            break;
+        }
+
+        if (! foundNonBoolean)
+        {
+            const ParameterBinding& binding = bindings.parameters.front();
+            const Block& blockdata = _current.chains[binding.row].blocks[binding.block];
+
+            if (binding.parameterSymbol == ":bypass")
+            {
+                bindings.value = blockdata.enabled ? binding.max : binding.min;
+            }
+            else
+            {
+                assert(binding.meta.parameterIndex < NUM_BLOCKS_PER_PRESET);
+
+                const Parameter& paramdata = blockdata.parameters[binding.meta.parameterIndex];
+
+                if (binding.min < binding.max)
+                    bindings.value = normalized(paramdata.value , binding.min, binding.max);
+                else
+                    bindings.value = 1.f - normalized(paramdata.value , binding.max, binding.min);
+            }
+        }
+    }
+
     return true;
 }
 
