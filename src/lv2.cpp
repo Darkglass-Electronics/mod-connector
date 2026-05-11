@@ -20,10 +20,18 @@
 #include <list>
 #include <map>
 
+#include <pthread.h>
+
 #include <lilv/lilv.h>
 
 #ifdef _WIN32
 #include <io.h>
+#else
+#include <unistd.h>
+#endif
+
+#ifdef _DARKGLASS_DEVICE_PABLITO
+#include <sys/resource.h>
 #endif
 
 #if defined(HAVE_LV2_1_18) || (defined(__has_include) && __has_include(<lv2/atom/atom.h>))
@@ -162,6 +170,18 @@ static std::string _sha1(const char* const cstring)
     hashdec[HASH_LENGTH * 2] = '\0';
 
     return hashdec;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+// millisecond sleep
+
+static void msleep(const unsigned int time)
+{
+   #ifdef _WIN32
+    Sleep(time);
+   #else
+    usleep(time * 1000);
+   #endif
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -377,6 +397,23 @@ struct Lv2NamespaceDefinitions {
 
 // --------------------------------------------------------------------------------------------------------------------
 
+struct pthread_mutex_guard {
+    pthread_mutex_t& mutex;
+
+    explicit pthread_mutex_guard(pthread_mutex_t& m)
+        : mutex(m)
+    {
+        pthread_mutex_lock(&mutex);
+    }
+
+    ~pthread_mutex_guard()
+    {
+        pthread_mutex_unlock(&mutex);
+    }
+};
+
+// --------------------------------------------------------------------------------------------------------------------
+
 struct Lv2World::Impl
 {
     Impl(std::string& last_error_)
@@ -413,10 +450,40 @@ struct Lv2World::Impl
                 std::free(lilvparsed);
             }
         }
+
+        // create a priority-inversion recursive mutex
+        // this way the thread can be low-priority and gets temporarily raised to normal priority as needed
+        {
+            pthread_mutexattr_t attr;
+            pthread_mutexattr_init(&attr);
+            pthread_mutexattr_setprotocol(&attr, PTHREAD_PRIO_INHERIT);
+            pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+            pthread_mutex_init(&bgLoadingMutex, &attr);
+            pthread_mutexattr_destroy(&attr);
+        }
+
+        pthread_create(&bgLoadingThread,
+                       nullptr,
+                       [](void* const data) -> void*
+                       {
+                          #ifdef _DARKGLASS_DEVICE_PABLITO
+                           // low priority
+                           setpriority(PRIO_PROCESS, gettid(), 10);
+                          #endif
+                           static_cast<Impl*>(data)->bgLoadingRun();
+                           return nullptr;
+                       },
+                       this);
     }
 
     ~Impl()
     {
+        bgLoadingActive = false;
+        pthread_mutex_lock(&bgLoadingMutex);
+        pthread_join(bgLoadingThread, nullptr);
+        pthread_mutex_unlock(&bgLoadingMutex);
+        pthread_mutex_destroy(&bgLoadingMutex);
+
         pluginsCache.clear();
 
         ns.free();
@@ -453,6 +520,8 @@ struct Lv2World::Impl
 
         std::string bundlepath;
         const LilvPlugin* plugin;
+
+        const pthread_mutex_guard pmg(bgLoadingMutex);
 
         if (LilvNode* const urinode = lilv_new_uri(world, uri))
         {
@@ -1154,7 +1223,7 @@ struct Lv2World::Impl
         return cache.plugin;
     }
 
-#ifndef MOD_CONNECTOR_MINIMAL_LV2_WORLD
+   #ifndef MOD_CONNECTOR_MINIMAL_LV2_WORLD
     std::shared_ptr<const CustomStyling::BlockImage> getPluginBlockImageStyling(const char* const uri)
     {
         assert(uri != nullptr);
@@ -1171,6 +1240,8 @@ struct Lv2World::Impl
 
         if (cache.blockImageStyling != nullptr)
             return cache.blockImageStyling;
+
+        const pthread_mutex_guard pmg(bgLoadingMutex);
 
         LilvNode* stylingNode = nullptr;
         {
@@ -1322,6 +1393,8 @@ struct Lv2World::Impl
 
         if (cache.blockSettingsStyling != nullptr)
             return cache.blockSettingsStyling;
+
+        const pthread_mutex_guard pmg(bgLoadingMutex);
 
         LilvNode* stylingNode = nullptr;
         {
@@ -1718,6 +1791,8 @@ struct Lv2World::Impl
     {
         assert(path != nullptr && *path != '\0');
 
+        const pthread_mutex_guard pmg(bgLoadingMutex);
+
         LV2_URID_Map uridMap = { this, _mapfn };
         LilvState* const state = lilv_state_new_from_file(world, &uridMap, nullptr, path);
         assert_return(state != nullptr, {});
@@ -1728,7 +1803,7 @@ struct Lv2World::Impl
 
         return values;
     }
-#endif
+   #endif
 
     bool bundleAdd(const char* const path, std::vector<std::string>* pluginsInBundlePtr = nullptr)
     {
@@ -1746,6 +1821,8 @@ struct Lv2World::Impl
                                                   : pluginsInBundleLocal;
         _pluginsInBundle(pluginsInBundle, path);
         assert_return(! pluginsInBundle.empty(), false);
+
+        const pthread_mutex_guard pmg(bgLoadingMutex);
 
         // load the bundle
         if (LilvNode* const b = lilv_new_file_uri(world, nullptr, path))
@@ -1788,6 +1865,8 @@ struct Lv2World::Impl
                                                   : pluginsInBundleLocal;
         _pluginsInBundle(pluginsInBundle, path);
         assert_return(! pluginsInBundle.empty(), false);
+
+        const pthread_mutex_guard pmg(bgLoadingMutex);
 
         // unload the bundle
         if (LilvNode* const b = lilv_new_file_uri(world, nullptr, path))
@@ -1840,10 +1919,65 @@ private:
 
     struct PluginCache {
         std::shared_ptr<const Lv2Plugin> plugin;
+       #ifndef MOD_CONNECTOR_MINIMAL_LV2_WORLD
         std::shared_ptr<const CustomStyling::BlockImage> blockImageStyling;
         std::shared_ptr<const CustomStyling::BlockSettings> blockSettingsStyling;
+       #endif
     };
     std::unordered_map<std::string, PluginCache> pluginsCache;
+
+    bool bgLoadingActive = true;
+    pthread_t bgLoadingThread = {};
+    pthread_mutex_t bgLoadingMutex;
+
+    void bgLoadingRun()
+    {
+        while (bgLoadingActive)
+        {
+            msleep(100);
+
+            if (pthread_mutex_trylock(&bgLoadingMutex) != 0)
+                continue;
+
+            bool done = true;
+            for (auto& it : pluginsCache)
+            {
+                const char* const uri = it.first.c_str();
+                PluginCache& cache = it.second;
+
+                if (const std::shared_ptr<const Lv2Plugin> plugin = cache.plugin)
+                {
+                   #ifndef MOD_CONNECTOR_MINIMAL_LV2_WORLD
+                    if ((plugin->flags & Lv2PluginHasBlockImageStyling) != 0 && cache.blockImageStyling == nullptr)
+                    {
+                        done = false;
+                        getPluginBlockImageStyling(uri);
+                        assert(cache.blockImageStyling != nullptr);
+                        break;
+                    }
+                    if ((plugin->flags & Lv2PluginHasBlockSettingsStyling) != 0 && cache.blockSettingsStyling == nullptr)
+                    {
+                        done = false;
+                        getPluginBlockSettingsStyling(uri);
+                        assert(cache.blockSettingsStyling != nullptr);
+                        break;
+                    }
+                   #endif
+                    continue;
+                }
+
+                done = false;
+                getPluginByURI(uri);
+                assert(cache.plugin != nullptr);
+                break;
+            }
+
+            pthread_mutex_unlock(&bgLoadingMutex);
+
+            if (done)
+                break;
+        }
+    }
 
     static LV2_URID _mapfn(LV2_URID_Map_Handle handle, const char* uri);
     static void _portfn(const char* symbol, void* userData, const void* value, uint32_t size, uint32_t type);
