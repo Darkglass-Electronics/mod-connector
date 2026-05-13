@@ -753,7 +753,7 @@ bool IPC::Impl::SingleSocketTCP::writeMessage(const std::string& message)
 
     while (msgsize > 0)
     {
-        ret = ::send(sockets.outfd, buffer, msgsize, 0);
+        ret = ::send(sockets.outfd, buffer, msgsize, MSG_NOSIGNAL);
         if (ret < 0)
         {
             last_error = "send error";
@@ -911,7 +911,7 @@ bool IPC::Impl::DualSocketTCP::writeMessage(const std::string& message)
 
     while (msgsize > 0)
     {
-        ret = ::send(sockets.out, buffer, msgsize, 0);
+        ret = ::send(sockets.out, buffer, msgsize, MSG_NOSIGNAL);
         if (ret < 0)
         {
             last_error = "send error";
