@@ -117,12 +117,17 @@ static QStringList q_jack_port_get_all_connections(jack_client_t* const client, 
     return {};
 }
 
-class HostConnectorTests : public QObject
+class HostConnectorTests : public QObject,
+                           private HostConnector::Callback
 {
     jack_client_t* const client;
     HostProcess& hostProcess;
     HostConnector connector;
     uint retryAttempt = 0;
+
+    // unused
+    void hostConnectorCallback(const Data&) override {}
+    void hostDisconnectedCallback() override {}
 
     // return true if all tests pass
     bool hostReady()
@@ -1795,7 +1800,7 @@ class HostConnectorTests : public QObject
 private slots:
     void reconnect()
     {
-        if (connector.reconnect())
+        if (connector.reconnect(this))
         {
             const bool ok = hostReady();
             hostProcess.terminate();
