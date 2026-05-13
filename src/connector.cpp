@@ -426,6 +426,7 @@ static bool safeJsonSave(const nlohmann::json& json, const std::string& filename
 // --------------------------------------------------------------------------------------------------------------------
 
 HostConnector::HostConnector()
+    : _host(this)
 {
     for (uint8_t p = 0; p < NUM_PRESETS_PER_BANK; ++p)
     {
@@ -441,8 +442,9 @@ HostConnector::HostConnector()
 
 // --------------------------------------------------------------------------------------------------------------------
 
-bool HostConnector::reconnect()
+bool HostConnector::reconnect(Callback* const callback)
 {
+    _callback = callback;
     ok = _host.reconnect();
     return ok;
 }
@@ -3550,11 +3552,11 @@ void HostConnector::setBindingValue(const uint8_t hwid,
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::pollHostUpdates(Callback* const callback)
+void HostConnector::pollHostUpdates()
 {
-    _callback = callback;
-    _host.poll_feedback(this);
-    _callback = nullptr;
+    assert(_callback != nullptr);
+
+    _host.poll_feedback();
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -6808,10 +6810,19 @@ void HostConnector::hostPrerunBlockPair(const HostBlockPair& hbp,
 
 // --------------------------------------------------------------------------------------------------------------------
 
+void HostConnector::hostDisconnectedCallback()
+{
+    ok = false;
+
+    if (_callback != nullptr)
+        _callback->hostDisconnectedCallback();
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 void HostConnector::hostFeedbackCallback(const HostFeedbackData& data)
 {
-    if (_callback == nullptr)
-        return;
+    assert_return(_callback != nullptr,);
 
     HostCallbackData cdata = {};
 

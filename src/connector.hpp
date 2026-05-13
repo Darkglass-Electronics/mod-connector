@@ -29,7 +29,7 @@ enum Lv2ParameterState {
 
 // --------------------------------------------------------------------------------------------------------------------
 
-struct HostConnector : Host::FeedbackCallback {
+struct HostConnector : Host::Callback {
     struct Callback {
         struct Data {
             enum {
@@ -115,6 +115,7 @@ struct HostConnector : Host::FeedbackCallback {
 
         virtual ~Callback() = default;
         virtual void hostConnectorCallback(const Data& data) = 0;
+        virtual void hostDisconnectedCallback() = 0;
     };
 
     enum TemporarySceneState : uint8_t {
@@ -355,7 +356,7 @@ public:
     bool ok = false;
 
     // try to reconnect host if it previously failed
-    bool reconnect();
+    bool reconnect(Callback* callback);
 
     // get last error from host in case something failed
     [[nodiscard]] const std::string& getLastError() const;
@@ -368,7 +369,7 @@ public:
 
     // poll for host updates (e.g. MIDI-mapped parameter changes, tempo changes)
     // NOTE make sure to call `requestHostUpdates()` after handling all updates
-    void pollHostUpdates(Callback* callback);
+    void pollHostUpdates();
 
     // request more host updates
     void requestHostUpdates();
@@ -910,6 +911,9 @@ private:
 
     // multi_prerun for a deactivated block and its pair if exists
     void hostPrerunBlockPair(const HostBlockPair& hbp, uint8_t reset_value, const std::vector<flushed_param>& params);
+
+    // internal disconnected handling
+    void hostDisconnectedCallback() override;
 
     // internal feedback handling, for updating parameter values
     void hostFeedbackCallback(const HostFeedbackData& data) override;
