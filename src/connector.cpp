@@ -2433,6 +2433,7 @@ bool HostConnector::reorderScenes(const uint8_t orig, const uint8_t dest)
         _current.defaultScene = scene;
 
     _current.scene = scene;
+    _current.dirty = true;
     return true;
 }
 
@@ -2473,6 +2474,9 @@ void HostConnector::swapScenes(const uint8_t sceneA, const uint8_t sceneB)
         _current.defaultScene = sceneB;
     else if (_current.defaultScene == sceneB)
         _current.defaultScene = sceneA;
+
+    // set preset as dirty
+    _current.dirty = true;
 }
 
 // --------------------------------------------------------------------------------------------------------------------
