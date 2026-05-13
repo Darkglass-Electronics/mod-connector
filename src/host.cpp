@@ -185,6 +185,9 @@ struct Host::Impl
 
     void setWriteBlockingAndWait(const bool blocking)
     {
+        if (ipc == nullptr)
+            return;
+
         ipc->setWriteBlockingAndWait(blocking);
     }
 
