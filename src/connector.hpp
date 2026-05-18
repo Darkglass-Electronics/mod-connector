@@ -273,7 +273,7 @@ struct HostConnector : Host::FeedbackCallback {
         std::string name;
         std::list<ParameterBinding> parameters;
         std::list<PropertyBinding> properties;
-        double value; // NOTE normalized 0-1, updated automatically if single binding
+        double value; // NOTE normalized 0-1, updated automatically if single binding or using scenes
     };
 
     struct ChainRow {
@@ -740,7 +740,7 @@ public:
     // enable a "system tool" lv2 plugin (referenced by its URI)
     // passing null or empty string as the URI means disabling the tool
     // NOTE toolIndex must be < 10 and != 5
-    bool enableTool(uint8_t toolIndex, const char* uri);
+    bool enableTool(uint8_t toolIndex, const char* uri, bool prerun = false);
 
     // connect a tool audio input port to an arbitrary jack output port
     void connectToolAudioInput(uint8_t toolIndex, const char* symbol, const char* jackPort, bool safe = false);

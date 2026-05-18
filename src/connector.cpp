@@ -1746,14 +1746,20 @@ bool HostConnector::replaceBlock(const uint8_t row,
     // store for later use after we change change blockdata
     const uint8_t oldNumSideInputs = blockdata.meta.numSideInputs;
 
+    // early check that we are adding a valid plugin, return early in case of error
+    std::shared_ptr<const Lv2Plugin> plugin;
+    if (!isNullURI(uri))
+    {
+        plugin = lv2world.getPluginByURI(uri);
+        assert_return(plugin != nullptr, false);
+    }
+
+    // we only do changes after verifying that the requested plugin exists and is valid
+    // (or if removing a block, so uri is null)
     const Host::NonBlockingScopeWithAudioFades hnbs(_host);
 
     if (!isNullURI(uri))
     {
-        const std::shared_ptr<const Lv2Plugin> plugin = lv2world.getPluginByURI(uri);
-        assert_return(plugin != nullptr, false);
-
-        // we only do changes after verifying that the requested plugin exists and is valid
         uint8_t numInputs, numOutputs, numSideInputs, numSideOutputs;
         if (!getSupportedPluginIO(plugin, numInputs, numOutputs, numSideInputs, numSideOutputs))
         {
@@ -2453,6 +2459,7 @@ bool HostConnector::reorderScenes(const uint8_t orig, const uint8_t dest)
         _current.defaultScene = scene;
 
     _current.scene = scene;
+    _current.dirty = true;
     return true;
 }
 
@@ -2493,6 +2500,9 @@ void HostConnector::swapScenes(const uint8_t sceneA, const uint8_t sceneB)
         _current.defaultScene = sceneB;
     else if (_current.defaultScene == sceneB)
         _current.defaultScene = sceneA;
+
+    // set preset as dirty
+    _current.dirty = true;
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -2653,6 +2663,60 @@ bool HostConnector::switchScene(const uint8_t scene)
             {
                 blockdata.enabled = true;
                 hostBypassBlockPair(hbp, false);
+            }
+        }
+    }
+
+    // update binding values
+    for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
+    {
+        Bindings& bindings(_current.bindings[hwid]);
+
+        if (bindings.parameters.empty())
+            continue;
+
+        bool foundNonBoolean = false;
+
+        for (const ParameterBinding& binding : bindings.parameters)
+        {
+            if (binding.parameterSymbol == ":bypass")
+                continue;
+
+            assert(binding.meta.parameterIndex < NUM_BLOCKS_PER_PRESET);
+
+            const Block& blockdata = _current.chains[binding.row].blocks[binding.block];
+            const Parameter& paramdata = blockdata.parameters[binding.meta.parameterIndex];
+            if ((paramdata.meta.flags & Lv2ParameterToggled) != 0)
+                continue;
+
+            if (binding.min < binding.max)
+                bindings.value = normalized(paramdata.value , binding.min, binding.max);
+            else
+                bindings.value = 1.f - normalized(paramdata.value , binding.max, binding.min);
+
+            foundNonBoolean = true;
+            break;
+        }
+
+        if (! foundNonBoolean)
+        {
+            const ParameterBinding& binding = bindings.parameters.front();
+            const Block& blockdata = _current.chains[binding.row].blocks[binding.block];
+
+            if (binding.parameterSymbol == ":bypass")
+            {
+                bindings.value = blockdata.enabled ? binding.max : binding.min;
+            }
+            else
+            {
+                assert(binding.meta.parameterIndex < NUM_BLOCKS_PER_PRESET);
+
+                const Parameter& paramdata = blockdata.parameters[binding.meta.parameterIndex];
+
+                if (binding.min < binding.max)
+                    bindings.value = normalized(paramdata.value , binding.min, binding.max);
+                else
+                    bindings.value = 1.f - normalized(paramdata.value , binding.max, binding.min);
             }
         }
     }
@@ -3820,14 +3884,27 @@ bool HostConnector::transport(const bool rolling, const double beatsPerBar, cons
 
 // --------------------------------------------------------------------------------------------------------------------
 
-bool HostConnector::enableTool(const uint8_t toolIndex, const char* const uri)
+bool HostConnector::enableTool(const uint8_t toolIndex, const char* const uri, const bool prerun)
 {
     mod_log_debug("enableTool(%u, \"%s\")", toolIndex, uri);
     assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
     assert(toolIndex != 5);
 
-    return isNullURI(uri) ? _host.remove(MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex)
-                          : _host.add(uri, MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex);
+    const uint16_t instance = MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex;
+
+    if (isNullURI(uri))
+        return _host.remove(instance);
+
+    if (prerun)
+    {
+        return (
+            _host.preload(uri, instance) &&
+            _host.pre_run(instance, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, 0, nullptr) &&
+            _host.activate(instance, true)
+        );
+    }
+
+    return _host.add(uri, instance);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
