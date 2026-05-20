@@ -1086,7 +1086,7 @@ bool Host::monitor_audio_levels(const char* const source_port_name, bool enable)
 
 bool Host::monitor_cpu_load(const bool enable, const unsigned int instance_count, const int16_t* const instances)
 {
-    VALIDATE_INSTANCE_COUNT(instance_count);
+    VALIDATE(instance_count != 0 && instance_count < kMaxHostInstances)
 
     std::string msg = format("monitor_cpu_load %d %u", enable ? 1 : 0, instance_count);
 
