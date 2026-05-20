@@ -1013,11 +1013,6 @@ std::string Host::licensee(const int16_t instance_number)
     return {};
 }
 
-bool Host::monitor(const char* const addr, const int port, const bool status)
-{
-    return impl->writeMessageAndWait(format("monitor %s %d %d", addr, port, status ? 1 : 0));
-}
-
 bool Host::monitor_output(const int16_t instance_number, const char* const param_symbol, const bool enable)
 {
     VALIDATE_INSTANCE_NUMBER(instance_number)
@@ -1081,124 +1076,6 @@ bool Host::monitor_midi_program(const uint8_t midi_channel, const bool enable)
     VALIDATE_MIDI_CHANNEL(midi_channel)
 
     return impl->writeMessageAndWait(format("monitor_midi_program %d %d", midi_channel, enable ? 1 : 0));
-}
-
-bool Host::cc_map(const int16_t instance_number,
-                  const char* const param_symbol,
-                  const int device_id,
-                  const int actuator_id,
-                  const char* const label,
-                  const float value,
-                  const float minimum,
-                  const float maximum,
-                  const int steps,
-                  const int extraflags,
-                  const char* const unit,
-                  const unsigned int scalepoints_count,
-                  const cc_scalepoint* const scalepoints)
-{
-    VALIDATE_INSTANCE_NUMBER(instance_number)
-    VALIDATE_SYMBOL(param_symbol)
-
-    std::string msg = format("cc_map %d %s %d %d %s %f %f %f %d %d %s %u",
-                             instance_number,
-                             param_symbol,
-                             device_id,
-                             actuator_id,
-                             escape(label).c_str(),
-                             value,
-                             minimum,
-                             maximum,
-                             steps,
-                             extraflags,
-                             escape(unit).c_str(),
-                             scalepoints_count);
-
-    for (unsigned int i = 0; i < scalepoints_count; ++i)
-        msg += format(" %s %f", escape(scalepoints[i].label).c_str(), scalepoints[i].value);
-
-    return impl->writeMessageAndWait(msg);
-}
-
-bool Host::cc_unmap(const int16_t instance_number, const char* const param_symbol)
-{
-    VALIDATE_INSTANCE_NUMBER(instance_number)
-    VALIDATE_SYMBOL(param_symbol)
-
-    return impl->writeMessageAndWait(format("cc_unmap %d %s", instance_number, param_symbol));
-}
-
-bool Host::cc_value_set(const int16_t instance_number, const char* const param_symbol, const float value)
-{
-    VALIDATE_INSTANCE_NUMBER(instance_number)
-    VALIDATE_SYMBOL(param_symbol)
-
-    return impl->writeMessageAndWait(format("cc_value_set %d %s %f", instance_number, param_symbol, value));
-}
-
-bool Host::cv_map(const int16_t instance_number,
-                  const char* const param_symbol,
-                  const char* const source_port_name,
-                  const float minimum,
-                  const float maximum,
-                  const char operational_mode)
-{
-    VALIDATE_INSTANCE_NUMBER(instance_number)
-    VALIDATE_JACK_PORT(source_port_name)
-    VALIDATE_SYMBOL(param_symbol)
-
-    return impl->writeMessageAndWait(format("cv_map %d %s %s %f %f %c",
-                                            instance_number,
-                                            param_symbol,
-                                            source_port_name,
-                                            minimum,
-                                            maximum,
-                                            operational_mode));
-}
-
-bool Host::cv_unmap(const int16_t instance_number, const char* const param_symbol)
-{
-    VALIDATE_INSTANCE_NUMBER(instance_number)
-    VALIDATE_SYMBOL(param_symbol)
-
-    return impl->writeMessageAndWait(format("cv_unmap %d %s", instance_number, param_symbol));
-}
-
-bool Host::hmi_map(const int16_t instance_number,
-                   const char* const param_symbol,
-                   const int hw_id,
-                   const int page,
-                   const int subpage,
-                   const int caps,
-                   const int flags,
-                   const char* const label,
-                   const float minimum,
-                   const float maximum,
-                   const int steps)
-{
-    VALIDATE_INSTANCE_NUMBER(instance_number)
-    VALIDATE_SYMBOL(param_symbol)
-
-    return impl->writeMessageAndWait(format("hmi_map %d %s %d %d %d %d %d %s %f %f %d",
-                                            instance_number,
-                                            param_symbol,
-                                            hw_id,
-                                            page,
-                                            subpage,
-                                            caps,
-                                            flags,
-                                            escape(label).c_str(),
-                                            minimum,
-                                            maximum,
-                                            steps));
-}
-
-bool Host::hmi_unmap(const int16_t instance_number, const char* const param_symbol)
-{
-    VALIDATE_INSTANCE_NUMBER(instance_number)
-    VALIDATE_SYMBOL(param_symbol)
-
-    return impl->writeMessageAndWait(format("hmi_unmap %d %s", instance_number, param_symbol));
 }
 
 float Host::cpu_load()
