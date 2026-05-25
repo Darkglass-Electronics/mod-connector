@@ -628,7 +628,6 @@ struct Lv2World::Impl
                 retplugin->flags |= Lv2PluginIsLicensed;
         }
 
-       #ifndef MOD_CONNECTOR_MINIMAL_LV2_WORLD
         if (lilv_world_ask(world, urinode, ns.dgcs_blockImage, nullptr))
             retplugin->flags |= Lv2PluginHasBlockImageStyling;
 
@@ -1217,13 +1216,11 @@ struct Lv2World::Impl
         }
 
         // ------------------------------------------------------------------------------------------------------------
-       #endif // MOD_CONNECTOR_MINIMAL_LV2_WORLD
 
         cache.plugin = std::shared_ptr<const Lv2Plugin>(retplugin);
         return cache.plugin;
     }
 
-   #ifndef MOD_CONNECTOR_MINIMAL_LV2_WORLD
     std::shared_ptr<const CustomStyling::BlockImage> getPluginBlockImageStyling(const char* const uri)
     {
         assert(uri != nullptr);
@@ -1803,7 +1800,6 @@ struct Lv2World::Impl
 
         return values;
     }
-   #endif
 
     bool bundleAdd(const char* const path, std::vector<std::string>* pluginsInBundlePtr = nullptr)
     {
@@ -1919,10 +1915,8 @@ private:
 
     struct PluginCache {
         std::shared_ptr<const Lv2Plugin> plugin;
-       #ifndef MOD_CONNECTOR_MINIMAL_LV2_WORLD
         std::shared_ptr<const CustomStyling::BlockImage> blockImageStyling;
         std::shared_ptr<const CustomStyling::BlockSettings> blockSettingsStyling;
-       #endif
     };
     std::unordered_map<std::string, PluginCache> pluginsCache;
 
@@ -1947,7 +1941,6 @@ private:
 
                 if (const std::shared_ptr<const Lv2Plugin> plugin = cache.plugin)
                 {
-                   #ifndef MOD_CONNECTOR_MINIMAL_LV2_WORLD
                     if ((plugin->flags & Lv2PluginHasBlockImageStyling) != 0 && cache.blockImageStyling == nullptr)
                     {
                         done = false;
@@ -1962,7 +1955,6 @@ private:
                         assert(cache.blockSettingsStyling != nullptr);
                         break;
                     }
-                   #endif
                     continue;
                 }
 
@@ -2125,7 +2117,6 @@ std::shared_ptr<const Lv2Plugin> Lv2World::getPluginByURI(const char* const uri)
     return impl->getPluginByURI(uri);
 }
 
-#ifndef MOD_CONNECTOR_MINIMAL_LV2_WORLD
 std::shared_ptr<const CustomStyling::BlockImage> Lv2World::getPluginBlockImageStyling(const char* uri) const
 {
     return impl->getPluginBlockImageStyling(uri);
@@ -2150,7 +2141,6 @@ std::unordered_map<std::string, float> Lv2World::loadPluginState(const char* con
 {
     return impl->loadPluginState(path);
 }
-#endif
 
 bool Lv2World::bundleAdd(const char* const path, std::vector<std::string>* pluginsInBundle)
 {
