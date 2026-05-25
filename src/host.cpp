@@ -738,6 +738,7 @@ Host::NonBlockingScopeWithAudioFades::~NonBlockingScopeWithAudioFades()
 // input validation for debug builds
 
 #ifdef NDEBUG
+#define VALIDATE(expr)
 #define VALIDATE_INSTANCE_COUNT(n)
 #define VALIDATE_INSTANCE_NUMBER(n)
 #define VALIDATE_INSTANCE_REMOVE_NUMBER(n)
