@@ -182,7 +182,8 @@ struct Host::Impl
 
     void setWriteBlockingAndWait(const bool blocking)
     {
-        ipc->setWriteBlockingAndWait(blocking);
+        if (ipc != nullptr)
+            ipc->setWriteBlockingAndWait(blocking);
     }
 
     bool writeMessageAndWait(const std::string& message,

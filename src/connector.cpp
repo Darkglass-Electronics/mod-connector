@@ -6820,8 +6820,7 @@ void HostConnector::hostDisconnectedCallback()
 
 void HostConnector::hostFeedbackCallback(const HostFeedbackData& data)
 {
-    if (_callback == nullptr)
-        return;
+    assert_return(_callback != nullptr,);
 
     HostCallbackData cdata = {};
 
