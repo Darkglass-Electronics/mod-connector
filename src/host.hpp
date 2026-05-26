@@ -139,6 +139,7 @@ struct Host {
         };
 
         virtual ~Callback() = default;
+        virtual void hostDisconnectedCallback() = 0;
         virtual void hostFeedbackCallback(const Data& data) = 0;
     };
 

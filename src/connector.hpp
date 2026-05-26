@@ -115,6 +115,7 @@ struct HostConnector : Host::Callback {
 
         virtual ~Callback() = default;
         virtual void hostConnectorCallback(const Data& data) = 0;
+        virtual void hostDisconnectedCallback() = 0;
     };
 
     enum TemporarySceneState : uint8_t {
@@ -910,6 +911,9 @@ private:
 
     // multi_prerun for a deactivated block and its pair if exists
     void hostPrerunBlockPair(const HostBlockPair& hbp, uint8_t reset_value, const std::vector<flushed_param>& params);
+
+    // internal disconnected handling
+    void hostDisconnectedCallback() override;
 
     // internal feedback handling, for updating parameter values
     void hostFeedbackCallback(const HostFeedbackData& data) override;

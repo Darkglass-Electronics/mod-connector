@@ -6808,6 +6808,16 @@ void HostConnector::hostPrerunBlockPair(const HostBlockPair& hbp,
 
 // --------------------------------------------------------------------------------------------------------------------
 
+void HostConnector::hostDisconnectedCallback()
+{
+    ok = false;
+
+    if (_callback != nullptr)
+        _callback->hostDisconnectedCallback();
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 void HostConnector::hostFeedbackCallback(const HostFeedbackData& data)
 {
     if (_callback == nullptr)

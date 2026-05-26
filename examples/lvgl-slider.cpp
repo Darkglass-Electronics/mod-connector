@@ -61,6 +61,11 @@ struct HostApp : Host::Callback {
     bool ok = host.last_error.empty();
     uint32_t lastHostUpdate = 0;
 
+    void hostDisconnectedCallback() override
+    {
+        // unused
+    }
+
     void hostFeedbackCallback(const HostFeedbackData& data) override
     {
         switch (data.type)

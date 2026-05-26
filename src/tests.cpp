@@ -127,6 +127,7 @@ class HostConnectorTests : public QObject,
 
     // unused
     void hostConnectorCallback(const Data&) override {}
+    void hostDisconnectedCallback() override {}
 
     // return true if all tests pass
     bool hostReady()
