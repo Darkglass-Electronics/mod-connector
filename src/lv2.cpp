@@ -69,6 +69,11 @@
 #define LV2_CORE__shortName LV2_CORE_PREFIX "shortName"
 #endif
 
+// time in milliseconds given to background thread between loading iterations
+#ifndef MOD_CONNECTOR_BG_LOADING_IDLE_TIME
+#define MOD_CONNECTOR_BG_LOADING_IDLE_TIME 100
+#endif
+
 // --------------------------------------------------------------------------------------------------------------------
 // compatibility functions
 
@@ -1928,7 +1933,7 @@ private:
     {
         while (bgLoadingActive)
         {
-            msleep(100);
+            msleep(MOD_CONNECTOR_BG_LOADING_IDLE_TIME);
 
             if (pthread_mutex_trylock(&bgLoadingMutex) != 0)
                 continue;
