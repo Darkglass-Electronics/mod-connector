@@ -446,9 +446,9 @@ struct Host {
    /**
      * poll feedback port for messages, triggering a callback for each one
      */
-    bool poll_feedback(Callback* callback) const;
+    bool poll_feedback() const;
 
-    Host();
+    Host(Callback* callback);
     ~Host();
 
    /**
