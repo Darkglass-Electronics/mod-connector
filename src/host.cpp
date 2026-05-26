@@ -206,7 +206,8 @@ struct Host::Impl
             return false;
         }
 
-        if (ipc->writeMessage(message, respType, resp))
+        const IPC::WriteError error = ipc->writeMessage(message, respType, resp);
+        if (error == IPC::kWriteSuccess)
             return true;
 
         if (resp != nullptr && resp->code < 0)
@@ -214,8 +215,12 @@ struct Host::Impl
         else
             last_error = ipc->last_error;
 
-        close();
-        callback->hostDisconnectedCallback();
+        if (error == IPC::kWriteErrorDisconnected)
+        {
+            close();
+            callback->hostDisconnectedCallback();
+        }
+
         return false;
     }
 
