@@ -214,6 +214,8 @@ struct Host::Impl
         else
             last_error = ipc->last_error;
 
+        close();
+        callback->hostDisconnectedCallback();
         return false;
     }
 
