@@ -1824,6 +1824,8 @@ public:
         : client(c),
           hostProcess(hostProc)
     {
+        connector.setCallback(this);
+
         QDir::current().mkdir(PRESETFILEPATH);
 
         mod_log_info("Connecting to host...");
