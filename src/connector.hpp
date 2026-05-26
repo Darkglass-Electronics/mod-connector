@@ -29,7 +29,7 @@ enum Lv2ParameterState {
 
 // --------------------------------------------------------------------------------------------------------------------
 
-struct HostConnector : Host::FeedbackCallback {
+struct HostConnector : Host::Callback {
     struct Callback {
         struct Data {
             enum {

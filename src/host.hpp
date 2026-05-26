@@ -65,7 +65,7 @@ struct Host {
         kProcessingOnWithFadeIn = 3,
     };
 
-    struct FeedbackCallback {
+    struct Callback {
         struct Data {
             enum {
                 kFeedbackNullType = 0,
@@ -138,7 +138,7 @@ struct Host {
             };
         };
 
-        virtual ~FeedbackCallback() = default;
+        virtual ~Callback() = default;
         virtual void hostFeedbackCallback(const Data& data) = 0;
     };
 
@@ -445,7 +445,7 @@ struct Host {
    /**
      * poll feedback port for messages, triggering a callback for each one
      */
-    bool poll_feedback(FeedbackCallback* callback) const;
+    bool poll_feedback(Callback* callback) const;
 
     Host();
     ~Host();
@@ -486,4 +486,4 @@ private:
     Impl* const impl;
 };
 
-using HostFeedbackData = Host::FeedbackCallback::Data;
+using HostFeedbackData = Host::Callback::Data;

@@ -216,7 +216,7 @@ struct Host::Impl
     // ----------------------------------------------------------------------------------------------------------------
     // feedback port handling
 
-    [[nodiscard]] bool poll(FeedbackCallback* const callback) const
+    [[nodiscard]] bool poll(Callback* const callback) const
     {
         std::string error;
 
@@ -226,7 +226,7 @@ struct Host::Impl
     }
 
 private:
-    [[nodiscard]] bool _poll(FeedbackCallback* const callback, std::string& error) const
+    [[nodiscard]] bool _poll(Callback* const callback, std::string& error) const
     {
         uint32_t bytesRead;
         char* const buffer = ipc->readMessage(&bytesRead);
@@ -1366,7 +1366,7 @@ bool Host::wait_audio_cycle()
     return impl->writeMessageAndWait("wait_audio_cycle");
 }
 
-bool Host::poll_feedback(FeedbackCallback* const callback) const
+bool Host::poll_feedback(Callback* const callback) const
 {
     return impl->poll(callback);
 }

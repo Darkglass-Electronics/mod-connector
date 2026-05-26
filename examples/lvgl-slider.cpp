@@ -56,7 +56,7 @@ static void signal_cb(const int sig) noexcept
 // --------------------------------------------------------------------------------------------------------------------
 // host application details
 
-struct HostApp : Host::FeedbackCallback {
+struct HostApp : Host::Callback {
     Host host;
     bool ok = host.last_error.empty();
     uint32_t lastHostUpdate = 0;
