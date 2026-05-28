@@ -518,10 +518,11 @@ struct Lv2World::Impl
     {
         assert(uri != nullptr && *uri != '\0');
 
-        PluginCache& cache = pluginsCache[uri];
-
-        if (cache.plugin != nullptr)
-            return cache.plugin;
+        if (pluginsCache.find(uri) != pluginsCache.cend())
+        {
+            if (PluginCache& cache = pluginsCache[uri]; cache.plugin != nullptr)
+                return cache.plugin;
+        }
 
         std::string bundlepath;
         const LilvPlugin* plugin;
@@ -1221,6 +1222,8 @@ struct Lv2World::Impl
         }
 
         // ------------------------------------------------------------------------------------------------------------
+
+        PluginCache& cache = pluginsCache[uri];
 
         cache.plugin = std::shared_ptr<const Lv2Plugin>(retplugin);
         return cache.plugin;
