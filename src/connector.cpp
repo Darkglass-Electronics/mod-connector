@@ -1554,39 +1554,125 @@ bool HostConnector::reorderBlock(const uint8_t row, const uint8_t orig, const ui
         hostEnsureStereoChain(_current.preset, row, blockStart);
 
     // update bindings
-    const auto updateBinding = [=](auto& bindingdata) {
-        if (bindingdata.row != row)
-            return;
-        if (bindingdata.block < left || bindingdata.block > right)
-            return;
-
-        // block matches orig, moving it to dest
-        if (bindingdata.block == orig)
-            bindingdata.block = dest;
-
-        // block matches dest, moving it by +1 or -1 accordingly
-        else if (bindingdata.block == dest)
-            bindingdata.block += orig > dest ? 1 : -1;
-
-        // block > dest, moving +1
-        else if (bindingdata.block > dest)
-            ++bindingdata.block;
-
-        // block < dest, moving -1
-        else
-            --bindingdata.block;
-
-        assert(bindingdata.block < NUM_BLOCKS_PER_PRESET);
-        assert(bindingdata.block < NUM_BLOCKS_PER_PRESET);
-    };
-
     for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
     {
-        for (ParameterBinding& bindingdata : _current.bindings[hwid].parameters)
-            updateBinding(bindingdata);
+        if (std::list<ParameterBinding>& bindings(_current.bindings[hwid].parameters); ! bindings.empty())
+        {
+            for (ParameterBindingIterator it = bindings.begin(), end = bindings.end(); it != end; ++it)
+            {
+                if (it->row != row)
+                    continue;
+                if (it->block < left || it->block > right)
+                    continue;
 
-        for (PropertyBinding& bindingdata : _current.bindings[hwid].properties)
-            updateBinding(bindingdata);
+                uint8_t block = it->block;
+                const Block& blockdata = chain.blocks[block];
+
+                // block matches orig, moving it to dest
+                if (block == orig)
+                    block = dest;
+
+                // block matches dest, moving it by +1 or -1 accordingly
+                else if (block == dest)
+                    block += orig > dest ? 1 : -1;
+
+                // block > dest, moving +1
+                else if (block > dest)
+                    ++block;
+
+                // block < dest, moving -1
+                else
+                    --block;
+
+                assert(block < NUM_BLOCKS_PER_PRESET);
+
+                const float min = it->min;
+                const float max = it->max;
+
+                if (it->meta.isBypass)
+                {
+                    it = bindings.erase(it);
+                    bindings.insert(it, {
+                        .row = row,
+                        .block = block,
+                        .min = min,
+                        .max = max,
+                        .parameterSymbol = ":bypass",
+                        .meta = {
+                            .block = blockdata,
+                            .parameterIndex = 0,
+                            .isBypass = true,
+                        },
+                    });
+                }
+                else
+                {
+                    const uint8_t parameterIndex = it->meta.parameterIndex;
+                    const std::string parameterSymbol = it->parameterSymbol;
+
+                    it = bindings.erase(it);
+                    bindings.insert(it, {
+                        .row = row,
+                        .block = block,
+                        .min = min,
+                        .max = max,
+                        .parameterSymbol = parameterSymbol,
+                        .meta = {
+                            .block = blockdata,
+                            .parameterIndex = parameterIndex,
+                            .parameter = blockdata.parameters[parameterIndex],
+                        },
+                    });
+                }
+            }
+        }
+
+        if (std::list<PropertyBinding>& bindings(_current.bindings[hwid].properties); ! bindings.empty())
+        {
+            for (PropertyBindingIterator it = bindings.begin(), end = bindings.end(); it != end; ++it)
+            {
+                if (it->row != row)
+                    continue;
+                if (it->block < left || it->block > right)
+                    continue;
+
+                uint8_t block = it->block;
+                const Block& blockdata = chain.blocks[block];
+
+                // block matches orig, moving it to dest
+                if (block == orig)
+                    block = dest;
+
+                // block matches dest, moving it by +1 or -1 accordingly
+                else if (block == dest)
+                    block += orig > dest ? 1 : -1;
+
+                // block > dest, moving +1
+                else if (block > dest)
+                    ++block;
+
+                // block < dest, moving -1
+                else
+                    --block;
+
+                assert(block < NUM_BLOCKS_PER_PRESET);
+
+                const uint8_t propertyIndex = it->meta.propertyIndex;
+                const std::string propertyURI = it->propertyURI;
+
+                it = bindings.erase(it);
+                bindings.insert(it, {
+                    .row = row,
+                    .block = block,
+                    .propertyURI = propertyURI,
+                    .meta = {
+                        .propertyIndex = propertyIndex,
+                        .block = blockdata,
+                        .property = blockdata.properties[propertyIndex],
+                    },
+                });
+            }
+        }
     }
 
     _current.dirty = true;
