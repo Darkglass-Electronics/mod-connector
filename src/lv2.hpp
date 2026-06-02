@@ -203,6 +203,12 @@ struct Lv2World {
     [[nodiscard]] bool bundleRemove(const char* path, std::vector<std::string>* pluginsInBundle = nullptr);
 
    /**
+    * reload licensed state of all cached plugins.
+    * @see Lv2PluginIsLicensed
+    */
+    void reloadLicenses() const;
+
+   /**
     * get the plugin URIs present in an LV2 bundle
     * @note path MUST end with OS-specific path separator (e.g. '/' under Linux)
     */
