@@ -279,7 +279,9 @@ struct HostConnector : Host::FeedbackCallback {
                     bool isBypass;
                 };
                 struct {
-                    bool _padding;
+                    // NOTE referencing `isBypassParameter` can generate a build error under GCC9
+                    // but not referencing it generates a warning on GCC>9
+                    bool isBypassParameter;
                     const Parameter &parameter;
                 };
             };

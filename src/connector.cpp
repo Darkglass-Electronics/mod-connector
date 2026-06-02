@@ -1620,6 +1620,9 @@ bool HostConnector::reorderBlock(const uint8_t row, const uint8_t orig, const ui
                         .meta = {
                             .block = blockdata,
                             .parameterIndex = parameterIndex,
+                           #ifndef _DARKGLASS_DEVICE_PABLITO
+                            .isBypassParameter = false,
+                           #endif
                             .parameter = blockdata.parameters[parameterIndex],
                         },
                     });
@@ -2391,23 +2394,82 @@ bool HostConnector::swapBlockRow(const uint8_t row,
 
         _mapper.swapBlocks(_current.preset, row, block, emptyRow, emptyBlock);
 
-        for (Bindings& bindings : _current.bindings)
+        const Block& blockdata = _current.chains[emptyRow].blocks[emptyBlock];
+
+        for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
         {
-            for (ParameterBinding& bindingdata : bindings.parameters)
+            if (std::list<ParameterBinding>& bindings(_current.bindings[hwid].parameters); ! bindings.empty())
             {
-                if (bindingdata.row == row && bindingdata.block == block)
+                for (ParameterBindingIterator it = bindings.begin(), end = bindings.end(); it != end; ++it)
                 {
-                    bindingdata.row = emptyRow;
-                    bindingdata.block = emptyBlock;
+                    if (it->row != row || it->block != block)
+                        continue;
+
+                    const float min = it->min;
+                    const float max = it->max;
+
+                    if (it->meta.isBypass)
+                    {
+                        it = bindings.erase(it);
+                        bindings.insert(it, {
+                            .row = emptyRow,
+                            .block = emptyBlock,
+                            .min = min,
+                            .max = max,
+                            .parameterSymbol = ":bypass",
+                            .meta = {
+                                .block = blockdata,
+                                .parameterIndex = 0,
+                                .isBypass = true,
+                            },
+                        });
+                    }
+                    else
+                    {
+                        const uint8_t parameterIndex = it->meta.parameterIndex;
+                        const std::string parameterSymbol = it->parameterSymbol;
+
+                        it = bindings.erase(it);
+                        bindings.insert(it, {
+                            .row = emptyRow,
+                            .block = emptyBlock,
+                            .min = min,
+                            .max = max,
+                            .parameterSymbol = parameterSymbol,
+                            .meta = {
+                                .block = blockdata,
+                                .parameterIndex = parameterIndex,
+                               #ifndef _DARKGLASS_DEVICE_PABLITO
+                                .isBypassParameter = false,
+                               #endif
+                                .parameter = blockdata.parameters[parameterIndex],
+                            },
+                        });
+                    }
                 }
             }
 
-            for (PropertyBinding& bindingdata : bindings.properties)
+            if (std::list<PropertyBinding>& bindings(_current.bindings[hwid].properties); ! bindings.empty())
             {
-                if (bindingdata.row == row && bindingdata.block == block)
+                for (PropertyBindingIterator it = bindings.begin(), end = bindings.end(); it != end; ++it)
                 {
-                    bindingdata.row = emptyRow;
-                    bindingdata.block = emptyBlock;
+                    if (it->row != row || it->block != block)
+                        continue;
+
+                    const uint8_t propertyIndex = it->meta.propertyIndex;
+                    const std::string propertyURI = it->propertyURI;
+
+                    it = bindings.erase(it);
+                    bindings.insert(it, {
+                        .row = emptyRow,
+                        .block = emptyBlock,
+                        .propertyURI = propertyURI,
+                        .meta = {
+                            .propertyIndex = propertyIndex,
+                            .block = blockdata,
+                            .property = blockdata.properties[propertyIndex],
+                        },
+                    });
                 }
             }
         }
@@ -2947,6 +3009,9 @@ bool HostConnector::addBlockParameterBinding(const uint8_t hwid,
         .meta = {
             .block = blockdata,
             .parameterIndex = paramIndex,
+           #ifndef _DARKGLASS_DEVICE_PABLITO
+            .isBypassParameter = false,
+           #endif
             .parameter = paramdata,
         },
     });
@@ -3435,6 +3500,9 @@ bool HostConnector::replaceBlockParameterBinding(const uint8_t hwid,
             .meta = {
                 .block = blockdataB,
                 .parameterIndex = paramIndexB,
+               #ifndef _DARKGLASS_DEVICE_PABLITO
+                .isBypassParameter = false,
+               #endif
                 .parameter = paramdataB,
             },
         });
@@ -5962,6 +6030,9 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
                                 .meta = {
                                     .block = blockdata,
                                     .parameterIndex = p,
+                                   #ifndef _DARKGLASS_DEVICE_PABLITO
+                                    .isBypassParameter = false,
+                                   #endif
                                     .parameter = paramdata,
                                 },
                             });
