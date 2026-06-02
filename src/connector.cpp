@@ -1143,27 +1143,32 @@ bool HostConnector::reorderPresets(const uint8_t orig, const uint8_t dest)
         }
     }
 
-    // current preset matches orig, moving it to dest
-    if (_current.preset == orig)
-        _current.preset = dest;
+    uint8_t preset = _current.preset;
 
-    // current preset matches dest, moving it by +1 or -1 accordingly
-    else if (_current.preset == dest)
-        _current.preset += orig > dest ? 1 : -1;
+    if (preset >= std::min(orig, dest) && preset <= std::max(orig, dest))
+    {
+        // current preset matches orig, moving it to dest
+        if (preset == orig)
+            preset = dest;
 
-    // current preset > dest, moving +1
-    else if (_current.preset > dest)
-        ++_current.preset;
+        // current preset matches dest, moving it by +1 or -1 accordingly
+        else if (preset == dest)
+            preset += orig > dest ? 1 : -1;
 
-    // current preset < dest, moving -1
-    else
-        --_current.preset;
+        // current preset > dest, moving +1
+        else if (preset > dest)
+            ++preset;
 
-    assert(_current.preset < NUM_PRESETS_PER_BANK);
-    assert(_current.preset < NUM_PRESETS_PER_BANK);
+        // current preset < dest, moving -1
+        else
+            --preset;
+    }
 
-    _current.defaultScene = _presets[_current.preset].scene;
-    _current.filename = _presets[_current.preset].filename;
+    assert(preset < NUM_PRESETS_PER_BANK);
+
+    _current.preset = preset;
+    _current.defaultScene = _presets[preset].scene;
+    _current.filename = _presets[preset].filename;
     return true;
 }
 
@@ -2420,21 +2425,24 @@ bool HostConnector::reorderScenes(const uint8_t orig, const uint8_t dest)
 
     uint8_t scene = _current.scene;
 
-    // current scene matches orig, moving it to dest
-    if (scene == orig)
-        scene = dest;
+    if (scene >= std::min(orig, dest) && scene <= std::max(orig, dest))
+    {
+        // current scene matches orig, moving it to dest
+        if (scene == orig)
+            scene = dest;
 
-    // current scene matches dest, moving it by +1 or -1 accordingly
-    else if (scene == dest)
-        scene += orig > dest ? 1 : -1;
+        // current scene matches dest, moving it by +1 or -1 accordingly
+        else if (scene == dest)
+            scene += orig > dest ? 1 : -1;
 
-    // current scene > dest, moving +1
-    else if (scene > dest)
-        ++scene;
+        // current scene > dest, moving +1
+        else if (scene > dest)
+            ++scene;
 
-    // current scene < dest, moving -1
-    else
-        --scene;
+        // current scene < dest, moving -1
+        else
+            --scene;
+    }
 
     assert(scene < NUM_SCENES_PER_PRESET);
 
