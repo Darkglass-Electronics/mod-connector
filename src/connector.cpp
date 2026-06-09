@@ -1013,9 +1013,8 @@ bool HostConnector::saveCurrentPresetToFile(const char* const filename)
                 }
                 blockdata.meta.enable.tempSceneState = kTemporarySceneNone;
 
-                for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                for (Parameter& paramdata : blockdata.parameters)
                 {
-                    Parameter& paramdata(blockdata.parameters[p]);
                     if (isNullURI(paramdata.symbol))
                         break;
                     if ((paramdata.meta.flags & Lv2ParameterNotAllowedInScenes) != 0)
@@ -1752,9 +1751,8 @@ bool HostConnector::replaceBlock(const uint8_t row,
 
                 // TODO: check if also needed for regular replace case
                 // previously used only in replaceBlockWhileKeepingData
-                for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                for (const Property& propdata : blockdata.properties)
                 {
-                    const Property& propdata(blockdata.properties[p]);
                     if (isNullURI(propdata.uri))
                         break;
                     if ((propdata.meta.flags & Lv2PropertyNotAllowedToChange) != 0)
@@ -1769,9 +1767,8 @@ bool HostConnector::replaceBlock(const uint8_t row,
                 initBlock(blockdata, plugin, numInputs, numOutputs, numSideInputs, numSideOutputs);
             }
 
-            for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+            for (Parameter& paramdata : blockdata.parameters)
             {
-                Parameter& paramdata(blockdata.parameters[p]);
                 if (isNullURI(paramdata.symbol))
                     break;
                 if ((paramdata.meta.flags & Lv2ParameterNotAllowedToChange) != 0)
@@ -1783,7 +1780,7 @@ bool HostConnector::replaceBlock(const uint8_t row,
                 
                 // initialize states, because there will be no updates on initial Lv2ParameterStateNone state
                 if (keepCurrentData)
-                    blockdata.parameters[p].meta.state = Lv2ParameterStateNone;
+                    paramdata.meta.state = Lv2ParameterStateNone;
             }
 
             hostPrerunBlockPair(hbp, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params);
@@ -2047,9 +2044,8 @@ bool HostConnector::resetBlock(const uint8_t row, const uint8_t block, const boo
         } while (false);
     }
 
-    for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
-    {
-        Parameter& paramdata(blockdata.parameters[p]);
+    for (Parameter& paramdata : blockdata.parameters)
+    {;
         if (isNullURI(paramdata.symbol))
             break;
         if ((paramdata.meta.flags & Lv2ParameterNotAllowedToChange) != 0)
@@ -2539,9 +2535,8 @@ bool HostConnector::switchScene(const uint8_t scene)
                 hostBypassBlockPair(hbp, true);
             }
 
-            for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+            for (Parameter& paramdata : blockdata.parameters)
             {
-                Parameter& paramdata(blockdata.parameters[p]);
                 if (isNullURI(paramdata.symbol))
                     break;
                 if ((paramdata.meta.flags & Lv2ParameterNotAllowedInScenes) != 0)
@@ -3213,9 +3208,8 @@ bool HostConnector::reorderBlockBinding(const uint8_t hwid, const uint8_t dest)
                 else if (blockdata.meta.enable.hwbinding == hwidB)
                     blockdata.meta.enable.hwbinding = hwidA;
 
-                for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                for (Parameter& paramdata : blockdata.parameters)
                 {
-                    Parameter& paramdata(blockdata.parameters[p]);
                     if (isNullURI(paramdata.symbol))
                         break;
 
@@ -5652,10 +5646,8 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann::json& jpr
                         {
                             auto& jsceneparams = jscene["parameters"];
 
-                            for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                            for (const Parameter& paramdata : blockdata.parameters)
                             {
-                                const Parameter& paramdata = blockdata.parameters[p];
-
                                 if (isNullURI(paramdata.symbol))
                                     break;
                                 if (! shouldSaveParameterToPreset(paramdata.meta.flags))
@@ -6041,9 +6033,8 @@ void HostConnector::hostSwitchPreset(const Preset& prev, const uint8_t prevPrese
 
                 params.clear();
 
-                for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                for (const Parameter& defparamdata : defblockdata.parameters)
                 {
-                    const Parameter& defparamdata(defblockdata.parameters[p]);
                     if (isNullURI(defparamdata.symbol))
                         break;
                     if ((defparamdata.meta.flags & Lv2ParameterNotAllowedToChange) != 0)
@@ -6054,9 +6045,8 @@ void HostConnector::hostSwitchPreset(const Preset& prev, const uint8_t prevPrese
                     params.push_back({ defparamdata.symbol.c_str(), defparamdata.value });
                 }
 
-                for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                for (const Property& defpropdata : defblockdata.properties)
                 {
-                    const Property& defpropdata(defblockdata.properties[p]);
                     if (isNullURI(defpropdata.uri))
                         break;
                     if ((defpropdata.meta.flags & Lv2PropertyNotAllowedToChange) != 0)
@@ -6786,11 +6776,11 @@ void HostConnector::resetBlock(Block& blockdata)
     blockdata.meta.abbreviation.clear();
     blockdata.meta.category = kLv2CategoryNone;
 
-    for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
-        resetParameter(blockdata.parameters[p]);
+    for (Parameter& paramdata : blockdata.parameters)
+        resetParameter(paramdata);
 
-    for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
-        resetProperty(blockdata.properties[p]);
+    for (Property& propdata : blockdata.properties)
+        resetProperty(propdata);
 
     blockdata.scenes.enableValues.fill(false);
     blockdata.scenes.lastSavedEnableValues.fill(false);
