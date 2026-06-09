@@ -200,6 +200,11 @@ struct HostConnector : Host::FeedbackCallback {
             std::vector<Lv2ScalePoint> scalePoints;
             CLASS_ONLY_MOVE_INIT_NO_COPY(Meta)
         } meta;
+        struct Scenes {
+            heap_array<float, NUM_SCENES_PER_PRESET> values;
+            heap_array<float, NUM_SCENES_PER_PRESET> lastSavedValues;
+            CLASS_ONLY_MOVE_INIT_NO_COPY(Scenes)
+        } scenes;
         CLASS_ONLY_MOVE_INIT_NO_COPY(Parameter)
     };
 
@@ -236,12 +241,6 @@ struct HostConnector : Host::FeedbackCallback {
         SceneModeUpdateTemporarily,
     };
 
-    struct SceneValues {
-        bool enabled;
-        heap_array<float, MAX_PARAMS_PER_BLOCK> parameters;
-        CLASS_ONLY_MOVE_INIT_NO_COPY(SceneValues)
-    };
-
     struct Block {
         bool enabled;
         std::string quickPotSymbol;
@@ -268,9 +267,12 @@ struct HostConnector : Host::FeedbackCallback {
             Lv2Category category;
             CLASS_ONLY_MOVE_INIT_NO_COPY(Meta)
         } meta;
+        struct Scenes {
+            heap_array<bool, NUM_SCENES_PER_PRESET> enableValues;
+            heap_array<bool, NUM_SCENES_PER_PRESET> lastSavedEnableValues;
+        } scenes;
         heap_array<Parameter, MAX_PARAMS_PER_BLOCK> parameters;
         heap_array<Property, MAX_PARAMS_PER_BLOCK> properties;
-        heap_array<SceneValues, NUM_SCENES_PER_PRESET> sceneValues;
 
         // keep hold of plugin data
         std::shared_ptr<const Lv2Plugin> plugin;
@@ -294,9 +296,7 @@ struct HostConnector : Host::FeedbackCallback {
         }
 
     private:
-        // extra details, not stored in json state
         friend struct HostConnector;
-        heap_array<SceneValues, NUM_SCENES_PER_PRESET> lastSavedSceneValues;
         std::unordered_map<std::string, uint8_t> parameterSymbolToIndexMap;
         std::unordered_map<std::string, uint8_t> propertyURIToIndexMap;
         CLASS_ONLY_MOVE_INIT_NO_COPY(Block)
