@@ -425,15 +425,41 @@ static bool safeJsonSave(const nlohmann::json& json, const std::string& filename
 
 // --------------------------------------------------------------------------------------------------------------------
 
+void HostConnector::Bindings::copy(const Bindings& other)
+{
+    name = other.name;
+    value = other.value;
+
+    const auto copyList = [](auto& mylist, const auto& otherlist){
+        mylist.clear();
+        for (const auto& item : otherlist)
+            mylist.push_back(item);
+    };
+
+    copyList(parameters, other.parameters);
+    copyList(properties, other.properties);
+}
+
+void HostConnector::Preset::copy(const Preset& other)
+{
+    scene = other.scene;
+    name = other.name;
+    filename = other.filename;
+    for (uint8_t i = 0; i < NUM_BINDING_ACTUATORS; ++i)
+        bindings[i].copy(other.bindings[i]);
+    background = other.background;
+    sceneNames = other.sceneNames;
+    uuid = other.uuid;
+    chains = other.chains;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 HostConnector::HostConnector()
 {
     for (uint8_t p = 0; p < NUM_PRESETS_PER_BANK; ++p)
-    {
-        allocPreset(_presets[p]);
         resetPreset(_presets[p]);
-    }
 
-    allocPreset(_current);
     resetPreset(_current);
 
     ok = _host.last_error.empty();
@@ -847,7 +873,7 @@ void HostConnector::loadBankFromPresetFiles(const std::array<std::string, NUM_PR
     }
 
     // create current preset data from selected initial preset
-    static_cast<Preset&>(_current) = _presets[initialPresetToLoad];
+    static_cast<Preset&>(_current).copy(_presets[initialPresetToLoad]);
     _current.preset = initialPresetToLoad;
     _current.defaultScene = _current.scene;
 
@@ -915,7 +941,7 @@ bool HostConnector::loadCurrentPresetFromFile(const char* const filename, const 
     _current.filename = filename;
 
     if (replaceDefault)
-        _presets[_current.preset] = _current;
+        _presets[_current.preset].copy(_current);
 
     // load new preset
     hostLoadPreset(_current.preset);
@@ -937,7 +963,7 @@ bool HostConnector::preloadPresetFromFile(const uint8_t preset, const char* cons
 
     // load preset data
     Preset presetdata;
-    allocPreset(presetdata, false);
+    resetPresetPorts(presetdata, false);
 
     if (loaded)
         jsonPresetLoad(presetdata, j);
@@ -966,7 +992,8 @@ bool HostConnector::preloadPresetFromFile(const uint8_t preset, const char* cons
     }
 
     // assign and preload new preset
-    _presets[preset] = presetdata;
+    // optimization: use swap instead of copy as we dont need `presetdata` after this
+    std::swap(_presets[preset], presetdata);
 
     {
         const Host::NonBlockingScope hnbs(_host);
@@ -1074,7 +1101,7 @@ bool HostConnector::saveCurrentPresetToFile(const char* const filename)
     }
 
     // copy current data into preset data
-    _presets[_current.preset] = static_cast<Preset&>(_current);
+    _presets[_current.preset].copy(static_cast<Preset&>(_current));
 
     jsonPresetSave(_current, j["preset"]);
 
@@ -1527,39 +1554,128 @@ bool HostConnector::reorderBlock(const uint8_t row, const uint8_t orig, const ui
         hostEnsureStereoChain(_current.preset, row, blockStart);
 
     // update bindings
-    const auto updateBinding = [=](auto& bindingdata) {
-        if (bindingdata.row != row)
-            return;
-        if (bindingdata.block < left || bindingdata.block > right)
-            return;
-
-        // block matches orig, moving it to dest
-        if (bindingdata.block == orig)
-            bindingdata.block = dest;
-
-        // block matches dest, moving it by +1 or -1 accordingly
-        else if (bindingdata.block == dest)
-            bindingdata.block += orig > dest ? 1 : -1;
-
-        // block > dest, moving +1
-        else if (bindingdata.block > dest)
-            ++bindingdata.block;
-
-        // block < dest, moving -1
-        else
-            --bindingdata.block;
-
-        assert(bindingdata.block < NUM_BLOCKS_PER_PRESET);
-        assert(bindingdata.block < NUM_BLOCKS_PER_PRESET);
-    };
-
     for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
     {
-        for (ParameterBinding& bindingdata : _current.bindings[hwid].parameters)
-            updateBinding(bindingdata);
+        if (std::list<ParameterBinding>& bindings(_current.bindings[hwid].parameters); ! bindings.empty())
+        {
+            for (ParameterBindingIterator it = bindings.begin(), end = bindings.end(); it != end; ++it)
+            {
+                if (it->row != row)
+                    continue;
+                if (it->block < left || it->block > right)
+                    continue;
 
-        for (PropertyBinding& bindingdata : _current.bindings[hwid].properties)
-            updateBinding(bindingdata);
+                uint8_t block = it->block;
+                const Block& blockdata = chain.blocks[block];
+
+                // block matches orig, moving it to dest
+                if (block == orig)
+                    block = dest;
+
+                // block matches dest, moving it by +1 or -1 accordingly
+                else if (block == dest)
+                    block += orig > dest ? 1 : -1;
+
+                // block > dest, moving +1
+                else if (block > dest)
+                    ++block;
+
+                // block < dest, moving -1
+                else
+                    --block;
+
+                assert(block < NUM_BLOCKS_PER_PRESET);
+
+                const float min = it->min;
+                const float max = it->max;
+
+                if (it->meta.isBypass)
+                {
+                    it = bindings.erase(it);
+                    bindings.insert(it, {
+                        .row = row,
+                        .block = block,
+                        .min = min,
+                        .max = max,
+                        .parameterSymbol = ":bypass",
+                        .meta = {
+                            .block = blockdata,
+                            .parameterIndex = 0,
+                            .isBypass = true,
+                        },
+                    });
+                }
+                else
+                {
+                    const uint8_t parameterIndex = it->meta.parameterIndex;
+                    const std::string parameterSymbol = it->parameterSymbol;
+
+                    it = bindings.erase(it);
+                    bindings.insert(it, {
+                        .row = row,
+                        .block = block,
+                        .min = min,
+                        .max = max,
+                        .parameterSymbol = parameterSymbol,
+                        .meta = {
+                            .block = blockdata,
+                            .parameterIndex = parameterIndex,
+                           #ifndef _DARKGLASS_DEVICE_PABLITO
+                            .isBypassParameter = false,
+                           #endif
+                            .parameter = blockdata.parameters[parameterIndex],
+                        },
+                    });
+                }
+            }
+        }
+
+        if (std::list<PropertyBinding>& bindings(_current.bindings[hwid].properties); ! bindings.empty())
+        {
+            for (PropertyBindingIterator it = bindings.begin(), end = bindings.end(); it != end; ++it)
+            {
+                if (it->row != row)
+                    continue;
+                if (it->block < left || it->block > right)
+                    continue;
+
+                uint8_t block = it->block;
+                const Block& blockdata = chain.blocks[block];
+
+                // block matches orig, moving it to dest
+                if (block == orig)
+                    block = dest;
+
+                // block matches dest, moving it by +1 or -1 accordingly
+                else if (block == dest)
+                    block += orig > dest ? 1 : -1;
+
+                // block > dest, moving +1
+                else if (block > dest)
+                    ++block;
+
+                // block < dest, moving -1
+                else
+                    --block;
+
+                assert(block < NUM_BLOCKS_PER_PRESET);
+
+                const uint8_t propertyIndex = it->meta.propertyIndex;
+                const std::string propertyURI = it->propertyURI;
+
+                it = bindings.erase(it);
+                bindings.insert(it, {
+                    .row = row,
+                    .block = block,
+                    .propertyURI = propertyURI,
+                    .meta = {
+                        .propertyIndex = propertyIndex,
+                        .block = blockdata,
+                        .property = blockdata.properties[propertyIndex],
+                    },
+                });
+            }
+        }
     }
 
     _current.dirty = true;
@@ -2003,10 +2119,10 @@ bool HostConnector::replaceBlockWhileKeepingCurrentData(const uint8_t row, const
     assert(block < NUM_BLOCKS_PER_PRESET);
     assert(!isNullURI(uri));
 
-    const Block blockcopy = _current.chains[row].blocks[block];
-    assert(!isNullURI(blockcopy.uri));
+    const Block& blockdata = _current.chains[row].blocks[block];
+    assert(!isNullURI(blockdata.uri));
 
-    if (blockcopy.uri == uri)
+    if (blockdata.uri == uri)
     {
         mod_log_warn("replaceBlockWhileKeepingCurrentData(%u, %u, \"%s\") - same uri, rejected", row, block, uri);
         return false;
@@ -2278,23 +2394,82 @@ bool HostConnector::swapBlockRow(const uint8_t row,
 
         _mapper.swapBlocks(_current.preset, row, block, emptyRow, emptyBlock);
 
-        for (Bindings& bindings : _current.bindings)
+        const Block& blockdata = _current.chains[emptyRow].blocks[emptyBlock];
+
+        for (uint8_t hwid = 0; hwid < NUM_BINDING_ACTUATORS; ++hwid)
         {
-            for (ParameterBinding& bindingdata : bindings.parameters)
+            if (std::list<ParameterBinding>& bindings(_current.bindings[hwid].parameters); ! bindings.empty())
             {
-                if (bindingdata.row == row && bindingdata.block == block)
+                for (ParameterBindingIterator it = bindings.begin(), end = bindings.end(); it != end; ++it)
                 {
-                    bindingdata.row = emptyRow;
-                    bindingdata.block = emptyBlock;
+                    if (it->row != row || it->block != block)
+                        continue;
+
+                    const float min = it->min;
+                    const float max = it->max;
+
+                    if (it->meta.isBypass)
+                    {
+                        it = bindings.erase(it);
+                        bindings.insert(it, {
+                            .row = emptyRow,
+                            .block = emptyBlock,
+                            .min = min,
+                            .max = max,
+                            .parameterSymbol = ":bypass",
+                            .meta = {
+                                .block = blockdata,
+                                .parameterIndex = 0,
+                                .isBypass = true,
+                            },
+                        });
+                    }
+                    else
+                    {
+                        const uint8_t parameterIndex = it->meta.parameterIndex;
+                        const std::string parameterSymbol = it->parameterSymbol;
+
+                        it = bindings.erase(it);
+                        bindings.insert(it, {
+                            .row = emptyRow,
+                            .block = emptyBlock,
+                            .min = min,
+                            .max = max,
+                            .parameterSymbol = parameterSymbol,
+                            .meta = {
+                                .block = blockdata,
+                                .parameterIndex = parameterIndex,
+                               #ifndef _DARKGLASS_DEVICE_PABLITO
+                                .isBypassParameter = false,
+                               #endif
+                                .parameter = blockdata.parameters[parameterIndex],
+                            },
+                        });
+                    }
                 }
             }
 
-            for (PropertyBinding& bindingdata : bindings.properties)
+            if (std::list<PropertyBinding>& bindings(_current.bindings[hwid].properties); ! bindings.empty())
             {
-                if (bindingdata.row == row && bindingdata.block == block)
+                for (PropertyBindingIterator it = bindings.begin(), end = bindings.end(); it != end; ++it)
                 {
-                    bindingdata.row = emptyRow;
-                    bindingdata.block = emptyBlock;
+                    if (it->row != row || it->block != block)
+                        continue;
+
+                    const uint8_t propertyIndex = it->meta.propertyIndex;
+                    const std::string propertyURI = it->propertyURI;
+
+                    it = bindings.erase(it);
+                    bindings.insert(it, {
+                        .row = emptyRow,
+                        .block = emptyBlock,
+                        .propertyURI = propertyURI,
+                        .meta = {
+                            .propertyIndex = propertyIndex,
+                            .block = blockdata,
+                            .property = blockdata.properties[propertyIndex],
+                        },
+                    });
                 }
             }
         }
@@ -2323,16 +2498,19 @@ bool HostConnector::switchPreset(const uint8_t preset)
     if (_current.preset == preset)
         return false;
 
-    // store old active preset in memory before doing anything
-    const Current old = _current;
+    // store previous active preset in memory before doing anything
+    const uint8_t prevPreset = _current.preset;
+    const uint8_t prevNumLoadedPlugins = _current.numLoadedPlugins;
+    Preset prev;
+    prev.copy(_current);
 
     // copy new preset to current data
-    static_cast<Preset&>(_current) = _presets[preset];
+    static_cast<Preset&>(_current).copy(_presets[preset]);
     _current.preset = preset;
     _current.defaultScene = _current.scene;
 
-    // switch old preset with new one
-    hostSwitchPreset(old);
+    // switch previous preset with new one
+    hostSwitchPreset(prev, prevPreset, prevNumLoadedPlugins);
     return true;
 }
 
@@ -2757,7 +2935,18 @@ bool HostConnector::addBlockBinding(const uint8_t hwid, const uint8_t row, const
         _current.bindings[hwid].name = getNextMacroBindingName(_current);
     }
 
-    _current.bindings[hwid].parameters.push_back({ row, block, 0.f, 1.f, ":bypass", { 0 } });
+    _current.bindings[hwid].parameters.push_back({
+        .row = row,
+        .block = block,
+        .min = 0.f,
+        .max = 1.f,
+        .parameterSymbol = ":bypass",
+        .meta = {
+            .block = blockdata,
+            .parameterIndex = 0,
+            .isBypass = true,
+        }
+    });
     _current.dirty = true;
     return true;
 }
@@ -2812,7 +3001,19 @@ bool HostConnector::addBlockParameterBinding(const uint8_t hwid,
     }
 
     _current.bindings[hwid].parameters.push_back({
-        row, block, paramdata.meta.min, paramdata.meta.max, paramdata.symbol, { paramIndex }
+        .row = row,
+        .block = block,
+        .min = paramdata.meta.min,
+        .max = paramdata.meta.max,
+        .parameterSymbol = paramdata.symbol,
+        .meta = {
+            .block = blockdata,
+            .parameterIndex = paramIndex,
+           #ifndef _DARKGLASS_DEVICE_PABLITO
+            .isBypassParameter = false,
+           #endif
+            .parameter = paramdata,
+        },
     });
     _current.dirty = true;
     return true;
@@ -2871,7 +3072,7 @@ bool HostConnector::addBlockPropertyBinding(const uint8_t hwid,
         _current.bindings[hwid].name = getNextMacroBindingName(_current);
     }
 
-    _current.bindings[hwid].properties.push_back({ row, block, propdata.uri, { propIndex } });
+    _current.bindings[hwid].properties.push_back({ row, block, propdata.uri, { propIndex, blockdata, propdata } });
     _current.dirty = true;
     return true;
 }
@@ -3191,8 +3392,22 @@ bool HostConnector::replaceBlockBinding(const uint8_t hwid,
         if (it->parameterSymbol != ":bypass")
             continue;
 
-        it->row = rowB;
-        it->block = blockB;
+        const float min = it->min;
+        const float max = it->max;
+
+        it = bindings.erase(it);
+        bindings.insert(it, {
+            .row = rowB,
+            .block = blockB,
+            .min = min,
+            .max = max,
+            .parameterSymbol = ":bypass",
+            .meta = {
+                .block = blockdataB,
+                .parameterIndex = 0,
+                .isBypass = true,
+            },
+        });
 
         blockdata.meta.enable.hwbinding = UINT8_MAX;
         blockdataB.meta.enable.hwbinding = hwid;
@@ -3275,12 +3490,22 @@ bool HostConnector::replaceBlockParameterBinding(const uint8_t hwid,
         if (it->meta.parameterIndex != paramIndex)
             continue;
 
-        it->row = rowB;
-        it->block = blockB;
-        it->meta.parameterIndex = paramIndexB;
-        it->min = paramdataB.meta.min;
-        it->max = paramdataB.meta.max;
-        it->parameterSymbol = paramdataB.symbol;
+        it = bindings.erase(it);
+        bindings.insert(it, {
+            .row = rowB,
+            .block = blockB,
+            .min = paramdataB.meta.min,
+            .max = paramdataB.meta.max,
+            .parameterSymbol = paramdataB.symbol,
+            .meta = {
+                .block = blockdataB,
+                .parameterIndex = paramIndexB,
+               #ifndef _DARKGLASS_DEVICE_PABLITO
+                .isBypassParameter = false,
+               #endif
+                .parameter = paramdataB,
+            },
+        });
 
         paramdata.meta.hwbinding = UINT8_MAX;
         paramdataB.meta.hwbinding = hwid;
@@ -3364,10 +3589,17 @@ bool HostConnector::replaceBlockPropertyBinding(const uint8_t hwid,
         if (it->meta.propertyIndex != propIndex)
             continue;
 
-        it->row = rowB;
-        it->block = blockB;
-        it->meta.propertyIndex = propIndexB;
-        it->propertyURI = propdataB.uri;
+        it = bindings.erase(it);
+        bindings.insert(it, {
+            .row = rowB,
+            .block = blockB,
+            .propertyURI = propdataB.uri,
+            .meta = {
+                .propertyIndex = propIndexB,
+                .block = blockdataB,
+                .property = propdataB,
+            },
+        });
 
         propdata.meta.hwbinding = UINT8_MAX;
         propdataB.meta.hwbinding = hwid;
@@ -5657,7 +5889,8 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
                     std::list<ParameterBinding> parameters;
                     std::string symbol;
                     int block, row;
-                    float min, max;
+                    float min = 0.f;
+                    float max = 1.f;
 
                     for (const auto& jbindingparam : jbindingparams)
                     {
@@ -5746,11 +5979,13 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
                             parameters.push_back({
                                 .row = static_cast<uint8_t>(row - 1),
                                 .block = static_cast<uint8_t>(block - 1),
-                                .min = hasRanges ? min : 0.f,
-                                .max = hasRanges ? max : 1.f,
+                                .min = min,
+                                .max = max,
                                 .parameterSymbol = ":bypass",
                                 .meta = {
+                                    .block = blockdata,
                                     .parameterIndex = 0,
+                                    .isBypass = true,
                                 },
                             });
                             continue;
@@ -5793,7 +6028,12 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
                                 .max = max,
                                 .parameterSymbol = symbol,
                                 .meta = {
+                                    .block = blockdata,
                                     .parameterIndex = p,
+                                   #ifndef _DARKGLASS_DEVICE_PABLITO
+                                    .isBypassParameter = false,
+                                   #endif
+                                    .parameter = paramdata,
                                 },
                             });
                             found = true;
@@ -5804,7 +6044,7 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
                             mod_log_warn("jsonPresetLoad(): binding parameter %s not found in plugin", symbol.c_str());
                     }
 
-                    bindings.parameters = parameters;
+                    std::swap(bindings.parameters, parameters);
                 }
                 else
                 {
@@ -5902,13 +6142,15 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
                                 .propertyURI = uri,
                                 .meta = {
                                     .propertyIndex = p,
+                                    .block = blockdata,
+                                    .property = propdata,
                                 },
                             });
                             break;
                         }
                     }
 
-                    bindings.properties = properties;
+                    std::swap(bindings.properties, properties);
                 }
                 else
                 {
@@ -6054,7 +6296,7 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann::json& jpreset) const
+void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann::json& jpreset)
 {
     jpreset = nlohmann::json::object({
         { "bindings", nlohmann::json::object({}) },
@@ -6380,11 +6622,11 @@ void HostConnector::hostLoadPreset(const uint8_t preset)
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::hostSwitchPreset(const Current& prev)
+void HostConnector::hostSwitchPreset(const Preset& prev, const uint8_t prevPreset, const uint8_t prevNumLoadedPlugins)
 {
     mod_log_debug("hostSwitchPreset(...)");
 
-    if (_current.preset == prev.preset) {
+    if (_current.preset == prevPreset) {
         assert(_current.numLoadedPlugins == 0);
     }
 
@@ -6405,7 +6647,7 @@ void HostConnector::hostSwitchPreset(const Current& prev)
 
         // step 1: disconnect and deactivate all plugins in prev preset
         // NOTE not removing plugins, done after processing is reenabled
-        if (prev.numLoadedPlugins == 0)
+        if (prevNumLoadedPlugins == 0)
         {
             std::memset(oldloaded, 0, sizeof(oldloaded));
             hostDisconnectChainEndpoints(0);
@@ -6423,7 +6665,7 @@ void HostConnector::hostSwitchPreset(const Current& prev)
                     if (! (oldloaded[row][bl] = !isNullBlock(blockdata)))
                         continue;
 
-                    const HostBlockPair hbp = _mapper.get(prev.preset, row, bl);
+                    const HostBlockPair hbp = _mapper.get(prevPreset, row, bl);
                     hostDisconnectAllBlockInputs(blockdata, hbp);
                     hostDisconnectAllBlockOutputs(blockdata, hbp);
 
@@ -6528,8 +6770,8 @@ void HostConnector::hostSwitchPreset(const Current& prev)
 
     // scope for preloading default preset state and copying current port state cache
     {
-        const Preset& defaults = _presets[prev.preset];
-        Preset& inactivatedPreset = _presets[prev.preset];
+        const Preset& defaults = _presets[prevPreset];
+        Preset& inactivatedPreset = _presets[prevPreset];
         // bool defloaded[NUM_BLOCKS_PER_PRESET];
 
         const Host::NonBlockingScope hnbs(_host);
@@ -6549,7 +6791,7 @@ void HostConnector::hostSwitchPreset(const Current& prev)
                     if (isNullBlock(defblockdata))
                         continue;
 
-                    const HostBlockPair hbp = _mapper.get(prev.preset, row, bl);
+                    const HostBlockPair hbp = _mapper.get(prevPreset, row, bl);
                     assert_continue(hbp.id != kMaxHostInstances);
 
                     if (defblockdata.meta.enable.changesNotSavedToPreset)
@@ -6620,7 +6862,7 @@ void HostConnector::hostSwitchPreset(const Current& prev)
                 // different plugin, unload old one if there is any
                 if (oldloaded[row][bl])
                 {
-                    if (const HostBlockPair hbp = _mapper.remove(prev.preset, row, bl); hbp.id != kMaxHostInstances)
+                    if (const HostBlockPair hbp = _mapper.remove(prevPreset, row, bl); hbp.id != kMaxHostInstances)
                         hostRemoveBlockPair(hbp);
                 }
 
@@ -6629,7 +6871,7 @@ void HostConnector::hostSwitchPreset(const Current& prev)
                     continue;
 
                 // otherwise load default plugin
-                HostBlockPair hbp = { _mapper.add(prev.preset, row, bl), kMaxHostInstances };
+                HostBlockPair hbp = { _mapper.add(prevPreset, row, bl), kMaxHostInstances };
                 _host.preload(defblockdata.uri.c_str(), hbp.id);
 
                 if (!defblockdata.enabled)
@@ -6672,7 +6914,7 @@ void HostConnector::hostSwitchPreset(const Current& prev)
 
         // ensure necessary dual mono blocks are added
         // FIXME? this makes unnecessary connections for the non-acive preset?
-        hostEnsureStereoChain(prev.preset, 0);
+        hostEnsureStereoChain(prevPreset, 0);
     }
 }
 
@@ -7384,7 +7626,7 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::resetBlock(Block& blockdata) const
+void HostConnector::resetBlock(Block& blockdata)
 {
     blockdata.enabled = false;
     blockdata.uri.clear();
@@ -7419,47 +7661,9 @@ void HostConnector::resetBlock(Block& blockdata) const
     }
 }
 
-void HostConnector::allocBlock(Block& blockdata) const
-{
-    blockdata.parameters.resize(MAX_PARAMS_PER_BLOCK);
-    blockdata.properties.resize(MAX_PARAMS_PER_BLOCK);
-
-    for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
-    {
-        blockdata.sceneValues[s].parameters.resize(MAX_PARAMS_PER_BLOCK);
-        blockdata.sceneValues[s].properties.resize(MAX_PARAMS_PER_BLOCK);
-        blockdata.lastSavedSceneValues[s].parameters.resize(MAX_PARAMS_PER_BLOCK);
-        blockdata.lastSavedSceneValues[s].properties.resize(MAX_PARAMS_PER_BLOCK);
-    }
-}
-
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::allocPreset(Preset& preset, const bool init) const
-{
-    if (init)
-    {
-        preset.chains[0].capture[0] = JACK_CAPTURE_PORT_1;
-        preset.chains[0].capture[1] = JACK_CAPTURE_PORT_2;
-        preset.chains[0].playback[0] = JACK_PLAYBACK_PORT_1;
-        preset.chains[0].playback[1] = JACK_PLAYBACK_PORT_2;
-    }
-    else
-    {
-        preset.chains[0].capture = _current.chains[0].capture;
-        preset.chains[0].playback = _current.chains[0].playback;
-    }
-
-    for (ChainRow& chain : preset.chains)
-    {
-        chain.blocks.resize(NUM_BLOCKS_PER_PRESET);
-
-        for (Block& block : chain.blocks)
-            allocBlock(block);
-    }
-}
-
-void HostConnector::resetPreset(Preset& preset) const
+void HostConnector::resetPreset(Preset& preset)
 {
     preset.uuid = generateUUID();
     preset.scene = 0;
@@ -7492,9 +7696,27 @@ void HostConnector::resetPreset(Preset& preset) const
 
     for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
         preset.sceneNames[s].clear();
+
+    resetPresetPorts(preset);
 }
 
-void HostConnector::setEnableChangesNotSavedToPreset(Block& blockdata, const bool changesNotSavedToPreset) const
+void HostConnector::resetPresetPorts(Preset& preset, const bool usingDefault)
+{
+    if (usingDefault)
+    {
+        preset.chains[0].capture[0] = JACK_CAPTURE_PORT_1;
+        preset.chains[0].capture[1] = JACK_CAPTURE_PORT_2;
+        preset.chains[0].playback[0] = JACK_PLAYBACK_PORT_1;
+        preset.chains[0].playback[1] = JACK_PLAYBACK_PORT_2;
+    }
+    else
+    {
+        preset.chains[0].capture = _current.chains[0].capture;
+        preset.chains[0].playback = _current.chains[0].playback;
+    }
+}
+
+void HostConnector::setEnableChangesNotSavedToPreset(Block& blockdata, const bool changesNotSavedToPreset)
 {
     if (!changesNotSavedToPreset)
     {
@@ -7517,7 +7739,9 @@ void HostConnector::setEnableChangesNotSavedToPreset(Block& blockdata, const boo
     }
 }
 
-void HostConnector::setParamChangesNotSavedToPreset(Block& blockdata, const uint8_t paramIndex, const bool changesNotSavedToPreset) const
+void HostConnector::setParamChangesNotSavedToPreset(Block& blockdata,
+                                                    const uint8_t paramIndex,
+                                                    const bool changesNotSavedToPreset)
 {
     Parameter& paramdata(blockdata.parameters[paramIndex]);
 
