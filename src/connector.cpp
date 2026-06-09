@@ -559,7 +559,7 @@ void HostConnector::printStateForDebug(const bool withBlocks, const bool withPar
                 fprintf(stderr, "\t\tnumSideOutputs: %u\n", blockdata.meta.numSideOutputs);
             }
 
-            for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK && withParams; ++p)
+            for (uint8_t p = 0, size = blockdata.parameters.size(); p < size && withParams; ++p)
             {
                 const Parameter& paramdata(blockdata.parameters[p]);
 
@@ -584,7 +584,7 @@ void HostConnector::printStateForDebug(const bool withBlocks, const bool withPar
                 fprintf(stderr, "\t\t\tUnit: %s\n", paramdata.meta.unit.c_str());
             }
 
-            for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK && withParams; ++p)
+            for (uint8_t p = 0, size = blockdata.properties.size(); p < size && withParams; ++p)
             {
                 const Property& propdata(blockdata.properties[p]);
 
@@ -1636,7 +1636,7 @@ bool HostConnector::replaceBlock(const uint8_t row,
                 hostPrerunBlockPair(hbp, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params);
             }
 
-            for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+            for (uint8_t p = 0, size = blockdata.properties.size(); p < size; ++p)
             {
                 Property& propdata(blockdata.properties[p]);
                 if (isNullURI(propdata.uri))
@@ -2014,7 +2014,7 @@ bool HostConnector::resetBlock(const uint8_t row, const uint8_t block, const boo
                 if (blockdataB.uri != blockdata.uri)
                     continue;
 
-                for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                for (uint8_t p = 0, size = blockdata.parameters.size(); p < size; ++p)
                 {
                     Parameter& paramdata(blockdata.parameters[p]);
                     if (isNullURI(paramdata.symbol))
@@ -2075,7 +2075,7 @@ bool HostConnector::resetBlock(const uint8_t row, const uint8_t block, const boo
         hostPrerunBlockPair(hbp, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params);
     }
 
-    for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+    for (uint8_t p = 0, size = blockdata.properties.size(); p < size; ++p)
     {
         Property& propdata(blockdata.properties[p]);
         if (isNullURI(propdata.uri))
@@ -2115,7 +2115,7 @@ bool HostConnector::saveBlockStateAsDefault(const uint8_t row, const uint8_t blo
             if (blockdataB.uri != blockdata.uri)
                 continue;
 
-            for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+            for (uint8_t p = 0, size = blockdata.parameters.size(); p < size; ++p)
             {
                 Parameter& paramdata(blockdata.parameters[p]);
                 if (isNullURI(paramdata.symbol))
@@ -2718,6 +2718,7 @@ bool HostConnector::addBlockParameterBinding(const uint8_t hwid,
 
     Block& blockdata(_current.chains[row].blocks[block]);
     assert_return(!isNullBlock(blockdata), false);
+    assert_return(paramIndex < blockdata.parameters.size(), false);
 
     Parameter& paramdata(blockdata.parameters[paramIndex]);
     assert_return(!isNullURI(paramdata.symbol), false);
@@ -2816,6 +2817,7 @@ bool HostConnector::editBlockParameterBinding(const uint8_t hwid,
 
     Block& blockdata(_current.chains[row].blocks[block]);
     assert_return(!isNullBlock(blockdata), false);
+    assert_return(paramIndex < blockdata.parameters.size(), false);
 
     Parameter& paramdata(blockdata.parameters[paramIndex]);
     assert_return(!isNullURI(paramdata.symbol), false);
@@ -2942,6 +2944,7 @@ bool HostConnector::removeBlockParameterBinding(const uint8_t hwid,
 
     Block& blockdata(_current.chains[row].blocks[block]);
     assert_return(!isNullBlock(blockdata), false);
+    assert_return(paramIndex < blockdata.parameters.size(), false);
 
     Parameter& paramdata(blockdata.parameters[paramIndex]);
     assert_return(!isNullURI(paramdata.symbol), false);
@@ -3101,9 +3104,11 @@ bool HostConnector::replaceBlockParameterBinding(const uint8_t hwid,
 
     Block& blockdata(_current.chains[row].blocks[block]);
     assert_return(!isNullBlock(blockdata), false);
+    assert_return(paramIndex < blockdata.parameters.size(), false);
 
     Block& blockdataB(_current.chains[rowB].blocks[blockB]);
     assert_return(!isNullBlock(blockdataB), false);
+    assert_return(paramIndex < blockdataB.parameters.size(), false);
 
     Parameter& paramdata(blockdata.parameters[paramIndex]);
     assert_return(!isNullURI(paramdata.symbol), false);
@@ -3367,6 +3372,7 @@ void HostConnector::setBlockParameter(const uint8_t row,
 
     Block& blockdata(_current.chains[row].blocks[block]);
     assert_return(!isNullBlock(blockdata),);
+    assert_return(paramIndex < blockdata.parameters.size(),);
 
     const HostBlockPair hbp = _mapper.get(_current.preset, row, block);
     assert_return(hbp.id != kMaxHostInstances,);
@@ -3542,6 +3548,7 @@ void HostConnector::setBlockQuickPot(const uint8_t row, const uint8_t block, con
 
     Block& blockdata(_current.chains[row].blocks[block]);
     assert_return(!isNullBlock(blockdata),);
+    assert_return(paramIndex < blockdata.parameters.size(),);
 
     const Parameter& paramdata(blockdata.parameters[paramIndex]);
     assert_return(!isNullURI(paramdata.symbol),);
@@ -3565,6 +3572,7 @@ bool HostConnector::monitorBlockOutputParameter(const uint8_t row,
 
     const Block& blockdata(_current.chains[row].blocks[block]);
     assert_return(!isNullBlock(blockdata), false);
+    assert_return(paramIndex < blockdata.parameters.size(),);
 
     const HostBlockPair hbp = _mapper.get(_current.preset, row, block);
     assert_return(hbp.id != kMaxHostInstances, false);
@@ -3962,6 +3970,7 @@ void HostConnector::setBlockProperty(const uint8_t row,
 
     Block& blockdata(_current.chains[row].blocks[block]);
     assert_return(!isNullBlock(blockdata),);
+    assert_return(propIndex < blockdata.properties.size(),);
 
     const HostBlockPair hbp = _mapper.get(_current.preset, row, block);
     assert_return(hbp.id != kMaxHostInstances,);
@@ -5290,7 +5299,7 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
                         }
 
                         bool found = false;
-                        for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                        for (uint8_t p = 0, size = blockdata.parameters.size(); p < size; ++p)
                         {
                             Parameter& paramdata = blockdata.parameters[p];
 
@@ -5591,7 +5600,7 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann::json& jpr
                 {
                     auto& jparams = jblock["parameters"];
 
-                    for (uint8_t p = 0, jp = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                    for (uint8_t p = 0, jp = 0, size = blockdata.parameters.size(); p < size; ++p)
                     {
                         const Parameter& paramdata = blockdata.parameters[p];
 
@@ -5612,7 +5621,7 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann::json& jpr
                 {
                     auto& jprops = jblock["properties"];
 
-                    for (uint8_t p = 0, jp = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                    for (uint8_t p = 0, jp = 0, size = blockdata.properties.size(); p < size; ++p)
                     {
                         const Property& propdata = blockdata.properties[p];
 
@@ -5944,6 +5953,11 @@ void HostConnector::hostSwitchPreset(const Preset& prev, const uint8_t prevPrese
                     if (isNullBlock(defblockdata))
                         continue;
 
+                    assert(defblockdata.parameters.size() == prevblockdata.parameters.size());
+                    assert(defblockdata.parameters.size() == inactblockdata.parameters.size());
+                    assert(defblockdata.properties.size() == prevblockdata.properties.size());
+                    assert(defblockdata.properties.size() == inactblockdata.properties.size());
+
                     const HostBlockPair hbp = _mapper.get(prevPreset, row, bl);
                     assert_continue(hbp.id != kMaxHostInstances);
 
@@ -5961,7 +5975,7 @@ void HostConnector::hostSwitchPreset(const Preset& prev, const uint8_t prevPrese
 
                     params.clear();
 
-                    for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                    for (uint8_t p = 0, size = defblockdata.parameters.size(); p < size; ++p)
                     {
                         const Parameter& defparamdata(defblockdata.parameters[p]);
                         const Parameter& oldparamdata(prevblockdata.parameters[p]);
@@ -5991,7 +6005,7 @@ void HostConnector::hostSwitchPreset(const Preset& prev, const uint8_t prevPrese
                         params.push_back({ defparamdata.symbol.c_str(), defparamdata.value });
                     }
 
-                    for (uint8_t p = 0; p < MAX_PARAMS_PER_BLOCK; ++p)
+                    for (uint8_t p = 0, size = defblockdata.properties.size(); p < size; ++p)
                     {
                         const Property& defpropdata(defblockdata.properties[p]);
                         const Property& prevpropdata(prevblockdata.properties[p]);
@@ -6268,7 +6282,8 @@ void HostConnector::hostFeedbackCallback(const HostFeedbackData& data)
                 Block& blockdata = _current.chains[hbar.row].blocks[hbar.block];
 
                 uint8_t p = 0;
-                for (; p < MAX_PARAMS_PER_BLOCK; ++p)
+                uint8_t size = blockdata.parameters.size();
+                for (; p < size; ++p)
                 {
                     if (isNullURI(blockdata.parameters[p].symbol))
                         return;
@@ -6276,7 +6291,7 @@ void HostConnector::hostFeedbackCallback(const HostFeedbackData& data)
                         break;
                 }
 
-                if (p == MAX_PARAMS_PER_BLOCK)
+                if (p == size)
                     return;
 
                 if (data.type == HostFeedbackData::kFeedbackParameterSet)
@@ -6312,15 +6327,16 @@ void HostConnector::hostFeedbackCallback(const HostFeedbackData& data)
                                                          : _presets[preset].chains[hbar.row].blocks[hbar.block];
 
             uint8_t p = 0;
-            for (; p < MAX_PARAMS_PER_BLOCK; ++p)
+            uint8_t size = blockdata.parameters.size();
+            for (; p < size; ++p)
             {
                 if (isNullURI(blockdata.parameters[p].symbol))
-                    p = MAX_PARAMS_PER_BLOCK;
+                    p = size;
                 if (blockdata.parameters[p].symbol == data.paramState.symbol)
                     break;
             }
 
-            if (p == MAX_PARAMS_PER_BLOCK)
+            if (p == size)
                 break;
 
             const Lv2ParameterState stateValue = static_cast<Lv2ParameterState>(data.paramState.value);
