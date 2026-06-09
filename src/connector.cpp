@@ -1607,10 +1607,10 @@ bool HostConnector::replaceBlock(const uint8_t row,
 
             std::array<bool, MAX_PARAMS_PER_BLOCK> propsToReset{};
 
+            blockdata.meta.enable.changesNotSavedToPreset = false;
             blockdata.meta.enable.hasScenes = false;
             blockdata.meta.enable.hwbinding = UINT8_MAX;
             blockdata.meta.enable.tempSceneState = kTemporarySceneNone;
-            blockdata.meta.enable.changesNotSavedToPreset = false;
             blockdata.meta.numParametersInScenes = 0;
 
             for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
@@ -2018,6 +2018,7 @@ bool HostConnector::resetBlock(const uint8_t row, const uint8_t block, const boo
 
     std::array<bool, MAX_PARAMS_PER_BLOCK> propsToReset{};
 
+    blockdata.meta.enable.changesNotSavedToPreset = false;
     blockdata.meta.enable.hasScenes = false;
     blockdata.meta.enable.hwbinding = UINT8_MAX;
     blockdata.meta.enable.tempSceneState = kTemporarySceneNone;
@@ -6577,10 +6578,10 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
     blockdata.quickPotSymbol.clear();
     blockdata.plugin = plugin;
 
+    blockdata.meta.enable.changesNotSavedToPreset = false;
     blockdata.meta.enable.hasScenes = false;
     blockdata.meta.enable.hwbinding = UINT8_MAX;
     blockdata.meta.enable.tempSceneState = kTemporarySceneNone;
-    blockdata.meta.enable.changesNotSavedToPreset = false;
     blockdata.meta.flags = plugin->flags;
     blockdata.meta.quickPotIndex = 0;
     blockdata.meta.numParametersInScenes = 0;
@@ -6811,10 +6812,10 @@ void HostConnector::resetBlock(Block& blockdata)
     blockdata.uri.clear();
     blockdata.quickPotSymbol.clear();
     blockdata.plugin.reset();
+    blockdata.meta.enable.changesNotSavedToPreset = false;
     blockdata.meta.enable.hasScenes = false;
     blockdata.meta.enable.hwbinding = UINT8_MAX;
     blockdata.meta.enable.tempSceneState = kTemporarySceneNone;
-    blockdata.meta.enable.changesNotSavedToPreset = false;
     blockdata.meta.flags = 0;
     blockdata.meta.quickPotIndex = 0;
     blockdata.meta.numParametersInScenes = 0;
@@ -6927,7 +6928,7 @@ void HostConnector::setParamChangesNotSavedToPreset(Block& blockdata,
         paramdata.meta.flags &= ~Lv2ParameterChangesNotSavedToPreset;
         return;
     }
-    
+
     paramdata.meta.flags |= Lv2ParameterChangesNotSavedToPreset;
 
     // clear Scenes
