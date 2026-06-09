@@ -250,8 +250,8 @@ struct HostConnector : Host::FeedbackCallback {
             // convenience meta-data, not stored in json state
             // TODO remove details directly provided by plugin data
             struct {
-                bool hasScenes;
                 bool changesNotSavedToPreset;
+                bool hasScenes;
                 uint8_t hwbinding;
                 TemporarySceneState tempSceneState;
             } enable;
@@ -384,6 +384,7 @@ struct HostConnector : Host::FeedbackCallback {
             return chains[0].blocks[block];
         }
        #endif
+        CLASS_ONLY_MOVE_INIT_NO_COPY(Current)
     };
 
     // connection to mod-host, handled internally
