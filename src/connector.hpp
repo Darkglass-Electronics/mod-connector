@@ -77,7 +77,7 @@ enum ExtraLv2Flags {
     Lv2ParameterVirtual = 1 << 12,
     Lv2ParameterInScene = 1 << 13,
     Lv2ParameterNotInQuickPot = 1 << 14,
-    Lv2ParameteChangesNotSavedToPreset = 1 << 15, // not from lv2, can be added/removed in runtime
+    Lv2ParameterChangesNotSavedToPreset = 1 << 15, // not from lv2, can be added/removed in runtime
 };
 
 enum Lv2ParameterState {

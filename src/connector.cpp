@@ -54,7 +54,7 @@ static constexpr const uint32_t Lv2ParameterNotAllowedInQuickPot
     = Lv2PortIsOutput|Lv2ParameterHidden|Lv2ParameterNotInQuickPot|Lv2ParameterMayUpdateBlockedState;
 
 static constexpr const uint32_t Lv2ParameterNotAllowedInScenes
-    = Lv2PortIsOutput|Lv2ParameterVirtual|Lv2ParameterExpensive|Lv2ParameterMayUpdateBlockedState|Lv2ParameteChangesNotSavedToPreset;
+    = Lv2PortIsOutput|Lv2ParameterVirtual|Lv2ParameterExpensive|Lv2ParameterMayUpdateBlockedState|Lv2ParameterChangesNotSavedToPreset;
 
 // --------------------------------------------------------------------------------------------------------------------
 
@@ -311,7 +311,7 @@ static inline constexpr T unnormalized(const Meta& meta, T value)
 
 static inline constexpr bool shouldSaveParameterToPreset(const uint32_t flags)
 {
-    if ((flags & (Lv2ParameterNotAllowedToChange|Lv2ParameteChangesNotSavedToPreset)) != 0)
+    if ((flags & (Lv2ParameterNotAllowedToChange|Lv2ParameterChangesNotSavedToPreset)) != 0)
         return false;
     if ((flags & (Lv2ParameterHidden|Lv2ParameterSavedToPreset)) == Lv2ParameterHidden)
         return false;
@@ -320,7 +320,7 @@ static inline constexpr bool shouldSaveParameterToPreset(const uint32_t flags)
 
 static inline constexpr bool shouldSavePropertyToPreset(const uint32_t flags)
 {
-    if ((flags & (Lv2PropertyNotAllowedToChange|Lv2ParameteChangesNotSavedToPreset)) != 0)
+    if ((flags & (Lv2PropertyNotAllowedToChange|Lv2ParameterChangesNotSavedToPreset)) != 0)
         return false;
     if ((flags & (Lv2ParameterHidden|Lv2ParameterSavedToPreset)) == Lv2ParameterHidden)
         return false;
@@ -2310,7 +2310,7 @@ bool HostConnector::saveBlockStateAsDefault(const uint8_t row, const uint8_t blo
                 Parameter& paramdata(blockdata.parameters[p]);
                 if (isNullURI(paramdata.symbol))
                     break;
-                if ((paramdata.meta.flags & (Lv2ParameterNotAllowedToChange | Lv2ParameterMayUpdateBlockedState | Lv2ParameteChangesNotSavedToPreset)) != 0)
+                if ((paramdata.meta.flags & (Lv2ParameterNotAllowedToChange | Lv2ParameterMayUpdateBlockedState | Lv2ParameterChangesNotSavedToPreset)) != 0)
                     continue;
 
                 blockdataB.parameters[p].meta.def = paramdata.value;
@@ -3188,7 +3188,7 @@ bool HostConnector::removeBindings(const uint8_t hwid)
                 if (paramdata.meta.hwbinding == hwid)
                 {
                     paramdata.meta.hwbinding = UINT8_MAX;
-                    paramdata.meta.flags &= ~Lv2ParameteChangesNotSavedToPreset;
+                    paramdata.meta.flags &= ~Lv2ParameterChangesNotSavedToPreset;
                 }
             }
 
@@ -3271,7 +3271,7 @@ bool HostConnector::removeBlockParameterBinding(const uint8_t hwid,
     assert_return(paramdata.meta.hwbinding != UINT8_MAX, false);
 
     paramdata.meta.hwbinding = UINT8_MAX;
-    paramdata.meta.flags &= ~Lv2ParameteChangesNotSavedToPreset;
+    paramdata.meta.flags &= ~Lv2ParameterChangesNotSavedToPreset;
 
     std::list<ParameterBinding>& bindings(_current.bindings[hwid].parameters);
     for (ParameterBindingIteratorConst it = bindings.cbegin(), end = bindings.cend(); it != end; ++it)
@@ -3853,10 +3853,10 @@ void HostConnector::setBlockParameter(const uint8_t row,
     assert_return((paramdata.meta.flags & Lv2ParameterNotAllowedToChange) == 0,);
     assert_return(paramdata.meta.state != Lv2ParameterStateBlocked,);
 
-    if ((paramdata.meta.flags & Lv2ParameteChangesNotSavedToPreset) == 0)
+    if ((paramdata.meta.flags & Lv2ParameterChangesNotSavedToPreset) == 0)
         _current.dirty = true;
 
-    if ((paramdata.meta.flags & (Lv2ParameterExpensive|Lv2ParameterMayUpdateBlockedState|Lv2ParameteChangesNotSavedToPreset)) == 0)
+    if ((paramdata.meta.flags & (Lv2ParameterExpensive|Lv2ParameterMayUpdateBlockedState|Lv2ParameterChangesNotSavedToPreset)) == 0)
     {
         switch (sceneMode)
         {
@@ -6826,7 +6826,7 @@ void HostConnector::hostSwitchPreset(const Preset& prev, const uint8_t prevPrese
                         if (inactparamdata.meta.state == Lv2ParameterStateBlocked)
                             continue;
 
-                        if ((defparamdata.meta.flags & Lv2ParameteChangesNotSavedToPreset) != 0)
+                        if ((defparamdata.meta.flags & Lv2ParameterChangesNotSavedToPreset) != 0)
                         {
                             // parameter value in _presets[] may have changed but not part of preset
                             inactparamdata.value = defparamdata.meta.def;
@@ -7564,7 +7564,7 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
 
             if (isNullURI(paramdata.symbol))
                 continue;
-            if ((paramdata.meta.flags & (Lv2ParameterNotAllowedToChange|Lv2ParameteChangesNotSavedToPreset)) != 0)
+            if ((paramdata.meta.flags & (Lv2ParameterNotAllowedToChange|Lv2ParameterChangesNotSavedToPreset)) != 0)
                 continue;
             if (paramdata.meta.state == Lv2ParameterStateBlocked)
                 continue;
@@ -7747,11 +7747,11 @@ void HostConnector::setParamChangesNotSavedToPreset(Block& blockdata,
 
     if (!changesNotSavedToPreset)
     {
-        paramdata.meta.flags &= ~Lv2ParameteChangesNotSavedToPreset;
+        paramdata.meta.flags &= ~Lv2ParameterChangesNotSavedToPreset;
         return;
     }
     
-    paramdata.meta.flags |= Lv2ParameteChangesNotSavedToPreset;
+    paramdata.meta.flags |= Lv2ParameterChangesNotSavedToPreset;
 
     // clear Scenes
     if ((paramdata.meta.flags & Lv2ParameterInScene) != 0)
