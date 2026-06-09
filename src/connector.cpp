@@ -4942,9 +4942,9 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
                         if ((paramdata.meta.flags & Lv2ParameterNotAllowedToChange) != 0)
                             continue;
 
-                        paramdata.value = std::max(paramdata.meta.min,
-                                                    std::min<float>(paramdata.meta.max,
-                                                                    jparam["value"].get<double>()));
+                        paramdata.value = std::clamp<float>(jparam["value"].get<double>(),
+                                                            paramdata.meta.min,
+                                                            paramdata.meta.max);
 
                         paramdata.scenes.values.fill(paramdata.value);
                     }
@@ -5088,8 +5088,9 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
                                         ++blockdata.meta.numParametersInScenes;
                                     }
 
-                                    paramdata.scenes.values[s] =
-                                        std::max(paramdata.meta.min, std::min<float>(paramdata.meta.max, value));
+                                    paramdata.scenes.values[s] = std::clamp<float>(value,
+                                                                                   paramdata.meta.min,
+                                                                                   paramdata.meta.max);
                                 }
                             }
                         }
@@ -5369,7 +5370,7 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
                     continue;
                 }
 
-                bindings.value = std::max(0.0, std::min(1.0, jvalue));
+                bindings.value = std::clamp(jvalue, 0.0, 1.0);
             }
             else
             {
