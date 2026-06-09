@@ -57,6 +57,12 @@ public:
     // do not allow copy constructor
     heap_array(const heap_array&) = delete;
 
+    // std::array-like methods
+    void fill(const T& value)
+    {
+        std::fill(std::vector<T>::begin(), std::vector<T>::end(), value);
+    }
+
     // unwanted methods, trying to force fixed size
     void append_range() = delete;
     void clear() = delete;
