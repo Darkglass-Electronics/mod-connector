@@ -1592,7 +1592,7 @@ bool HostConnector::reorderBlock(const uint8_t row, const uint8_t orig, const ui
                 if (it->meta.isBypass)
                 {
                     it = bindings.erase(it);
-                    bindings.insert(it, {
+                    it = bindings.insert(it, {
                         .row = row,
                         .block = block,
                         .min = min,
@@ -1611,7 +1611,7 @@ bool HostConnector::reorderBlock(const uint8_t row, const uint8_t orig, const ui
                     const std::string parameterSymbol = it->parameterSymbol;
 
                     it = bindings.erase(it);
-                    bindings.insert(it, {
+                    it = bindings.insert(it, {
                         .row = row,
                         .block = block,
                         .min = min,
@@ -1664,7 +1664,7 @@ bool HostConnector::reorderBlock(const uint8_t row, const uint8_t orig, const ui
                 const std::string propertyURI = it->propertyURI;
 
                 it = bindings.erase(it);
-                bindings.insert(it, {
+                it = bindings.insert(it, {
                     .row = row,
                     .block = block,
                     .propertyURI = propertyURI,
@@ -2411,7 +2411,7 @@ bool HostConnector::swapBlockRow(const uint8_t row,
                     if (it->meta.isBypass)
                     {
                         it = bindings.erase(it);
-                        bindings.insert(it, {
+                        it = bindings.insert(it, {
                             .row = emptyRow,
                             .block = emptyBlock,
                             .min = min,
@@ -2430,7 +2430,7 @@ bool HostConnector::swapBlockRow(const uint8_t row,
                         const std::string parameterSymbol = it->parameterSymbol;
 
                         it = bindings.erase(it);
-                        bindings.insert(it, {
+                        it = bindings.insert(it, {
                             .row = emptyRow,
                             .block = emptyBlock,
                             .min = min,
@@ -2460,7 +2460,7 @@ bool HostConnector::swapBlockRow(const uint8_t row,
                     const std::string propertyURI = it->propertyURI;
 
                     it = bindings.erase(it);
-                    bindings.insert(it, {
+                    it = bindings.insert(it, {
                         .row = emptyRow,
                         .block = emptyBlock,
                         .propertyURI = propertyURI,
@@ -3396,7 +3396,7 @@ bool HostConnector::replaceBlockBinding(const uint8_t hwid,
         const float max = it->max;
 
         it = bindings.erase(it);
-        bindings.insert(it, {
+        it = bindings.insert(it, {
             .row = rowB,
             .block = blockB,
             .min = min,
@@ -3491,7 +3491,7 @@ bool HostConnector::replaceBlockParameterBinding(const uint8_t hwid,
             continue;
 
         it = bindings.erase(it);
-        bindings.insert(it, {
+        it = bindings.insert(it, {
             .row = rowB,
             .block = blockB,
             .min = paramdataB.meta.min,
@@ -3590,7 +3590,7 @@ bool HostConnector::replaceBlockPropertyBinding(const uint8_t hwid,
             continue;
 
         it = bindings.erase(it);
-        bindings.insert(it, {
+        it = bindings.insert(it, {
             .row = rowB,
             .block = blockB,
             .propertyURI = propdataB.uri,
