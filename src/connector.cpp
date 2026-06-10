@@ -6235,6 +6235,7 @@ void HostConnector::hostPrerunBlockPair(const HostBlockPair& hbp,
 void HostConnector::hostDisconnectedCallback()
 {
     ok = false;
+    _firstboot = true;
 
     if (_callback != nullptr)
         _callback->hostDisconnectedCallback();
