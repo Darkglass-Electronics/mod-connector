@@ -3572,7 +3572,7 @@ bool HostConnector::monitorBlockOutputParameter(const uint8_t row,
 
     const Block& blockdata(_current.chains[row].blocks[block]);
     assert_return(!isNullBlock(blockdata), false);
-    assert_return(paramIndex < blockdata.parameters.size(),);
+    assert_return(paramIndex < blockdata.parameters.size(), false);
 
     const HostBlockPair hbp = _mapper.get(_current.preset, row, block);
     assert_return(hbp.id != kMaxHostInstances, false);
