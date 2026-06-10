@@ -209,8 +209,6 @@ struct HostConnector : Host::FeedbackCallback {
         struct Meta {
             // convenience meta-data, not stored in json state
             uint32_t flags;
-            uint8_t hwbinding;
-            TemporarySceneState tempSceneState;
             float def, min, max; // used for Lv2PropertyIsParameter
             std::string defpath; // used for Lv2PropertyIsPath
             std::string name;
@@ -241,7 +239,6 @@ struct HostConnector : Host::FeedbackCallback {
     struct SceneValues {
         bool enabled;
         heap_array<float, MAX_PARAMS_PER_BLOCK> parameters;
-        heap_array<std::string, MAX_PARAMS_PER_BLOCK> properties;
         CLASS_ONLY_MOVE_INIT_NO_COPY(SceneValues)
     };
 
@@ -261,7 +258,6 @@ struct HostConnector : Host::FeedbackCallback {
             uint32_t flags;
             uint8_t quickPotIndex;
             uint8_t numParametersInScenes;
-            uint8_t numPropertiesInScenes;
             uint8_t numInputs;
             uint8_t numOutputs;
             uint8_t numSideInputs;
@@ -330,22 +326,9 @@ struct HostConnector : Host::FeedbackCallback {
         } meta;
     };
 
-    struct PropertyBinding {
-        uint8_t row;
-        uint8_t block;
-        const std::string propertyURI;
-        // convenience data, not stored in json state
-        const struct Meta {
-            const uint8_t propertyIndex;
-            const Block &block;
-            const Property &property;
-        } meta;
-    };
-
     struct Bindings {
         std::string name;
         std::list<ParameterBinding> parameters;
-        std::list<PropertyBinding> properties;
         double value; // NOTE normalized 0-1, updated automatically if single binding or using scenes
     private:
         friend struct HostConnector;
@@ -675,9 +658,6 @@ public:
     // add a block parameter binding
     bool addBlockParameterBinding(uint8_t hwid, uint8_t row, uint8_t block, uint8_t paramIndex);
 
-    // add a block property binding
-    bool addBlockPropertyBinding(uint8_t hwid, uint8_t row, uint8_t block, uint8_t propIndex);
-
     // edit a block parameter binding (change normal or inverted operation)
     bool editBlockBinding(uint8_t hwid, uint8_t row, uint8_t block, bool inverted);
 
@@ -698,9 +678,6 @@ public:
     // remove a block parameter binding
     bool removeBlockParameterBinding(uint8_t hwid, uint8_t row, uint8_t block, uint8_t paramIndex);
 
-    // remove a block parameter binding
-    bool removeBlockPropertyBinding(uint8_t hwid, uint8_t row, uint8_t block, uint8_t propIndex);
-
     // rename a binding
     bool renameBinding(uint8_t hwid, const char* name);
 
@@ -717,16 +694,6 @@ public:
                                       uint8_t rowB,
                                       uint8_t blockB,
                                       uint8_t paramIndexB);
-
-    // replace a block property binding with another
-    // the binding to be replaced must already exist
-    bool replaceBlockPropertyBinding(uint8_t hwid,
-                                     uint8_t row,
-                                     uint8_t block,
-                                     uint8_t propIndex,
-                                     uint8_t rowB,
-                                     uint8_t blockB,
-                                     uint8_t propIndexB);
 
     // reorder bindings
     bool reorderBlockBinding(uint8_t hwid, uint8_t dest);
@@ -1023,7 +990,6 @@ using HostBlock = HostConnector::Block;
 using HostParameter = HostConnector::Parameter;
 using HostParameterBinding = HostConnector::ParameterBinding;
 using HostProperty = HostConnector::Property;
-using HostPropertyBinding = HostConnector::PropertyBinding;
 using HostSceneMode = HostConnector::SceneMode;
 using HostCallbackData = HostConnector::Callback::Data;
 using HostNonBlockingScope = HostConnector::NonBlockingScope;
@@ -1034,11 +1000,6 @@ using HostNonBlockingScopeWithAudioFades = HostConnector::NonBlockingScopeWithAu
 static inline constexpr bool hasScenes(const HostParameter& param)
 {
     return (param.meta.flags & Lv2ParameterInScene) != 0;
-}
-
-static inline constexpr bool hasScenes(const HostProperty& prop)
-{
-    return (prop.meta.flags & Lv2ParameterInScene) != 0;
 }
 
 static inline constexpr bool hasScenes(const HostBlock& block)
@@ -1060,12 +1021,6 @@ static inline bool hasScenes(const HostBindings& bindings)
             if (hasScenes(binding.meta.parameter))
                 return true;
         }
-    }
-
-    for (const HostPropertyBinding &binding : bindings.properties)
-    {
-        if (hasScenes(binding.meta.property))
-            return true;
     }
 
     return false;
