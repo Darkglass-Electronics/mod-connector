@@ -441,7 +441,9 @@ void HostConnector::Preset::copy(const Preset& other)
 
 // --------------------------------------------------------------------------------------------------------------------
 
-HostConnector::HostConnector()
+HostConnector::HostConnector(Callback* const callback)
+    : _host(this),
+      _callback(callback)
 {
     for (uint8_t p = 0; p < NUM_PRESETS_PER_BANK; ++p)
         resetPreset(_presets[p]);
@@ -449,6 +451,13 @@ HostConnector::HostConnector()
     resetPreset(_current);
 
     ok = _host.last_error.empty();
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::setCallback(Callback* const callback)
+{
+    _callback = callback;
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -3318,11 +3327,11 @@ void HostConnector::setBindingValue(const uint8_t hwid,
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::pollHostUpdates(Callback* const callback)
+void HostConnector::pollHostUpdates()
 {
-    _callback = callback;
-    _host.poll_feedback(this);
-    _callback = nullptr;
+    assert(_callback != nullptr);
+
+    _host.poll_feedback();
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -6223,10 +6232,20 @@ void HostConnector::hostPrerunBlockPair(const HostBlockPair& hbp,
 
 // --------------------------------------------------------------------------------------------------------------------
 
+void HostConnector::hostDisconnectedCallback()
+{
+    ok = false;
+    _firstboot = true;
+
+    if (_callback != nullptr)
+        _callback->hostDisconnectedCallback();
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 void HostConnector::hostFeedbackCallback(const HostFeedbackData& data)
 {
-    if (_callback == nullptr)
-        return;
+    assert_return(_callback != nullptr,);
 
     HostCallbackData cdata = {};
 

@@ -94,7 +94,7 @@ enum Lv2ParameterState {
 
 // --------------------------------------------------------------------------------------------------------------------
 
-struct HostConnector : Host::FeedbackCallback {
+struct HostConnector : Host::Callback {
     struct Callback {
         struct Data {
             enum {
@@ -180,6 +180,7 @@ struct HostConnector : Host::FeedbackCallback {
 
         virtual ~Callback() = default;
         virtual void hostConnectorCallback(const Data& data) = 0;
+        virtual void hostDisconnectedCallback() = 0;
     };
 
     enum TemporarySceneState : uint8_t {
@@ -424,12 +425,15 @@ public:
     std::unordered_map<std::string, std::vector<Lv2Port>> virtualParameters;
 
     // constructor, initializes connection to mod-host and sets `ok` to true if successful
-    HostConnector();
+    HostConnector(Callback* callback = nullptr);
 
     // ----------------------------------------------------------------------------------------------------------------
 
     // whether the host connection is working
     bool ok = false;
+
+    // set callback used for disconnect and feedback events
+    void setCallback(Callback* callback);
 
     // try to reconnect host if it previously failed
     bool reconnect();
@@ -445,9 +449,10 @@ public:
 
     // poll for host updates (e.g. MIDI-mapped parameter changes, tempo changes)
     // NOTE make sure to call `requestHostUpdates()` after handling all updates
-    void pollHostUpdates(Callback* callback);
+    void pollHostUpdates();
 
     // request more host updates
+    // NOTE make sure to call `setCallback` beforehand
     void requestHostUpdates();
 
     // wait for at least 1 audio cycle to pass
@@ -971,6 +976,9 @@ private:
 
     // multi_prerun for a deactivated block and its pair if exists
     void hostPrerunBlockPair(const HostBlockPair& hbp, uint8_t reset_value, const std::vector<flushed_param>& params);
+
+    // internal disconnected handling
+    void hostDisconnectedCallback() override;
 
     // internal feedback handling, for updating parameter values
     void hostFeedbackCallback(const HostFeedbackData& data) override;
