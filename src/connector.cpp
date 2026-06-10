@@ -5679,7 +5679,6 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann::json& jpr
                         const std::string jsceneid = std::to_string(s + 1);
                         auto& jscene = jscenes[jsceneid] = nlohmann::json::object({
                             { "parameters", nlohmann::json::array() },
-                            { "properties", nlohmann::json::array() },
                         });
 
                         if (blockdata.meta.enable.hasScenes)
