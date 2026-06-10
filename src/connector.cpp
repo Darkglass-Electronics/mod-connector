@@ -5566,7 +5566,6 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann::json& jpr
            #endif
             auto& jbindings = jallbindings[jbindingsid] = nlohmann::json::object({
                 { "parameters", nlohmann::json::array() },
-                { "properties", nlohmann::json::array() },
                 { "value", bindings.value },
             });
 
