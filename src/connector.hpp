@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2024-2025 Filipe Coelho <falktx@darkglass.com>
+// SPDX-FileCopyrightText: 2024-2026 Filipe Coelho <falktx@darkglass.com>
 // SPDX-License-Identifier: ISC
 
 #pragma once
@@ -14,11 +14,76 @@
 #include <list>
 #include <unordered_map>
 
+// --------------------------------------------------------------------------------------------------------------------
+
+// handy macro for allowing move operators but not copy
+// this ensures we don't copy too much data around, which would be expensive on the CPU
+// we make an exception for assignment, which would otherwise make the code too verbose
+#define CLASS_ONLY_MOVE_NO_COPY(CLASS)         \
+    CLASS(CLASS&&) = default;                  \
+    CLASS &operator=(CLASS&&) = default;       \
+    CLASS(const CLASS&) = delete;              \
+    CLASS &operator=(const CLASS&) = default;
+
+// extend the above to also allow empty constructor
+#define CLASS_ONLY_MOVE_INIT_NO_COPY(CLASS) \
+    public:                                 \
+    CLASS() = default;                      \
+    CLASS_ONLY_MOVE_NO_COPY(CLASS)
+
+// handy class to pre-allocate an std::vector to a known size
+template<class T, int numElements>
+class heap_array : public std::vector<T>
+{
+public:
+    // allocate known number of elements by default
+    heap_array() : std::vector<T>(numElements) {}
+
+    // custom assignment operator, default method generates errors
+    heap_array& operator=(const heap_array& other)
+    {
+        assert(this->size() == numElements);
+        assert(this->size() == other.size());
+        for (int i = 0; i < numElements; ++i)
+            (*this)[i] = other[i];
+        return *this;
+    }
+
+    // use default methods for destructor and move operators
+    ~heap_array() = default;
+    heap_array(heap_array&&) = default;
+    heap_array& operator=(heap_array&&) = default;
+
+    // do not allow copy constructor
+    heap_array(const heap_array&) = delete;
+
+    // std::array-like methods
+    void fill(const T& value)
+    {
+        std::fill(std::vector<T>::begin(), std::vector<T>::end(), value);
+    }
+
+    // unwanted methods, trying to force fixed size
+    void append_range() = delete;
+    void clear() = delete;
+    void insert() = delete;
+    void emplace() = delete;
+    void emplace_back() = delete;
+    void erase() = delete;
+    void pop_back() = delete;
+    void push_back() = delete;
+    void reserve() = delete;
+    void resize() = delete;
+    void swap() = delete;
+};
+
+// --------------------------------------------------------------------------------------------------------------------
+
 enum ExtraLv2Flags {
     Lv2ParameterVirtual = 1 << 12,
     Lv2ParameterInScene = 1 << 13,
     Lv2ParameterNotInQuickPot = 1 << 14,
-    Lv2ParameteChangesNotSavedToPreset = 1 << 15, // not from lv2, can be added/removed in runtime
+    Lv2ParameterChangesNotSavedToPreset = 1 << 15, // not from lv2, can be added/removed in runtime
 };
 
 enum Lv2ParameterState {
@@ -127,7 +192,7 @@ struct HostConnector : Host::Callback {
     struct Parameter {
         std::string symbol;
         float value;
-        struct {
+        struct Meta {
             // convenience meta-data, not stored in json state
             uint32_t flags;
             uint32_t designation;
@@ -140,22 +205,29 @@ struct HostConnector : Host::Callback {
             std::string shortname;
             std::string unit;
             std::vector<Lv2ScalePoint> scalePoints;
+            CLASS_ONLY_MOVE_INIT_NO_COPY(Meta)
         } meta;
+        struct Scenes {
+            heap_array<float, NUM_SCENES_PER_PRESET> values;
+            heap_array<float, NUM_SCENES_PER_PRESET> lastSavedValues;
+            CLASS_ONLY_MOVE_INIT_NO_COPY(Scenes)
+        } scenes;
+        CLASS_ONLY_MOVE_INIT_NO_COPY(Parameter)
     };
 
     struct Property {
         std::string uri;
         std::string value; // TODO float or string
-        struct {
+        struct Meta {
             // convenience meta-data, not stored in json state
             uint32_t flags;
-            uint8_t hwbinding;
-            TemporarySceneState tempSceneState;
             float def, min, max; // used for Lv2PropertyIsParameter
             std::string defpath; // used for Lv2PropertyIsPath
             std::string name;
             std::string shortname;
+            CLASS_ONLY_MOVE_INIT_NO_COPY(Meta)
         } meta;
+        CLASS_ONLY_MOVE_INIT_NO_COPY(Property)
     };
 
     enum SceneMode {
@@ -176,29 +248,22 @@ struct HostConnector : Host::Callback {
         SceneModeUpdateTemporarily,
     };
 
-    struct SceneValues {
-        bool enabled;
-        std::vector<float> parameters;
-        std::vector<std::string> properties;
-    };
-
     struct Block {
         bool enabled;
         std::string quickPotSymbol;
         std::string uri;
-        struct {
+        struct Meta {
             // convenience meta-data, not stored in json state
             // TODO remove details directly provided by plugin data
             struct {
-                bool hasScenes;
                 bool changesNotSavedToPreset;
+                bool hasScenes;
                 uint8_t hwbinding;
                 TemporarySceneState tempSceneState;
             } enable;
             uint32_t flags;
             uint8_t quickPotIndex;
             uint8_t numParametersInScenes;
-            uint8_t numPropertiesInScenes;
             uint8_t numInputs;
             uint8_t numOutputs;
             uint8_t numSideInputs;
@@ -207,10 +272,14 @@ struct HostConnector : Host::Callback {
             std::string abbreviation;
             std::string brand;
             Lv2Category category;
+            CLASS_ONLY_MOVE_INIT_NO_COPY(Meta)
         } meta;
-        std::vector<Parameter> parameters;
-        std::vector<Property> properties;
-        std::array<SceneValues, NUM_SCENES_PER_PRESET> sceneValues;
+        struct Scenes {
+            heap_array<bool, NUM_SCENES_PER_PRESET> enableValues;
+            heap_array<bool, NUM_SCENES_PER_PRESET> lastSavedEnableValues;
+        } scenes;
+        heap_array<Parameter, MAX_PARAMS_PER_BLOCK> parameters;
+        heap_array<Property, MAX_PARAMS_PER_BLOCK> properties;
 
         // keep hold of plugin data
         std::shared_ptr<const Lv2Plugin> plugin;
@@ -234,11 +303,10 @@ struct HostConnector : Host::Callback {
         }
 
     private:
-        // extra details, not stored in json state
         friend struct HostConnector;
-        std::array<SceneValues, NUM_SCENES_PER_PRESET> lastSavedSceneValues;
         std::unordered_map<std::string, uint8_t> parameterSymbolToIndexMap;
         std::unordered_map<std::string, uint8_t> propertyURIToIndexMap;
+        CLASS_ONLY_MOVE_INIT_NO_COPY(Block)
     };
 
     struct ParameterBinding {
@@ -246,53 +314,61 @@ struct HostConnector : Host::Callback {
         uint8_t block;
         float min;
         float max;
-        std::string parameterSymbol;
-        struct {
-            // convenience meta-data, not stored in json state
-            uint8_t parameterIndex;
-        } meta;
-    };
-
-    struct PropertyBinding {
-        uint8_t row;
-        uint8_t block;
-        std::string propertyURI;
-        struct {
-            // convenience meta-data, not stored in json state
-            uint8_t propertyIndex;
+        const std::string parameterSymbol;
+        // convenience data, not stored in json state
+        const struct Meta {
+            const Block &block;
+            const uint8_t parameterIndex;
+            union {
+                struct {
+                    bool isBypass;
+                };
+                struct {
+                    // NOTE referencing `isBypassParameter` can generate a build error under GCC9
+                    // but not referencing it generates a warning on GCC>9
+                    bool isBypassParameter;
+                    const Parameter &parameter;
+                };
+            };
         } meta;
     };
 
     struct Bindings {
         std::string name;
         std::list<ParameterBinding> parameters;
-        std::list<PropertyBinding> properties;
         double value; // NOTE normalized 0-1, updated automatically if single binding or using scenes
+    private:
+        friend struct HostConnector;
+        void copy(const Bindings&);
+        CLASS_ONLY_MOVE_INIT_NO_COPY(Bindings)
     };
 
     struct ChainRow {
-        std::vector<Block> blocks;
+        heap_array<Block, NUM_BLOCKS_PER_PRESET> blocks;
         std::array<std::string, 2> capture;
         std::array<std::string, 2> playback;
         std::array<uint16_t, 2> captureId;
         std::array<uint16_t, 2> playbackId;
+        CLASS_ONLY_MOVE_INIT_NO_COPY(ChainRow)
     };
 
     struct Preset {
         uint8_t scene;
         std::string name;
         std::string filename;
-        std::array<Bindings, NUM_BINDING_ACTUATORS> bindings;
+        heap_array<Bindings, NUM_BINDING_ACTUATORS> bindings;
         struct {
             uint32_t color;
             std::string style;
         } background;
-        std::array<std::string, NUM_SCENES_PER_PRESET> sceneNames;
+        heap_array<std::string, NUM_SCENES_PER_PRESET> sceneNames;
         std::array<unsigned char, UUID_SIZE> uuid;
     private:
         friend struct HostConnector;
         friend class WebSocketConnector;
-        std::array<ChainRow, NUM_BLOCK_CHAIN_ROWS> chains;
+        heap_array<ChainRow, NUM_BLOCK_CHAIN_ROWS> chains;
+        void copy(const Preset&);
+        CLASS_ONLY_MOVE_INIT_NO_COPY(Preset)
     };
 
     struct Current : Preset {
@@ -315,6 +391,7 @@ struct HostConnector : Host::Callback {
             return chains[0].blocks[block];
         }
        #endif
+        CLASS_ONLY_MOVE_INIT_NO_COPY(Current)
     };
 
     // connection to mod-host, handled internally
@@ -331,7 +408,7 @@ protected:
     Current _current;
 
     // default state for each preset
-    std::array<Preset, NUM_PRESETS_PER_BANK> _presets;
+    heap_array<Preset, NUM_PRESETS_PER_BANK> _presets;
 
     // current connector callback
     Callback* _callback = nullptr;
@@ -593,9 +670,6 @@ public:
     // add a block parameter binding
     bool addBlockParameterBinding(uint8_t hwid, uint8_t row, uint8_t block, uint8_t paramIndex);
 
-    // add a block property binding
-    bool addBlockPropertyBinding(uint8_t hwid, uint8_t row, uint8_t block, uint8_t propIndex);
-
     // edit a block parameter binding (change normal or inverted operation)
     bool editBlockBinding(uint8_t hwid, uint8_t row, uint8_t block, bool inverted);
 
@@ -616,9 +690,6 @@ public:
     // remove a block parameter binding
     bool removeBlockParameterBinding(uint8_t hwid, uint8_t row, uint8_t block, uint8_t paramIndex);
 
-    // remove a block parameter binding
-    bool removeBlockPropertyBinding(uint8_t hwid, uint8_t row, uint8_t block, uint8_t propIndex);
-
     // rename a binding
     bool renameBinding(uint8_t hwid, const char* name);
 
@@ -635,16 +706,6 @@ public:
                                       uint8_t rowB,
                                       uint8_t blockB,
                                       uint8_t paramIndexB);
-
-    // replace a block property binding with another
-    // the binding to be replaced must already exist
-    bool replaceBlockPropertyBinding(uint8_t hwid,
-                                     uint8_t row,
-                                     uint8_t block,
-                                     uint8_t propIndex,
-                                     uint8_t rowB,
-                                     uint8_t blockB,
-                                     uint8_t propIndexB);
 
     // reorder bindings
     bool reorderBlockBinding(uint8_t hwid, uint8_t dest);
@@ -888,13 +949,13 @@ private:
     void jsonPresetLoad(Preset& presetdata, const nlohmann::json& json) const;
 
     // saves preset data, also no host commands
-    void jsonPresetSave(const Preset& presetdata, nlohmann::json& json) const;
+    static void jsonPresetSave(const Preset& presetdata, nlohmann::json& json);
 
     // load preset data from the current bank, only does host commands
     void hostLoadPreset(uint8_t preset);
 
     // unload "old" and load current preset, only does host commands
-    void hostSwitchPreset(const Current& old);
+    void hostSwitchPreset(const Preset& prev, uint8_t prevPreset, uint8_t prevNumLoadedPlugins);
 
     // add (active==true) or preload block defined by blockdata to instance_number
     bool hostLoadInstance(const Block& blockdata, uint16_t instance_number, bool active);
@@ -930,14 +991,13 @@ private:
                    uint8_t numSideInputs,
                    uint8_t numSideOutputs) const;
 
-    void allocBlock(Block& blockdata) const;
-    void resetBlock(Block& blockdata) const;
+    static void resetBlock(Block& blockdata);
 
-    void allocPreset(Preset& preset, bool init = true) const;
-    void resetPreset(Preset& preset) const;
+    void resetPreset(Preset& preset);
+    void resetPresetPorts(Preset& preset, bool usingDefault = true);
 
-    void setEnableChangesNotSavedToPreset(Block& blockdata, bool changesNotSavedToPreset) const;
-    void setParamChangesNotSavedToPreset(Block& blockdata, uint8_t paramIndex, bool changesNotSavedToPreset) const;
+    static void setEnableChangesNotSavedToPreset(Block& blockdata, bool changesNotSavedToPreset);
+    static void setParamChangesNotSavedToPreset(Block& blockdata, uint8_t paramIndex, bool changesNotSavedToPreset);
 };
 
 using HostBindings = HostConnector::Bindings;
@@ -945,7 +1005,6 @@ using HostBlock = HostConnector::Block;
 using HostParameter = HostConnector::Parameter;
 using HostParameterBinding = HostConnector::ParameterBinding;
 using HostProperty = HostConnector::Property;
-using HostPropertyBinding = HostConnector::PropertyBinding;
 using HostSceneMode = HostConnector::SceneMode;
 using HostCallbackData = HostConnector::Callback::Data;
 using HostNonBlockingScope = HostConnector::NonBlockingScope;
@@ -958,14 +1017,28 @@ static inline constexpr bool hasScenes(const HostParameter& param)
     return (param.meta.flags & Lv2ParameterInScene) != 0;
 }
 
-static inline constexpr bool hasScenes(const HostProperty& prop)
-{
-    return (prop.meta.flags & Lv2ParameterInScene) != 0;
-}
-
 static inline constexpr bool hasScenes(const HostBlock& block)
 {
     return block.meta.enable.hasScenes;
+}
+
+static inline bool hasScenes(const HostBindings& bindings)
+{
+    for (const HostParameterBinding &binding : bindings.parameters)
+    {
+        if (binding.meta.isBypass)
+        {
+            if (hasScenes(binding.meta.block))
+                return true;
+        }
+        else
+        {
+            if (hasScenes(binding.meta.parameter))
+                return true;
+        }
+    }
+
+    return false;
 }
 
 // --------------------------------------------------------------------------------------------------------------------
