@@ -1002,11 +1002,6 @@ static inline constexpr bool hasScenes(const HostParameter& param)
     return (param.meta.flags & Lv2ParameterInScene) != 0;
 }
 
-static inline constexpr bool hasScenes(const HostProperty& prop)
-{
-    return (prop.meta.flags & Lv2ParameterInScene) != 0;
-}
-
 static inline constexpr bool hasScenes(const HostBlock& block)
 {
     return block.meta.enable.hasScenes;
