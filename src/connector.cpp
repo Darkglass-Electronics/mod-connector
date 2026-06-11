@@ -1156,9 +1156,9 @@ bool HostConnector::reorderPresets(const uint8_t orig, const uint8_t dest)
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::swapPresets(const uint8_t presetA, const uint8_t presetB)
+void HostConnector::swapPresets(const uint8_t presetA, const uint8_t presetB, const bool swapFiles)
 {
-    mod_log_debug("swapPresets(%u, %u)", presetA, presetB);
+    mod_log_debug("swapPresets(%u, %u, %s)", presetA, presetB, bool2str(swapFiles));
     assert(presetA < NUM_PRESETS_PER_BANK);
     assert(presetB < NUM_PRESETS_PER_BANK);
     assert(presetA != presetB);
@@ -1170,8 +1170,9 @@ void HostConnector::swapPresets(const uint8_t presetA, const uint8_t presetB)
     // swap filenames again for keeping the originals
     std::swap(_presets[presetA].filename, _presets[presetB].filename);
 
-    // swap the underlying preset files
-    swapFiles(_presets[presetA].filename, _presets[presetB].filename);
+    // swap the underlying preset files if requested
+    if (swapFiles)
+        ::swapFiles(_presets[presetA].filename, _presets[presetB].filename);
 
    #ifndef _WIN32
     sync();

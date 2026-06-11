@@ -545,7 +545,7 @@ public:
     bool reorderPresets(uint8_t orig, uint8_t dest);
 
     // swap 2 presets within the current bank
-    void swapPresets(uint8_t presetA, uint8_t presetB);
+    void swapPresets(uint8_t presetA, uint8_t presetB, bool swapFiles = true);
 
     // save current preset
     // a preset must have been loaded or saved to a file before, so that `current.filename` is valid
