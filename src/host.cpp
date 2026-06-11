@@ -120,15 +120,18 @@ static const char* host_error_code_to_string(const int code)
 
 struct Host::Impl
 {
+    Callback* const callback;
     std::string& last_error;
+
    #ifdef MOD_DEVICE_HOST_PORT
     static constexpr int portNumber = MOD_DEVICE_HOST_PORT;
    #else
     int portNumber = -1;
    #endif
 
-    Impl(std::string& last_error_)
-        : last_error(last_error_)
+    Impl(Callback* const callback_, std::string& last_error_)
+        : callback(callback_),
+          last_error(last_error_)
     {
         reconnect();
     }
@@ -182,7 +185,8 @@ struct Host::Impl
 
     void setWriteBlockingAndWait(const bool blocking)
     {
-        ipc->setWriteBlockingAndWait(blocking);
+        if (ipc != nullptr)
+            ipc->setWriteBlockingAndWait(blocking);
     }
 
     bool writeMessageAndWait(const std::string& message,
@@ -202,7 +206,8 @@ struct Host::Impl
             return false;
         }
 
-        if (ipc->writeMessage(message, respType, resp))
+        const IPC::WriteError error = ipc->writeMessage(message, respType, resp);
+        if (error == IPC::kWriteSuccess)
             return true;
 
         if (resp != nullptr && resp->code < 0)
@@ -210,23 +215,31 @@ struct Host::Impl
         else
             last_error = ipc->last_error;
 
+        if (error == IPC::kWriteErrorDisconnected)
+        {
+            close();
+            callback->hostDisconnectedCallback();
+        }
+
         return false;
     }
 
     // ----------------------------------------------------------------------------------------------------------------
     // feedback port handling
 
-    [[nodiscard]] bool poll(FeedbackCallback* const callback) const
+    [[nodiscard]] bool poll() const
     {
+        assert(ipc != nullptr);
+
         std::string error;
 
-        while (_poll(callback, error)) {}
+        while (_poll(error)) {}
 
         return error.empty();
     }
 
 private:
-    [[nodiscard]] bool _poll(FeedbackCallback* const callback, std::string& error) const
+    [[nodiscard]] bool _poll(std::string& error) const
     {
         uint32_t bytesRead;
         char* const buffer = ipc->readMessage(&bytesRead);
@@ -703,7 +716,7 @@ private:
 
 // --------------------------------------------------------------------------------------------------------------------
 
-Host::Host() : impl(new Impl(last_error)) {}
+Host::Host(Callback* const callback) : impl(new Impl(callback, last_error)) {}
 Host::~Host() { delete impl; }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -1402,9 +1415,9 @@ bool Host::wait_audio_cycle()
     return impl->writeMessageAndWait("wait_audio_cycle");
 }
 
-bool Host::poll_feedback(FeedbackCallback* const callback) const
+bool Host::poll_feedback() const
 {
-    return impl->poll(callback);
+    return impl->poll();
 }
 
 bool Host::reconnect()

@@ -247,7 +247,7 @@ struct IPC::Impl
         }
     }
 
-    bool writeMessage(const std::string& message, const ResponseType respType, Response* const resp)
+    IPC::WriteError writeMessage(const std::string& message, const ResponseType respType, Response* const resp)
     {
        #ifndef NDEBUG
         if (resp != nullptr)
@@ -278,13 +278,13 @@ struct IPC::Impl
                     break;
                 }
             }
-            return true;
+            return kWriteSuccess;
         }
 
         if (! iface->writeMessage(message))
         {
             mod_log_warn("iface->writeMessage() error: %s", last_error.c_str());
-            return false;
+            return kWriteErrorDisconnected;
         }
 
         // retrieve response
@@ -338,7 +338,7 @@ struct IPC::Impl
             if (! last_error.empty())
             {
                 mod_log_warn("iface->readResponseByte() error: %s", last_error.c_str());
-                return false;
+                return kWriteErrorDisconnected;
             }
 
            #if 0 // ndef NDEBUG
@@ -355,13 +355,13 @@ struct IPC::Impl
                     resp->code = 0;
                     resp->data.s = buffer;
                 }
-                return true;
+                return kWriteSuccess;
             }
 
             if (buffer[0] == '\0')
             {
                 last_error = "reply is empty";
-                return false;
+                return kWriteErrorBadReply;
             }
 
             char* respbuffer;
@@ -371,7 +371,7 @@ struct IPC::Impl
                 if (*respbuffer == '\0')
                 {
                     last_error = "mod-ui reply is incomplete (less than 3 characters)";
-                    return false;
+                    return kWriteErrorBadReply;
                 }
             }
             else if (std::strncmp(buffer, "resp ", 5) == 0)
@@ -380,13 +380,13 @@ struct IPC::Impl
                 if (*respbuffer == '\0')
                 {
                     last_error = "mod-host reply is incomplete (less than 6 characters)";
-                    return false;
+                    return kWriteErrorBadReply;
                 }
             }
             else
             {
                 last_error = "reply is malformed (missing 'r' or 'resp' prefix)";
-                return false;
+                return kWriteErrorBadReply;
             }
 
             const char* respdata;
@@ -403,15 +403,18 @@ struct IPC::Impl
             // parse response error code
             const int respcode = std::atoi(respbuffer);
 
+            if (resp != nullptr)
+            {
+                *resp = {};
+                resp->code = respcode;
+            }
+
             if (respcode < 0)
-                return false;
+                return kWriteErrorBadReply;
 
             // stop here if not wanting response data
             if (resp == nullptr)
-                return true;
-
-            *resp = {};
-            resp->code = respcode;
+                return kWriteSuccess;
 
             switch (respType)
             {
@@ -431,15 +434,15 @@ struct IPC::Impl
             }
         }
 
-        return true;
+        return kWriteSuccess;
     }
 
-    bool writeMessageWithoutReply(const std::string& message)
+    IPC::WriteError writeMessageWithoutReply(const std::string& message)
     {
         if (dummyDevMode)
-            return true;
+            return kWriteSuccess;
 
-        return iface->writeMessage(message);
+        return iface->writeMessage(message) ? kWriteSuccess : kWriteErrorDisconnected;
     }
 
 private:
@@ -753,7 +756,7 @@ bool IPC::Impl::SingleSocketTCP::writeMessage(const std::string& message)
 
     while (msgsize > 0)
     {
-        ret = ::send(sockets.outfd, buffer, msgsize, 0);
+        ret = ::send(sockets.outfd, buffer, msgsize, MSG_NOSIGNAL);
         if (ret < 0)
         {
             last_error = "send error";
@@ -911,7 +914,7 @@ bool IPC::Impl::DualSocketTCP::writeMessage(const std::string& message)
 
     while (msgsize > 0)
     {
-        ret = ::send(sockets.out, buffer, msgsize, 0);
+        ret = ::send(sockets.out, buffer, msgsize, MSG_NOSIGNAL);
         if (ret < 0)
         {
             last_error = "send error";
@@ -1047,12 +1050,12 @@ void IPC::setWriteBlockingAndWait(const bool blocking)
     impl->setWriteBlockingAndWait(blocking);
 }
 
-bool IPC::writeMessage(const std::string& message, const ResponseType respType, Response* const resp)
+IPC::WriteError IPC::writeMessage(const std::string& message, const ResponseType respType, Response* const resp)
 {
     return impl->writeMessage(message, respType, resp);
 }
 
-bool IPC::writeMessageWithoutReply(const std::string& message)
+IPC::WriteError IPC::writeMessageWithoutReply(const std::string& message)
 {
     return impl->writeMessageWithoutReply(message);
 }
