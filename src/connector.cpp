@@ -59,21 +59,6 @@ static constexpr const uint32_t Lv2PropertyNotAllowedToChange = Lv2PropertyIsRea
 
 // --------------------------------------------------------------------------------------------------------------------
 
-#ifndef _WIN32
-static const char* getHomeDir()
-{
-    static std::string home;
-    if (home.empty())
-    {
-        /**/ if (const char* const envhome = getenv("HOME"))
-            home = envhome;
-        else if (struct passwd* const pwd = getpwuid(getuid()))
-            home = pwd->pw_dir;
-    }
-    return home.c_str();
-}
-#endif
-
 static std::string getDefaultPluginBundleForBlock(const HostBlock& blockdata)
 {
   #if defined(_WIN32)
@@ -91,7 +76,7 @@ static std::string getDefaultPluginBundleForBlock(const HostBlock& blockdata)
    #else
         "%s/.lv2/default-%s%s.lv2",
    #endif
-        getHomeDir(),
+        homedir().c_str(),
         blockdata.meta.brand.c_str(),
         blockdata.meta.abbreviation.c_str()
     );
@@ -222,6 +207,30 @@ static std::string uuid2str(const std::array<unsigned char, UUID_SIZE>& uuid)
         + format("%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx",
                  uuid[16], uuid[17], uuid[18], uuid[19], uuid[20], uuid[21],
                  uuid[22], uuid[23], uuid[24], uuid[25], uuid[26], uuid[27]);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+static void swapFiles(const std::string& fileA, const std::string& fileB)
+{
+    if (std::filesystem::exists(fileA) && std::filesystem::exists(fileB))
+    {
+        // both files exist, we need to rename one to a temporary location so we can safely swap them
+        const std::string tmp = fileA + ".tmp";
+        std::filesystem::rename(fileA, tmp);
+        std::filesystem::rename(fileB, fileA);
+        std::filesystem::rename(tmp, fileB);
+    }
+    else if (std::filesystem::exists(fileA))
+    {
+        // only file A exists, do a simple rename
+        std::filesystem::rename(fileA, fileB);
+    }
+    else if (std::filesystem::exists(fileB))
+    {
+        // only file B exists, do a simple rename
+        std::filesystem::rename(fileB, fileA);
+    }
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -1086,6 +1095,9 @@ bool HostConnector::reorderPresets(const uint8_t orig, const uint8_t dest)
 
             // swap filenames again for keeping the originals
             std::swap(_presets[i].filename, _presets[i - 1].filename);
+
+            // swap the underlying preset files
+            swapFiles(_presets[i].filename, _presets[i - 1].filename);
         }
     }
 
@@ -1102,8 +1114,16 @@ bool HostConnector::reorderPresets(const uint8_t orig, const uint8_t dest)
 
             // swap filenames again for keeping the originals
             std::swap(_presets[i].filename, _presets[i + 1].filename);
+
+            // swap the underlying preset files
+            swapFiles(_presets[i].filename, _presets[i + 1].filename);
         }
     }
+
+
+   #ifndef _WIN32
+    sync();
+   #endif
 
     uint8_t preset = _current.preset;
 
@@ -1136,9 +1156,9 @@ bool HostConnector::reorderPresets(const uint8_t orig, const uint8_t dest)
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::swapPresets(const uint8_t presetA, const uint8_t presetB)
+void HostConnector::swapPresets(const uint8_t presetA, const uint8_t presetB, const bool swapFiles)
 {
-    mod_log_debug("swapPresets(%u, %u)", presetA, presetB);
+    mod_log_debug("swapPresets(%u, %u, %s)", presetA, presetB, bool2str(swapFiles));
     assert(presetA < NUM_PRESETS_PER_BANK);
     assert(presetB < NUM_PRESETS_PER_BANK);
     assert(presetA != presetB);
@@ -1149,6 +1169,14 @@ void HostConnector::swapPresets(const uint8_t presetA, const uint8_t presetB)
 
     // swap filenames again for keeping the originals
     std::swap(_presets[presetA].filename, _presets[presetB].filename);
+
+    // swap the underlying preset files if requested
+    if (swapFiles)
+        ::swapFiles(_presets[presetA].filename, _presets[presetB].filename);
+
+   #ifndef _WIN32
+    sync();
+   #endif
 
     // adjust data for current preset, if matching
     if (_current.preset == presetA)
