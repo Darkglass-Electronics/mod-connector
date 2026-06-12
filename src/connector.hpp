@@ -343,6 +343,11 @@ struct HostConnector : Host::Callback {
         CLASS_ONLY_MOVE_INIT_NO_COPY(Bindings)
     };
 
+    struct Scene {
+        std::string name;
+        bool active;
+    };
+
     struct ChainRow {
         heap_array<Block, NUM_BLOCKS_PER_PRESET> blocks;
         std::array<std::string, 2> capture;
@@ -361,7 +366,7 @@ struct HostConnector : Host::Callback {
             uint32_t color;
             std::string style;
         } background;
-        heap_array<std::string, NUM_SCENES_PER_PRESET> sceneNames;
+        heap_array<Scene, NUM_SCENES_PER_PRESET> scenes;
         std::array<unsigned char, UUID_SIZE> uuid;
     private:
         friend struct HostConnector;
@@ -642,6 +647,15 @@ public:
     // ----------------------------------------------------------------------------------------------------------------
     // scene handling
 
+    // clear/delete all scenes
+    void clearAllScenes();
+
+    // clear/delete a specific scene
+    void clearScene(uint8_t scene);
+
+    // copy the contents of a scene into a new position (within the current preset)
+    bool copyScene(uint8_t orig, uint8_t dest);
+
     // reorder/move a scene into a new position (within the current preset)
     bool reorderScenes(uint8_t orig, uint8_t dest);
 
@@ -650,7 +664,7 @@ public:
 
     // switch to another scene within the current preset
     // returning false means the current chain was unchanged
-    bool switchScene(uint8_t scene);
+    bool switchScene(uint8_t scene, bool discardPrevious = false);
 
     // rename a scene within the current preset
     bool renameScene(uint8_t scene, const char* name);
@@ -1005,6 +1019,7 @@ using HostBlock = HostConnector::Block;
 using HostParameter = HostConnector::Parameter;
 using HostParameterBinding = HostConnector::ParameterBinding;
 using HostProperty = HostConnector::Property;
+using HostScene = HostConnector::Scene;
 using HostSceneMode = HostConnector::SceneMode;
 using HostCallbackData = HostConnector::Callback::Data;
 using HostNonBlockingScope = HostConnector::NonBlockingScope;
