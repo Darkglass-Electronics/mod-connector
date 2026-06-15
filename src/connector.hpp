@@ -1045,7 +1045,10 @@ static inline constexpr bool hasScenes(const HostParameter& param)
 
 static inline constexpr bool hasScenes(const HostBlock& block)
 {
-    return block.meta.enable.hasScenes;
+    return block.meta.enable.hasScenes ||
+        std::any_of(block.parameters.cbegin(),
+                    block.parameters.cend(),
+                    [](const HostParameter &param) { return hasScenes(param); });
 }
 
 static inline bool hasScenes(const HostBindings& bindings)

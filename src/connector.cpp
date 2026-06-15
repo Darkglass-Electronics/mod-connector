@@ -1331,6 +1331,7 @@ bool HostConnector::enableBlock(const uint8_t row, const uint8_t block, const bo
             // set new value for current scene
             blockdata.scenes.enableValues[_current.scene] = enable;
             blockdata.scenes.lastSavedEnableValues[_current.scene] = enable;
+            assert(blockdata.meta.enable.tempSceneState == kTemporarySceneNone);
             break;
 
         case kSceneModeActivateTemporarily:
@@ -1364,6 +1365,7 @@ bool HostConnector::enableBlock(const uint8_t row, const uint8_t block, const bo
             }
             blockdata.scenes.enableValues.fill(enable);
             blockdata.scenes.lastSavedEnableValues.fill(enable);
+            assert(blockdata.meta.enable.tempSceneState == kTemporarySceneNone);
             break;
 
         case kSceneModeClearTemporarily:
@@ -1391,6 +1393,7 @@ bool HostConnector::enableBlock(const uint8_t row, const uint8_t block, const bo
                 blockdata.scenes.enableValues[_current.scene] = enable;
                 blockdata.scenes.lastSavedEnableValues[_current.scene] = enable;
             }
+            assert(blockdata.meta.enable.tempSceneState == kTemporarySceneNone);
             break;
 
         case kSceneModeUpdateTemporarily:
@@ -1401,12 +1404,8 @@ bool HostConnector::enableBlock(const uint8_t row, const uint8_t block, const bo
             break;
         }
 
-        if (_current.scenes[_current.scene].state == kSceneInUseTemporarily &&
-            blockdata.meta.enable.hasScenes &&
-            blockdata.meta.enable.tempSceneState == kTemporarySceneNone)
-        {
+        if (blockdata.meta.enable.hasScenes && blockdata.meta.enable.tempSceneState == kTemporarySceneNone)
             _current.scenes[_current.scene].state = kSceneInUse;
-        }
     }
 
     if (blockdata.meta.enable.hwbinding != UINT8_MAX)
@@ -2628,9 +2627,8 @@ bool HostConnector::switchScene(const uint8_t scene, const bool discardPrevious)
     }
 
     const uint8_t previousScene = _current.scene;
-    const SceneState previousSceneState =_current.scenes[previousScene].state;
 
-    if (previousSceneState == kSceneInUseTemporarily)
+    if (_current.scenes[previousScene].state == kSceneInUseTemporarily)
         _current.scenes[previousScene].state = kSceneUnused;
 
     const bool activateNewScene = _current.scenes[scene].state == kSceneUnused;
@@ -2662,18 +2660,7 @@ bool HostConnector::switchScene(const uint8_t scene, const bool discardPrevious)
 
             params.clear();
 
-            switch (previousSceneState)
-            {
-            case kSceneUnused:
-                blockEnabled = blockdata.enabled;
-                break;
-            case kSceneInUse:
-                blockEnabled = blockdata.scenes.enableValues[previousScene];
-                break;
-            case kSceneInUseTemporarily:
-                blockEnabled = blockdata.scenes.lastSavedEnableValues[previousScene];
-                break;
-            }
+            blockEnabled = activateNewScene ? blockdata.enabled : blockdata.scenes.enableValues[scene];
 
             // revert temp scene state
             switch (blockdata.meta.enable.tempSceneState)
@@ -2685,14 +2672,14 @@ bool HostConnector::switchScene(const uint8_t scene, const bool discardPrevious)
                 --blockdata.meta.numParametersInScenes;
                 blockdata.meta.enable.hasScenes = false;
                 blockdata.meta.enable.tempSceneState = kTemporarySceneNone;
-                blockdata.scenes.enableValues[previousScene] = blockEnabled;
+                blockdata.scenes.enableValues[previousScene] = blockdata.scenes.lastSavedEnableValues[previousScene];
                 break;
             case kTemporarySceneClear:
                 assert(!blockdata.meta.enable.hasScenes);
                 ++blockdata.meta.numParametersInScenes;
                 blockdata.meta.enable.hasScenes = true;
                 blockdata.meta.enable.tempSceneState = kTemporarySceneNone;
-                blockdata.scenes.enableValues[previousScene] = blockEnabled;
+                blockdata.scenes.enableValues[previousScene] = blockdata.scenes.lastSavedEnableValues[previousScene];
                 break;
             }
 
@@ -2710,19 +2697,6 @@ bool HostConnector::switchScene(const uint8_t scene, const bool discardPrevious)
                 if ((paramdata.meta.flags & Lv2ParameterNotAllowedInScenes) != 0)
                     continue;
 
-                switch (previousSceneState)
-                {
-                case kSceneUnused:
-                    paramValue = paramdata.value;
-                    break;
-                case kSceneInUse:
-                    paramValue = paramdata.scenes.values[previousScene];
-                    break;
-                case kSceneInUseTemporarily:
-                    paramValue = paramdata.scenes.lastSavedValues[previousScene];
-                    break;
-                }
-
                 // revert temp scene state
                 switch (paramdata.meta.tempSceneState)
                 {
@@ -2733,16 +2707,18 @@ bool HostConnector::switchScene(const uint8_t scene, const bool discardPrevious)
                     --blockdata.meta.numParametersInScenes;
                     paramdata.meta.flags &= ~Lv2ParameterInScene;
                     paramdata.meta.tempSceneState = kTemporarySceneNone;
-                    paramdata.scenes.values[previousScene] = paramValue;
+                    paramdata.scenes.values[previousScene] = paramdata.scenes.lastSavedValues[previousScene];
                     break;
                 case kTemporarySceneClear:
                     assert((paramdata.meta.flags & Lv2ParameterInScene) == 0);
                     ++blockdata.meta.numParametersInScenes;
                     paramdata.meta.flags |= Lv2ParameterInScene;
                     paramdata.meta.tempSceneState = kTemporarySceneNone;
-                    paramdata.scenes.values[previousScene] = paramValue;
+                    paramdata.scenes.values[previousScene] = paramdata.scenes.lastSavedValues[previousScene];
                     break;
                 }
+
+                paramValue = activateNewScene ? paramdata.value : paramdata.scenes.values[scene];
 
                 if (isNotEqual(paramdata.value, paramValue))
                 {
@@ -3602,6 +3578,7 @@ void HostConnector::setBlockParameter(const uint8_t row,
             // set new value for current scene
             paramdata.scenes.values[_current.scene] = value;
             paramdata.scenes.lastSavedValues[_current.scene] = value;
+            assert(paramdata.meta.tempSceneState == kTemporarySceneNone);
             break;
 
         case kSceneModeActivateTemporarily:
@@ -3635,6 +3612,7 @@ void HostConnector::setBlockParameter(const uint8_t row,
             }
             paramdata.scenes.values.fill(value);
             paramdata.scenes.lastSavedValues.fill(value);
+            assert(paramdata.meta.tempSceneState == kTemporarySceneNone);
             break;
 
         case kSceneModeClearTemporarily:
@@ -3662,6 +3640,7 @@ void HostConnector::setBlockParameter(const uint8_t row,
                 paramdata.scenes.values[_current.scene] = value;
                 paramdata.scenes.lastSavedValues[_current.scene] = value;
             }
+            assert(paramdata.meta.tempSceneState == kTemporarySceneNone);
             break;
 
         case kSceneModeUpdateTemporarily:
@@ -3672,12 +3651,8 @@ void HostConnector::setBlockParameter(const uint8_t row,
             break;
         }
 
-        if (_current.scenes[_current.scene].state == kSceneInUseTemporarily &&
-            (paramdata.meta.flags & Lv2ParameterInScene) != 0 &&
-            paramdata.meta.tempSceneState == kTemporarySceneNone)
-        {
+        if ((paramdata.meta.flags & Lv2ParameterInScene) != 0 && paramdata.meta.tempSceneState == kTemporarySceneNone)
             _current.scenes[_current.scene].state = kSceneInUse;
-        }
 
         if (paramdata.meta.hwbinding != UINT8_MAX)
         {
