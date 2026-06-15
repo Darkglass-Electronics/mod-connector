@@ -645,7 +645,7 @@ public:
    #endif
 
     // ----------------------------------------------------------------------------------------------------------------
-    // scene handling
+    // scene handling (within the current preset)
 
     // clear/delete all scenes
     void clearAllScenes();
@@ -653,20 +653,20 @@ public:
     // clear/delete a specific scene
     void clearScene(uint8_t scene);
 
-    // copy the contents of a scene into a new position (within the current preset)
+    // copy the contents of a scene into a new position
     bool copyScene(uint8_t orig, uint8_t dest);
 
-    // reorder/move a scene into a new position (within the current preset)
+    // reorder/move a scene into a new position
     bool reorderScenes(uint8_t orig, uint8_t dest);
 
-    // swap 2 scenes within the current preset
+    // swap 2 scenes
     void swapScenes(uint8_t sceneA, uint8_t sceneB);
 
-    // switch to another scene within the current preset
+    // switch to another scene, which automatically activates it
     // returning false means the current chain was unchanged
     bool switchScene(uint8_t scene, bool discardPrevious = false);
 
-    // rename a scene within the current preset
+    // rename a scene
     bool renameScene(uint8_t scene, const char* name);
 
     // convenience call for renaming current scene name
@@ -996,6 +996,9 @@ private:
 
     // internal feedback handling, for updating parameter values
     void hostFeedbackCallback(const HostFeedbackData& data) override;
+
+    // internal scene data copy, orig must be active
+    void copySceneData(uint8_t orig, uint8_t dest);
 
     // init block using plugin default values, optionally fill index maps
     void initBlock(Block& blockdata,

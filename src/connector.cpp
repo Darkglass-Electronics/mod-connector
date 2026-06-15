@@ -2369,6 +2369,8 @@ void HostConnector::renamePreset(const uint8_t preset, const char* const name)
 
 void HostConnector::clearAllScenes()
 {
+    mod_log_debug("clearAllScenes()");
+
     bool modified = false;
 
     for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
@@ -2440,45 +2442,9 @@ bool HostConnector::copyScene(const uint8_t orig, const uint8_t dest)
     }
 
     if (_current.scenes[orig].active)
-    {
-        _current.scenes[dest].active = true;
-        _current.scenes[dest].name = _current.scenes[orig].name;
-
-        for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
-        {
-            for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
-            {
-                Block& blockdata(_current.chains[row].blocks[bl]);
-                if (isNullBlock(blockdata))
-                    continue;
-                if (blockdata.meta.numParametersInScenes == 0)
-                    continue;
-
-                if (blockdata.meta.enable.hasScenes)
-                {
-                    blockdata.scenes.enableValues[dest] = blockdata.scenes.enableValues[orig];
-                    blockdata.scenes.lastSavedEnableValues[dest] = blockdata.scenes.enableValues[orig];
-                }
-
-                for (Parameter& paramdata : blockdata.parameters)
-                {
-                    if (isNullURI(paramdata.symbol))
-                        break;
-                    if ((paramdata.meta.flags & Lv2ParameterNotAllowedToChange) != 0)
-                        continue;
-                    if ((paramdata.meta.flags & Lv2ParameterInScene) == 0)
-                        continue;
-
-                    paramdata.scenes.values[dest] = paramdata.scenes.values[orig];
-                    paramdata.scenes.lastSavedValues[dest] = paramdata.scenes.values[orig];
-                }
-            }
-        }
-    }
+        copySceneData(orig, dest);
     else
-    {
         clearScene(dest);
-    }
 
     _current.dirty = true;
     return true;
@@ -2832,8 +2798,15 @@ bool HostConnector::renameScene(const uint8_t scene, const char* const name)
     if (_current.scenes[scene].name == name)
         return false;
 
+    if (! _current.scenes[scene].active)
+    {
+        if (_current.scenes[_current.scene].active)
+            copySceneData(_current.scene, scene);
+        else
+            _current.scenes[scene].active = true;
+    }
+
     _current.dirty = true;
-    _current.scenes[scene].active = true;
     _current.scenes[scene].name = name;
     return true;
 }
@@ -6731,6 +6704,47 @@ void HostConnector::setDirty(const bool dirty)
 }
 
 // --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::copySceneData(uint8_t orig, uint8_t dest)
+{
+    assert(orig < NUM_SCENES_PER_PRESET);
+    assert(dest < NUM_SCENES_PER_PRESET);
+    assert(_current.scenes[orig].active);
+
+    _current.scenes[dest].active = true;
+    _current.scenes[dest].name = _current.scenes[orig].name;
+
+    for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
+    {
+        for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
+        {
+            Block& blockdata(_current.chains[row].blocks[bl]);
+            if (isNullBlock(blockdata))
+                continue;
+            if (blockdata.meta.numParametersInScenes == 0)
+                continue;
+
+            if (blockdata.meta.enable.hasScenes)
+            {
+                blockdata.scenes.enableValues[dest] = blockdata.scenes.enableValues[orig];
+                blockdata.scenes.lastSavedEnableValues[dest] = blockdata.scenes.enableValues[orig];
+            }
+
+            for (Parameter& paramdata : blockdata.parameters)
+            {
+                if (isNullURI(paramdata.symbol))
+                    break;
+                if ((paramdata.meta.flags & Lv2ParameterNotAllowedToChange) != 0)
+                    continue;
+                if ((paramdata.meta.flags & Lv2ParameterInScene) == 0)
+                    continue;
+
+                paramdata.scenes.values[dest] = paramdata.scenes.values[orig];
+                paramdata.scenes.lastSavedValues[dest] = paramdata.scenes.values[orig];
+            }
+        }
+    }
+}
 
 void HostConnector::initBlock(HostConnector::Block& blockdata,
                               const std::shared_ptr<const Lv2Plugin>& plugin,
