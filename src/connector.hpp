@@ -184,9 +184,44 @@ struct HostConnector : Host::Callback {
         virtual void hostDisconnectedCallback() = 0;
     };
 
+    // scene operation mode that applies to parameter changes
+    // if a temporary mode was selected and then reverted, parameters revert to their `lastSavedValues`
+    enum SceneMode {
+        // enable scenes if not active yet
+        kSceneModeActivate,
+        // sync all parameter values in a scene, same as clearing it
+        kSceneModeClear,
+        // only update value, do not activate any scenes
+        kSceneModeUpdate,
+        // enable scenes if not active yet, but only temporarily
+        // scene value is discarded if preset is not saved
+        kSceneModeActivateTemporarily,
+        // sync all parameter values in a scene, same as clearing it, but only temporarily
+        // scene value is "uncleared" if preset is not saved
+        kSceneModeClearTemporarily,
+        // only update value, do not activate any scenes, but only temporarily
+        // scene value is discarded if preset is not saved
+        kSceneModeUpdateTemporarily,
+    };
+
+    enum SceneState : uint8_t {
+        // scene is not in use
+        kSceneUnused = 0,
+        // scene has been enabled temporarily
+        // state will change to kSceneInUse if preset is saved
+        // data will be discarded if current/active scene changes without saving first
+        kSceneInUseTemporarily,
+        // scene is in use
+        kSceneInUse,
+    };
+
+    // temporary scene state that applies to parameter changes
     enum TemporarySceneState : uint8_t {
+        // this parameter has no temporary scene state
         kTemporarySceneNone = 0,
+        // temporarily activate scene for a parameter, becoming part of scenes if saved
         kTemporarySceneActivate,
+        // temporarily clear scene for a parameter, clearing to be completed if saved
         kTemporarySceneClear,
     };
 
@@ -229,24 +264,6 @@ struct HostConnector : Host::Callback {
             CLASS_ONLY_MOVE_INIT_NO_COPY(Meta)
         } meta;
         CLASS_ONLY_MOVE_INIT_NO_COPY(Property)
-    };
-
-    enum SceneMode {
-        // enable scenes if not active yet
-        SceneModeActivate,
-        // sync all parameter values in a scene, same as clearing it
-        SceneModeClear,
-        // only update value, do not activate any scenes
-        SceneModeUpdate,
-        // enable scenes if not active yet, but only temporarily
-        // scene value is discarded if preset is not saved
-        SceneModeActivateTemporarily,
-        // sync all parameter values in a scene, same as clearing it, but only temporarily
-        // scene value is "uncleared" if preset is not saved
-        SceneModeClearTemporarily,
-        // only update value, do not activate any scenes, but only temporarily
-        // scene value is discarded if preset is not saved
-        SceneModeUpdateTemporarily,
     };
 
     struct Block {
@@ -346,7 +363,7 @@ struct HostConnector : Host::Callback {
 
     struct Scene {
         std::string name;
-        bool active;
+        SceneState state;
     };
 
     struct ChainRow {
@@ -760,7 +777,7 @@ public:
                            uint8_t block,
                            uint8_t paramIndex,
                            float value,
-                           SceneMode sceneMode = SceneModeClear);
+                           SceneMode sceneMode = kSceneModeClear);
 
     // set a block parameter value, based on port symbol
     // NOTE value must already be sanitized!
@@ -768,7 +785,7 @@ public:
                            uint8_t block,
                            const char* symbol,
                            float value,
-                           SceneMode sceneMode = SceneModeClear);
+                           SceneMode sceneMode = kSceneModeClear);
 
     // set a block quickpot
     void setBlockQuickPot(uint8_t row, uint8_t block, uint8_t paramIndex);
@@ -871,27 +888,16 @@ public:
     // WIP details below this point
 
     // set a block property, based on property index
-    void setBlockProperty(uint8_t row,
-                          uint8_t block,
-                          uint8_t propIndex,
-                          const char* value,
-                          SceneMode sceneMode = SceneModeClear);
+    void setBlockProperty(uint8_t row, uint8_t block, uint8_t propIndex, const char* value);
 
     // set a block property, based on property URI
-    void setBlockProperty(uint8_t row,
-                          uint8_t block,
-                          const char* uri,
-                          const char* value,
-                          SceneMode sceneMode = SceneModeClear);
+    void setBlockProperty(uint8_t row, uint8_t block, const char* uri, const char* value);
 
     // convenience calls for single-chain builds
    #if NUM_BLOCK_CHAIN_ROWS == 1
-    inline void setBlockProperty(const uint8_t block,
-                                 const uint8_t propIndex,
-                                 const char* const value,
-                                 const SceneMode sceneMode)
+    inline void setBlockProperty(const uint8_t block, const uint8_t propIndex, const char* const value)
     {
-        setBlockProperty(0, block, propIndex, value, sceneMode);
+        setBlockProperty(0, block, propIndex, value);
     }
    #endif
 
@@ -999,6 +1005,7 @@ private:
     void hostFeedbackCallback(const HostFeedbackData& data) override;
 
     // internal scene data copy, orig must be active
+    // NOTE does not modify dest scene `name` and `state`
     void copySceneData(uint8_t orig, uint8_t dest);
 
     // init block using plugin default values, optionally fill index maps
