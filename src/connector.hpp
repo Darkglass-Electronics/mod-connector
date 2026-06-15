@@ -10,6 +10,7 @@
 
 #include <cassert>
 #include <cstdint>
+#include <algorithm>
 #include <array>
 #include <list>
 #include <unordered_map>
@@ -1042,21 +1043,22 @@ static inline constexpr bool hasScenes(const HostBlock& block)
 
 static inline bool hasScenes(const HostBindings& bindings)
 {
-    for (const HostParameterBinding &binding : bindings.parameters)
-    {
-        if (binding.meta.isBypass)
+    return std::any_of(bindings.parameters.cbegin(),
+                       bindings.parameters.cend(),
+                       [](const HostParameterBinding &binding)
         {
-            if (hasScenes(binding.meta.block))
-                return true;
-        }
-        else
-        {
-            if (hasScenes(binding.meta.parameter))
-                return true;
-        }
-    }
-
-    return false;
+            if (binding.meta.isBypass)
+            {
+                if (hasScenes(binding.meta.block))
+                    return true;
+            }
+            else
+            {
+                if (hasScenes(binding.meta.parameter))
+                    return true;
+            }
+            return false;
+        });
 }
 
 // --------------------------------------------------------------------------------------------------------------------

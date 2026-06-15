@@ -5193,6 +5193,7 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
                                 }
 
                                 blockdata.scenes.enableValues[s] = enabled;
+                                presetdata.scenes[s].active = true;
                             }
                         }
 
@@ -5257,6 +5258,7 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
                                     paramdata.scenes.values[s] = std::clamp<float>(value,
                                                                                    paramdata.meta.min,
                                                                                    paramdata.meta.max);
+                                    presetdata.scenes[s].active = true;
                                 }
                             }
                         }
@@ -5597,38 +5599,38 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
     // ----------------------------------------------------------------------------------------------------------------
     // sceneNames
 
-    // TODO
-    // if (jpreset.contains("sceneNames"))
-    // {
-    //     const auto& jsceneNames = jpreset["sceneNames"];
-    //     std::string name;
-    //
-    //     for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
-    //     {
-    //         const std::string jsceneid = std::to_string(s + 1);
-    //
-    //         if (jsceneNames.contains(jsceneid))
-    //         {
-    //             try {
-    //                 name = jsceneNames[jsceneid].get<std::string>();
-    //             } catch (...) {
-    //                 mod_log_warn("jsonPresetLoad(): preset contains invalid scene name");
-    //                 name.clear();
-    //             }
-    //
-    //             presetdata.sceneNames[s] = name;
-    //         }
-    //         else
-    //         {
-    //             presetdata.sceneNames[s].clear();
-    //         }
-    //     }
-    // }
-    // else
-    // {
-    //     for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
-    //         presetdata.sceneNames[s].clear();
-    // }
+    if (jpreset.contains("sceneNames"))
+    {
+        const auto& jsceneNames = jpreset["sceneNames"];
+        std::string jsceneid;
+        std::string name;
+
+        for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
+        {
+            jsceneid = std::to_string(s + 1);
+
+            if (jsceneNames.contains(jsceneid))
+            {
+                try {
+                    name = jsceneNames[jsceneid].get<std::string>();
+                } catch (...) {
+                    mod_log_warn("jsonPresetLoad(): preset contains invalid scene name");
+                    name.clear();
+                }
+
+                presetdata.scenes[s].name = name;
+            }
+            else
+            {
+                presetdata.scenes[s].name.clear();
+            }
+        }
+    }
+    else
+    {
+        for (Scene& scenedata : presetdata.scenes)
+            scenedata.name.clear();
+    }
 
     // ----------------------------------------------------------------------------------------------------------------
     // uuid
@@ -5838,20 +5840,23 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann::json& jpr
     // ----------------------------------------------------------------------------------------------------------------
     // sceneNames
 
-    // TODO
-    // for (const std::string& sceneName : presetdata.sceneNames)
-    // {
-    //     if (sceneName.empty())
-    //         continue;
-    //
-    //     auto& jsceneNames = jpreset["sceneNames"] = nlohmann::json::object({});
-    //     for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
-    //     {
-    //         const std::string jsceneid = std::to_string(s + 1);
-    //         jsceneNames[jsceneid] = presetdata.sceneNames[s];
-    //     }
-    //     break;
-    // }
+    if (std::any_of(presetdata.scenes.cbegin(),
+                    presetdata.scenes.cend(),
+                    [](const Scene& scenedata){ return !scenedata.name.empty(); }))
+    {
+        auto& jsceneNames = jpreset["sceneNames"] = nlohmann::json::object({});
+
+        std::string name;
+        std::string jsceneid;
+        for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
+        {
+            if (name = presetdata.scenes[s].name; !name.empty())
+            {
+                jsceneid = std::to_string(s + 1);
+                jsceneNames[jsceneid] = name;
+            }
+        }
+    }
 }
 
 // --------------------------------------------------------------------------------------------------------------------
