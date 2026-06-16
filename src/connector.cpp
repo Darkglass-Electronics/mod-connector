@@ -455,9 +455,13 @@ HostConnector::HostConnector(Callback* const callback)
       _callback(callback)
 {
     for (uint8_t p = 0; p < NUM_PRESETS_PER_BANK; ++p)
+    {
         resetPreset(_presets[p]);
+        resetPresetPorts(_presets[p]);
+    }
 
     resetPreset(_current);
+    resetPresetPorts(_current);
 
     ok = _host.last_error.empty();
 }
@@ -6925,8 +6929,6 @@ void HostConnector::resetPreset(Preset& preset)
 
     for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
         preset.sceneNames[s].clear();
-
-    resetPresetPorts(preset);
 }
 
 void HostConnector::resetPresetPorts(Preset& preset, const bool usingDefault)
