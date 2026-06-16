@@ -2407,7 +2407,7 @@ void HostConnector::clearAllScenes()
 
     for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
     {
-        if (_current.scenes[s].state != HostConnector::kSceneUnused)
+        if (_current.scenes[s].state == HostConnector::kSceneUnused)
             continue;
         _current.scenes[s].state = HostConnector::kSceneUnused;
         _current.scenes[s].name.clear();
