@@ -1049,17 +1049,14 @@ using HostNonBlockingScopeWithAudioFades = HostConnector::NonBlockingScopeWithAu
 
 // --------------------------------------------------------------------------------------------------------------------
 
-static inline constexpr bool hasScenes(const HostParameter& param)
+inline constexpr bool hasScenes(const HostParameter& param)
 {
     return (param.meta.flags & Lv2ParameterInScene) != 0;
 }
 
-static inline constexpr bool hasScenes(const HostBlock& block)
+inline constexpr bool hasScenes(const HostBlock& block)
 {
-    return block.meta.enable.hasScenes ||
-        std::any_of(block.parameters.cbegin(),
-                    block.parameters.cend(),
-                    [](const HostParameter &param) { return hasScenes(param); });
+    return block.meta.numParametersInScenes != 0;
 }
 
 static inline bool hasScenes(const HostBindings& bindings)
