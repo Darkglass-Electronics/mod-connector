@@ -2397,7 +2397,17 @@ void HostConnector::renamePreset(const uint8_t preset, const char* const name)
 
     nlohmann::json j;
     if (! loadPresetFromFile(filename.c_str(), j))
-        return;
+    {
+        try {
+            j = {};
+            j["version"] = JSON_PRESET_VERSION_CURRENT;
+            j["type"] = "preset";
+            j["preset"] = nlohmann::json::object({});
+        } catch (...) {
+            return;
+        }
+        jsonPresetSave(_presets[preset], j["preset"]);
+    }
 
     j["name"] = name;
     safeJsonSave(j, filename);
