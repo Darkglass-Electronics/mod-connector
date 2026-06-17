@@ -67,6 +67,8 @@ struct IPC
      */
     std::string last_error;
 
+    bool reconnect();
+
     /**
      * read a message.
      * returned value must not be freed, but it can be safely modified.
