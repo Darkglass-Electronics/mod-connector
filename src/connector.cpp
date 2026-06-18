@@ -2497,6 +2497,9 @@ bool HostConnector::copyScene(const uint8_t orig, const uint8_t dest)
         _current.scenes[dest].name = _current.scenes[orig].name;
         _current.scenes[dest].state = HostConnector::kSceneInUse;
         copySceneData(orig, dest);
+
+        if (_current.scene == dest)
+            switchScene(dest, true);
     }
     else
     {
@@ -2644,14 +2647,12 @@ void HostConnector::swapScenes(const uint8_t sceneA, const uint8_t sceneB)
 
 // --------------------------------------------------------------------------------------------------------------------
 
-bool HostConnector::switchScene(const uint8_t scene, const bool discardPrevious)
+bool HostConnector::switchScene(const uint8_t scene, const bool switchEvenIfSameScene)
 {
-    mod_log_debug("switchScene(%u, %s)", scene, bool2str(discardPrevious));
+    mod_log_debug("switchScene(%u, %s)", scene, bool2str(switchEvenIfSameScene));
     assert(scene < NUM_SCENES_PER_PRESET);
 
-    // TODO discardPrevious
-
-    if (_current.scene == scene)
+    if (_current.scene == scene && ! switchEvenIfSameScene)
         return false;
 
     // preallocating some data
@@ -2671,12 +2672,11 @@ bool HostConnector::switchScene(const uint8_t scene, const bool discardPrevious)
             _current.dirty = false;
     }
 
+    const bool activateNewScene = _current.scenes[scene].state == kSceneUnused;
     const uint8_t previousScene = _current.scene;
 
     if (_current.scenes[previousScene].state == kSceneInUseTemporarily)
         _current.scenes[previousScene].state = kSceneUnused;
-
-    const bool activateNewScene = _current.scenes[scene].state == kSceneUnused;
 
     _current.scene = scene;
 
