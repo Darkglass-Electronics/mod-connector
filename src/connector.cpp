@@ -2705,8 +2705,6 @@ bool HostConnector::switchScene(const uint8_t scene, const bool switchEvenIfSame
 
             params.clear();
 
-            blockEnabled = activateNewScene ? blockdata.enabled : blockdata.scenes.enableValues[scene];
-
             // revert temp scene state
             switch (blockdata.meta.enable.tempSceneState)
             {
@@ -2727,6 +2725,10 @@ bool HostConnector::switchScene(const uint8_t scene, const bool switchEvenIfSame
                 blockdata.scenes.enableValues[previousScene] = blockdata.scenes.lastSavedEnableValues[previousScene];
                 break;
             }
+
+            blockEnabled = activateNewScene || !blockdata.meta.enable.hasScenes
+                         ? blockdata.enabled
+                         : blockdata.scenes.enableValues[scene];
 
             // bypass/disable first if relevant
             if (blockdata.enabled != blockEnabled && !blockEnabled)
@@ -2763,7 +2765,9 @@ bool HostConnector::switchScene(const uint8_t scene, const bool switchEvenIfSame
                     break;
                 }
 
-                paramValue = activateNewScene ? paramdata.value : paramdata.scenes.values[scene];
+                paramValue = activateNewScene || (paramdata.meta.flags & Lv2ParameterInScene) == 0
+                           ? paramdata.value
+                           : paramdata.scenes.values[scene];
 
                 if (isNotEqual(paramdata.value, paramValue))
                 {
