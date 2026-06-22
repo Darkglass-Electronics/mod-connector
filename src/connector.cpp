@@ -2866,7 +2866,7 @@ bool HostConnector::renameScene(const uint8_t scene, const char* const name)
         _current.scenes[scene].state = HostConnector::kSceneInUse;
 
         if (_current.scenes[_current.scene].state != HostConnector::kSceneUnused)
-            copySceneData(_current.scene, scene);
+            copySceneData(_current.defaultScene, scene);
     }
 
     _current.dirty = true;
