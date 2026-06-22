@@ -693,7 +693,7 @@ public:
 
     // switch to another scene, which automatically activates it
     // returning false means the current chain was unchanged
-    bool switchScene(uint8_t scene, bool switchEvenIfSameScene = false);
+    bool switchScene(uint8_t scene, bool switchEvenIfSameScene = false, bool discardIfUnused = true);
 
     // rename a scene
     bool renameScene(uint8_t scene, const char* name);

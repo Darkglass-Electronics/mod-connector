@@ -2647,9 +2647,9 @@ void HostConnector::swapScenes(const uint8_t sceneA, const uint8_t sceneB)
 
 // --------------------------------------------------------------------------------------------------------------------
 
-bool HostConnector::switchScene(const uint8_t scene, const bool switchEvenIfSameScene)
+bool HostConnector::switchScene(const uint8_t scene, const bool switchEvenIfSameScene, const bool discardIfUnused)
 {
-    mod_log_debug("switchScene(%u, %s)", scene, bool2str(switchEvenIfSameScene));
+    mod_log_debug("switchScene(%u, %s, %s)", scene, bool2str(switchEvenIfSameScene), bool2str(discardIfUnused));
     assert(scene < NUM_SCENES_PER_PRESET);
 
     if (_current.scene == scene && ! switchEvenIfSameScene)
@@ -2676,7 +2676,7 @@ bool HostConnector::switchScene(const uint8_t scene, const bool switchEvenIfSame
     const uint8_t previousScene = _current.scene;
 
     if (_current.scenes[previousScene].state == kSceneInUseTemporarily)
-        _current.scenes[previousScene].state = kSceneUnused;
+        _current.scenes[previousScene].state = discardIfUnused ? kSceneUnused : kSceneInUse;
 
     _current.scene = scene;
 
@@ -2727,7 +2727,7 @@ bool HostConnector::switchScene(const uint8_t scene, const bool switchEvenIfSame
             }
 
             blockEnabled = activateNewScene || !blockdata.meta.enable.hasScenes
-                         ? blockdata.enabled
+                         ? blockdata.scenes.lastSavedEnableValues[_current.defaultScene]
                          : blockdata.scenes.enableValues[scene];
 
             // bypass/disable first if relevant
@@ -2766,7 +2766,7 @@ bool HostConnector::switchScene(const uint8_t scene, const bool switchEvenIfSame
                 }
 
                 paramValue = activateNewScene || (paramdata.meta.flags & Lv2ParameterInScene) == 0
-                           ? paramdata.value
+                           ? paramdata.scenes.lastSavedValues[_current.defaultScene]
                            : paramdata.scenes.values[scene];
 
                 if (isNotEqual(paramdata.value, paramValue))
@@ -7141,7 +7141,10 @@ void HostConnector::resetPreset(Preset& preset)
         preset.bindings[hwid].value = 0.0;
     }
 
-    for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
+    preset.scenes[0].state = HostConnector::kSceneInUse;
+    preset.scenes[0].name.clear();
+
+    for (uint8_t s = 1; s < NUM_SCENES_PER_PRESET; ++s)
     {
         preset.scenes[s].state = HostConnector::kSceneUnused;
         preset.scenes[s].name.clear();
