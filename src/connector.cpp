@@ -5706,6 +5706,7 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
                 }
 
                 presetdata.scenes[s].name = name;
+                presetdata.scenes[s].state = HostConnector::kSceneInUse;
             }
             else
             {
@@ -5717,6 +5718,10 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
     {
         for (Scene& scenedata : presetdata.scenes)
             scenedata.name.clear();
+
+        // scene names not included, typically means no scenes present
+        // make sure to activate the first scene as to match new-preset behaviour
+        presetdata.scenes[0].state = HostConnector::kSceneInUse;
     }
 
     // ----------------------------------------------------------------------------------------------------------------
