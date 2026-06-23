@@ -2430,6 +2430,9 @@ void HostConnector::clearAllScenes()
         modified = true;
     }
 
+    _current.defaultScene = 0;
+    _current.scenes[0].state = HostConnector::kSceneInUse;
+
     if (modified)
         _current.dirty = true;
 
@@ -4999,6 +5002,15 @@ void HostConnector::hostRemoveInstanceForBlock(const uint8_t row, const uint8_t 
 
 void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpreset) const
 {
+    // ----------------------------------------------------------------------------------------------------------------
+    // always do cleanup before anything else, for optional values that might not get set
+
+    for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
+    {
+        presetdata.scenes[s].state = HostConnector::kSceneUnused;
+        presetdata.scenes[s].name.clear();
+    }
+
     // ----------------------------------------------------------------------------------------------------------------
     // background
 
