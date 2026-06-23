@@ -1448,7 +1448,7 @@ bool HostConnector::enableBlock(const uint8_t row, const uint8_t block, const bo
         ParameterBinding& binding = bindings.parameters.front();
 
         if (bindings.parameters.size() == 1 &&
-            (binding.row == row && binding.block == block && binding.parameterSymbol == ":bypass"))
+            (binding.row == row && binding.block == block && binding.meta.isBypass))
         {
             bindings.value = enable ? binding.max : binding.min;
         }
@@ -2830,7 +2830,7 @@ bool HostConnector::switchScene(const uint8_t scene, const bool switchEvenIfSame
 
         for (const ParameterBinding& binding : bindings.parameters)
         {
-            if (binding.parameterSymbol == ":bypass")
+            if (binding.meta.isBypass)
                 continue;
 
             assert(binding.meta.parameterIndex < NUM_BLOCKS_PER_PRESET);
@@ -2854,7 +2854,7 @@ bool HostConnector::switchScene(const uint8_t scene, const bool switchEvenIfSame
             const ParameterBinding& binding = bindings.parameters.front();
             const Block& blockdata = _current.chains[binding.row].blocks[binding.block];
 
-            if (binding.parameterSymbol == ":bypass")
+            if (binding.meta.isBypass)
             {
                 bindings.value = blockdata.enabled ? binding.max : binding.min;
             }
@@ -3033,7 +3033,7 @@ bool HostConnector::editBlockBinding(const uint8_t hwid, const uint8_t row, cons
             continue;
         if (it->block != block)
             continue;
-        if (it->parameterSymbol != ":bypass")
+        if (! it->meta.isBypass)
             continue;
 
         it->min = inverted ? 1.f : 0.f;
@@ -3076,7 +3076,7 @@ bool HostConnector::editBlockParameterBinding(const uint8_t hwid,
             continue;
         if (it->block != block)
             continue;
-        if (it->parameterSymbol == ":bypass")
+        if (it->meta.isBypass)
             continue;
         if (it->meta.parameterIndex != paramIndex)
             continue;
@@ -3159,7 +3159,7 @@ bool HostConnector::removeBlockBinding(const uint8_t hwid, const uint8_t row, co
             continue;
         if (it->block != block)
             continue;
-        if (it->parameterSymbol != ":bypass")
+        if (! it->meta.isBypass)
             continue;
 
         bindings.erase(it);
@@ -3206,7 +3206,7 @@ bool HostConnector::removeBlockParameterBinding(const uint8_t hwid,
             continue;
         if (it->block != block)
             continue;
-        if (it->parameterSymbol == ":bypass")
+        if (it->meta.isBypass)
             continue;
         if (it->meta.parameterIndex != paramIndex)
             continue;
@@ -3272,7 +3272,7 @@ bool HostConnector::replaceBlockBinding(const uint8_t hwid,
             continue;
         if (it->block != block)
             continue;
-        if (it->parameterSymbol != ":bypass")
+        if (! it->meta.isBypass)
             continue;
 
         const float min = it->min;
@@ -3521,7 +3521,7 @@ void HostConnector::setBindingValue(const uint8_t hwid,
             float min = it->min;
             float max = it->max;
 
-            if (it->parameterSymbol == ":bypass")
+            if (it->meta.isBypass)
             {
                 const bool enabled = min > max ? value < 0.5 : value >= 0.5;
                 enableBlock(row, block, enabled, sceneMode);
