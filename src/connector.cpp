@@ -1247,6 +1247,8 @@ void HostConnector::clearCurrentPreset()
 {
     mod_log_debug("clearCurrentPreset()");
 
+    clearAllSceneData();
+
     _current.uuid = generateUUID();
 
     if (_current.numLoadedPlugins == 0)
@@ -1272,7 +1274,6 @@ void HostConnector::clearCurrentPreset()
         _current.bindings[hwid].parameters.clear();
     }
 
-    _current.scene = _current.defaultScene = 0;
     _current.numLoadedPlugins = 0;
     _current.dirty = true;
 
@@ -2419,27 +2420,7 @@ void HostConnector::clearAllScenes()
 {
     mod_log_debug("clearAllScenes()");
 
-    bool modified = false;
-
-    for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
-    {
-        if (_current.scenes[s].state == HostConnector::kSceneUnused)
-            continue;
-        _current.scenes[s].state = HostConnector::kSceneUnused;
-        _current.scenes[s].name.clear();
-        modified = true;
-    }
-
-    if (_current.defaultScene != 0)
-    {
-        _current.defaultScene = 0;
-        modified = true;
-    }
-
-    _current.scenes[0].state = HostConnector::kSceneInUse;
-
-    if (modified)
-        _current.dirty = true;
+    clearAllSceneData();
 
     for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
     {
@@ -5725,6 +5706,7 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
                 }
 
                 presetdata.scenes[s].name = name;
+                presetdata.scenes[s].state = HostConnector::kSceneInUse;
             }
             else
             {
@@ -5736,6 +5718,10 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
     {
         for (Scene& scenedata : presetdata.scenes)
             scenedata.name.clear();
+
+        // scene names not included, typically means no scenes present
+        // make sure to activate the first scene as to match new-preset behaviour
+        presetdata.scenes[0].state = HostConnector::kSceneInUse;
     }
 
     // ----------------------------------------------------------------------------------------------------------------
@@ -5960,18 +5946,17 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann::json& jpr
 
     if (std::any_of(presetdata.scenes.cbegin(),
                     presetdata.scenes.cend(),
-                    [](const Scene& scenedata){ return !scenedata.name.empty(); }))
+                    [](const Scene& scenedata){ return scenedata.state != kSceneUnused; }))
     {
         auto& jsceneNames = jpreset["sceneNames"] = nlohmann::json::object({});
 
-        std::string name;
         std::string jsceneid;
         for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
         {
-            if (name = presetdata.scenes[s].name; !name.empty())
+            if (presetdata.scenes[s].state != kSceneUnused)
             {
                 jsceneid = std::to_string(s + 1);
-                jsceneNames[jsceneid] = name;
+                jsceneNames[jsceneid] = presetdata.scenes[s].name;
             }
         }
     }
@@ -6839,6 +6824,39 @@ void HostConnector::enableAudioProcessing(const bool enable)
 void HostConnector::setDirty(const bool dirty)
 {
     _current.dirty = dirty;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::clearAllSceneData()
+{
+    bool modified = false;
+
+    for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
+    {
+        if (_current.scenes[s].state == HostConnector::kSceneUnused)
+            continue;
+        _current.scenes[s].state = HostConnector::kSceneUnused;
+        _current.scenes[s].name.clear();
+        modified = true;
+    }
+
+    if (_current.defaultScene != 0)
+    {
+        _current.defaultScene = 0;
+        modified = true;
+    }
+
+    if (_current.scene != 0)
+    {
+        _current.scene = 0;
+        modified = true;
+    }
+
+    _current.scenes[0].state = HostConnector::kSceneInUse;
+
+    if (modified)
+        _current.dirty = true;
 }
 
 // --------------------------------------------------------------------------------------------------------------------
