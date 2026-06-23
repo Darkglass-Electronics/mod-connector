@@ -1078,7 +1078,6 @@ IPC::Impl::DualSocketTCP::~DualSocketTCP()
 
 bool IPC::Impl::DualSocketTCP::reconnect()
 {
-    printf("DualSocketTCP::reconnect\n");
    #ifdef __EMSCRIPTEN__
     unsigned short readyState;
     if (emscripten_websocket_get_ready_state(sockets.out, &readyState) != EMSCRIPTEN_RESULT_SUCCESS ||
@@ -1299,10 +1298,12 @@ IPC::~IPC()
     delete impl;
 }
 
+#ifdef __EMSCRIPTEN__
 bool IPC::reconnect()
 {
     return impl->reconnect();
 }
+#endif
 
 char* IPC::readMessage(uint32_t* const bytesRead)
 {

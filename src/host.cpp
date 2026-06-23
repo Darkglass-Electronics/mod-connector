@@ -165,15 +165,19 @@ struct Host::Impl
 
         if (ipc == nullptr)
             ipc.reset(IPC::createDualSocketIPC(portNumber));
+       #ifdef __EMSCRIPTEN__
         else
             ipc->reconnect();
+       #endif
 
         last_error = ipc->last_error;
 
         if (last_error.empty())
             return true;
 
-        // ipc.reset();
+       #ifndef __EMSCRIPTEN__
+        ipc.reset();
+       #endif
         return false;
     }
 

@@ -67,7 +67,12 @@ struct IPC
      */
     std::string last_error;
 
+   #ifdef __EMSCRIPTEN__
+    /**
+     * attempt to reconnect without having to recreate the IPC object.
+     */
     bool reconnect();
+   #endif
 
     /**
      * read a message.
