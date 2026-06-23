@@ -5941,18 +5941,17 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann::json& jpr
 
     if (std::any_of(presetdata.scenes.cbegin(),
                     presetdata.scenes.cend(),
-                    [](const Scene& scenedata){ return !scenedata.name.empty(); }))
+                    [](const Scene& scenedata){ return scenedata.state != kSceneUnused; }))
     {
         auto& jsceneNames = jpreset["sceneNames"] = nlohmann::json::object({});
 
-        std::string name;
         std::string jsceneid;
         for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
         {
-            if (name = presetdata.scenes[s].name; !name.empty())
+            if (presetdata.scenes[s].state != kSceneUnused)
             {
                 jsceneid = std::to_string(s + 1);
-                jsceneNames[jsceneid] = name;
+                jsceneNames[jsceneid] = presetdata.scenes[s].name;
             }
         }
     }
