@@ -1015,6 +1015,9 @@ private:
     // internal feedback handling, for updating parameter values
     void hostFeedbackCallback(const HostFeedbackData& data) override;
 
+    // internal scene data clear
+    void clearAllSceneData();
+
     // internal scene data copy, orig must be active
     // NOTE does not modify dest scene `name` and `state`
     void copySceneData(uint8_t orig, uint8_t dest);

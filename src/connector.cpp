@@ -1247,6 +1247,8 @@ void HostConnector::clearCurrentPreset()
 {
     mod_log_debug("clearCurrentPreset()");
 
+    clearAllSceneData();
+
     _current.uuid = generateUUID();
 
     if (_current.numLoadedPlugins == 0)
@@ -1272,7 +1274,6 @@ void HostConnector::clearCurrentPreset()
         _current.bindings[hwid].parameters.clear();
     }
 
-    _current.scene = _current.defaultScene = 0;
     _current.numLoadedPlugins = 0;
     _current.dirty = true;
 
@@ -2419,31 +2420,7 @@ void HostConnector::clearAllScenes()
 {
     mod_log_debug("clearAllScenes()");
 
-    bool modified = false;
-
-    for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
-    {
-        _current.scenes[s].state = HostConnector::kSceneUnused;
-        _current.scenes[s].name.clear();
-        modified = true;
-    }
-
-    if (_current.defaultScene != 0)
-    {
-        _current.defaultScene = 0;
-        modified = true;
-    }
-
-    if (_current.scene != 0)
-    {
-        _current.scene = 0;
-        modified = true;
-    }
-
-    _current.scenes[0].state = HostConnector::kSceneInUse;
-
-    if (modified)
-        _current.dirty = true;
+    clearAllSceneData();
 
     for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
     {
@@ -6843,6 +6820,39 @@ void HostConnector::enableAudioProcessing(const bool enable)
 void HostConnector::setDirty(const bool dirty)
 {
     _current.dirty = dirty;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::clearAllSceneData()
+{
+    bool modified = false;
+
+    for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
+    {
+        if (_current.scenes[s].state == HostConnector::kSceneUnused)
+            continue;
+        _current.scenes[s].state = HostConnector::kSceneUnused;
+        _current.scenes[s].name.clear();
+        modified = true;
+    }
+
+    if (_current.defaultScene != 0)
+    {
+        _current.defaultScene = 0;
+        modified = true;
+    }
+
+    if (_current.scene != 0)
+    {
+        _current.scene = 0;
+        modified = true;
+    }
+
+    _current.scenes[0].state = HostConnector::kSceneInUse;
+
+    if (modified)
+        _current.dirty = true;
 }
 
 // --------------------------------------------------------------------------------------------------------------------
