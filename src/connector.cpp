@@ -2430,7 +2430,12 @@ void HostConnector::clearAllScenes()
         modified = true;
     }
 
-    _current.defaultScene = 0;
+    if (_current.defaultScene != 0)
+    {
+        _current.defaultScene = 0;
+        modified = true;
+    }
+
     _current.scenes[0].state = HostConnector::kSceneInUse;
 
     if (modified)
