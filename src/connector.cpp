@@ -2430,7 +2430,12 @@ void HostConnector::clearAllScenes()
         modified = true;
     }
 
-    _current.defaultScene = 0;
+    if (_current.defaultScene != 0)
+    {
+        _current.defaultScene = 0;
+        modified = true;
+    }
+
     _current.scenes[0].state = HostConnector::kSceneInUse;
 
     if (modified)
@@ -2485,13 +2490,13 @@ void HostConnector::clearScene(const uint8_t scene)
 
 bool HostConnector::copyScene(const uint8_t orig, const uint8_t dest)
 {
-    mod_log_debug("reorderScenes(%u, %u)", orig, dest);
+    mod_log_debug("copyScene(%u, %u)", orig, dest);
     assert(orig < NUM_SCENES_PER_PRESET);
     assert(dest < NUM_SCENES_PER_PRESET);
 
     if (orig == dest)
     {
-        mod_log_warn("reorderScenes(%u, %u) - orig == dest, rejected", orig, dest);
+        mod_log_warn("copyScene(%u, %u) - orig == dest, rejected", orig, dest);
         return false;
     }
 
