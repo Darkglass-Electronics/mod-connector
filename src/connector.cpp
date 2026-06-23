@@ -2423,8 +2423,6 @@ void HostConnector::clearAllScenes()
 
     for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
     {
-        if (_current.scenes[s].state == HostConnector::kSceneUnused)
-            continue;
         _current.scenes[s].state = HostConnector::kSceneUnused;
         _current.scenes[s].name.clear();
         modified = true;
@@ -2433,6 +2431,12 @@ void HostConnector::clearAllScenes()
     if (_current.defaultScene != 0)
     {
         _current.defaultScene = 0;
+        modified = true;
+    }
+
+    if (_current.scene != 0)
+    {
+        _current.scene = 0;
         modified = true;
     }
 
