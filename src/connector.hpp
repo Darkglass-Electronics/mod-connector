@@ -216,7 +216,7 @@ struct HostConnector : Host::Callback {
         kSceneUnused = 0,
         // scene has been enabled temporarily
         // state will change to kSceneInUse if preset is saved
-        // data will be discarded if current/active scene changes without saving first
+        // data can be discarded if current/active scene changes without saving first (see `switchScene`)
         kSceneInUseTemporarily,
         // scene is in use
         kSceneInUse,
@@ -693,7 +693,7 @@ public:
 
     // switch to another scene, which automatically activates it
     // returning false means the current chain was unchanged
-    bool switchScene(uint8_t scene, bool discardPrevious = false);
+    bool switchScene(uint8_t scene, bool switchEvenIfSameScene = false, bool discardIfUnused = true);
 
     // rename a scene
     bool renameScene(uint8_t scene, const char* name);
