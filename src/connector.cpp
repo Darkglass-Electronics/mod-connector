@@ -2707,7 +2707,7 @@ bool HostConnector::switchScene(const uint8_t scene, const bool switchEvenIfSame
 
     if (activateNewScene)
     {
-        _current.scenes[scene].name = _current.scenes[previousScene].name;
+        _current.scenes[scene].name.clear();
         _current.scenes[scene].state = kSceneInUseTemporarily;
     }
 
