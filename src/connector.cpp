@@ -2546,6 +2546,17 @@ bool HostConnector::reorderScenes(const uint8_t orig, const uint8_t dest)
 
                 vector_bool_swap(blockdata.scenes.enableValues, sceneA, sceneB);
                 vector_bool_swap(blockdata.scenes.lastSavedEnableValues, sceneA, sceneB);
+
+                for (Parameter& paramdata : blockdata.parameters)
+                {
+                    if (isNullURI(paramdata.symbol))
+                        break;
+                    if ((paramdata.meta.flags & Lv2ParameterNotAllowedInScenes) != 0)
+                        continue;
+
+                    std::swap(paramdata.scenes.values[sceneA], paramdata.scenes.values[sceneB]);
+                    std::swap(paramdata.scenes.lastSavedValues[sceneA], paramdata.scenes.lastSavedValues[sceneB]);
+                }
             }
         }
 
@@ -2624,6 +2635,17 @@ void HostConnector::swapScenes(const uint8_t sceneA, const uint8_t sceneB)
 
             vector_bool_swap(blockdata.scenes.enableValues, sceneA, sceneB);
             vector_bool_swap(blockdata.scenes.lastSavedEnableValues, sceneA, sceneB);
+
+            for (Parameter& paramdata : blockdata.parameters)
+            {
+                if (isNullURI(paramdata.symbol))
+                    break;
+                if ((paramdata.meta.flags & Lv2ParameterNotAllowedInScenes) != 0)
+                    continue;
+
+                std::swap(paramdata.scenes.values[sceneA], paramdata.scenes.values[sceneB]);
+                std::swap(paramdata.scenes.lastSavedValues[sceneA], paramdata.scenes.lastSavedValues[sceneB]);
+            }
         }
     }
 
