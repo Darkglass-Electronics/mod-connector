@@ -1426,6 +1426,11 @@ bool Host::poll_feedback() const
     return impl->poll();
 }
 
+void Host::close()
+{
+    impl->close();
+}
+
 bool Host::reconnect()
 {
     return impl->reconnect();
