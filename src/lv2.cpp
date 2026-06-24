@@ -1996,6 +1996,12 @@ private:
         {
             plugin->flags |= Lv2PluginIsCommercial;
 
+           #ifdef __EMSCRIPTEN__
+            // assume all plugins are licensed under wasm, just to make things easy
+            plugin->flags |= Lv2PluginIsLicensed;
+            return;
+           #endif
+
             static const std::string keysdir = _keysdir();
 
             std::string licensefile;
