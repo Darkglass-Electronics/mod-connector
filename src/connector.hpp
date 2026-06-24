@@ -1056,7 +1056,7 @@ static inline bool hasScenes(const HostBindings& bindings)
 // --------------------------------------------------------------------------------------------------------------------
 
 // returns the index of the first parameter with expressionPedalControl property, UINT8_MAX for none found
-static uint8_t getExpressionPedalControl(const HostBlock& blockdata)
+static inline uint8_t getExpressionPedalControl(const HostBlock& blockdata)
 {
     for (uint8_t p = 0, size = blockdata.parameters.size(); p < size; ++p)
     {

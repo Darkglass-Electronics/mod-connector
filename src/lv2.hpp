@@ -90,9 +90,9 @@ enum Lv2ParameterFlags {
     Lv2ParameterHidden                  = 1 << 8,
     Lv2ParameterExpensive               = 1 << 9,
     // extensions
-    Lv2ParameterMayUpdateBlockedState   = 1 << 10,
-    Lv2ParameterSavedToPreset           = 1 << 11,
-    Lv2ParameterExpressionPedalControl  = 1 << 12,
+    Lv2ParameterExpressionPedalControl  = 1 << 10,
+    Lv2ParameterMayUpdateBlockedState   = 1 << 11,
+    Lv2ParameterSavedToPreset           = 1 << 12,
     // NOTE: on addition, adjust ExtraLv2Flags in connector.hpp
 };
 
