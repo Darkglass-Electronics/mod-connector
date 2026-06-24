@@ -167,13 +167,13 @@ struct Host::Impl
         {
             ipc.reset(IPC::createDualSocketIPC(portNumber));
         }
+       #ifdef __EMSCRIPTEN__
         else
         {
             ipc->last_error.clear();
-           #ifdef __EMSCRIPTEN__
             ipc->reconnect();
-           #endif
         }
+       #endif
 
         last_error = ipc->last_error;
 
