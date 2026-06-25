@@ -20,7 +20,9 @@
 #include <list>
 #include <map>
 
+#ifndef __EMSCRIPTEN__
 #include <pthread.h>
+#endif
 
 #include <lilv/lilv.h>
 
@@ -402,6 +404,7 @@ struct Lv2NamespaceDefinitions {
 
 // --------------------------------------------------------------------------------------------------------------------
 
+#ifndef __EMSCRIPTEN__
 struct pthread_mutex_guard {
     pthread_mutex_t& mutex;
 
@@ -416,6 +419,7 @@ struct pthread_mutex_guard {
         pthread_mutex_unlock(&mutex);
     }
 };
+#endif
 
 // --------------------------------------------------------------------------------------------------------------------
 
@@ -456,6 +460,7 @@ struct Lv2World::Impl
             }
         }
 
+       #ifndef __EMSCRIPTEN__
         // create a priority-inversion recursive mutex
         // this way the thread can be low-priority and gets temporarily raised to normal priority as needed
         {
@@ -479,15 +484,18 @@ struct Lv2World::Impl
                            return nullptr;
                        },
                        this);
+       #endif
     }
 
     ~Impl()
     {
+       #ifndef __EMSCRIPTEN__
         bgLoadingActive = false;
         pthread_mutex_lock(&bgLoadingMutex);
         pthread_join(bgLoadingThread, nullptr);
         pthread_mutex_unlock(&bgLoadingMutex);
         pthread_mutex_destroy(&bgLoadingMutex);
+       #endif
 
         pluginsCache.clear();
 
@@ -527,7 +535,9 @@ struct Lv2World::Impl
         std::string bundlepath;
         const LilvPlugin* plugin;
 
+       #ifndef __EMSCRIPTEN__
         const pthread_mutex_guard pmg(bgLoadingMutex);
+       #endif
 
         if (LilvNode* const urinode = lilv_new_uri(world, uri))
         {
@@ -1224,7 +1234,9 @@ struct Lv2World::Impl
         if (cache.blockImageStyling != nullptr)
             return cache.blockImageStyling;
 
+       #ifndef __EMSCRIPTEN__
         const pthread_mutex_guard pmg(bgLoadingMutex);
+       #endif
 
         LilvNode* stylingNode = nullptr;
         {
@@ -1377,7 +1389,9 @@ struct Lv2World::Impl
         if (cache.blockSettingsStyling != nullptr)
             return cache.blockSettingsStyling;
 
+       #ifndef __EMSCRIPTEN__
         const pthread_mutex_guard pmg(bgLoadingMutex);
+       #endif
 
         LilvNode* stylingNode = nullptr;
         {
@@ -1774,7 +1788,9 @@ struct Lv2World::Impl
     {
         assert(path != nullptr && *path != '\0');
 
+       #ifndef __EMSCRIPTEN__
         const pthread_mutex_guard pmg(bgLoadingMutex);
+       #endif
 
         LV2_URID_Map uridMap = { this, _mapfn };
         LilvState* const state = lilv_state_new_from_file(world, &uridMap, nullptr, path);
@@ -1804,7 +1820,9 @@ struct Lv2World::Impl
         _pluginsInBundle(pluginsInBundle, path);
         assert_return(! pluginsInBundle.empty(), false);
 
+       #ifndef __EMSCRIPTEN__
         const pthread_mutex_guard pmg(bgLoadingMutex);
+       #endif
 
         // load the bundle
         if (LilvNode* const b = lilv_new_file_uri(world, nullptr, path))
@@ -1848,7 +1866,9 @@ struct Lv2World::Impl
         _pluginsInBundle(pluginsInBundle, path);
         assert_return(! pluginsInBundle.empty(), false);
 
+       #ifndef __EMSCRIPTEN__
         const pthread_mutex_guard pmg(bgLoadingMutex);
+       #endif
 
         // unload the bundle
         if (LilvNode* const b = lilv_new_file_uri(world, nullptr, path))
@@ -1883,7 +1903,9 @@ struct Lv2World::Impl
     {
         const LilvPlugin* plugin;
 
+       #ifndef __EMSCRIPTEN__
         const pthread_mutex_guard pmg(bgLoadingMutex);
+       #endif
 
         for (auto& it : pluginsCache)
         {
@@ -1936,6 +1958,7 @@ private:
     };
     std::unordered_map<std::string, PluginCache> pluginsCache;
 
+   #ifndef __EMSCRIPTEN__
     bool bgLoadingActive = true;
     pthread_t bgLoadingThread = {};
     pthread_mutex_t bgLoadingMutex;
@@ -1986,6 +2009,7 @@ private:
                 break;
         }
     }
+   #endif
 
     // NOTE Lv2PluginIsUserRemovable must have already been set, if relevant
     void updatePluginLicenseFlags(const char* const uri,

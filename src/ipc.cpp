@@ -54,26 +54,31 @@ struct BufferedRecvData {
             if (nonBlocking)
                 return 0;
 
-            emscripten_pause_main_loop();
+            // emscripten_pause_main_loop();
 
-            while (read == wrtn)
+            for (int i = 0; i < 200 && read == wrtn; ++i)
                 emscripten_sleep(5);
 
-            emscripten_resume_main_loop();
-            return -1;
+            // emscripten_resume_main_loop();
+
+            if (read == wrtn)
+            {
+                errno = EAGAIN;
+                return -1;
+            }
         }
 
         *c = data[read++];
 
         if (read == wrtn)
-            wrtn = 0;
+            read = wrtn = 0;
 
         return 1;
     }
 
     void push(const EmscriptenWebSocketMessageEvent* const event)
     {
-        if (wrtn + event->numBytes > size)
+        if (data == nullptr || wrtn + event->numBytes > size)
         {
             size = (wrtn + event->numBytes) * 2;
             data = static_cast<uint8_t*>(std::realloc(data, size));
@@ -982,19 +987,19 @@ IPC::Impl::DualSocketTCP::DualSocketTCP(std::string& last_error_, const int port
 
   #ifdef __EMSCRIPTEN__
     emscripten_websocket_set_onmessage_callback(
-        fbsock, this, [](const int eventType,
-                         const EmscriptenWebSocketMessageEvent* const event,
-                         void* const userData) -> EM_BOOL
-    {
-        static_cast<IPC::Impl::DualSocketTCP*>(userData)->sockets.fbbuffer.push(event);
-        return EM_TRUE;
-    });
-    emscripten_websocket_set_onmessage_callback(
         outsock, this, [](const int eventType,
                           const EmscriptenWebSocketMessageEvent* const event,
                           void* const userData) -> EM_BOOL
     {
         static_cast<IPC::Impl::DualSocketTCP*>(userData)->sockets.outbuffer.push(event);
+        return EM_TRUE;
+    });
+    emscripten_websocket_set_onmessage_callback(
+        fbsock, this, [](const int eventType,
+                         const EmscriptenWebSocketMessageEvent* const event,
+                         void* const userData) -> EM_BOOL
+    {
+        static_cast<IPC::Impl::DualSocketTCP*>(userData)->sockets.fbbuffer.push(event);
         return EM_TRUE;
     });
 
