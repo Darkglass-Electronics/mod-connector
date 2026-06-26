@@ -2710,6 +2710,8 @@ bool HostConnector::switchScene(const uint8_t scene, const bool switchEvenIfSame
             switch (blockdata.meta.enable.tempSceneState)
             {
             case kTemporarySceneNone:
+                if (discardIfUnused)
+                    blockdata.scenes.enableValues[previousScene] = blockdata.scenes.lastSavedEnableValues[previousScene];
                 break;
             case kTemporarySceneActivate:
                 assert(blockdata.meta.enable.hasScenes);
@@ -2749,6 +2751,8 @@ bool HostConnector::switchScene(const uint8_t scene, const bool switchEvenIfSame
                 switch (paramdata.meta.tempSceneState)
                 {
                 case kTemporarySceneNone:
+                    if (discardIfUnused)
+                        paramdata.scenes.values[previousScene] = paramdata.scenes.lastSavedValues[previousScene];
                     break;
                 case kTemporarySceneActivate:
                     assert((paramdata.meta.flags & Lv2ParameterInScene) != 0);
