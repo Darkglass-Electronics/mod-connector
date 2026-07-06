@@ -894,6 +894,8 @@ struct Lv2World::Impl
                                 retport.flags |= Lv2ParameterMayUpdateBlockedState;
                             else if (std::strcmp(propuri, LV2_DARKGLASS_PROPERTIES__savedToPreset) == 0)
                                 retport.flags |= Lv2ParameterSavedToPreset;
+                            else if (std::strcmp(propuri, LV2_DARKGLASS_PROPERTIES__expressionPedalControl) == 0)
+                                retport.flags |= Lv2ParameterExpressionPedalControl;
                         }
 
                         lilv_nodes_free(nodes);
