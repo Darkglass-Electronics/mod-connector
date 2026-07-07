@@ -11,6 +11,7 @@
 
 #include <cassert>
 #include <cstdint>
+#include <algorithm>
 #include <array>
 #include <list>
 #include <unordered_map>
@@ -191,9 +192,44 @@ struct HostConnector : Host::Callback {
         virtual void hostDisconnectedCallback() = 0;
     };
 
+    // scene operation mode that applies to parameter changes
+    // if a temporary mode was selected and then reverted, parameters revert to their `lastSavedValues`
+    enum SceneMode {
+        // enable scenes if not active yet
+        kSceneModeActivate,
+        // sync all parameter values in a scene, same as clearing it
+        kSceneModeClear,
+        // only update value, do not activate any scenes
+        kSceneModeUpdate,
+        // enable scenes if not active yet, but only temporarily
+        // scene value is discarded if preset is not saved
+        kSceneModeActivateTemporarily,
+        // sync all parameter values in a scene, same as clearing it, but only temporarily
+        // scene value is "uncleared" if preset is not saved
+        kSceneModeClearTemporarily,
+        // only update value, do not activate any scenes, but only temporarily
+        // scene value is discarded if preset is not saved
+        kSceneModeUpdateTemporarily,
+    };
+
+    enum SceneState : uint8_t {
+        // scene is not in use
+        kSceneUnused = 0,
+        // scene has been enabled temporarily
+        // state will change to kSceneInUse if preset is saved
+        // data can be discarded if current/active scene changes without saving first (see `switchScene`)
+        kSceneInUseTemporarily,
+        // scene is in use
+        kSceneInUse,
+    };
+
+    // temporary scene state that applies to parameter changes
     enum TemporarySceneState : uint8_t {
+        // this parameter has no temporary scene state
         kTemporarySceneNone = 0,
+        // temporarily activate scene for a parameter, becoming part of scenes if saved
         kTemporarySceneActivate,
+        // temporarily clear scene for a parameter, clearing to be completed if saved
         kTemporarySceneClear,
     };
 
@@ -236,24 +272,6 @@ struct HostConnector : Host::Callback {
             CLASS_ONLY_MOVE_INIT_NO_COPY(Meta)
         } meta;
         CLASS_ONLY_MOVE_INIT_NO_COPY(Property)
-    };
-
-    enum SceneMode {
-        // enable scenes if not active yet
-        SceneModeActivate,
-        // sync all parameter values in a scene, same as clearing it
-        SceneModeClear,
-        // only update value, do not activate any scenes
-        SceneModeUpdate,
-        // enable scenes if not active yet, but only temporarily
-        // scene value is discarded if preset is not saved
-        SceneModeActivateTemporarily,
-        // sync all parameter values in a scene, same as clearing it, but only temporarily
-        // scene value is "uncleared" if preset is not saved
-        SceneModeClearTemporarily,
-        // only update value, do not activate any scenes, but only temporarily
-        // scene value is discarded if preset is not saved
-        SceneModeUpdateTemporarily,
     };
 
     struct Block {
@@ -351,6 +369,11 @@ struct HostConnector : Host::Callback {
         CLASS_ONLY_MOVE_INIT_NO_COPY(Bindings)
     };
 
+    struct Scene {
+        std::string name;
+        SceneState state;
+    };
+
     struct ChainRow {
         heap_array<Block, NUM_BLOCKS_PER_PRESET> blocks;
         std::array<std::string, 2> capture;
@@ -369,7 +392,7 @@ struct HostConnector : Host::Callback {
             uint32_t color;
             std::string style;
         } background;
-        heap_array<std::string, NUM_SCENES_PER_PRESET> sceneNames;
+        heap_array<Scene, NUM_SCENES_PER_PRESET> scenes;
         std::array<unsigned char, UUID_SIZE> uuid;
     private:
         friend struct HostConnector;
@@ -652,19 +675,28 @@ public:
    #endif
 
     // ----------------------------------------------------------------------------------------------------------------
-    // scene handling
+    // scene handling (within the current preset)
 
-    // reorder/move a scene into a new position (within the current preset)
+    // clear/delete all scenes
+    void clearAllScenes();
+
+    // clear/delete a specific scene
+    void clearScene(uint8_t scene);
+
+    // copy the contents of a scene into a new position
+    bool copyScene(uint8_t orig, uint8_t dest);
+
+    // reorder/move a scene into a new position
     bool reorderScenes(uint8_t orig, uint8_t dest);
 
-    // swap 2 scenes within the current preset
+    // swap 2 scenes
     void swapScenes(uint8_t sceneA, uint8_t sceneB);
 
-    // switch to another scene within the current preset
+    // switch to another scene, which automatically activates it
     // returning false means the current chain was unchanged
-    bool switchScene(uint8_t scene);
+    bool switchScene(uint8_t scene, bool switchEvenIfSameScene = false, bool discardIfUnused = true);
 
-    // rename a scene within the current preset
+    // rename a scene
     bool renameScene(uint8_t scene, const char* name);
 
     // convenience call for renaming current scene name
@@ -757,7 +789,7 @@ public:
                            uint8_t block,
                            uint8_t paramIndex,
                            float value,
-                           SceneMode sceneMode = SceneModeClear);
+                           SceneMode sceneMode = kSceneModeClear);
 
     // set a block parameter value, based on port symbol
     // NOTE value must already be sanitized!
@@ -765,7 +797,7 @@ public:
                            uint8_t block,
                            const char* symbol,
                            float value,
-                           SceneMode sceneMode = SceneModeClear);
+                           SceneMode sceneMode = kSceneModeClear);
 
     // set a block quickpot
     void setBlockQuickPot(uint8_t row, uint8_t block, uint8_t paramIndex);
@@ -868,27 +900,16 @@ public:
     // WIP details below this point
 
     // set a block property, based on property index
-    void setBlockProperty(uint8_t row,
-                          uint8_t block,
-                          uint8_t propIndex,
-                          const char* value,
-                          SceneMode sceneMode = SceneModeClear);
+    void setBlockProperty(uint8_t row, uint8_t block, uint8_t propIndex, const char* value);
 
     // set a block property, based on property URI
-    void setBlockProperty(uint8_t row,
-                          uint8_t block,
-                          const char* uri,
-                          const char* value,
-                          SceneMode sceneMode = SceneModeClear);
+    void setBlockProperty(uint8_t row, uint8_t block, const char* uri, const char* value);
 
     // convenience calls for single-chain builds
    #if NUM_BLOCK_CHAIN_ROWS == 1
-    inline void setBlockProperty(const uint8_t block,
-                                 const uint8_t propIndex,
-                                 const char* const value,
-                                 const SceneMode sceneMode)
+    inline void setBlockProperty(const uint8_t block, const uint8_t propIndex, const char* const value)
     {
-        setBlockProperty(0, block, propIndex, value, sceneMode);
+        setBlockProperty(0, block, propIndex, value);
     }
    #endif
 
@@ -995,6 +1016,13 @@ private:
     // internal feedback handling, for updating parameter values
     void hostFeedbackCallback(const HostFeedbackData& data) override;
 
+    // internal scene data clear
+    void clearAllSceneData();
+
+    // internal scene data copy, orig must be active
+    // NOTE does not modify dest scene `name` and `state`
+    void copySceneData(uint8_t orig, uint8_t dest);
+
     // init block using plugin default values, optionally fill index maps
     void initBlock(Block& blockdata,
                    const std::shared_ptr<const Lv2Plugin>& plugin,
@@ -1017,6 +1045,7 @@ using HostBlock = HostConnector::Block;
 using HostParameter = HostConnector::Parameter;
 using HostParameterBinding = HostConnector::ParameterBinding;
 using HostProperty = HostConnector::Property;
+using HostScene = HostConnector::Scene;
 using HostSceneMode = HostConnector::SceneMode;
 using HostCallbackData = HostConnector::Callback::Data;
 using HostNonBlockingScope = HostConnector::NonBlockingScope;
@@ -1024,33 +1053,34 @@ using HostNonBlockingScopeWithAudioFades = HostConnector::NonBlockingScopeWithAu
 
 // --------------------------------------------------------------------------------------------------------------------
 
-static inline constexpr bool hasScenes(const HostParameter& param)
+inline constexpr bool hasScenes(const HostParameter& param)
 {
     return (param.meta.flags & Lv2ParameterInScene) != 0;
 }
 
-static inline constexpr bool hasScenes(const HostBlock& block)
+inline constexpr bool hasScenes(const HostBlock& block)
 {
-    return block.meta.enable.hasScenes;
+    return block.meta.numParametersInScenes != 0;
 }
 
 static inline bool hasScenes(const HostBindings& bindings)
 {
-    for (const HostParameterBinding &binding : bindings.parameters)
-    {
-        if (binding.meta.isBypass)
+    return std::any_of(bindings.parameters.cbegin(),
+                       bindings.parameters.cend(),
+                       [](const HostParameterBinding &binding)
         {
-            if (hasScenes(binding.meta.block))
-                return true;
-        }
-        else
-        {
-            if (hasScenes(binding.meta.parameter))
-                return true;
-        }
-    }
-
-    return false;
+            if (binding.meta.isBypass)
+            {
+                if (hasScenes(binding.meta.block))
+                    return true;
+            }
+            else
+            {
+                if (hasScenes(binding.meta.parameter))
+                    return true;
+            }
+            return false;
+        });
 }
 
 // --------------------------------------------------------------------------------------------------------------------

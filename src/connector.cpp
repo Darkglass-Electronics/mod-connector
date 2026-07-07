@@ -262,18 +262,18 @@ static constexpr const char* SceneMode2Str(const HostSceneMode sceneMode)
 {
     switch (sceneMode)
     {
-    case HostConnector::SceneModeActivate:
-        return "SceneModeActivate";
-    case HostConnector::SceneModeClear:
-        return "SceneModeClear";
-    case HostConnector::SceneModeUpdate:
-        return "SceneModeUpdate";
-    case HostConnector::SceneModeActivateTemporarily:
-        return "SceneModeActivateTemporarily";
-    case HostConnector::SceneModeClearTemporarily:
-        return "SceneModeClearTemporarily";
-    case HostConnector::SceneModeUpdateTemporarily:
-        return "SceneModeUpdateTemporarily";
+    case HostConnector::kSceneModeActivate:
+        return "kSceneModeActivate";
+    case HostConnector::kSceneModeClear:
+        return "kSceneModeClear";
+    case HostConnector::kSceneModeUpdate:
+        return "kSceneModeUpdate";
+    case HostConnector::kSceneModeActivateTemporarily:
+        return "kSceneModeActivateTemporarily";
+    case HostConnector::kSceneModeClearTemporarily:
+        return "kSceneModeClearTemporarily";
+    case HostConnector::kSceneModeUpdateTemporarily:
+        return "kSceneModeUpdateTemporarily";
     }
 
     return "";
@@ -443,7 +443,7 @@ void HostConnector::Preset::copy(const Preset& other)
     for (uint8_t i = 0; i < NUM_BINDING_ACTUATORS; ++i)
         bindings[i].copy(other.bindings[i]);
     background = other.background;
-    sceneNames = other.sceneNames;
+    scenes = other.scenes;
     uuid = other.uuid;
     chains = other.chains;
 }
@@ -1081,6 +1081,12 @@ bool HostConnector::saveCurrentPresetToFile(const char* const filename)
                 }
             }
         }
+
+        for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
+        {
+            if (_current.scenes[s].state == kSceneInUseTemporarily)
+                _current.scenes[s].state = kSceneInUse;
+        }
     }
 
     // copy current data into preset data
@@ -1241,6 +1247,8 @@ void HostConnector::clearCurrentPreset()
 {
     mod_log_debug("clearCurrentPreset()");
 
+    clearAllSceneData();
+
     _current.uuid = generateUUID();
 
     if (_current.numLoadedPlugins == 0)
@@ -1266,7 +1274,6 @@ void HostConnector::clearCurrentPreset()
         _current.bindings[hwid].parameters.clear();
     }
 
-    _current.scene = _current.defaultScene = 0;
     _current.numLoadedPlugins = 0;
     _current.dirty = true;
 
@@ -1339,7 +1346,7 @@ bool HostConnector::enableBlock(const uint8_t row, const uint8_t block, const bo
 
         switch (sceneMode)
         {
-        case SceneModeActivate:
+        case kSceneModeActivate:
             if (! blockdata.meta.enable.hasScenes)
             {
                 ++blockdata.meta.numParametersInScenes;
@@ -1357,9 +1364,10 @@ bool HostConnector::enableBlock(const uint8_t row, const uint8_t block, const bo
             // set new value for current scene
             blockdata.scenes.enableValues[_current.scene] = enable;
             blockdata.scenes.lastSavedEnableValues[_current.scene] = enable;
+            assert(blockdata.meta.enable.tempSceneState == kTemporarySceneNone);
             break;
 
-        case SceneModeActivateTemporarily:
+        case kSceneModeActivateTemporarily:
             if (! blockdata.meta.enable.hasScenes)
             {
                 ++blockdata.meta.numParametersInScenes;
@@ -1382,17 +1390,18 @@ bool HostConnector::enableBlock(const uint8_t row, const uint8_t block, const bo
             blockdata.scenes.enableValues[_current.scene] = enable;
             break;
 
-        case SceneModeClear:
+        case kSceneModeClear:
             if (blockdata.meta.enable.hasScenes)
             {
                 --blockdata.meta.numParametersInScenes;
                 blockdata.meta.enable.hasScenes = false;
             }
-            blockdata.scenes.enableValues.fill(enable);
-            blockdata.scenes.lastSavedEnableValues.fill(enable);
+            // blockdata.scenes.enableValues.fill(enable);
+            // blockdata.scenes.lastSavedEnableValues.fill(enable);
+            assert(blockdata.meta.enable.tempSceneState == kTemporarySceneNone);
             break;
 
-        case SceneModeClearTemporarily:
+        case kSceneModeClearTemporarily:
             if (blockdata.meta.enable.hasScenes)
             {
                 --blockdata.meta.numParametersInScenes;
@@ -1403,29 +1412,33 @@ bool HostConnector::enableBlock(const uint8_t row, const uint8_t block, const bo
                                                     ? kTemporarySceneClear
                                                     : kTemporarySceneNone;
             }
-            blockdata.scenes.enableValues.fill(enable);
+            // blockdata.scenes.enableValues.fill(enable);
             break;
 
-        case SceneModeUpdate:
-            if (! blockdata.meta.enable.hasScenes)
-            {
-                blockdata.scenes.enableValues.fill(enable);
-                blockdata.scenes.lastSavedEnableValues.fill(enable);
-            }
-            else
+        case kSceneModeUpdate:
+            if (blockdata.meta.enable.hasScenes)
+            // {
+            //     blockdata.scenes.enableValues.fill(enable);
+            //     blockdata.scenes.lastSavedEnableValues.fill(enable);
+            // }
+            // else
             {
                 blockdata.scenes.enableValues[_current.scene] = enable;
                 blockdata.scenes.lastSavedEnableValues[_current.scene] = enable;
             }
+            assert(blockdata.meta.enable.tempSceneState == kTemporarySceneNone);
             break;
 
-        case SceneModeUpdateTemporarily:
-            if (! blockdata.meta.enable.hasScenes)
-                blockdata.scenes.enableValues.fill(enable);
-            else
+        case kSceneModeUpdateTemporarily:
+            if (blockdata.meta.enable.hasScenes)
+            //     blockdata.scenes.enableValues.fill(enable);
+            // else
                 blockdata.scenes.enableValues[_current.scene] = enable;
             break;
         }
+
+        if (blockdata.meta.enable.hasScenes && blockdata.meta.enable.tempSceneState == kTemporarySceneNone)
+            _current.scenes[_current.scene].state = kSceneInUse;
     }
 
     if (blockdata.meta.enable.hwbinding != UINT8_MAX)
@@ -1436,7 +1449,7 @@ bool HostConnector::enableBlock(const uint8_t row, const uint8_t block, const bo
         ParameterBinding& binding = bindings.parameters.front();
 
         if (bindings.parameters.size() == 1 &&
-            (binding.row == row && binding.block == block && binding.parameterSymbol == ":bypass"))
+            (binding.row == row && binding.block == block && binding.meta.isBypass))
         {
             bindings.value = enable ? binding.max : binding.min;
         }
@@ -2393,6 +2406,91 @@ void HostConnector::renamePreset(const uint8_t preset, const char* const name)
 
 // --------------------------------------------------------------------------------------------------------------------
 
+void HostConnector::clearAllScenes()
+{
+    mod_log_debug("clearAllScenes()");
+
+    clearAllSceneData();
+
+    for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
+    {
+        for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
+        {
+            Block& blockdata(_current.chains[row].blocks[bl]);
+            if (isNullBlock(blockdata))
+                continue;
+
+            blockdata.meta.enable.hasScenes = false;
+            blockdata.meta.enable.tempSceneState = kTemporarySceneNone;
+            blockdata.meta.numParametersInScenes = 0;
+
+            for (Parameter& paramdata : blockdata.parameters)
+            {
+                if (isNullURI(paramdata.symbol))
+                    break;
+                if ((paramdata.meta.flags & Lv2ParameterNotAllowedToChange) != 0)
+                    continue;
+
+                paramdata.meta.flags &= ~Lv2ParameterInScene;
+                paramdata.meta.tempSceneState = kTemporarySceneNone;
+
+                // paramdata.scenes.values.fill(paramdata.value);
+                // paramdata.scenes.lastSavedValues.fill(paramdata.value);
+            }
+        }
+    }
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::clearScene(const uint8_t scene)
+{
+    mod_log_debug("clearScene(%u)", scene);
+    assert(scene < NUM_SCENES_PER_PRESET);
+
+    if (_current.scenes[scene].state == HostConnector::kSceneUnused)
+        return;
+
+    _current.scenes[scene].state = HostConnector::kSceneUnused;
+    _current.scenes[scene].name.clear();
+
+    _current.dirty = true;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+bool HostConnector::copyScene(const uint8_t orig, const uint8_t dest)
+{
+    mod_log_debug("copyScene(%u, %u)", orig, dest);
+    assert(orig < NUM_SCENES_PER_PRESET);
+    assert(dest < NUM_SCENES_PER_PRESET);
+
+    if (orig == dest)
+    {
+        mod_log_warn("copyScene(%u, %u) - orig == dest, rejected", orig, dest);
+        return false;
+    }
+
+    if (_current.scenes[orig].state != HostConnector::kSceneUnused)
+    {
+        _current.scenes[dest].name = _current.scenes[orig].name;
+        _current.scenes[dest].state = HostConnector::kSceneInUse;
+        copySceneData(orig, dest);
+
+        if (_current.scene == dest)
+            switchScene(dest, true);
+    }
+    else
+    {
+        clearScene(dest);
+    }
+
+    _current.dirty = true;
+    return true;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 // std::vector<bool> cannot swap values directly, give it a little hand...
 static void vector_bool_swap(std::vector<bool>& vector, uint8_t a, uint8_t b)
 {
@@ -2427,10 +2525,21 @@ bool HostConnector::reorderScenes(const uint8_t orig, const uint8_t dest)
 
                 vector_bool_swap(blockdata.scenes.enableValues, sceneA, sceneB);
                 vector_bool_swap(blockdata.scenes.lastSavedEnableValues, sceneA, sceneB);
+
+                for (Parameter& paramdata : blockdata.parameters)
+                {
+                    if (isNullURI(paramdata.symbol))
+                        break;
+                    if ((paramdata.meta.flags & Lv2ParameterNotAllowedInScenes) != 0)
+                        continue;
+
+                    std::swap(paramdata.scenes.values[sceneA], paramdata.scenes.values[sceneB]);
+                    std::swap(paramdata.scenes.lastSavedValues[sceneA], paramdata.scenes.lastSavedValues[sceneB]);
+                }
             }
         }
 
-        std::swap(_current.sceneNames[sceneA], _current.sceneNames[sceneB]);
+        std::swap(_current.scenes[sceneA], _current.scenes[sceneB]);
     };
 
     // moving preset backwards to the left
@@ -2505,10 +2614,21 @@ void HostConnector::swapScenes(const uint8_t sceneA, const uint8_t sceneB)
 
             vector_bool_swap(blockdata.scenes.enableValues, sceneA, sceneB);
             vector_bool_swap(blockdata.scenes.lastSavedEnableValues, sceneA, sceneB);
+
+            for (Parameter& paramdata : blockdata.parameters)
+            {
+                if (isNullURI(paramdata.symbol))
+                    break;
+                if ((paramdata.meta.flags & Lv2ParameterNotAllowedInScenes) != 0)
+                    continue;
+
+                std::swap(paramdata.scenes.values[sceneA], paramdata.scenes.values[sceneB]);
+                std::swap(paramdata.scenes.lastSavedValues[sceneA], paramdata.scenes.lastSavedValues[sceneB]);
+            }
         }
     }
 
-    std::swap(_current.sceneNames[sceneA], _current.sceneNames[sceneB]);
+    std::swap(_current.scenes[sceneA], _current.scenes[sceneB]);
 
     // adjust data for current scene, if matching
     if (_current.scene == sceneA)
@@ -2528,12 +2648,12 @@ void HostConnector::swapScenes(const uint8_t sceneA, const uint8_t sceneB)
 
 // --------------------------------------------------------------------------------------------------------------------
 
-bool HostConnector::switchScene(const uint8_t scene)
+bool HostConnector::switchScene(const uint8_t scene, const bool switchEvenIfSameScene, const bool discardIfUnused)
 {
-    mod_log_debug("switchScene(%u)", scene);
+    mod_log_debug("switchScene(%u, %s, %s)", scene, bool2str(switchEvenIfSameScene), bool2str(discardIfUnused));
     assert(scene < NUM_SCENES_PER_PRESET);
 
-    if (_current.scene == scene)
+    if (_current.scene == scene && ! switchEvenIfSameScene)
         return false;
 
     // preallocating some data
@@ -2553,8 +2673,22 @@ bool HostConnector::switchScene(const uint8_t scene)
             _current.dirty = false;
     }
 
+    const bool activateNewScene = _current.scenes[scene].state == kSceneUnused;
     const uint8_t previousScene = _current.scene;
+
+    if (_current.scenes[previousScene].state == kSceneInUseTemporarily)
+        _current.scenes[previousScene].state = discardIfUnused ? kSceneUnused : kSceneInUse;
+
     _current.scene = scene;
+
+    if (activateNewScene)
+    {
+        _current.scenes[scene].name.clear();
+        _current.scenes[scene].state = kSceneInUseTemporarily;
+    }
+
+    bool blockEnabled;
+    float paramValue;
 
     const Host::NonBlockingScope hnbs(_host);
 
@@ -2572,12 +2706,12 @@ bool HostConnector::switchScene(const uint8_t scene)
 
             params.clear();
 
-            const bool blockEnabled = blockdata.scenes.lastSavedEnableValues[scene];
-
             // revert temp scene state
             switch (blockdata.meta.enable.tempSceneState)
             {
             case kTemporarySceneNone:
+                if (discardIfUnused)
+                    blockdata.scenes.enableValues[previousScene] = blockdata.scenes.lastSavedEnableValues[previousScene];
                 break;
             case kTemporarySceneActivate:
                 assert(blockdata.meta.enable.hasScenes);
@@ -2594,6 +2728,10 @@ bool HostConnector::switchScene(const uint8_t scene)
                 blockdata.scenes.enableValues[previousScene] = blockdata.scenes.lastSavedEnableValues[previousScene];
                 break;
             }
+
+            blockEnabled = activateNewScene ? blockdata.scenes.lastSavedEnableValues[_current.defaultScene]
+                         : blockdata.meta.enable.hasScenes ? blockdata.scenes.enableValues[scene]
+                         : blockdata.enabled;
 
             // bypass/disable first if relevant
             if (blockdata.enabled != blockEnabled && !blockEnabled)
@@ -2613,6 +2751,8 @@ bool HostConnector::switchScene(const uint8_t scene)
                 switch (paramdata.meta.tempSceneState)
                 {
                 case kTemporarySceneNone:
+                    if (discardIfUnused)
+                        paramdata.scenes.values[previousScene] = paramdata.scenes.lastSavedValues[previousScene];
                     break;
                 case kTemporarySceneActivate:
                     assert((paramdata.meta.flags & Lv2ParameterInScene) != 0);
@@ -2630,11 +2770,18 @@ bool HostConnector::switchScene(const uint8_t scene)
                     break;
                 }
 
-                if (isNotEqual(paramdata.value, paramdata.scenes.lastSavedValues[scene]))
+                paramValue = activateNewScene ? paramdata.scenes.lastSavedValues[_current.defaultScene]
+                           : (paramdata.meta.flags & Lv2ParameterInScene) != 0 ? paramdata.scenes.values[scene]
+                           : paramdata.value;
+
+                if (isNotEqual(paramdata.value, paramValue))
                 {
-                    paramdata.value = paramdata.scenes.lastSavedValues[scene];
+                    paramdata.value = paramValue;
                     params.push_back({ paramdata.symbol.c_str(), paramdata.value });
                 }
+
+                if (activateNewScene)
+                    paramdata.scenes.values[scene] = paramdata.scenes.lastSavedValues[scene] = paramValue;
             }
 
             hostParamsFlushBlockPair(hbp, LV2_KXSTUDIO_PROPERTIES_RESET_NONE, params);
@@ -2645,6 +2792,9 @@ bool HostConnector::switchScene(const uint8_t scene)
                 blockdata.enabled = true;
                 hostBypassBlockPair(hbp, false);
             }
+
+            if (activateNewScene)
+                blockdata.scenes.enableValues[scene] = blockdata.scenes.lastSavedEnableValues[scene] = blockEnabled;
         }
     }
 
@@ -2660,7 +2810,7 @@ bool HostConnector::switchScene(const uint8_t scene)
 
         for (const ParameterBinding& binding : bindings.parameters)
         {
-            if (binding.parameterSymbol == ":bypass")
+            if (binding.meta.isBypass)
                 continue;
 
             assert(binding.meta.parameterIndex < NUM_BLOCKS_PER_PRESET);
@@ -2684,7 +2834,7 @@ bool HostConnector::switchScene(const uint8_t scene)
             const ParameterBinding& binding = bindings.parameters.front();
             const Block& blockdata = _current.chains[binding.row].blocks[binding.block];
 
-            if (binding.parameterSymbol == ":bypass")
+            if (binding.meta.isBypass)
             {
                 bindings.value = blockdata.enabled ? binding.max : binding.min;
             }
@@ -2713,11 +2863,19 @@ bool HostConnector::renameScene(const uint8_t scene, const char* const name)
     assert(scene < NUM_SCENES_PER_PRESET);
     assert(name != nullptr);
 
-    if (_current.sceneNames[scene] == name)
+    if (_current.scenes[scene].name == name)
         return false;
 
+    if (_current.scenes[scene].state == HostConnector::kSceneUnused)
+    {
+        _current.scenes[scene].state = HostConnector::kSceneInUse;
+
+        if (_current.scenes[_current.scene].state != HostConnector::kSceneUnused)
+            copySceneData(_current.defaultScene, scene);
+    }
+
     _current.dirty = true;
-    _current.sceneNames[scene] = name;
+    _current.scenes[scene].name = name;
     return true;
 }
 
@@ -2855,7 +3013,7 @@ bool HostConnector::editBlockBinding(const uint8_t hwid, const uint8_t row, cons
             continue;
         if (it->block != block)
             continue;
-        if (it->parameterSymbol != ":bypass")
+        if (! it->meta.isBypass)
             continue;
 
         it->min = inverted ? 1.f : 0.f;
@@ -2898,7 +3056,7 @@ bool HostConnector::editBlockParameterBinding(const uint8_t hwid,
             continue;
         if (it->block != block)
             continue;
-        if (it->parameterSymbol == ":bypass")
+        if (it->meta.isBypass)
             continue;
         if (it->meta.parameterIndex != paramIndex)
             continue;
@@ -2981,7 +3139,7 @@ bool HostConnector::removeBlockBinding(const uint8_t hwid, const uint8_t row, co
             continue;
         if (it->block != block)
             continue;
-        if (it->parameterSymbol != ":bypass")
+        if (! it->meta.isBypass)
             continue;
 
         bindings.erase(it);
@@ -3028,7 +3186,7 @@ bool HostConnector::removeBlockParameterBinding(const uint8_t hwid,
             continue;
         if (it->block != block)
             continue;
-        if (it->parameterSymbol == ":bypass")
+        if (it->meta.isBypass)
             continue;
         if (it->meta.parameterIndex != paramIndex)
             continue;
@@ -3094,7 +3252,7 @@ bool HostConnector::replaceBlockBinding(const uint8_t hwid,
             continue;
         if (it->block != block)
             continue;
-        if (it->parameterSymbol != ":bypass")
+        if (! it->meta.isBypass)
             continue;
 
         const float min = it->min;
@@ -3136,7 +3294,7 @@ bool HostConnector::replaceBlockBinding(const uint8_t hwid,
         else
         {
             // update block to match binding macro
-            enableBlock(rowB, blockB, _current.bindings[hwid].value > 0.5f, SceneModeUpdate);
+            enableBlock(rowB, blockB, _current.bindings[hwid].value > 0.5f, kSceneModeUpdate);
         }
 
         _current.dirty = true;
@@ -3237,7 +3395,7 @@ bool HostConnector::replaceBlockParameterBinding(const uint8_t hwid,
         {
             // update parameter value to match binding macro
             const float value = unnormalized(paramdataB.meta, _current.bindings[hwid].value);
-            setBlockParameter(rowB, blockB, paramIndexB, value, SceneModeUpdate);
+            setBlockParameter(rowB, blockB, paramIndexB, value, kSceneModeUpdate);
         }
 
         _current.dirty = true;
@@ -3343,7 +3501,7 @@ void HostConnector::setBindingValue(const uint8_t hwid,
             float min = it->min;
             float max = it->max;
 
-            if (it->parameterSymbol == ":bypass")
+            if (it->meta.isBypass)
             {
                 const bool enabled = min > max ? value < 0.5 : value >= 0.5;
                 enableBlock(row, block, enabled, sceneMode);
@@ -3456,7 +3614,7 @@ void HostConnector::setBlockParameter(const uint8_t row,
     {
         switch (sceneMode)
         {
-        case SceneModeActivate:
+        case kSceneModeActivate:
             if ((paramdata.meta.flags & Lv2ParameterInScene) == 0)
             {
                 ++blockdata.meta.numParametersInScenes;
@@ -3474,9 +3632,10 @@ void HostConnector::setBlockParameter(const uint8_t row,
             // set new value for current scene
             paramdata.scenes.values[_current.scene] = value;
             paramdata.scenes.lastSavedValues[_current.scene] = value;
+            assert(paramdata.meta.tempSceneState == kTemporarySceneNone);
             break;
 
-        case SceneModeActivateTemporarily:
+        case kSceneModeActivateTemporarily:
             if ((paramdata.meta.flags & Lv2ParameterInScene) == 0)
             {
                 ++blockdata.meta.numParametersInScenes;
@@ -3499,17 +3658,18 @@ void HostConnector::setBlockParameter(const uint8_t row,
             paramdata.scenes.values[_current.scene] = value;
             break;
 
-        case SceneModeClear:
+        case kSceneModeClear:
             if ((paramdata.meta.flags & Lv2ParameterInScene) != 0)
             {
                 --blockdata.meta.numParametersInScenes;
                 paramdata.meta.flags &= ~Lv2ParameterInScene;
             }
-            paramdata.scenes.values.fill(value);
-            paramdata.scenes.lastSavedValues.fill(value);
+            // paramdata.scenes.values.fill(value);
+            // paramdata.scenes.lastSavedValues.fill(value);
+            assert(paramdata.meta.tempSceneState == kTemporarySceneNone);
             break;
 
-        case SceneModeClearTemporarily:
+        case kSceneModeClearTemporarily:
             if ((paramdata.meta.flags & Lv2ParameterInScene) != 0)
             {
                 --blockdata.meta.numParametersInScenes;
@@ -3520,29 +3680,33 @@ void HostConnector::setBlockParameter(const uint8_t row,
                                               ? kTemporarySceneClear
                                               : kTemporarySceneNone;
             }
-            paramdata.scenes.values.fill(value);
+            // paramdata.scenes.values.fill(value);
             break;
 
-        case SceneModeUpdate:
-            if ((paramdata.meta.flags & Lv2ParameterInScene) == 0)
-            {
-                paramdata.scenes.values.fill(value);
-                paramdata.scenes.lastSavedValues.fill(value);
-            }
-            else
+        case kSceneModeUpdate:
+            if ((paramdata.meta.flags & Lv2ParameterInScene) != 0)
+            // {
+            //     paramdata.scenes.values.fill(value);
+            //     paramdata.scenes.lastSavedValues.fill(value);
+            // }
+            // else
             {
                 paramdata.scenes.values[_current.scene] = value;
                 paramdata.scenes.lastSavedValues[_current.scene] = value;
             }
+            assert(paramdata.meta.tempSceneState == kTemporarySceneNone);
             break;
 
-        case SceneModeUpdateTemporarily:
-            if ((paramdata.meta.flags & Lv2ParameterInScene) == 0)
-                paramdata.scenes.values.fill(value);
-            else
+        case kSceneModeUpdateTemporarily:
+            if ((paramdata.meta.flags & Lv2ParameterInScene) != 0)
+            //     paramdata.scenes.values.fill(value);
+            // else
                 paramdata.scenes.values[_current.scene] = value;
             break;
         }
+
+        if ((paramdata.meta.flags & Lv2ParameterInScene) != 0 && paramdata.meta.tempSceneState == kTemporarySceneNone)
+            _current.scenes[_current.scene].state = kSceneInUse;
 
         if (paramdata.meta.hwbinding != UINT8_MAX)
         {
@@ -4025,11 +4189,10 @@ void HostConnector::monitorToolOutputParameter(const uint8_t toolIndex, const ch
 void HostConnector::setBlockProperty(const uint8_t row,
                                      const uint8_t block,
                                      const uint8_t propIndex,
-                                     const char* const value,
-                                     const SceneMode sceneMode)
+                                     const char* const value)
 {
-    mod_log_debug("setBlockProperty(%u, %u, %u, \"%s\", %d:%s)",
-                  row, block, propIndex, value, sceneMode, SceneMode2Str(sceneMode));
+    mod_log_debug("setBlockProperty(%u, %u, %u, \"%s\")",
+                  row, block, propIndex, value);
     assert(row < NUM_BLOCK_CHAIN_ROWS);
     assert(block < NUM_BLOCKS_PER_PRESET);
     assert(propIndex < MAX_PARAMS_PER_BLOCK);
@@ -4058,11 +4221,10 @@ void HostConnector::setBlockProperty(const uint8_t row,
 void HostConnector::setBlockProperty(const uint8_t row,
                                      const uint8_t block,
                                      const char* const uri,
-                                     const char* const value,
-                                     const SceneMode sceneMode)
+                                     const char* const value)
 {
-    mod_log_debug("setBlockProperty(%u, %u, \"%s\", \"%s\", %d:%s)",
-                  row, block, uri, value, sceneMode, SceneMode2Str(sceneMode));
+    mod_log_debug("setBlockProperty(%u, %u, \"%s\", \"%s\")",
+                  row, block, uri, value);
     assert(row < NUM_BLOCK_CHAIN_ROWS);
     assert(block < NUM_BLOCKS_PER_PRESET);
     assert(uri != nullptr && *uri != '\0');
@@ -4079,7 +4241,7 @@ void HostConnector::setBlockProperty(const uint8_t row,
         return;
     }
 
-    setBlockProperty(row, block, propIndex, value, sceneMode);
+    setBlockProperty(row, block, propIndex, value);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -4821,6 +4983,15 @@ void HostConnector::hostRemoveInstanceForBlock(const uint8_t row, const uint8_t 
 void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpreset) const
 {
     // ----------------------------------------------------------------------------------------------------------------
+    // always do cleanup before anything else, for optional values that might not get set
+
+    for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
+    {
+        presetdata.scenes[s].state = HostConnector::kSceneUnused;
+        presetdata.scenes[s].name.clear();
+    }
+
+    // ----------------------------------------------------------------------------------------------------------------
     // background
 
     {
@@ -5103,6 +5274,7 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
                                 }
 
                                 blockdata.scenes.enableValues[s] = enabled;
+                                presetdata.scenes[s].state = HostConnector::kSceneInUse;
                             }
                         }
 
@@ -5167,6 +5339,7 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
                                     paramdata.scenes.values[s] = std::clamp<float>(value,
                                                                                    paramdata.meta.min,
                                                                                    paramdata.meta.max);
+                                    presetdata.scenes[s].state = HostConnector::kSceneInUse;
                                 }
                             }
                         }
@@ -5510,11 +5683,12 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
     if (jpreset.contains("sceneNames"))
     {
         const auto& jsceneNames = jpreset["sceneNames"];
+        std::string jsceneid;
         std::string name;
 
         for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
         {
-            const std::string jsceneid = std::to_string(s + 1);
+            jsceneid = std::to_string(s + 1);
 
             if (jsceneNames.contains(jsceneid))
             {
@@ -5525,18 +5699,23 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
                     name.clear();
                 }
 
-                presetdata.sceneNames[s] = name;
+                presetdata.scenes[s].name = name;
+                presetdata.scenes[s].state = HostConnector::kSceneInUse;
             }
             else
             {
-                presetdata.sceneNames[s].clear();
+                presetdata.scenes[s].name.clear();
             }
         }
     }
     else
     {
-        for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
-            presetdata.sceneNames[s].clear();
+        for (Scene& scenedata : presetdata.scenes)
+            scenedata.name.clear();
+
+        // scene names not included, typically means no scenes present
+        // make sure to activate the first scene as to match new-preset behaviour
+        presetdata.scenes[0].state = HostConnector::kSceneInUse;
     }
 
     // ----------------------------------------------------------------------------------------------------------------
@@ -5653,6 +5832,9 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann::json& jpr
                 if (isNullBlock(blockdata))
                     continue;
 
+                // save operation must have converted these already
+                assert(blockdata.meta.enable.tempSceneState == kTemporarySceneNone);
+
                 const std::string jblockid = std::to_string(bl + 1);
                 auto& jblock = jblocks[jblockid] = nlohmann::json::object({
                     { "parameters", nlohmann::json::object({}) },
@@ -5675,6 +5857,9 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann::json& jpr
                             break;
                         if (! shouldSaveParameterToPreset(paramdata.meta.flags))
                             continue;
+
+                        // save operation must have converted these already
+                        assert(paramdata.meta.tempSceneState == kTemporarySceneNone);
 
                         const std::string jparamid = std::to_string(++jp);
                         jparams[jparamid] = nlohmann::json::object({
@@ -5706,12 +5891,18 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann::json& jpr
                     }
                 }
 
-                if (blockdata.meta.numParametersInScenes != 0)
+                if (hasScenes(blockdata))
                 {
                     auto& jscenes = jblock["scenes"];
 
                     for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
                     {
+                        // save operation must have converted these already
+                        assert(presetdata.scenes[s].state != kSceneInUseTemporarily);
+
+                        if (presetdata.scenes[s].state == kSceneUnused)
+                            continue;
+
                         const std::string jsceneid = std::to_string(s + 1);
                         auto& jscene = jscenes[jsceneid] = nlohmann::json::object({
                             { "parameters", nlohmann::json::array() },
@@ -5747,18 +5938,21 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann::json& jpr
     // ----------------------------------------------------------------------------------------------------------------
     // sceneNames
 
-    for (const std::string& sceneName : presetdata.sceneNames)
+    if (std::any_of(presetdata.scenes.cbegin(),
+                    presetdata.scenes.cend(),
+                    [](const Scene& scenedata){ return scenedata.state != kSceneUnused; }))
     {
-        if (sceneName.empty())
-            continue;
-
         auto& jsceneNames = jpreset["sceneNames"] = nlohmann::json::object({});
+
+        std::string jsceneid;
         for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
         {
-            const std::string jsceneid = std::to_string(s + 1);
-            jsceneNames[jsceneid] = presetdata.sceneNames[s];
+            if (presetdata.scenes[s].state != kSceneUnused)
+            {
+                jsceneid = std::to_string(s + 1);
+                jsceneNames[jsceneid] = presetdata.scenes[s].name;
+            }
         }
-        break;
     }
 }
 
@@ -6628,6 +6822,77 @@ void HostConnector::setDirty(const bool dirty)
 
 // --------------------------------------------------------------------------------------------------------------------
 
+void HostConnector::clearAllSceneData()
+{
+    bool modified = false;
+
+    for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
+    {
+        if (_current.scenes[s].state == HostConnector::kSceneUnused)
+            continue;
+        _current.scenes[s].state = HostConnector::kSceneUnused;
+        _current.scenes[s].name.clear();
+        modified = true;
+    }
+
+    if (_current.defaultScene != 0)
+    {
+        _current.defaultScene = 0;
+        modified = true;
+    }
+
+    if (_current.scene != 0)
+    {
+        _current.scene = 0;
+        modified = true;
+    }
+
+    _current.scenes[0].state = HostConnector::kSceneInUse;
+
+    if (modified)
+        _current.dirty = true;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::copySceneData(uint8_t orig, uint8_t dest)
+{
+    assert(orig < NUM_SCENES_PER_PRESET);
+    assert(dest < NUM_SCENES_PER_PRESET);
+    assert(_current.scenes[orig].state != HostConnector::kSceneUnused);
+
+    for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
+    {
+        for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
+        {
+            Block& blockdata(_current.chains[row].blocks[bl]);
+            if (isNullBlock(blockdata))
+                continue;
+            if (blockdata.meta.numParametersInScenes == 0)
+                continue;
+
+            if (blockdata.meta.enable.hasScenes)
+            {
+                blockdata.scenes.enableValues[dest] = blockdata.scenes.enableValues[orig];
+                blockdata.scenes.lastSavedEnableValues[dest] = blockdata.scenes.enableValues[orig];
+            }
+
+            for (Parameter& paramdata : blockdata.parameters)
+            {
+                if (isNullURI(paramdata.symbol))
+                    break;
+                if ((paramdata.meta.flags & Lv2ParameterNotAllowedToChange) != 0)
+                    continue;
+                if ((paramdata.meta.flags & Lv2ParameterInScene) == 0)
+                    continue;
+
+                paramdata.scenes.values[dest] = paramdata.scenes.values[orig];
+                paramdata.scenes.lastSavedValues[dest] = paramdata.scenes.values[orig];
+            }
+        }
+    }
+}
+
 void HostConnector::initBlock(HostConnector::Block& blockdata,
                               const std::shared_ptr<const Lv2Plugin>& plugin,
                               const uint8_t numInputs,
@@ -6927,8 +7192,14 @@ void HostConnector::resetPreset(Preset& preset)
         preset.bindings[hwid].value = 0.0;
     }
 
-    for (uint8_t s = 0; s < NUM_SCENES_PER_PRESET; ++s)
-        preset.sceneNames[s].clear();
+    preset.scenes[0].state = HostConnector::kSceneInUse;
+    preset.scenes[0].name.clear();
+
+    for (uint8_t s = 1; s < NUM_SCENES_PER_PRESET; ++s)
+    {
+        preset.scenes[s].state = HostConnector::kSceneUnused;
+        preset.scenes[s].name.clear();
+    }
 }
 
 void HostConnector::resetPresetPorts(Preset& preset, const bool usingDefault)
@@ -6963,8 +7234,8 @@ void HostConnector::setEnableChangesNotSavedToPreset(Block& blockdata, const boo
         --blockdata.meta.numParametersInScenes;
         blockdata.meta.enable.hasScenes = false;
     }
-    blockdata.scenes.enableValues.fill(blockdata.enabled);
-    blockdata.scenes.lastSavedEnableValues.fill(blockdata.enabled);
+    // blockdata.scenes.enableValues.fill(blockdata.enabled);
+    // blockdata.scenes.lastSavedEnableValues.fill(blockdata.enabled);
 }
 
 void HostConnector::setParamChangesNotSavedToPreset(Block& blockdata,
@@ -6987,8 +7258,8 @@ void HostConnector::setParamChangesNotSavedToPreset(Block& blockdata,
         --blockdata.meta.numParametersInScenes;
         paramdata.meta.flags &= ~Lv2ParameterInScene;
     }
-    paramdata.scenes.values.fill(paramdata.value);
-    paramdata.scenes.lastSavedValues.fill(paramdata.value);
+    // paramdata.scenes.values.fill(paramdata.value);
+    // paramdata.scenes.lastSavedValues.fill(paramdata.value);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
