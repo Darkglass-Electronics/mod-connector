@@ -1717,11 +1717,6 @@ bool HostConnector::replaceBlock(const uint8_t row,
                 hostBypassBlockPair(hbp, false);
             }
 
-            if (! params.empty())
-            {
-                hostPrerunBlockPair(hbp, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params);
-            }
-
             for (uint8_t p = 0, size = blockdata.properties.size(); p < size; ++p)
             {
                 Property& propdata(blockdata.properties[p]);
@@ -1733,6 +1728,9 @@ bool HostConnector::replaceBlock(const uint8_t row,
                 if (propsToReset[p])
                     hostPatchSetBlockPair(hbp, propdata);
             }
+
+            if (! params.empty())
+                hostPrerunBlockPair(hbp, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params);
         }
 
         return true;
@@ -1800,7 +1798,7 @@ bool HostConnector::replaceBlock(const uint8_t row,
 
         HostBlockPair hbp = { _mapper.add(_current.preset, row, block), kMaxHostInstances };
 
-        bool added = _host.preload(uri, hbp.id);
+        bool added = _host.add(uri, hbp.id);
         if (added)
         {
             mod_log_debug("block %u loaded plugin %s", block, uri);
@@ -1831,9 +1829,7 @@ bool HostConnector::replaceBlock(const uint8_t row,
                 blockdata.meta.numSideOutputs = numSideOutputs;
 
                 if (!blockdata.enabled)
-                {
-                    hostBypassBlockPair(hbp, true);
-                }
+                    _host.bypass(hbp.id, true);
 
                 // TODO: check if also needed for regular replace case
                 // previously used only in replaceBlockWhileKeepingData
@@ -1845,7 +1841,7 @@ bool HostConnector::replaceBlock(const uint8_t row,
                         continue;
 
                     if (propdata.value != propdata.meta.defpath)
-                        hostPatchSetBlockPair(hbp, propdata);
+                        _host.patch_set(hbp.id, propdata.uri.c_str(), propdata.value.c_str());
                 }
             }
             else
@@ -1869,18 +1865,7 @@ bool HostConnector::replaceBlock(const uint8_t row,
                     paramdata.meta.state = Lv2ParameterStateNone;
             }
 
-            hostPrerunBlockPair(hbp, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params);
-
-            // activate block pair
-            if (hbp.pair != kMaxHostInstances)
-            {
-                const int16_t instances[2] = { static_cast<int16_t>(hbp.id), static_cast<int16_t>(hbp.pair) };
-                _host.multi_activate(true, 2, instances);
-            }
-            else
-            {
-                _host.activate(hbp.id, true);
-            }
+            _host.pre_run(hbp.id, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params.size(), params.data());
 
             hostSetupSideIO(_current.preset, row, block, hbp);
         }
@@ -2156,11 +2141,6 @@ bool HostConnector::resetBlock(const uint8_t row, const uint8_t block, const boo
 
     const Host::NonBlockingScopeWithAudioFades hnbs(_host);
 
-    if (! params.empty())
-    {
-        hostPrerunBlockPair(hbp, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params);
-    }
-
     for (uint8_t p = 0, size = blockdata.properties.size(); p < size; ++p)
     {
         Property& propdata(blockdata.properties[p]);
@@ -2172,6 +2152,9 @@ bool HostConnector::resetBlock(const uint8_t row, const uint8_t block, const boo
         if (propsToReset[p])
             hostPatchSetBlockPair(hbp, propdata);
     }
+
+    if (! params.empty())
+        hostPrerunBlockPair(hbp, LV2_KXSTUDIO_PROPERTIES_RESET_FULL, params);
 
     return true;
 }
