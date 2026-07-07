@@ -7,6 +7,7 @@
 #include "json_fwd.hpp"
 #include "instance_mapper.hpp"
 #include "lv2.hpp"
+#include "utils.hpp"
 
 #include <cassert>
 #include <cstdint>
@@ -81,10 +82,10 @@ public:
 // --------------------------------------------------------------------------------------------------------------------
 
 enum ExtraLv2Flags {
-    Lv2ParameterVirtual = 1 << 12,
-    Lv2ParameterInScene = 1 << 13,
-    Lv2ParameterNotInQuickPot = 1 << 14,
-    Lv2ParameterChangesNotSavedToPreset = 1 << 15, // not from lv2, can be added/removed in runtime
+    Lv2ParameterVirtual = 1 << 13,
+    Lv2ParameterInScene = 1 << 14,
+    Lv2ParameterNotInQuickPot = 1 << 15,
+    Lv2ParameterChangesNotSavedToPreset = 1 << 16, // not from lv2, can be added/removed in runtime
 };
 
 enum Lv2ParameterState {
@@ -1083,6 +1084,22 @@ static inline bool hasScenes(const HostBindings& bindings)
             }
             return false;
         });
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+// returns the index of the first parameter with expressionPedalControl property, UINT8_MAX for none found
+static inline uint8_t getExpressionPedalControl(const HostBlock& blockdata)
+{
+    for (uint8_t p = 0, size = blockdata.parameters.size(); p < size; ++p)
+    {
+        const HostParameter& paramdata(blockdata.parameters[p]);
+        if (isNullURI(paramdata.symbol))
+            break;
+        if ((paramdata.meta.flags & Lv2ParameterExpressionPedalControl) != 0)
+            return p;
+    }
+    return UINT8_MAX;
 }
 
 // --------------------------------------------------------------------------------------------------------------------

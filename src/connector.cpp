@@ -2728,6 +2728,8 @@ bool HostConnector::switchScene(const uint8_t scene, const bool switchEvenIfSame
             switch (blockdata.meta.enable.tempSceneState)
             {
             case kTemporarySceneNone:
+                if (discardIfUnused)
+                    blockdata.scenes.enableValues[previousScene] = blockdata.scenes.lastSavedEnableValues[previousScene];
                 break;
             case kTemporarySceneActivate:
                 assert(blockdata.meta.enable.hasScenes);
@@ -2745,9 +2747,9 @@ bool HostConnector::switchScene(const uint8_t scene, const bool switchEvenIfSame
                 break;
             }
 
-            blockEnabled = activateNewScene || !blockdata.meta.enable.hasScenes
-                         ? blockdata.scenes.lastSavedEnableValues[_current.defaultScene]
-                         : blockdata.scenes.enableValues[scene];
+            blockEnabled = activateNewScene ? blockdata.scenes.lastSavedEnableValues[_current.defaultScene]
+                         : blockdata.meta.enable.hasScenes ? blockdata.scenes.enableValues[scene]
+                         : blockdata.enabled;
 
             // bypass/disable first if relevant
             if (blockdata.enabled != blockEnabled && !blockEnabled)
@@ -2767,6 +2769,8 @@ bool HostConnector::switchScene(const uint8_t scene, const bool switchEvenIfSame
                 switch (paramdata.meta.tempSceneState)
                 {
                 case kTemporarySceneNone:
+                    if (discardIfUnused)
+                        paramdata.scenes.values[previousScene] = paramdata.scenes.lastSavedValues[previousScene];
                     break;
                 case kTemporarySceneActivate:
                     assert((paramdata.meta.flags & Lv2ParameterInScene) != 0);
@@ -2784,9 +2788,9 @@ bool HostConnector::switchScene(const uint8_t scene, const bool switchEvenIfSame
                     break;
                 }
 
-                paramValue = activateNewScene || (paramdata.meta.flags & Lv2ParameterInScene) == 0
-                           ? paramdata.scenes.lastSavedValues[_current.defaultScene]
-                           : paramdata.scenes.values[scene];
+                paramValue = activateNewScene ? paramdata.scenes.lastSavedValues[_current.defaultScene]
+                           : (paramdata.meta.flags & Lv2ParameterInScene) != 0 ? paramdata.scenes.values[scene]
+                           : paramdata.value;
 
                 if (isNotEqual(paramdata.value, paramValue))
                 {
