@@ -366,6 +366,11 @@ public:
     // listen to MIDI program change messages
     bool monitorMidiProgram(uint8_t midiChannel, bool enable);
 
+    /**
+     * Send arbitrary MIDI message out
+     */
+    bool midiMessageOut(const int size, const uint8_t* data);
+
     // poll for host updates (e.g. MIDI-mapped parameter changes, tempo changes)
     // NOTE make sure to call `requestHostUpdates()` after handling all updates
     void pollHostUpdates(Callback* callback);

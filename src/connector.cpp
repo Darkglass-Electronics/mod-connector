@@ -468,6 +468,12 @@ bool HostConnector::monitorMidiProgram(const uint8_t midiChannel, const bool ena
     return _host.monitor_midi_program(midiChannel, enable);
 }
 
+bool HostConnector::midiMessageOut(const int size, const uint8_t* data)
+{
+    return _host.midi_msg_out(size, data);
+}
+
+
 // --------------------------------------------------------------------------------------------------------------------
 
 std::string HostConnector::getBlockId(const uint8_t row, const uint8_t block) const
