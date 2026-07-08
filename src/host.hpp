@@ -295,6 +295,11 @@ struct Host {
     bool midi_unmap(int16_t instance_number, const char* param_symbol);
 
     /**
+     * Send arbitrary MIDI message out
+     */
+    bool midi_msg_out(const int size, const uint8_t* data);
+
+    /**
      * monitor audio levels for a specific jack port (on the feedback port)
      */
     bool monitor_audio_levels(const char *source_port_name, bool enable);
