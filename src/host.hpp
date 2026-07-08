@@ -6,11 +6,6 @@
 #include <cstdint>
 #include <string>
 
-struct cc_scalepoint {
-    const char* label;
-    float value;
-};
-
 struct flushed_param {
     const char* symbol;
     float value;
@@ -70,12 +65,13 @@ struct Host {
         kProcessingOnWithFadeIn = 3,
     };
 
-    struct FeedbackCallback {
+    struct Callback {
         struct Data {
             enum {
                 kFeedbackNullType = 0,
                 kFeedbackAudioMonitor,
                 kFeedbackCpuLoad,
+                kFeedbackCpuMonitor,
                 kFeedbackParameterSet,
                 kFeedbackParameterState,
                 kFeedbackPatchSet,
@@ -107,6 +103,10 @@ struct Host {
                     float max;
                     uint32_t xruns;
                 } cpuLoad;
+                struct {
+                    int effect_id;
+                    float cpu_load;
+                } cpuMonitor;
                 struct {
                     int effect_id;
                     const char* key;
@@ -143,7 +143,8 @@ struct Host {
             };
         };
 
-        virtual ~FeedbackCallback() = default;
+        virtual ~Callback() = default;
+        virtual void hostDisconnectedCallback() = 0;
         virtual void hostFeedbackCallback(const Data& data) = 0;
     };
 
@@ -264,11 +265,6 @@ struct Host {
     std::string licensee(int16_t instance_number);
 
     /**
-     * open a socket port for monitoring parameter changes
-     */
-    bool monitor(const char* addr, int port, bool status);
-
-    /**
      * request monitoring of an output control port (on the feedback port)
      */
     bool monitor_output(int16_t instance_number, const char* param_symbol, bool enable);
@@ -305,6 +301,11 @@ struct Host {
     bool monitor_audio_levels(const char *source_port_name, bool enable);
 
     /**
+     * monitor cpu load for specific instances
+     */
+    bool monitor_cpu_load(bool enable, unsigned int instance_count, const int16_t* instances);
+
+    /**
      * listen to MIDI control change messages (on the feedback port)
      */
     bool monitor_midi_control(uint8_t midi_channel, bool enable);
@@ -313,69 +314,6 @@ struct Host {
      * listen to MIDI program change messages (on the feedback port)
      */
     bool monitor_midi_program(uint8_t midi_channel, bool enable);
-
-    /**
-     * map a Control Chain actuator to a control port
-     */
-    bool cc_map(int16_t instance_number,
-                const char* param_symbol,
-                int device_id,
-                int actuator_id,
-                const char* label,
-                float value,
-                float minimum,
-                float maximum,
-                int steps,
-                int extraflags,
-                const char* unit,
-                unsigned int scalepoints_count,
-                const cc_scalepoint* scalepoints);
-
-    /**
-     * unmap the Control Chain actuator from a control port
-     */
-    bool cc_unmap(int16_t instance_number, const char* param_symbol);
-
-    /**
-     * set the value of a mapped Control Chain actuator
-     */
-    bool cc_value_set(int16_t instance_number, const char* param_symbol, float value);
-
-    /**
-     * map a CV source port to a control port, operational-mode being one of '-', '+', 'b' or '='
-     */
-    bool cv_map(int16_t instance_number,
-                const char* param_symbol,
-                const char* source_port_name,
-                float minimum,
-                float maximum,
-                char operational_mode);
-
-    /**
-     * unmap the CV source port actuator from a control port
-     */
-    bool cv_unmap(int16_t instance_number, const char* param_symbol);
-
-    /**
-     * report an HMI assignment to an effect instance, using the MOD Audio's HMI LV2 extension
-     * @see https://github.com/moddevices/mod-lv2-extensions/blob/main/mod-hmi.lv2/mod-hmi.h
-     */
-    bool hmi_map(int16_t instance_number,
-                 const char* param_symbol,
-                 int hw_id,
-                 int page,
-                 int subpage,
-                 int caps,
-                 int flags,
-                 const char* label,
-                 float minimum,
-                 float maximum,
-                 int steps);
-
-    /**
-     * report an HMI unassignment to an effect instance
-     */
-    bool hmi_unmap(int16_t instance_number, const char* param_symbol);
 
     /**
      * return current average jack cpu load
@@ -523,9 +461,9 @@ struct Host {
    /**
      * poll feedback port for messages, triggering a callback for each one
      */
-    bool poll_feedback(FeedbackCallback* callback) const;
+    bool poll_feedback() const;
 
-    Host();
+    Host(Callback* callback);
     ~Host();
 
    /**
@@ -564,4 +502,4 @@ private:
     Impl* const impl;
 };
 
-using HostFeedbackData = Host::FeedbackCallback::Data;
+using HostFeedbackData = Host::Callback::Data;

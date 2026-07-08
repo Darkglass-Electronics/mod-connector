@@ -69,6 +69,11 @@
 #define LV2_CORE__shortName LV2_CORE_PREFIX "shortName"
 #endif
 
+// time in milliseconds given to background thread between loading iterations
+#ifndef MOD_CONNECTOR_BG_LOADING_IDLE_TIME
+#define MOD_CONNECTOR_BG_LOADING_IDLE_TIME 100
+#endif
+
 // --------------------------------------------------------------------------------------------------------------------
 // compatibility functions
 
@@ -513,10 +518,11 @@ struct Lv2World::Impl
     {
         assert(uri != nullptr && *uri != '\0');
 
-        PluginCache& cache = pluginsCache[uri];
-
-        if (cache.plugin != nullptr)
-            return cache.plugin;
+        if (pluginsCache.find(uri) != pluginsCache.cend())
+        {
+            if (PluginCache& cache = pluginsCache[uri]; cache.plugin != nullptr)
+                return cache.plugin;
+        }
 
         std::string bundlepath;
         const LilvPlugin* plugin;
@@ -604,36 +610,13 @@ struct Lv2World::Impl
         if (path_contains(bundlepath, homedir()))
             retplugin->flags |= Lv2PluginIsUserRemovable;
 
-        if (lilv_plugin_has_extension_data(plugin, ns.modlicense_interface))
-        {
-            retplugin->flags |= Lv2PluginIsCommercial;
-
-            static const std::string keysdir = _keysdir();
-
-            std::string licensefile;
-           #ifdef _DARKGLASS_DEVICE_PABLITO
-            // system plugins in Anagram all share the same license URI
-            // if bundle is not user removable, assume to be a system plugin
-            if ((retplugin->flags & Lv2PluginIsUserRemovable) == 0)
-            {
-                licensefile = keysdir + "149e897c16e874bea75961557c8fef52567ad3db";
-            }
-            else
-           #endif
-            {
-                licensefile = keysdir + _sha1(uri);
-            }
-
-            if (std::filesystem::exists(licensefile))
-                retplugin->flags |= Lv2PluginIsLicensed;
-        }
-
-       #ifndef MOD_CONNECTOR_MINIMAL_LV2_WORLD
         if (lilv_world_ask(world, urinode, ns.dgcs_blockImage, nullptr))
             retplugin->flags |= Lv2PluginHasBlockImageStyling;
 
         if (lilv_world_ask(world, urinode, ns.dgcs_blockSettings, nullptr))
             retplugin->flags |= Lv2PluginHasBlockSettingsStyling;
+
+        updatePluginLicenseFlags(uri, plugin, retplugin);
 
         // ------------------------------------------------------------------------------------------------------------
         // name
@@ -911,6 +894,8 @@ struct Lv2World::Impl
                                 retport.flags |= Lv2ParameterMayUpdateBlockedState;
                             else if (std::strcmp(propuri, LV2_DARKGLASS_PROPERTIES__savedToPreset) == 0)
                                 retport.flags |= Lv2ParameterSavedToPreset;
+                            else if (std::strcmp(propuri, LV2_DARKGLASS_PROPERTIES__expressionPedalControl) == 0)
+                                retport.flags |= Lv2ParameterExpressionPedalControl;
                         }
 
                         lilv_nodes_free(nodes);
@@ -1217,13 +1202,13 @@ struct Lv2World::Impl
         }
 
         // ------------------------------------------------------------------------------------------------------------
-       #endif // MOD_CONNECTOR_MINIMAL_LV2_WORLD
+
+        PluginCache& cache = pluginsCache[uri];
 
         cache.plugin = std::shared_ptr<const Lv2Plugin>(retplugin);
         return cache.plugin;
     }
 
-   #ifndef MOD_CONNECTOR_MINIMAL_LV2_WORLD
     std::shared_ptr<const CustomStyling::BlockImage> getPluginBlockImageStyling(const char* const uri)
     {
         assert(uri != nullptr);
@@ -1803,7 +1788,6 @@ struct Lv2World::Impl
 
         return values;
     }
-   #endif
 
     bool bundleAdd(const char* const path, std::vector<std::string>* pluginsInBundlePtr = nullptr)
     {
@@ -1897,6 +1881,36 @@ struct Lv2World::Impl
         return true;
     }
 
+    void reloadLicenses()
+    {
+        const LilvPlugin* plugin;
+
+        const pthread_mutex_guard pmg(bgLoadingMutex);
+
+        for (auto& it : pluginsCache)
+        {
+            const char* const uri = it.first.c_str();
+            PluginCache& cache = it.second;
+
+            if (cache.plugin == nullptr)
+                continue;
+
+            if (LilvNode* const urinode = lilv_new_uri(world, uri))
+            {
+                plugin = lilv_plugins_get_by_uri(plugins, urinode);
+                lilv_node_free(urinode);
+            }
+            else
+            {
+                continue;
+            }
+
+            // NOTE the cached plugin is typically const, and we want it that way
+            // reload of license information is the exception
+            updatePluginLicenseFlags(uri, plugin, const_cast<Lv2Plugin*>(cache.plugin.get()));
+        }
+    }
+
     static bool getPluginsInBundle(const char* const path, std::vector<std::string>& pluginsInBundle)
     {
         assert(path != nullptr && *path != '\0');
@@ -1919,10 +1933,8 @@ private:
 
     struct PluginCache {
         std::shared_ptr<const Lv2Plugin> plugin;
-       #ifndef MOD_CONNECTOR_MINIMAL_LV2_WORLD
         std::shared_ptr<const CustomStyling::BlockImage> blockImageStyling;
         std::shared_ptr<const CustomStyling::BlockSettings> blockSettingsStyling;
-       #endif
     };
     std::unordered_map<std::string, PluginCache> pluginsCache;
 
@@ -1934,7 +1946,7 @@ private:
     {
         while (bgLoadingActive)
         {
-            msleep(100);
+            msleep(MOD_CONNECTOR_BG_LOADING_IDLE_TIME);
 
             if (pthread_mutex_trylock(&bgLoadingMutex) != 0)
                 continue;
@@ -1947,7 +1959,6 @@ private:
 
                 if (const std::shared_ptr<const Lv2Plugin> plugin = cache.plugin)
                 {
-                   #ifndef MOD_CONNECTOR_MINIMAL_LV2_WORLD
                     if ((plugin->flags & Lv2PluginHasBlockImageStyling) != 0 && cache.blockImageStyling == nullptr)
                     {
                         done = false;
@@ -1962,7 +1973,6 @@ private:
                         assert(cache.blockSettingsStyling != nullptr);
                         break;
                     }
-                   #endif
                     continue;
                 }
 
@@ -1976,6 +1986,38 @@ private:
 
             if (done)
                 break;
+        }
+    }
+
+    // NOTE Lv2PluginIsUserRemovable must have already been set, if relevant
+    void updatePluginLicenseFlags(const char* const uri,
+                                  const LilvPlugin* const lilvplugin,
+                                  Lv2Plugin* const plugin) const
+    {
+        if (lilv_plugin_has_extension_data(lilvplugin, ns.modlicense_interface))
+        {
+            plugin->flags |= Lv2PluginIsCommercial;
+
+            static const std::string keysdir = _keysdir();
+
+            std::string licensefile;
+           #ifdef _DARKGLASS_DEVICE_PABLITO
+            // system plugins in Anagram all share the same license URI
+            // if bundle is not user removable, assume to be a system plugin
+            if ((plugin->flags & Lv2PluginIsUserRemovable) == 0)
+            {
+                licensefile = keysdir + "149e897c16e874bea75961557c8fef52567ad3db";
+            }
+            else
+           #endif
+            {
+                licensefile = keysdir + _sha1(uri);
+            }
+
+            if (std::filesystem::exists(licensefile))
+                plugin->flags |= Lv2PluginIsLicensed;
+            else
+                plugin->flags &= ~Lv2PluginIsLicensed;
         }
     }
 
@@ -2125,7 +2167,6 @@ std::shared_ptr<const Lv2Plugin> Lv2World::getPluginByURI(const char* const uri)
     return impl->getPluginByURI(uri);
 }
 
-#ifndef MOD_CONNECTOR_MINIMAL_LV2_WORLD
 std::shared_ptr<const CustomStyling::BlockImage> Lv2World::getPluginBlockImageStyling(const char* uri) const
 {
     return impl->getPluginBlockImageStyling(uri);
@@ -2150,7 +2191,6 @@ std::unordered_map<std::string, float> Lv2World::loadPluginState(const char* con
 {
     return impl->loadPluginState(path);
 }
-#endif
 
 bool Lv2World::bundleAdd(const char* const path, std::vector<std::string>* pluginsInBundle)
 {
@@ -2160,6 +2200,11 @@ bool Lv2World::bundleAdd(const char* const path, std::vector<std::string>* plugi
 bool Lv2World::bundleRemove(const char* const path, std::vector<std::string>* pluginsInBundle)
 {
     return impl->bundleRemove(path, pluginsInBundle);
+}
+
+void Lv2World::reloadLicenses() const
+{
+    return impl->reloadLicenses();
 }
 
 bool Lv2World::getPluginsInBundle(const char* const path, std::vector<std::string>& pluginsInBundle)

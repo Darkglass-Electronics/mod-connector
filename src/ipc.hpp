@@ -19,6 +19,15 @@ struct IPC
     };
 
     /**
+     * type of write error.
+     */
+    enum WriteError {
+        kWriteSuccess,
+        kWriteErrorBadReply,
+        kWriteErrorDisconnected,
+    };
+
+    /**
      * message response with error code and optional data.
      * there is no generic handling, response is specific to the message being sent.
      */
@@ -73,12 +82,14 @@ struct IPC
     /**
      * write a message and potentially fetch remote response.
      */
-    bool writeMessage(const std::string& message, ResponseType respType = kResponseNone, Response* resp = nullptr);
+    WriteError writeMessage(const std::string& message,
+                            ResponseType respType = kResponseNone,
+                            Response* resp = nullptr);
 
     /**
      * write a message without a reply, typically used for replies themselves.
      */
-    bool writeMessageWithoutReply(const std::string& message);
+    WriteError writeMessageWithoutReply(const std::string& message);
 
 protected:
     IPC();

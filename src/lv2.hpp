@@ -68,32 +68,31 @@ enum Lv2PluginFlags {
     Lv2PluginIsCommercial            = 1 << 0,
     Lv2PluginIsLicensed              = 1 << 1,
     Lv2PluginIsUserRemovable         = 1 << 2,
-#ifndef MOD_CONNECTOR_MINIMAL_LV2_WORLD
     Lv2PluginHasBlockImageStyling    = 1 << 3,
     Lv2PluginHasBlockSettingsStyling = 1 << 4,
-#endif
 };
 
 enum Lv2ParameterFlags {
     // port flags
-    Lv2PortIsAudio                    = 1 << 0,
-    Lv2PortIsControl                  = 1 << 1,
-    Lv2PortIsOutput                   = 1 << 2,
-    Lv2PortIsSidechain                = 1 << 3,
+    Lv2PortIsAudio                      = 1 << 0,
+    Lv2PortIsControl                    = 1 << 1,
+    Lv2PortIsOutput                     = 1 << 2,
+    Lv2PortIsSidechain                  = 1 << 3,
     // property flags
-    Lv2PropertyIsPath                 = 1 << 0,
-    Lv2PropertyIsParameter            = 1 << 1,
-    Lv2PropertyIsReadOnly             = 1 << 2,
+    Lv2PropertyIsPath                   = 1 << 0,
+    Lv2PropertyIsParameter              = 1 << 1,
+    Lv2PropertyIsReadOnly               = 1 << 2,
     // common flags
-    Lv2ParameterToggled               = 1 << 4,
-    Lv2ParameterInteger               = 1 << 5,
-    Lv2ParameterEnumerated            = 1 << 6,
-    Lv2ParameterLogarithmic           = 1 << 7,
-    Lv2ParameterHidden                = 1 << 8,
-    Lv2ParameterExpensive             = 1 << 9,
+    Lv2ParameterToggled                 = 1 << 4,
+    Lv2ParameterInteger                 = 1 << 5,
+    Lv2ParameterEnumerated              = 1 << 6,
+    Lv2ParameterLogarithmic             = 1 << 7,
+    Lv2ParameterHidden                  = 1 << 8,
+    Lv2ParameterExpensive               = 1 << 9,
     // extensions
-    Lv2ParameterMayUpdateBlockedState = 1 << 10,
-    Lv2ParameterSavedToPreset         = 1 << 11,
+    Lv2ParameterExpressionPedalControl  = 1 << 10,
+    Lv2ParameterMayUpdateBlockedState   = 1 << 11,
+    Lv2ParameterSavedToPreset           = 1 << 12,
     // NOTE: on addition, adjust ExtraLv2Flags in connector.hpp
 };
 
@@ -134,7 +133,6 @@ struct Lv2Plugin {
     std::string bundlepath;
     std::string version;
     uint32_t flags = 0;
-#ifndef MOD_CONNECTOR_MINIMAL_LV2_WORLD
     std::string name;
     std::string abbreviation;
     Lv2Category category = kLv2CategoryNone;
@@ -143,7 +141,6 @@ struct Lv2Plugin {
     // NOTE already in absolute path
     std::string blockImageOff;
     std::string blockImageOn;
-#endif
 };
 
 struct Lv2World {
@@ -170,7 +167,6 @@ struct Lv2World {
     */
     [[nodiscard]] std::shared_ptr<const Lv2Plugin> getPluginByURI(const char* uri) const;
 
-#ifndef MOD_CONNECTOR_MINIMAL_LV2_WORLD
    /* get the custom block styling of a plugin with a known uri
     * can return null in case of error or the plugin doesn't support styling
     */
@@ -192,7 +188,6 @@ struct Lv2World {
    /* load a plugin state from disk and return a symbol -> value map
     */
     [[nodiscard]] std::unordered_map<std::string, float> loadPluginState(const char* path) const;
-#endif
 
    /**
     * add a bundle to the LV2 world
@@ -207,6 +202,12 @@ struct Lv2World {
     * @note path MUST end with OS-specific path separator (e.g. '/' under Linux)
     */
     [[nodiscard]] bool bundleRemove(const char* path, std::vector<std::string>* pluginsInBundle = nullptr);
+
+   /**
+    * reload licensed state of all cached plugins.
+    * @see Lv2PluginIsLicensed
+    */
+    void reloadLicenses() const;
 
    /**
     * get the plugin URIs present in an LV2 bundle

@@ -120,15 +120,18 @@ static const char* host_error_code_to_string(const int code)
 
 struct Host::Impl
 {
+    Callback* const callback;
     std::string& last_error;
+
    #ifdef MOD_DEVICE_HOST_PORT
     static constexpr int portNumber = MOD_DEVICE_HOST_PORT;
    #else
     int portNumber = -1;
    #endif
 
-    Impl(std::string& last_error_)
-        : last_error(last_error_)
+    Impl(Callback* const callback_, std::string& last_error_)
+        : callback(callback_),
+          last_error(last_error_)
     {
         reconnect();
     }
@@ -182,7 +185,8 @@ struct Host::Impl
 
     void setWriteBlockingAndWait(const bool blocking)
     {
-        ipc->setWriteBlockingAndWait(blocking);
+        if (ipc != nullptr)
+            ipc->setWriteBlockingAndWait(blocking);
     }
 
     bool writeMessageAndWait(const std::string& message,
@@ -202,7 +206,8 @@ struct Host::Impl
             return false;
         }
 
-        if (ipc->writeMessage(message, respType, resp))
+        const IPC::WriteError error = ipc->writeMessage(message, respType, resp);
+        if (error == IPC::kWriteSuccess)
             return true;
 
         if (resp != nullptr && resp->code < 0)
@@ -210,23 +215,31 @@ struct Host::Impl
         else
             last_error = ipc->last_error;
 
+        if (error == IPC::kWriteErrorDisconnected)
+        {
+            close();
+            callback->hostDisconnectedCallback();
+        }
+
         return false;
     }
 
     // ----------------------------------------------------------------------------------------------------------------
     // feedback port handling
 
-    [[nodiscard]] bool poll(FeedbackCallback* const callback) const
+    [[nodiscard]] bool poll() const
     {
+        assert(ipc != nullptr);
+
         std::string error;
 
-        while (_poll(callback, error)) {}
+        while (_poll(error)) {}
 
         return error.empty();
     }
 
 private:
-    [[nodiscard]] bool _poll(FeedbackCallback* const callback, std::string& error) const
+    [[nodiscard]] bool _poll(std::string& error) const
     {
         uint32_t bytesRead;
         char* const buffer = ipc->readMessage(&bytesRead);
@@ -254,6 +267,26 @@ private:
             // 2nd arg: float value
             msgbuffer = sep;
             d.audioMonitor.value = std::atof(msgbuffer);
+
+            callback->hostFeedbackCallback(d);
+        }
+        else if (std::strncmp(buffer, "cpu_monitor ", 12) == 0)
+        {
+            assert(bytesRead > 14);
+            HostFeedbackData d = { HostFeedbackData::kFeedbackCpuMonitor, {} };
+
+            char* msgbuffer;
+            char* sep = buffer + 12;
+
+            // 1st arg: int index
+            msgbuffer = sep;
+            sep = std::strchr(sep, ' ');
+            *sep++ = '\0';
+            d.cpuMonitor.effect_id = std::atoi(msgbuffer);
+
+            // 2nd arg: float value
+            msgbuffer = sep;
+            d.cpuMonitor.cpu_load = std::atof(msgbuffer);
 
             callback->hostFeedbackCallback(d);
         }
@@ -683,7 +716,7 @@ private:
 
 // --------------------------------------------------------------------------------------------------------------------
 
-Host::Host() : impl(new Impl(last_error)) {}
+Host::Host(Callback* const callback) : impl(new Impl(callback, last_error)) {}
 Host::~Host() { delete impl; }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -718,6 +751,7 @@ Host::NonBlockingScopeWithAudioFades::~NonBlockingScopeWithAudioFades()
 // input validation for debug builds
 
 #ifdef NDEBUG
+#define VALIDATE(expr)
 #define VALIDATE_INSTANCE_COUNT(n)
 #define VALIDATE_INSTANCE_NUMBER(n)
 #define VALIDATE_INSTANCE_REMOVE_NUMBER(n)
@@ -1013,11 +1047,6 @@ std::string Host::licensee(const int16_t instance_number)
     return {};
 }
 
-bool Host::monitor(const char* const addr, const int port, const bool status)
-{
-    return impl->writeMessageAndWait(format("monitor %s %d %d", addr, port, status ? 1 : 0));
-}
-
 bool Host::monitor_output(const int16_t instance_number, const char* const param_symbol, const bool enable)
 {
     VALIDATE_INSTANCE_NUMBER(instance_number)
@@ -1081,6 +1110,21 @@ bool Host::monitor_audio_levels(const char* const source_port_name, bool enable)
     return impl->writeMessageAndWait(format("monitor_audio_levels %s %d", source_port_name, enable ? 1 : 0));
 }
 
+bool Host::monitor_cpu_load(const bool enable, const unsigned int instance_count, const int16_t* const instances)
+{
+    VALIDATE(instance_count != 0 && instance_count < kMaxHostInstances)
+
+    std::string msg = format("monitor_cpu_load %d %u", enable ? 1 : 0, instance_count);
+
+    for (unsigned int i = 0; i < instance_count; ++i)
+    {
+        VALIDATE_INSTANCE_NUMBER(instances[i])
+        msg += format(" %d", instances[i]);
+    }
+
+    return impl->writeMessageAndWait(msg);
+}
+
 bool Host::monitor_midi_control(const uint8_t midi_channel, const bool enable)
 {
     VALIDATE_MIDI_CHANNEL(midi_channel)
@@ -1093,124 +1137,6 @@ bool Host::monitor_midi_program(const uint8_t midi_channel, const bool enable)
     VALIDATE_MIDI_CHANNEL(midi_channel)
 
     return impl->writeMessageAndWait(format("monitor_midi_program %d %d", midi_channel, enable ? 1 : 0));
-}
-
-bool Host::cc_map(const int16_t instance_number,
-                  const char* const param_symbol,
-                  const int device_id,
-                  const int actuator_id,
-                  const char* const label,
-                  const float value,
-                  const float minimum,
-                  const float maximum,
-                  const int steps,
-                  const int extraflags,
-                  const char* const unit,
-                  const unsigned int scalepoints_count,
-                  const cc_scalepoint* const scalepoints)
-{
-    VALIDATE_INSTANCE_NUMBER(instance_number)
-    VALIDATE_SYMBOL(param_symbol)
-
-    std::string msg = format("cc_map %d %s %d %d %s %f %f %f %d %d %s %u",
-                             instance_number,
-                             param_symbol,
-                             device_id,
-                             actuator_id,
-                             escape(label).c_str(),
-                             value,
-                             minimum,
-                             maximum,
-                             steps,
-                             extraflags,
-                             escape(unit).c_str(),
-                             scalepoints_count);
-
-    for (unsigned int i = 0; i < scalepoints_count; ++i)
-        msg += format(" %s %f", escape(scalepoints[i].label).c_str(), scalepoints[i].value);
-
-    return impl->writeMessageAndWait(msg);
-}
-
-bool Host::cc_unmap(const int16_t instance_number, const char* const param_symbol)
-{
-    VALIDATE_INSTANCE_NUMBER(instance_number)
-    VALIDATE_SYMBOL(param_symbol)
-
-    return impl->writeMessageAndWait(format("cc_unmap %d %s", instance_number, param_symbol));
-}
-
-bool Host::cc_value_set(const int16_t instance_number, const char* const param_symbol, const float value)
-{
-    VALIDATE_INSTANCE_NUMBER(instance_number)
-    VALIDATE_SYMBOL(param_symbol)
-
-    return impl->writeMessageAndWait(format("cc_value_set %d %s %f", instance_number, param_symbol, value));
-}
-
-bool Host::cv_map(const int16_t instance_number,
-                  const char* const param_symbol,
-                  const char* const source_port_name,
-                  const float minimum,
-                  const float maximum,
-                  const char operational_mode)
-{
-    VALIDATE_INSTANCE_NUMBER(instance_number)
-    VALIDATE_JACK_PORT(source_port_name)
-    VALIDATE_SYMBOL(param_symbol)
-
-    return impl->writeMessageAndWait(format("cv_map %d %s %s %f %f %c",
-                                            instance_number,
-                                            param_symbol,
-                                            source_port_name,
-                                            minimum,
-                                            maximum,
-                                            operational_mode));
-}
-
-bool Host::cv_unmap(const int16_t instance_number, const char* const param_symbol)
-{
-    VALIDATE_INSTANCE_NUMBER(instance_number)
-    VALIDATE_SYMBOL(param_symbol)
-
-    return impl->writeMessageAndWait(format("cv_unmap %d %s", instance_number, param_symbol));
-}
-
-bool Host::hmi_map(const int16_t instance_number,
-                   const char* const param_symbol,
-                   const int hw_id,
-                   const int page,
-                   const int subpage,
-                   const int caps,
-                   const int flags,
-                   const char* const label,
-                   const float minimum,
-                   const float maximum,
-                   const int steps)
-{
-    VALIDATE_INSTANCE_NUMBER(instance_number)
-    VALIDATE_SYMBOL(param_symbol)
-
-    return impl->writeMessageAndWait(format("hmi_map %d %s %d %d %d %d %d %s %f %f %d",
-                                            instance_number,
-                                            param_symbol,
-                                            hw_id,
-                                            page,
-                                            subpage,
-                                            caps,
-                                            flags,
-                                            escape(label).c_str(),
-                                            minimum,
-                                            maximum,
-                                            steps));
-}
-
-bool Host::hmi_unmap(const int16_t instance_number, const char* const param_symbol)
-{
-    VALIDATE_INSTANCE_NUMBER(instance_number)
-    VALIDATE_SYMBOL(param_symbol)
-
-    return impl->writeMessageAndWait(format("hmi_unmap %d %s", instance_number, param_symbol));
 }
 
 float Host::cpu_load()
@@ -1501,9 +1427,9 @@ bool Host::wait_audio_cycle()
     return impl->writeMessageAndWait("wait_audio_cycle");
 }
 
-bool Host::poll_feedback(FeedbackCallback* const callback) const
+bool Host::poll_feedback() const
 {
-    return impl->poll(callback);
+    return impl->poll();
 }
 
 bool Host::reconnect()

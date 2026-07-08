@@ -98,3 +98,30 @@
 
 #define MOD_HOST_EFFECT_PREFIX "effect_"
 #define MOD_HOST_EFFECT_PREFIX_LEN 7
+
+// --------------------------------------------------------------------------------------------------------------------
+// test known configuration
+
+#ifdef _DARKGLASS_DEVICE_PABLITO
+
+#if NUM_BINDING_ACTUATORS != 10
+#error wrong NUM_BINDING_ACTUATORS
+#endif
+
+#if NUM_PRESETS_PER_BANK != 3
+#error wrong NUM_PRESETS_PER_BANK
+#endif
+
+#if NUM_SCENES_PER_PRESET != 126
+#error wrong NUM_SCENES_PER_PRESET
+#endif
+
+#if NUM_BLOCKS_PER_PRESET != 12
+#error wrong NUM_BLOCKS_PER_PRESET
+#endif
+
+#if NUM_BLOCK_CHAIN_ROWS != 2
+#error NUM_BLOCK_CHAIN_ROWS
+#endif
+
+#endif

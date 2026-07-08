@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2024-2025 Filipe Coelho <falktx@darkglass.com>
+// SPDX-FileCopyrightText: 2024-2026 Filipe Coelho <falktx@darkglass.com>
 // SPDX-License-Identifier: ISC
 
 #pragma once
@@ -7,18 +7,85 @@
 #include "json_fwd.hpp"
 #include "instance_mapper.hpp"
 #include "lv2.hpp"
+#include "utils.hpp"
 
 #include <cassert>
 #include <cstdint>
+#include <algorithm>
 #include <array>
 #include <list>
 #include <unordered_map>
 
+// --------------------------------------------------------------------------------------------------------------------
+
+// handy macro for allowing move operators but not copy
+// this ensures we don't copy too much data around, which would be expensive on the CPU
+// we make an exception for assignment, which would otherwise make the code too verbose
+#define CLASS_ONLY_MOVE_NO_COPY(CLASS)         \
+    CLASS(CLASS&&) = default;                  \
+    CLASS &operator=(CLASS&&) = default;       \
+    CLASS(const CLASS&) = delete;              \
+    CLASS &operator=(const CLASS&) = default;
+
+// extend the above to also allow empty constructor
+#define CLASS_ONLY_MOVE_INIT_NO_COPY(CLASS) \
+    public:                                 \
+    CLASS() = default;                      \
+    CLASS_ONLY_MOVE_NO_COPY(CLASS)
+
+// handy class to pre-allocate an std::vector to a known size
+template<class T, int numElements>
+class heap_array : public std::vector<T>
+{
+public:
+    // allocate known number of elements by default
+    heap_array() : std::vector<T>(numElements) {}
+
+    // custom assignment operator, default method generates errors
+    heap_array& operator=(const heap_array& other)
+    {
+        assert(this->size() == numElements);
+        assert(this->size() == other.size());
+        for (int i = 0; i < numElements; ++i)
+            (*this)[i] = other[i];
+        return *this;
+    }
+
+    // use default methods for destructor and move operators
+    ~heap_array() = default;
+    heap_array(heap_array&&) = default;
+    heap_array& operator=(heap_array&&) = default;
+
+    // do not allow copy constructor
+    heap_array(const heap_array&) = delete;
+
+    // std::array-like methods
+    void fill(const T& value)
+    {
+        std::fill(std::vector<T>::begin(), std::vector<T>::end(), value);
+    }
+
+    // unwanted methods, trying to force fixed size
+    void append_range() = delete;
+    void clear() = delete;
+    void insert() = delete;
+    void emplace() = delete;
+    void emplace_back() = delete;
+    void erase() = delete;
+    void pop_back() = delete;
+    void push_back() = delete;
+    void reserve() = delete;
+    void resize() = delete;
+    void swap() = delete;
+};
+
+// --------------------------------------------------------------------------------------------------------------------
+
 enum ExtraLv2Flags {
-    Lv2ParameterVirtual = 1 << 12,
-    Lv2ParameterInScene = 1 << 13,
-    Lv2ParameterNotInQuickPot = 1 << 14,
-    Lv2ParameteChangesNotSavedToPreset = 1 << 15, // not from lv2, can be added/removed in runtime
+    Lv2ParameterVirtual = 1 << 13,
+    Lv2ParameterInScene = 1 << 14,
+    Lv2ParameterNotInQuickPot = 1 << 15,
+    Lv2ParameterChangesNotSavedToPreset = 1 << 16, // not from lv2, can be added/removed in runtime
 };
 
 enum Lv2ParameterState {
@@ -29,12 +96,13 @@ enum Lv2ParameterState {
 
 // --------------------------------------------------------------------------------------------------------------------
 
-struct HostConnector : Host::FeedbackCallback {
+struct HostConnector : Host::Callback {
     struct Callback {
         struct Data {
             enum {
                 kAudioMonitor,
                 kCpuLoad,
+                kCpuMonitor,
                 kLog,
                 kParameterSet,
                 kParameterState,
@@ -57,6 +125,12 @@ struct HostConnector : Host::FeedbackCallback {
                     float max;
                     uint32_t xruns;
                 } cpuLoad;
+                // kCpuMonitor
+                struct {
+                    uint8_t row;
+                    uint8_t block;
+                    float cpuLoad;
+                } cpuMonitor;
                 // kLog
                 struct {
                     char type;
@@ -115,18 +189,54 @@ struct HostConnector : Host::FeedbackCallback {
 
         virtual ~Callback() = default;
         virtual void hostConnectorCallback(const Data& data) = 0;
+        virtual void hostDisconnectedCallback() = 0;
     };
 
+    // scene operation mode that applies to parameter changes
+    // if a temporary mode was selected and then reverted, parameters revert to their `lastSavedValues`
+    enum SceneMode {
+        // enable scenes if not active yet
+        kSceneModeActivate,
+        // sync all parameter values in a scene, same as clearing it
+        kSceneModeClear,
+        // only update value, do not activate any scenes
+        kSceneModeUpdate,
+        // enable scenes if not active yet, but only temporarily
+        // scene value is discarded if preset is not saved
+        kSceneModeActivateTemporarily,
+        // sync all parameter values in a scene, same as clearing it, but only temporarily
+        // scene value is "uncleared" if preset is not saved
+        kSceneModeClearTemporarily,
+        // only update value, do not activate any scenes, but only temporarily
+        // scene value is discarded if preset is not saved
+        kSceneModeUpdateTemporarily,
+    };
+
+    enum SceneState : uint8_t {
+        // scene is not in use
+        kSceneUnused = 0,
+        // scene has been enabled temporarily
+        // state will change to kSceneInUse if preset is saved
+        // data can be discarded if current/active scene changes without saving first (see `switchScene`)
+        kSceneInUseTemporarily,
+        // scene is in use
+        kSceneInUse,
+    };
+
+    // temporary scene state that applies to parameter changes
     enum TemporarySceneState : uint8_t {
+        // this parameter has no temporary scene state
         kTemporarySceneNone = 0,
+        // temporarily activate scene for a parameter, becoming part of scenes if saved
         kTemporarySceneActivate,
+        // temporarily clear scene for a parameter, clearing to be completed if saved
         kTemporarySceneClear,
     };
 
     struct Parameter {
         std::string symbol;
         float value;
-        struct {
+        struct Meta {
             // convenience meta-data, not stored in json state
             uint32_t flags;
             uint32_t designation;
@@ -139,65 +249,47 @@ struct HostConnector : Host::FeedbackCallback {
             std::string shortname;
             std::string unit;
             std::vector<Lv2ScalePoint> scalePoints;
+            CLASS_ONLY_MOVE_INIT_NO_COPY(Meta)
         } meta;
+        struct Scenes {
+            heap_array<float, NUM_SCENES_PER_PRESET> values;
+            heap_array<float, NUM_SCENES_PER_PRESET> lastSavedValues;
+            CLASS_ONLY_MOVE_INIT_NO_COPY(Scenes)
+        } scenes;
+        CLASS_ONLY_MOVE_INIT_NO_COPY(Parameter)
     };
 
     struct Property {
         std::string uri;
         std::string value; // TODO float or string
-        struct {
+        struct Meta {
             // convenience meta-data, not stored in json state
             uint32_t flags;
-            uint8_t hwbinding;
-            TemporarySceneState tempSceneState;
             float def, min, max; // used for Lv2PropertyIsParameter
             std::string defpath; // used for Lv2PropertyIsPath
             std::string name;
             std::string shortname;
+            CLASS_ONLY_MOVE_INIT_NO_COPY(Meta)
         } meta;
-    };
-
-    enum SceneMode {
-        // enable scenes if not active yet
-        SceneModeActivate,
-        // sync all parameter values in a scene, same as clearing it
-        SceneModeClear,
-        // only update value, do not activate any scenes
-        SceneModeUpdate,
-        // enable scenes if not active yet, but only temporarily
-        // scene value is discarded if preset is not saved
-        SceneModeActivateTemporarily,
-        // sync all parameter values in a scene, same as clearing it, but only temporarily
-        // scene value is "uncleared" if preset is not saved
-        SceneModeClearTemporarily,
-        // only update value, do not activate any scenes, but only temporarily
-        // scene value is discarded if preset is not saved
-        SceneModeUpdateTemporarily,
-    };
-
-    struct SceneValues {
-        bool enabled;
-        std::vector<float> parameters;
-        std::vector<std::string> properties;
+        CLASS_ONLY_MOVE_INIT_NO_COPY(Property)
     };
 
     struct Block {
         bool enabled;
         std::string quickPotSymbol;
         std::string uri;
-        struct {
+        struct Meta {
             // convenience meta-data, not stored in json state
             // TODO remove details directly provided by plugin data
             struct {
-                bool hasScenes;
                 bool changesNotSavedToPreset;
+                bool hasScenes;
                 uint8_t hwbinding;
                 TemporarySceneState tempSceneState;
             } enable;
             uint32_t flags;
             uint8_t quickPotIndex;
             uint8_t numParametersInScenes;
-            uint8_t numPropertiesInScenes;
             uint8_t numInputs;
             uint8_t numOutputs;
             uint8_t numSideInputs;
@@ -206,10 +298,14 @@ struct HostConnector : Host::FeedbackCallback {
             std::string abbreviation;
             std::string brand;
             Lv2Category category;
+            CLASS_ONLY_MOVE_INIT_NO_COPY(Meta)
         } meta;
-        std::vector<Parameter> parameters;
-        std::vector<Property> properties;
-        std::array<SceneValues, NUM_SCENES_PER_PRESET> sceneValues;
+        struct Scenes {
+            heap_array<bool, NUM_SCENES_PER_PRESET> enableValues;
+            heap_array<bool, NUM_SCENES_PER_PRESET> lastSavedEnableValues;
+        } scenes;
+        heap_array<Parameter, MAX_PARAMS_PER_BLOCK> parameters;
+        heap_array<Property, MAX_PARAMS_PER_BLOCK> properties;
 
         // keep hold of plugin data
         std::shared_ptr<const Lv2Plugin> plugin;
@@ -233,11 +329,10 @@ struct HostConnector : Host::FeedbackCallback {
         }
 
     private:
-        // extra details, not stored in json state
         friend struct HostConnector;
-        std::array<SceneValues, NUM_SCENES_PER_PRESET> lastSavedSceneValues;
         std::unordered_map<std::string, uint8_t> parameterSymbolToIndexMap;
         std::unordered_map<std::string, uint8_t> propertyURIToIndexMap;
+        CLASS_ONLY_MOVE_INIT_NO_COPY(Block)
     };
 
     struct ParameterBinding {
@@ -245,53 +340,66 @@ struct HostConnector : Host::FeedbackCallback {
         uint8_t block;
         float min;
         float max;
-        std::string parameterSymbol;
-        struct {
-            // convenience meta-data, not stored in json state
-            uint8_t parameterIndex;
-        } meta;
-    };
-
-    struct PropertyBinding {
-        uint8_t row;
-        uint8_t block;
-        std::string propertyURI;
-        struct {
-            // convenience meta-data, not stored in json state
-            uint8_t propertyIndex;
+        const std::string parameterSymbol;
+        // convenience data, not stored in json state
+        const struct Meta {
+            const Block &block;
+            const uint8_t parameterIndex;
+            union {
+                struct {
+                    bool isBypass;
+                };
+                struct {
+                    // NOTE referencing `isBypassParameter` can generate a build error under GCC9
+                    // but not referencing it generates a warning on GCC>9
+                    bool isBypassParameter;
+                    const Parameter &parameter;
+                };
+            };
         } meta;
     };
 
     struct Bindings {
         std::string name;
         std::list<ParameterBinding> parameters;
-        std::list<PropertyBinding> properties;
         double value; // NOTE normalized 0-1, updated automatically if single binding or using scenes
+    private:
+        friend struct HostConnector;
+        void copy(const Bindings&);
+        CLASS_ONLY_MOVE_INIT_NO_COPY(Bindings)
+    };
+
+    struct Scene {
+        std::string name;
+        SceneState state;
     };
 
     struct ChainRow {
-        std::vector<Block> blocks;
+        heap_array<Block, NUM_BLOCKS_PER_PRESET> blocks;
         std::array<std::string, 2> capture;
         std::array<std::string, 2> playback;
         std::array<uint16_t, 2> captureId;
         std::array<uint16_t, 2> playbackId;
+        CLASS_ONLY_MOVE_INIT_NO_COPY(ChainRow)
     };
 
     struct Preset {
         uint8_t scene;
         std::string name;
         std::string filename;
-        std::array<Bindings, NUM_BINDING_ACTUATORS> bindings;
+        heap_array<Bindings, NUM_BINDING_ACTUATORS> bindings;
         struct {
             uint32_t color;
             std::string style;
         } background;
-        std::array<std::string, NUM_SCENES_PER_PRESET> sceneNames;
+        heap_array<Scene, NUM_SCENES_PER_PRESET> scenes;
         std::array<unsigned char, UUID_SIZE> uuid;
     private:
         friend struct HostConnector;
         friend class WebSocketConnector;
-        std::array<ChainRow, NUM_BLOCK_CHAIN_ROWS> chains;
+        heap_array<ChainRow, NUM_BLOCK_CHAIN_ROWS> chains;
+        void copy(const Preset&);
+        CLASS_ONLY_MOVE_INIT_NO_COPY(Preset)
     };
 
     struct Current : Preset {
@@ -314,6 +422,7 @@ struct HostConnector : Host::FeedbackCallback {
             return chains[0].blocks[block];
         }
        #endif
+        CLASS_ONLY_MOVE_INIT_NO_COPY(Current)
     };
 
     // connection to mod-host, handled internally
@@ -330,7 +439,7 @@ protected:
     Current _current;
 
     // default state for each preset
-    std::array<Preset, NUM_PRESETS_PER_BANK> _presets;
+    heap_array<Preset, NUM_PRESETS_PER_BANK> _presets;
 
     // current connector callback
     Callback* _callback = nullptr;
@@ -347,18 +456,25 @@ public:
     std::unordered_map<std::string, std::vector<Lv2Port>> virtualParameters;
 
     // constructor, initializes connection to mod-host and sets `ok` to true if successful
-    HostConnector();
+    HostConnector(Callback* callback = nullptr);
 
     // ----------------------------------------------------------------------------------------------------------------
 
     // whether the host connection is working
     bool ok = false;
 
+    // set callback used for disconnect and feedback events
+    void setCallback(Callback* callback);
+
     // try to reconnect host if it previously failed
     bool reconnect();
 
     // get last error from host in case something failed
     [[nodiscard]] const std::string& getLastError() const;
+
+    // monitor cpu load for all blocks (non-tools)
+    // NOTE only relates to current blocks, not future ones
+    void monitorBlocksCPULoad(bool enable);
 
     // listen to MIDI control change messages
     bool monitorMidiControl(uint8_t midiChannel, bool enable);
@@ -373,9 +489,10 @@ public:
 
     // poll for host updates (e.g. MIDI-mapped parameter changes, tempo changes)
     // NOTE make sure to call `requestHostUpdates()` after handling all updates
-    void pollHostUpdates(Callback* callback);
+    void pollHostUpdates();
 
     // request more host updates
+    // NOTE make sure to call `setCallback` beforehand
     void requestHostUpdates();
 
     // wait for at least 1 audio cycle to pass
@@ -468,7 +585,7 @@ public:
     bool reorderPresets(uint8_t orig, uint8_t dest);
 
     // swap 2 presets within the current bank
-    void swapPresets(uint8_t presetA, uint8_t presetB);
+    void swapPresets(uint8_t presetA, uint8_t presetB, bool swapFiles = true);
 
     // save current preset
     // a preset must have been loaded or saved to a file before, so that `current.filename` is valid
@@ -563,19 +680,28 @@ public:
    #endif
 
     // ----------------------------------------------------------------------------------------------------------------
-    // scene handling
+    // scene handling (within the current preset)
 
-    // reorder/move a scene into a new position (within the current preset)
+    // clear/delete all scenes
+    void clearAllScenes();
+
+    // clear/delete a specific scene
+    void clearScene(uint8_t scene);
+
+    // copy the contents of a scene into a new position
+    bool copyScene(uint8_t orig, uint8_t dest);
+
+    // reorder/move a scene into a new position
     bool reorderScenes(uint8_t orig, uint8_t dest);
 
-    // swap 2 scenes within the current preset
+    // swap 2 scenes
     void swapScenes(uint8_t sceneA, uint8_t sceneB);
 
-    // switch to another scene within the current preset
+    // switch to another scene, which automatically activates it
     // returning false means the current chain was unchanged
-    bool switchScene(uint8_t scene);
+    bool switchScene(uint8_t scene, bool switchEvenIfSameScene = false, bool discardIfUnused = true);
 
-    // rename a scene within the current preset
+    // rename a scene
     bool renameScene(uint8_t scene, const char* name);
 
     // convenience call for renaming current scene name
@@ -592,9 +718,6 @@ public:
 
     // add a block parameter binding
     bool addBlockParameterBinding(uint8_t hwid, uint8_t row, uint8_t block, uint8_t paramIndex);
-
-    // add a block property binding
-    bool addBlockPropertyBinding(uint8_t hwid, uint8_t row, uint8_t block, uint8_t propIndex);
 
     // edit a block parameter binding (change normal or inverted operation)
     bool editBlockBinding(uint8_t hwid, uint8_t row, uint8_t block, bool inverted);
@@ -616,9 +739,6 @@ public:
     // remove a block parameter binding
     bool removeBlockParameterBinding(uint8_t hwid, uint8_t row, uint8_t block, uint8_t paramIndex);
 
-    // remove a block parameter binding
-    bool removeBlockPropertyBinding(uint8_t hwid, uint8_t row, uint8_t block, uint8_t propIndex);
-
     // rename a binding
     bool renameBinding(uint8_t hwid, const char* name);
 
@@ -635,16 +755,6 @@ public:
                                       uint8_t rowB,
                                       uint8_t blockB,
                                       uint8_t paramIndexB);
-
-    // replace a block property binding with another
-    // the binding to be replaced must already exist
-    bool replaceBlockPropertyBinding(uint8_t hwid,
-                                     uint8_t row,
-                                     uint8_t block,
-                                     uint8_t propIndex,
-                                     uint8_t rowB,
-                                     uint8_t blockB,
-                                     uint8_t propIndexB);
 
     // reorder bindings
     bool reorderBlockBinding(uint8_t hwid, uint8_t dest);
@@ -684,7 +794,7 @@ public:
                            uint8_t block,
                            uint8_t paramIndex,
                            float value,
-                           SceneMode sceneMode = SceneModeClear);
+                           SceneMode sceneMode = kSceneModeClear);
 
     // set a block parameter value, based on port symbol
     // NOTE value must already be sanitized!
@@ -692,7 +802,7 @@ public:
                            uint8_t block,
                            const char* symbol,
                            float value,
-                           SceneMode sceneMode = SceneModeClear);
+                           SceneMode sceneMode = kSceneModeClear);
 
     // set a block quickpot
     void setBlockQuickPot(uint8_t row, uint8_t block, uint8_t paramIndex);
@@ -795,27 +905,16 @@ public:
     // WIP details below this point
 
     // set a block property, based on property index
-    void setBlockProperty(uint8_t row,
-                          uint8_t block,
-                          uint8_t propIndex,
-                          const char* value,
-                          SceneMode sceneMode = SceneModeClear);
+    void setBlockProperty(uint8_t row, uint8_t block, uint8_t propIndex, const char* value);
 
     // set a block property, based on property URI
-    void setBlockProperty(uint8_t row,
-                          uint8_t block,
-                          const char* uri,
-                          const char* value,
-                          SceneMode sceneMode = SceneModeClear);
+    void setBlockProperty(uint8_t row, uint8_t block, const char* uri, const char* value);
 
     // convenience calls for single-chain builds
    #if NUM_BLOCK_CHAIN_ROWS == 1
-    inline void setBlockProperty(const uint8_t block,
-                                 const uint8_t propIndex,
-                                 const char* const value,
-                                 const SceneMode sceneMode)
+    inline void setBlockProperty(const uint8_t block, const uint8_t propIndex, const char* const value)
     {
-        setBlockProperty(0, block, propIndex, value, sceneMode);
+        setBlockProperty(0, block, propIndex, value);
     }
    #endif
 
@@ -888,13 +987,13 @@ private:
     void jsonPresetLoad(Preset& presetdata, const nlohmann::json& json) const;
 
     // saves preset data, also no host commands
-    void jsonPresetSave(const Preset& presetdata, nlohmann::json& json) const;
+    static void jsonPresetSave(const Preset& presetdata, nlohmann::json& json);
 
     // load preset data from the current bank, only does host commands
     void hostLoadPreset(uint8_t preset);
 
     // unload "old" and load current preset, only does host commands
-    void hostSwitchPreset(const Current& old);
+    void hostSwitchPreset(const Preset& prev, uint8_t prevPreset, uint8_t prevNumLoadedPlugins);
 
     // add (active==true) or preload block defined by blockdata to instance_number
     bool hostLoadInstance(const Block& blockdata, uint16_t instance_number, bool active);
@@ -916,8 +1015,18 @@ private:
     // multi_prerun for a deactivated block and its pair if exists
     void hostPrerunBlockPair(const HostBlockPair& hbp, uint8_t reset_value, const std::vector<flushed_param>& params);
 
+    // internal disconnected handling
+    void hostDisconnectedCallback() override;
+
     // internal feedback handling, for updating parameter values
     void hostFeedbackCallback(const HostFeedbackData& data) override;
+
+    // internal scene data clear
+    void clearAllSceneData();
+
+    // internal scene data copy, orig must be active
+    // NOTE does not modify dest scene `name` and `state`
+    void copySceneData(uint8_t orig, uint8_t dest);
 
     // init block using plugin default values, optionally fill index maps
     void initBlock(Block& blockdata,
@@ -927,14 +1036,13 @@ private:
                    uint8_t numSideInputs,
                    uint8_t numSideOutputs) const;
 
-    void allocBlock(Block& blockdata) const;
-    void resetBlock(Block& blockdata) const;
+    static void resetBlock(Block& blockdata);
 
-    void allocPreset(Preset& preset, bool init = true) const;
-    void resetPreset(Preset& preset) const;
+    void resetPreset(Preset& preset);
+    void resetPresetPorts(Preset& preset, bool usingDefault = true);
 
-    void setEnableChangesNotSavedToPreset(Block& blockdata, bool changesNotSavedToPreset) const;
-    void setParamChangesNotSavedToPreset(Block& blockdata, uint8_t paramIndex, bool changesNotSavedToPreset) const;
+    static void setEnableChangesNotSavedToPreset(Block& blockdata, bool changesNotSavedToPreset);
+    static void setParamChangesNotSavedToPreset(Block& blockdata, uint8_t paramIndex, bool changesNotSavedToPreset);
 };
 
 using HostBindings = HostConnector::Bindings;
@@ -942,7 +1050,7 @@ using HostBlock = HostConnector::Block;
 using HostParameter = HostConnector::Parameter;
 using HostParameterBinding = HostConnector::ParameterBinding;
 using HostProperty = HostConnector::Property;
-using HostPropertyBinding = HostConnector::PropertyBinding;
+using HostScene = HostConnector::Scene;
 using HostSceneMode = HostConnector::SceneMode;
 using HostCallbackData = HostConnector::Callback::Data;
 using HostNonBlockingScope = HostConnector::NonBlockingScope;
@@ -950,19 +1058,50 @@ using HostNonBlockingScopeWithAudioFades = HostConnector::NonBlockingScopeWithAu
 
 // --------------------------------------------------------------------------------------------------------------------
 
-static inline constexpr bool hasScenes(const HostParameter& param)
+inline constexpr bool hasScenes(const HostParameter& param)
 {
     return (param.meta.flags & Lv2ParameterInScene) != 0;
 }
 
-static inline constexpr bool hasScenes(const HostProperty& prop)
+inline constexpr bool hasScenes(const HostBlock& block)
 {
-    return (prop.meta.flags & Lv2ParameterInScene) != 0;
+    return block.meta.numParametersInScenes != 0;
 }
 
-static inline constexpr bool hasScenes(const HostBlock& block)
+static inline bool hasScenes(const HostBindings& bindings)
 {
-    return block.meta.enable.hasScenes;
+    return std::any_of(bindings.parameters.cbegin(),
+                       bindings.parameters.cend(),
+                       [](const HostParameterBinding &binding)
+        {
+            if (binding.meta.isBypass)
+            {
+                if (hasScenes(binding.meta.block))
+                    return true;
+            }
+            else
+            {
+                if (hasScenes(binding.meta.parameter))
+                    return true;
+            }
+            return false;
+        });
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+// returns the index of the first parameter with expressionPedalControl property, UINT8_MAX for none found
+static inline uint8_t getExpressionPedalControl(const HostBlock& blockdata)
+{
+    for (uint8_t p = 0, size = blockdata.parameters.size(); p < size; ++p)
+    {
+        const HostParameter& paramdata(blockdata.parameters[p]);
+        if (isNullURI(paramdata.symbol))
+            break;
+        if ((paramdata.meta.flags & Lv2ParameterExpressionPedalControl) != 0)
+            return p;
+    }
+    return UINT8_MAX;
 }
 
 // --------------------------------------------------------------------------------------------------------------------
