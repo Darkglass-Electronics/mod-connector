@@ -445,6 +445,7 @@ void HostConnector::Preset::copy(const Preset& other)
     background = other.background;
     scenes = other.scenes;
     uuid = other.uuid;
+    metadata = other.metadata;
     chains = other.chains;
 }
 
@@ -5729,6 +5730,11 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
         else
             presetdata.uuid = generateUUID();
     }
+
+    // ----------------------------------------------------------------------------------------------------------------
+    // metadata
+
+    // TODO
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -5945,6 +5951,11 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann::json& jpr
             }
         }
     }
+
+    // ----------------------------------------------------------------------------------------------------------------
+    // metadata
+
+    // TODO
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -7160,6 +7171,7 @@ void HostConnector::resetPreset(Preset& preset)
     preset.name.clear();
     preset.background.color = 0;
     preset.background.style.clear();
+    preset.metadata.clear();
 
     for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
     {

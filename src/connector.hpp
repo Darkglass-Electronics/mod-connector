@@ -394,6 +394,7 @@ struct HostConnector : Host::Callback {
         } background;
         heap_array<Scene, NUM_SCENES_PER_PRESET> scenes;
         std::array<unsigned char, UUID_SIZE> uuid;
+        std::unordered_map<std::string, std::string> metadata;
     private:
         friend struct HostConnector;
         friend class WebSocketConnector;
