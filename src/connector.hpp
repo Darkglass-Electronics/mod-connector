@@ -394,7 +394,8 @@ struct HostConnector : Host::Callback {
         } background;
         heap_array<Scene, NUM_SCENES_PER_PRESET> scenes;
         std::array<unsigned char, UUID_SIZE> uuid;
-        std::unordered_map<std::string, std::string> metadata;
+        std::unordered_map<std::string, nlohmann::json> metadata;
+        ~Preset();
     private:
         friend struct HostConnector;
         friend class WebSocketConnector;
@@ -574,7 +575,7 @@ public:
 
     // load preset from a file, automatically replacing the current preset and optionally the default too
     // returning false means the current chain was unchanged, likely because the file contains invalid state
-    bool loadCurrentPresetFromFile(const char* filename, bool replaceDefault);
+    bool loadCurrentPresetFromFile(const char* filename, bool replaceDefault, bool discardMetadata = false);
 
     // preload a preset from a file, preset **must not be the current one**
     bool preloadPresetFromFile(uint8_t preset, const char* filename);
