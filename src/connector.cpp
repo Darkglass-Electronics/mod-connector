@@ -449,6 +449,11 @@ void HostConnector::Preset::copy(const Preset& other)
     chains = other.chains;
 }
 
+// constructor definition in C++ file because we dont want the big `json.hpp` in public headers
+HostConnector::Preset::~Preset()
+{
+}
+
 // --------------------------------------------------------------------------------------------------------------------
 
 HostConnector::HostConnector(Callback* const callback)
@@ -914,9 +919,12 @@ std::string HostConnector::getPresetNameFromFile(const char* const filename)
 
 // --------------------------------------------------------------------------------------------------------------------
 
-bool HostConnector::loadCurrentPresetFromFile(const char* const filename, const bool replaceDefault)
+bool HostConnector::loadCurrentPresetFromFile(const char* const filename,
+                                              const bool replaceDefault,
+                                              const bool discardMetadata)
 {
-    mod_log_debug("loadCurrentPresetFromFile(\"%s\")", filename);
+    mod_log_debug("loadCurrentPresetFromFile(\"%s\", %s, %s)",
+                  filename, bool2str(replaceDefault), bool2str(discardMetadata));
 
     const Host::NonBlockingScopeWithAudioFades hnbs(_host);
 
