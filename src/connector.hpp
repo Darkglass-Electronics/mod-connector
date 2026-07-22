@@ -565,7 +565,8 @@ public:
 
     // load bank from a set of preset files and activate the first
     void loadBankFromPresetFiles(const std::array<std::string, NUM_PRESETS_PER_BANK>& filenames,
-                                 uint8_t initialPresetToLoad = 0);
+                                 uint8_t initialPresetToLoad = 0,
+                                 bool discardMetadata = false);
 
     // ----------------------------------------------------------------------------------------------------------------
     // preset handling
@@ -578,7 +579,7 @@ public:
     bool loadCurrentPresetFromFile(const char* filename, bool replaceDefault, bool discardMetadata = false);
 
     // preload a preset from a file, preset **must not be the current one**
-    bool preloadPresetFromFile(uint8_t preset, const char* filename);
+    bool preloadPresetFromFile(uint8_t preset, const char* filename, bool discardMetadata = false);
 
     // save current preset to a file
     bool saveCurrentPresetToFile(const char* filename);
@@ -986,7 +987,7 @@ private:
     void hostDisconnectBlockAction(const Block& blockdata, const HostBlockPair& hbp, bool outputs, bool disconnectSideChains);
 
     // loads preset data, does not trigger host commands
-    void jsonPresetLoad(Preset& presetdata, const nlohmann::json& json) const;
+    void jsonPresetLoad(Preset& presetdata, const nlohmann::json& json, bool discardMetadata) const;
 
     // saves preset data, also no host commands
     static void jsonPresetSave(const Preset& presetdata, nlohmann::json& json);

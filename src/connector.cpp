@@ -879,10 +879,11 @@ bool HostConnector::setJackPorts(const std::array<std::string, 2>& capture, cons
 // --------------------------------------------------------------------------------------------------------------------
 
 void HostConnector::loadBankFromPresetFiles(const std::array<std::string, NUM_PRESETS_PER_BANK>& filenames,
-                                            const uint8_t initialPresetToLoad)
+                                            const uint8_t initialPresetToLoad,
+                                            const bool discardMetadata)
 {
     assert(initialPresetToLoad < NUM_PRESETS_PER_BANK);
-    mod_log_debug("loadBankFromPresetFiles(..., %u)", initialPresetToLoad);
+    mod_log_debug("loadBankFromPresetFiles(..., %u, %s)", initialPresetToLoad, bool2str(discardMetadata));
 
     for (uint8_t pr = 0; pr < NUM_PRESETS_PER_BANK; ++pr)
     {
@@ -890,7 +891,7 @@ void HostConnector::loadBankFromPresetFiles(const std::array<std::string, NUM_PR
 
         nlohmann::json j;
         if (loadPresetFromFile(filenames[pr].c_str(), j))
-            jsonPresetLoad(presetdata, j);
+            jsonPresetLoad(presetdata, j, discardMetadata);
         else
             resetPreset(presetdata);
 
@@ -960,7 +961,7 @@ bool HostConnector::loadCurrentPresetFromFile(const char* const filename,
     {
         nlohmann::json j;
         if (loadPresetFromFile(filename, j))
-            jsonPresetLoad(_current, j);
+            jsonPresetLoad(_current, j, discardMetadata);
         else
             resetPreset(_current);
     }
@@ -979,9 +980,9 @@ bool HostConnector::loadCurrentPresetFromFile(const char* const filename,
 
 // --------------------------------------------------------------------------------------------------------------------
 
-bool HostConnector::preloadPresetFromFile(const uint8_t preset, const char* const filename)
+bool HostConnector::preloadPresetFromFile(const uint8_t preset, const char* const filename, const bool discardMetadata)
 {
-    mod_log_debug("preloadPresetFromFile(%u, \"%s\")", preset, filename);
+    mod_log_debug("preloadPresetFromFile(%u, \"%s\", %s)", preset, filename, bool2str(discardMetadata));
     assert(preset < NUM_PRESETS_PER_BANK);
     assert_return(preset != _current.preset, false);
 
@@ -994,7 +995,7 @@ bool HostConnector::preloadPresetFromFile(const uint8_t preset, const char* cons
     resetPresetPorts(presetdata, false);
 
     if (loaded)
-        jsonPresetLoad(presetdata, j);
+        jsonPresetLoad(presetdata, j, discardMetadata);
     else
         resetPreset(presetdata);
 
@@ -4980,7 +4981,7 @@ void HostConnector::hostRemoveInstanceForBlock(const uint8_t row, const uint8_t 
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpreset) const
+void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpreset, const bool discardMetadata) const
 {
     // ----------------------------------------------------------------------------------------------------------------
     // always do cleanup before anything else, for optional values that might not get set
@@ -5742,7 +5743,12 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
     // ----------------------------------------------------------------------------------------------------------------
     // metadata
 
-    // TODO
+    presetdata.metadata.clear();
+
+    if (! discardMetadata && jpreset.contains("metadata"))
+    {
+        // TODO
+    }
 }
 
 // --------------------------------------------------------------------------------------------------------------------
