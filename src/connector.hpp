@@ -394,7 +394,12 @@ struct HostConnector : Host::Callback {
         } background;
         heap_array<Scene, NUM_SCENES_PER_PRESET> scenes;
         std::array<unsigned char, UUID_SIZE> uuid;
+       #if defined(__GNUC__) && !defined(__clang__) && __GNUC__ <= 9
+        // compatibility with older GCC, fails to build due requiring definition for the value type
+        std::map<std::string, nlohmann::json> metadata;
+       #else
         std::unordered_map<std::string, nlohmann::json> metadata;
+       #endif
         ~Preset();
     private:
         friend struct HostConnector;
