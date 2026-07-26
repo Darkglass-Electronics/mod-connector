@@ -465,6 +465,8 @@ public:
     // constructor, initializes connection to mod-host and sets `ok` to true if successful
     HostConnector(Callback* callback = nullptr);
 
+    void setMetadataValue(const std::string& key, const nlohmann::json& value);
+
     // ----------------------------------------------------------------------------------------------------------------
 
     // whether the host connection is working
