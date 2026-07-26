@@ -5741,7 +5741,17 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
 
     if (! discardMetadata && jpreset.contains("metadata"))
     {
-        // TODO
+        const auto& jmetadata = jpreset["metadata"];
+
+        if (jmetadata.is_object())
+        {
+            for (auto it = jmetadata.begin(), end = jmetadata.end(); it != end; ++it)
+                presetdata.metadata[it.key()] = it.value();
+        }
+        else
+        {
+            mod_log_warn("jsonPresetLoad(): preset metadata is not an object");
+        }
     }
 }
 
@@ -5963,7 +5973,19 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann::json& jpr
     // ----------------------------------------------------------------------------------------------------------------
     // metadata
 
-    // TODO
+    if (! presetdata.metadata.empty())
+    {
+        auto& jmetadata = jpreset["metadata"] = nlohmann::json::object({});
+
+        for (const auto& item : presetdata.metadata)
+            jmetadata[item.first] = item.second;
+    }
+}
+
+void HostConnector::setMetadataValue(const std::string& key, const nlohmann::json& value)
+{
+    _current.metadata[key] = value;
+    _current.dirty = true;
 }
 
 // --------------------------------------------------------------------------------------------------------------------
