@@ -494,6 +494,9 @@ public:
     // listen to MIDI program change messages
     bool monitorMidiProgram(uint8_t midiChannel, bool enable);
 
+    // send out an arbitrary MIDI message
+    bool midiOut(uint8_t size, const uint8_t* data);
+
     // poll for host updates (e.g. MIDI-mapped parameter changes, tempo changes)
     // NOTE make sure to call `requestHostUpdates()` after handling all updates
     void pollHostUpdates();
@@ -650,9 +653,9 @@ public:
     // use clearBindingsForReplacementBlock=false only when making sure the new plugin has same control inputs
     // keepCurrentData can only be used if new and old block have the exact same parameters and properties
     // keepCurrentData is ignored if replacing block with itself, block is still cleared
-    bool replaceBlock(uint8_t row, 
-                      uint8_t block, 
-                      const char* uri, 
+    bool replaceBlock(uint8_t row,
+                      uint8_t block,
+                      const char* uri,
                       bool clearBindingsForReplacementBlock = true, 
                       bool keepCurrentData = false);
 

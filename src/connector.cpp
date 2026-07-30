@@ -536,6 +536,14 @@ bool HostConnector::monitorMidiProgram(const uint8_t midiChannel, const bool ena
 
 // --------------------------------------------------------------------------------------------------------------------
 
+bool HostConnector::midiOut(const uint8_t size, const uint8_t* const data)
+{
+    return _host.midi_out(size, data);
+}
+
+
+// --------------------------------------------------------------------------------------------------------------------
+
 std::string HostConnector::getBlockId(const uint8_t row, const uint8_t block) const
 {
     const HostBlockPair hbp = _mapper.get(_current.preset, row, block);
