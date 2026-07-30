@@ -443,9 +443,9 @@ void HostConnector::Preset::copy(const Preset& other)
     for (uint8_t i = 0; i < NUM_BINDING_ACTUATORS; ++i)
         bindings[i].copy(other.bindings[i]);
     background = other.background;
+    metadata = other.metadata;
     scenes = other.scenes;
     uuid = other.uuid;
-    metadata = other.metadata;
     chains = other.chains;
 }
 
@@ -5745,7 +5745,7 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
 
         if (jmetadata.is_object())
         {
-            for (auto it = jmetadata.begin(), end = jmetadata.end(); it != end; ++it)
+            for (auto it = jmetadata.cbegin(), end = jmetadata.cend(); it != end; ++it)
                 presetdata.metadata[it.key()] = it.value();
         }
         else
@@ -5980,12 +5980,6 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann::json& jpr
         for (const auto& item : presetdata.metadata)
             jmetadata[item.first] = item.second;
     }
-}
-
-void HostConnector::setMetadataValue(const std::string& key, const nlohmann::json& value)
-{
-    _current.metadata[key] = value;
-    _current.dirty = true;
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -6850,6 +6844,14 @@ void HostConnector::enableAudioProcessing(const bool enable)
 void HostConnector::setDirty(const bool dirty)
 {
     _current.dirty = dirty;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::setMetadataValue(const std::string& key, const nlohmann::json& value)
+{
+    _current.metadata[key] = value;
+    _current.dirty = true;
 }
 
 // --------------------------------------------------------------------------------------------------------------------

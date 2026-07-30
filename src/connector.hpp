@@ -18,6 +18,16 @@
 
 // --------------------------------------------------------------------------------------------------------------------
 
+// compatibility with older GCC, fails to build due requiring definition for the value type
+#if defined(__GNUC__) && !defined(__clang__) && __GNUC__ <= 9
+#include <map>
+using MetadataMap = std::map<std::string, nlohmann::json>;
+#else
+using MetadataMap = std::unordered_map<std::string, nlohmann::json>;
+#endif
+
+// --------------------------------------------------------------------------------------------------------------------
+
 // handy macro for allowing move operators but not copy
 // this ensures we don't copy too much data around, which would be expensive on the CPU
 // we make an exception for assignment, which would otherwise make the code too verbose
@@ -392,14 +402,9 @@ struct HostConnector : Host::Callback {
             uint32_t color;
             std::string style;
         } background;
+        MetadataMap metadata;
         heap_array<Scene, NUM_SCENES_PER_PRESET> scenes;
         std::array<unsigned char, UUID_SIZE> uuid;
-       #if defined(__GNUC__) && !defined(__clang__) && __GNUC__ <= 9
-        // compatibility with older GCC, fails to build due requiring definition for the value type
-        std::map<std::string, nlohmann::json> metadata;
-       #else
-        std::unordered_map<std::string, nlohmann::json> metadata;
-       #endif
         ~Preset();
     private:
         friend struct HostConnector;
@@ -464,8 +469,6 @@ public:
 
     // constructor, initializes connection to mod-host and sets `ok` to true if successful
     HostConnector(Callback* callback = nullptr);
-
-    void setMetadataValue(const std::string& key, const nlohmann::json& value);
 
     // ----------------------------------------------------------------------------------------------------------------
 
@@ -561,6 +564,10 @@ public:
 
     // set current preset dirty state
     void setDirty(bool dirty = true);
+
+    // set preset-specific metadata
+    // preset will be marked as dirty
+    void setMetadataValue(const std::string& key, const nlohmann::json& value);
 
     // ----------------------------------------------------------------------------------------------------------------
     // bank handling
