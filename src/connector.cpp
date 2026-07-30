@@ -446,7 +446,6 @@ void HostConnector::Preset::copy(const Preset& other)
     metadata = other.metadata;
     scenes = other.scenes;
     uuid = other.uuid;
-    metadata = other.metadata;
     chains = other.chains;
 }
 
@@ -535,9 +534,11 @@ bool HostConnector::monitorMidiProgram(const uint8_t midiChannel, const bool ena
     return _host.monitor_midi_program(midiChannel, enable);
 }
 
-bool HostConnector::midiMessageOut(const int size, const uint8_t* data)
+// --------------------------------------------------------------------------------------------------------------------
+
+bool HostConnector::midiOut(const uint8_t size, const uint8_t* const data)
 {
-    return _host.midi_msg_out(size, data);
+    return _host.midi_out(size, data);
 }
 
 
