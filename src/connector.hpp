@@ -18,6 +18,16 @@
 
 // --------------------------------------------------------------------------------------------------------------------
 
+// compatibility with older GCC, fails to build due requiring definition for the value type
+#if defined(__GNUC__) && !defined(__clang__) && __GNUC__ <= 9
+#include <map>
+using MetadataMap = std::map<std::string, nlohmann::json>;
+#else
+using MetadataMap = std::unordered_map<std::string, nlohmann::json>;
+#endif
+
+// --------------------------------------------------------------------------------------------------------------------
+
 // handy macro for allowing move operators but not copy
 // this ensures we don't copy too much data around, which would be expensive on the CPU
 // we make an exception for assignment, which would otherwise make the code too verbose
@@ -392,8 +402,10 @@ struct HostConnector : Host::Callback {
             uint32_t color;
             std::string style;
         } background;
+        MetadataMap metadata;
         heap_array<Scene, NUM_SCENES_PER_PRESET> scenes;
         std::array<unsigned char, UUID_SIZE> uuid;
+        ~Preset();
     private:
         friend struct HostConnector;
         friend class WebSocketConnector;
@@ -553,12 +565,17 @@ public:
     // set current preset dirty state
     void setDirty(bool dirty = true);
 
+    // set preset-specific metadata
+    // preset will be marked as dirty
+    void setMetadataValue(const std::string& key, const nlohmann::json& value);
+
     // ----------------------------------------------------------------------------------------------------------------
     // bank handling
 
     // load bank from a set of preset files and activate the first
     void loadBankFromPresetFiles(const std::array<std::string, NUM_PRESETS_PER_BANK>& filenames,
-                                 uint8_t initialPresetToLoad = 0);
+                                 uint8_t initialPresetToLoad = 0,
+                                 bool discardMetadata = false);
 
     // ----------------------------------------------------------------------------------------------------------------
     // preset handling
@@ -568,10 +585,10 @@ public:
 
     // load preset from a file, automatically replacing the current preset and optionally the default too
     // returning false means the current chain was unchanged, likely because the file contains invalid state
-    bool loadCurrentPresetFromFile(const char* filename, bool replaceDefault);
+    bool loadCurrentPresetFromFile(const char* filename, bool replaceDefault, bool discardMetadata = false);
 
     // preload a preset from a file, preset **must not be the current one**
-    bool preloadPresetFromFile(uint8_t preset, const char* filename);
+    bool preloadPresetFromFile(uint8_t preset, const char* filename, bool discardMetadata = false);
 
     // save current preset to a file
     bool saveCurrentPresetToFile(const char* filename);
@@ -979,7 +996,7 @@ private:
     void hostDisconnectBlockAction(const Block& blockdata, const HostBlockPair& hbp, bool outputs, bool disconnectSideChains);
 
     // loads preset data, does not trigger host commands
-    void jsonPresetLoad(Preset& presetdata, const nlohmann::json& json) const;
+    void jsonPresetLoad(Preset& presetdata, const nlohmann::json& json, bool discardMetadata) const;
 
     // saves preset data, also no host commands
     static void jsonPresetSave(const Preset& presetdata, nlohmann::json& json);

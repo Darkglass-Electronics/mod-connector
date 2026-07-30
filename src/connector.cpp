@@ -443,9 +443,15 @@ void HostConnector::Preset::copy(const Preset& other)
     for (uint8_t i = 0; i < NUM_BINDING_ACTUATORS; ++i)
         bindings[i].copy(other.bindings[i]);
     background = other.background;
+    metadata = other.metadata;
     scenes = other.scenes;
     uuid = other.uuid;
     chains = other.chains;
+}
+
+// constructor definition in C++ file because we dont want the big `json.hpp` in public headers
+HostConnector::Preset::~Preset()
+{
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -867,10 +873,11 @@ bool HostConnector::setJackPorts(const std::array<std::string, 2>& capture, cons
 // --------------------------------------------------------------------------------------------------------------------
 
 void HostConnector::loadBankFromPresetFiles(const std::array<std::string, NUM_PRESETS_PER_BANK>& filenames,
-                                            const uint8_t initialPresetToLoad)
+                                            const uint8_t initialPresetToLoad,
+                                            const bool discardMetadata)
 {
     assert(initialPresetToLoad < NUM_PRESETS_PER_BANK);
-    mod_log_debug("loadBankFromPresetFiles(..., %u)", initialPresetToLoad);
+    mod_log_debug("loadBankFromPresetFiles(..., %u, %s)", initialPresetToLoad, bool2str(discardMetadata));
 
     for (uint8_t pr = 0; pr < NUM_PRESETS_PER_BANK; ++pr)
     {
@@ -878,7 +885,7 @@ void HostConnector::loadBankFromPresetFiles(const std::array<std::string, NUM_PR
 
         nlohmann::json j;
         if (loadPresetFromFile(filenames[pr].c_str(), j))
-            jsonPresetLoad(presetdata, j);
+            jsonPresetLoad(presetdata, j, discardMetadata);
         else
             resetPreset(presetdata);
 
@@ -913,9 +920,12 @@ std::string HostConnector::getPresetNameFromFile(const char* const filename)
 
 // --------------------------------------------------------------------------------------------------------------------
 
-bool HostConnector::loadCurrentPresetFromFile(const char* const filename, const bool replaceDefault)
+bool HostConnector::loadCurrentPresetFromFile(const char* const filename,
+                                              const bool replaceDefault,
+                                              const bool discardMetadata)
 {
-    mod_log_debug("loadCurrentPresetFromFile(\"%s\")", filename);
+    mod_log_debug("loadCurrentPresetFromFile(\"%s\", %s, %s)",
+                  filename, bool2str(replaceDefault), bool2str(discardMetadata));
 
     const Host::NonBlockingScopeWithAudioFades hnbs(_host);
 
@@ -945,7 +955,7 @@ bool HostConnector::loadCurrentPresetFromFile(const char* const filename, const 
     {
         nlohmann::json j;
         if (loadPresetFromFile(filename, j))
-            jsonPresetLoad(_current, j);
+            jsonPresetLoad(_current, j, discardMetadata);
         else
             resetPreset(_current);
     }
@@ -964,9 +974,9 @@ bool HostConnector::loadCurrentPresetFromFile(const char* const filename, const 
 
 // --------------------------------------------------------------------------------------------------------------------
 
-bool HostConnector::preloadPresetFromFile(const uint8_t preset, const char* const filename)
+bool HostConnector::preloadPresetFromFile(const uint8_t preset, const char* const filename, const bool discardMetadata)
 {
-    mod_log_debug("preloadPresetFromFile(%u, \"%s\")", preset, filename);
+    mod_log_debug("preloadPresetFromFile(%u, \"%s\", %s)", preset, filename, bool2str(discardMetadata));
     assert(preset < NUM_PRESETS_PER_BANK);
     assert_return(preset != _current.preset, false);
 
@@ -979,7 +989,7 @@ bool HostConnector::preloadPresetFromFile(const uint8_t preset, const char* cons
     resetPresetPorts(presetdata, false);
 
     if (loaded)
-        jsonPresetLoad(presetdata, j);
+        jsonPresetLoad(presetdata, j, discardMetadata);
     else
         resetPreset(presetdata);
 
@@ -4965,7 +4975,7 @@ void HostConnector::hostRemoveInstanceForBlock(const uint8_t row, const uint8_t 
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpreset) const
+void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpreset, const bool discardMetadata) const
 {
     // ----------------------------------------------------------------------------------------------------------------
     // always do cleanup before anything else, for optional values that might not get set
@@ -5723,6 +5733,26 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
         else
             presetdata.uuid = generateUUID();
     }
+
+    // ----------------------------------------------------------------------------------------------------------------
+    // metadata
+
+    presetdata.metadata.clear();
+
+    if (! discardMetadata && jpreset.contains("metadata"))
+    {
+        const auto& jmetadata = jpreset["metadata"];
+
+        if (jmetadata.is_object())
+        {
+            for (auto it = jmetadata.cbegin(), end = jmetadata.cend(); it != end; ++it)
+                presetdata.metadata[it.key()] = it.value();
+        }
+        else
+        {
+            mod_log_warn("jsonPresetLoad(): preset metadata is not an object");
+        }
+    }
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -5938,6 +5968,17 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann::json& jpr
                 jsceneNames[jsceneid] = presetdata.scenes[s].name;
             }
         }
+    }
+
+    // ----------------------------------------------------------------------------------------------------------------
+    // metadata
+
+    if (! presetdata.metadata.empty())
+    {
+        auto& jmetadata = jpreset["metadata"] = nlohmann::json::object({});
+
+        for (const auto& item : presetdata.metadata)
+            jmetadata[item.first] = item.second;
     }
 }
 
@@ -6807,6 +6848,14 @@ void HostConnector::setDirty(const bool dirty)
 
 // --------------------------------------------------------------------------------------------------------------------
 
+void HostConnector::setMetadataValue(const std::string& key, const nlohmann::json& value)
+{
+    _current.metadata[key] = value;
+    _current.dirty = true;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 void HostConnector::clearAllSceneData()
 {
     bool modified = false;
@@ -7154,6 +7203,7 @@ void HostConnector::resetPreset(Preset& preset)
     preset.name.clear();
     preset.background.color = 0;
     preset.background.style.clear();
+    preset.metadata.clear();
 
     for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
     {
