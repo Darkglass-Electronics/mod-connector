@@ -581,6 +581,13 @@ public:
     // get the name of an arbitrary preset file
     static std::string getPresetNameFromFile(const char* filename);
 
+    static nlohmann::json getPresetMetaDataFromFile(const char* filename, std::string metaKey);
+
+    static bool updatePresetMetaDataInFile(const char* filename,
+                                    std::string metaKey,
+                                    const nlohmann::json& value,
+                                    const char* name /* = nullptr */);
+
     // load preset from a file, automatically replacing the current preset and optionally the default too
     // returning false means the current chain was unchanged, likely because the file contains invalid state
     bool loadCurrentPresetFromFile(const char* filename, bool replaceDefault, bool discardMetadata = false);
