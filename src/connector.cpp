@@ -929,19 +929,18 @@ std::string HostConnector::getPresetNameFromFile(const char* const filename)
 nlohmann::json HostConnector::getPresetMetaDataFromFile(const char* filename, std::string metaKey)
 {
     mod_log_debug("getPresetMetaDataFromFile(\"%s\", \"%s\")", filename, metaKey.c_str());
-
     nlohmann::json j;
-    if (! loadPresetFromFile(filename, j))
+    if (! loadPresetFromFile(filename, j)) {
         return nlohmann::json::object();
-
+    }
     const auto metaIt = j.find("metadata");
-    if (metaIt == j.end() || ! metaIt->is_object())
+    if (metaIt == j.end() || ! metaIt->is_object()) {
         return nlohmann::json::object();
-
+    }
     const auto it = metaIt->find(metaKey);
-    if (it == metaIt->end())
+    if (it == metaIt->end()) {
         return nlohmann::json::object();
-
+    }
     return *it;
 }
 
@@ -952,23 +951,40 @@ bool HostConnector::updatePresetMetaDataInFile(const char* filename,
 {
     mod_log_debug("updatePresetMetaDataInFile(\"%s\", \"%s\")", filename, metaKey.c_str());
 
-    nlohmann::json j;
-    if (! loadPresetFromFile(filename, j))
+    std::ifstream in(filename);
+    if (! in.good())
         return false;
 
-    auto& metadata = j["metadata"];
-    if (! metadata.is_object())
-        metadata = nlohmann::json::object();
-    metadata[metaKey] = value;
+    nlohmann::json root;
+    try {
+        in >> root;
+    } catch (const std::exception& e) {
+        mod_log_warn("updatePresetMetaDataInFile: parse failed: %s", e.what());
+        return false;
+    }
+    in.close();
 
+    nlohmann::json* preset = nullptr;
+    if (root.is_object() && root.contains("preset") && root["preset"].is_object())
+        preset = &root["preset"];
+    else if (root.is_object())
+        preset = &root;
+    else
+        return false;
+
+    {
+        auto& metadata = (*preset)["metadata"];
+        if (! metadata.is_object())
+            metadata = nlohmann::json::object();
+        metadata[metaKey] = value;
+    }
     if (name != nullptr)
-        j["name"] = name;
+        (*preset)["name"] = name;
 
-    safeJsonSave(j, filename);
+    safeJsonSave(root, filename);
     #ifndef _WIN32
     sync();
     #endif
-
     return true;
 }
 
