@@ -900,8 +900,16 @@ public:
                                      const char* toolInSymbolSidechainL = nullptr,
                                      const char* toolInSymbolSidechainR = nullptr);
 
+    // connect 2 arbitrary jack ports together
+    // NOTE only use this if there is no other option!
+    void connectJackPorts(const char* jackPortA, const char* jackPortB);
+
     // disconnect all ports from a tool audio port
     void disconnectToolAudioPort(uint8_t toolIndex, const char* symbol);
+
+    // disconnect all ports from an arbitrary jack port
+    // NOTE only use this if there is no other option!
+    void disconnectJackPort(const char* jackPort);
 
     // map a tool parameter to a specific MIDI CC
     void mapToolParameterToMIDICC(uint8_t toolIndex,

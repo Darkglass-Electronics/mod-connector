@@ -4188,6 +4188,17 @@ void HostConnector::connectBlockAudioInput2Tool(const uint8_t row,
 
 // --------------------------------------------------------------------------------------------------------------------
 
+void HostConnector::connectJackPorts(const char* const jackPortA, const char* jackPortB)
+{
+    mod_log_debug("connectJackPorts(\"%s\", \"%s\")", jackPortA, jackPortB);
+    assert(jackPortA != nullptr && *jackPortA != '\0');
+    assert(jackPortB != nullptr && *jackPortB != '\0');
+
+    _host.connect(jackPortA, jackPortB);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 void HostConnector::disconnectToolAudioPort(const uint8_t toolIndex, const char* const symbol)
 {
     mod_log_debug("disconnectToolAudioInput(%u, \"%s\")", toolIndex, symbol);
@@ -4198,6 +4209,16 @@ void HostConnector::disconnectToolAudioPort(const uint8_t toolIndex, const char*
     _host.disconnect_all(format(MOD_HOST_EFFECT_PREFIX "%d:%s",
                                 MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex,
                                 symbol).c_str());
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::disconnectJackPort(const char* const jackPort)
+{
+    mod_log_debug("disconnectJackPort(\"%s\")", jackPort);
+    assert(jackPort != nullptr && *jackPort != '\0');
+
+    _host.disconnect_all(jackPort);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
