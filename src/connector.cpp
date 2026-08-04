@@ -949,6 +949,9 @@ bool HostConnector::updatePresetMetaDataInFile(const char* filename,
                                                const nlohmann::json& value,
                                                const char* name /* = nullptr */)
 {
+    if (metaKey.empty() && name == nullptr)
+        return false;
+
     mod_log_debug("updatePresetMetaDataInFile(\"%s\", \"%s\")", filename, metaKey.c_str());
 
     std::ifstream in(filename);
@@ -972,12 +975,14 @@ bool HostConnector::updatePresetMetaDataInFile(const char* filename,
     else
         return false;
 
+    if (! metaKey.empty())
     {
         auto& metadata = (*preset)["metadata"];
         if (! metadata.is_object())
             metadata = nlohmann::json::object();
         metadata[metaKey] = value;
     }
+
     if (name != nullptr)
         (*preset)["name"] = name;
 
