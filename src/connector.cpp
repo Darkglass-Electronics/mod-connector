@@ -6987,8 +6987,11 @@ void HostConnector::setMetadataValue(const uint8_t preset, const std::string& ke
 {
     if (_current.preset == preset)
     {
-        _current.metadata[key] = value;
-        _current.dirty = true;
+        if (_current.metadata[key] != value)
+        {
+            _current.metadata[key] = value;
+            _current.dirty = true;
+        }
     }
 
     _presets[preset].metadata[key] = value;
