@@ -950,6 +950,7 @@ bool HostConnector::updatePresetMetadataInFile(const char* const filename, const
     assert(filename != nullptr);
     assert(! key.empty());
 
+    // TODO replace with loadPresetFromFile, but with a new option to return json root
     std::ifstream in(filename);
     if (! in.good())
         return false;
@@ -991,6 +992,7 @@ bool HostConnector::updatePresetNameInFile(const char* const filename, const cha
     assert(filename != nullptr);
     assert(name != nullptr);
 
+    // TODO replace with loadPresetFromFile, but with a new option to return json root
     std::ifstream in(filename);
     if (! in.good())
         return false;
