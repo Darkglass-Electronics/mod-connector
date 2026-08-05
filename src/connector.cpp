@@ -1443,6 +1443,7 @@ void HostConnector::setPresetName(const uint8_t preset, const char* const name)
             _current.name = name;
             _current.dirty = true;
         }
+        return;
     }
 
     if (_presets[preset].name != name)
@@ -6992,6 +6993,7 @@ void HostConnector::setMetadataValue(const uint8_t preset, const std::string& ke
             _current.metadata[key] = value;
             _current.dirty = true;
         }
+        return;
     }
 
     _presets[preset].metadata[key] = value;
