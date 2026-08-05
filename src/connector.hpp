@@ -641,7 +641,13 @@ public:
     void setPresetFilename(uint8_t preset, const char* filename);
 
     // set the name of the current preset
-    void setCurrentPresetName(const char* name);
+    void setPresetName(uint8_t preset, const char* name);
+
+    // set the name of the current preset
+    void setCurrentPresetName(const char* name)
+    {
+        setPresetName(_current.preset, name);
+    }
 
     // convenience call for setting current preset filename
     void setCurrentPresetFilename(const char* filename)

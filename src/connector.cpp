@@ -1432,15 +1432,24 @@ void HostConnector::setPresetFilename(const uint8_t preset, const char* const fi
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::setCurrentPresetName(const char* const name)
+void HostConnector::setPresetName(const uint8_t preset, const char* const name)
 {
-    mod_log_debug("setCurrentPresetName(\"%s\")", name);
+    mod_log_debug("setPresetName(%u, \"%s\")", preset, name);
 
-    if (_current.name == name)
-        return;
+    if (_current.preset == preset)
+    {
+        if (_current.name != name)
+        {
+            _current.name = name;
+            _current.dirty = true;
+        }
+    }
 
-    _current.name = name;
-    _current.dirty = true;
+    if (_presets[preset].name != name)
+    {
+        _presets[preset].name = name;
+        updatePresetNameInFile(_presets[preset].filename.c_str(), name);
+    }
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -6976,13 +6985,14 @@ void HostConnector::setDirty(const bool dirty)
 
 void HostConnector::setMetadataValue(const uint8_t preset, const std::string& key, const nlohmann::json& value)
 {
-    _presets[preset].metadata[key] = value;
-
     if (_current.preset == preset)
     {
         _current.metadata[key] = value;
         _current.dirty = true;
     }
+
+    _presets[preset].metadata[key] = value;
+    updatePresetMetadataInFile(_presets[preset].filename.c_str(), key, value);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
