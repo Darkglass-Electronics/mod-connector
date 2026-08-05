@@ -926,33 +926,29 @@ std::string HostConnector::getPresetNameFromFile(const char* const filename)
     return {};
 }
 
-nlohmann::json HostConnector::getPresetMetaDataFromFile(const char* filename, std::string metaKey)
+std::optional<nlohmann::json> HostConnector::getPresetMetadataFromFile(const char* const filename, const std::string& key)
 {
-    mod_log_debug("getPresetMetaDataFromFile(\"%s\", \"%s\")", filename, metaKey.c_str());
+    mod_log_debug("getPresetMetadataFromFile(\"%s\", \"%s\")", filename, key.c_str());
     nlohmann::json j;
-    if (! loadPresetFromFile(filename, j)) {
-        return nlohmann::json::object();
-    }
-    const auto metaIt = j.find("metadata");
-    if (metaIt == j.end() || ! metaIt->is_object()) {
-        return nlohmann::json::object();
-    }
-    const auto it = metaIt->find(metaKey);
-    if (it == metaIt->end()) {
-        return nlohmann::json::object();
-    }
-    return *it;
+    if (! loadPresetFromFile(filename, j))
+        return {};
+    if (! j.contains("metadata"))
+        return {};
+    j = j["metadata"];
+    if (! j.is_object())
+        return {};
+    if (key.empty())
+        return j;
+    if (! j.contains(key))
+        return {};
+    return j[key];
 }
 
-bool HostConnector::updatePresetMetaDataInFile(const char* filename,
-                                               std::string metaKey,
-                                               const nlohmann::json& value,
-                                               const char* name /* = nullptr */)
+bool HostConnector::updatePresetMetadataInFile(const char* const filename, const std::string& key, const nlohmann::json& value)
 {
-    if (metaKey.empty() && name == nullptr)
-        return false;
-
-    mod_log_debug("updatePresetMetaDataInFile(\"%s\", \"%s\")", filename, metaKey.c_str());
+    mod_log_debug("updatePresetMetadataInFile(\"%s\", \"%s\", ...)", filename, key.c_str());
+    assert(filename != nullptr);
+    assert(! key.empty());
 
     std::ifstream in(filename);
     if (! in.good())
@@ -962,7 +958,7 @@ bool HostConnector::updatePresetMetaDataInFile(const char* filename,
     try {
         in >> root;
     } catch (const std::exception& e) {
-        mod_log_warn("updatePresetMetaDataInFile: parse failed: %s", e.what());
+        mod_log_warn("updatePresetMetadataInFile: parse failed: %s", e.what());
         return false;
     }
     in.close();
@@ -975,21 +971,53 @@ bool HostConnector::updatePresetMetaDataInFile(const char* filename,
     else
         return false;
 
-    if (! metaKey.empty())
-    {
-        auto& metadata = (*preset)["metadata"];
-        if (! metadata.is_object())
-            metadata = nlohmann::json::object();
-        metadata[metaKey] = value;
-    }
-
-    if (name != nullptr)
-        (*preset)["name"] = name;
+    auto& metadata = (*preset)["metadata"];
+    if (! metadata.is_object())
+        metadata = nlohmann::json::object();
+    metadata[key] = value;
 
     safeJsonSave(root, filename);
-    #ifndef _WIN32
+   #ifndef _WIN32
     sync();
-    #endif
+   #endif
+    return true;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+bool HostConnector::updatePresetNameInFile(const char* const filename, const char* const name)
+{
+    mod_log_debug("updatePresetNameInFile(\"%s\", \"%s\")", filename, name);
+    assert(filename != nullptr);
+    assert(name != nullptr);
+
+    std::ifstream in(filename);
+    if (! in.good())
+        return false;
+
+    nlohmann::json root;
+    try {
+        in >> root;
+    } catch (const std::exception& e) {
+        mod_log_warn("updatePresetNameInFile: parse failed: %s", e.what());
+        return false;
+    }
+    in.close();
+
+    nlohmann::json* preset = nullptr;
+    if (root.is_object() && root.contains("preset") && root["preset"].is_object())
+        preset = &root["preset"];
+    else if (root.is_object())
+        preset = &root;
+    else
+        return false;
+
+    (*preset)["name"] = name;
+
+    safeJsonSave(root, filename);
+   #ifndef _WIN32
+    sync();
+   #endif
     return true;
 }
 
@@ -6944,10 +6972,15 @@ void HostConnector::setDirty(const bool dirty)
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::setMetadataValue(const std::string& key, const nlohmann::json& value)
+void HostConnector::setMetadataValue(const uint8_t preset, const std::string& key, const nlohmann::json& value)
 {
-    _current.metadata[key] = value;
-    _current.dirty = true;
+    _presets[preset].metadata[key] = value;
+
+    if (_current.preset == preset)
+    {
+        _current.metadata[key] = value;
+        _current.dirty = true;
+    }
 }
 
 // --------------------------------------------------------------------------------------------------------------------
