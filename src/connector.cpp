@@ -1329,21 +1329,19 @@ void HostConnector::swapPresets(const uint8_t presetA, const uint8_t presetB, co
     sync();
    #endif
 
-    // adjust data for current preset, if matching
-    if (_current.preset == presetA)
-    {
-        _current.preset = presetB;
-        _current.defaultScene = _presets[presetB].scene;
-        if (swapFiles)
-            _current.filename = _presets[presetB].filename;
-    }
-    else if (_current.preset == presetB)
-    {
-        _current.preset = presetA;
-        _current.defaultScene = _presets[presetA].scene;
-        if (swapFiles)
-            _current.filename = _presets[presetA].filename;
-    }
+   // adjust data for current preset, if matching
+   if (_current.preset == presetA)
+   {
+       _current.preset = presetB;
+       _current.defaultScene = _presets[presetB].scene;
+       _current.filename = _presets[presetB].filename;
+   }
+   else if (_current.preset == presetB)
+   {
+       _current.preset = presetA;
+       _current.defaultScene = _presets[presetA].scene;
+       _current.filename = _presets[presetA].filename;
+   }
 }
 
 // --------------------------------------------------------------------------------------------------------------------
