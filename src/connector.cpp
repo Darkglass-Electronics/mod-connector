@@ -1334,6 +1334,8 @@ void HostConnector::swapPresets(const uint8_t presetA, const uint8_t presetB, co
     {
         _current.preset = presetB;
         _current.defaultScene = _presets[presetB].scene;
+        // NOTE setting filename used to be under a `if (swapFiles)` which is always `false` for our usecases
+        // leaving a note here in case we get into issues later, perhaps if we ever need `swapFiles` to be `true`
         _current.filename = _presets[presetB].filename;
     }
     else if (_current.preset == presetB)
