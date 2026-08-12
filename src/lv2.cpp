@@ -1915,6 +1915,11 @@ struct Lv2World::Impl
         }
     }
 
+    void setupMonoStereoCombo(const char* const monoURI, const char* const stereoURI)
+    {
+        stereoToMonoPluginMapping[stereoURI] = monoURI;
+    }
+
     static bool getPluginsInBundle(const char* const path, std::vector<std::string>& pluginsInBundle)
     {
         assert(path != nullptr && *path != '\0');
@@ -1934,6 +1939,7 @@ private:
     Lv2NamespaceDefinitions ns;
     std::list<std::string> bundles;
     std::vector<std::string> pluginURIs;
+    std::unordered_map<std::string, std::string> stereoToMonoPluginMapping;
 
     struct PluginCache {
         std::shared_ptr<const Lv2Plugin> plugin;
@@ -1994,9 +2000,7 @@ private:
     }
 
     // NOTE Lv2PluginIsUserRemovable must have already been set, if relevant
-    void updatePluginLicenseFlags(const char* const uri,
-                                  const LilvPlugin* const lilvplugin,
-                                  Lv2Plugin* const plugin) const
+    void updatePluginLicenseFlags(const char* uri, const LilvPlugin* const lilvplugin, Lv2Plugin* const plugin) const
     {
         if (lilv_plugin_has_extension_data(lilvplugin, ns.darkglass_license_interface) ||
             lilv_plugin_has_extension_data(lilvplugin, ns.modlicense_interface))
@@ -2016,6 +2020,9 @@ private:
             else
            #endif
             {
+                if (const auto it = stereoToMonoPluginMapping.find(uri); it != stereoToMonoPluginMapping.cend())
+                    uri = it->second.c_str();
+
                 licensefile = keysdir + _sha1(uri);
             }
 
@@ -2209,7 +2216,12 @@ bool Lv2World::bundleRemove(const char* const path, std::vector<std::string>* pl
 
 void Lv2World::reloadLicenses() const
 {
-    return impl->reloadLicenses();
+    impl->reloadLicenses();
+}
+
+void Lv2World::setupMonoStereoCombo(const char* const monoURI, const char* const stereoURI) const
+{
+    impl->setupMonoStereoCombo(monoURI, stereoURI);
 }
 
 bool Lv2World::getPluginsInBundle(const char* const path, std::vector<std::string>& pluginsInBundle)

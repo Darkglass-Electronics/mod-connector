@@ -210,6 +210,11 @@ struct Lv2World {
     void reloadLicenses() const;
 
    /**
+    * set-up mono/stereo plugin combo relationship.
+    */
+    void setupMonoStereoCombo(const char* monoURI, const char* stereoURI) const;
+
+   /**
     * get the plugin URIs present in an LV2 bundle
     * @note path MUST end with OS-specific path separator (e.g. '/' under Linux)
     */
