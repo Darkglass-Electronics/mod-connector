@@ -347,7 +347,7 @@ static bool shouldBlockBeStereo(const HostConnector::ChainRow& chaindata, const 
 
 // --------------------------------------------------------------------------------------------------------------------
 
-static bool loadPresetFromFile(const char* const filename, nlohmann::json& j)
+static bool loadPresetRootFromFile(const char* const filename, nlohmann::json& j)
 {
     std::ifstream f(filename);
     if (f.fail())
@@ -391,6 +391,24 @@ static bool loadPresetFromFile(const char* const filename, nlohmann::json& j)
             return false;
         }
 
+    } catch (const std::exception& e) {
+        mod_log_warn("failed to parse \"%s\": %s", filename, e.what());
+        return false;
+    } catch (...) {
+        mod_log_warn("failed to parse \"%s\": unknown exception", filename);
+        return false;
+    }
+
+    return true;
+}
+
+
+static bool loadPresetFromFile(const char* const filename, nlohmann::json& j)
+{
+    if (! loadPresetRootFromFile(filename, j))
+        return false;
+
+    try {
         j = j["preset"].get<nlohmann::json>();
     } catch (const std::exception& e) {
         mod_log_warn("failed to parse \"%s\": %s", filename, e.what());
@@ -932,16 +950,21 @@ std::optional<nlohmann::json> HostConnector::getPresetMetadataFromFile(const cha
     nlohmann::json j;
     if (! loadPresetFromFile(filename, j))
         return {};
-    if (! j.contains("metadata"))
-        return {};
-    j = j["metadata"];
-    if (! j.is_object())
-        return {};
-    if (key.empty())
-        return j;
-    if (! j.contains(key))
-        return {};
-    return j[key];
+
+    try {
+        if (! j.contains("metadata"))
+            return {};
+        j = j["metadata"];
+        if (! j.is_object())
+            return {};
+        if (key.empty())
+            return j;
+        if (! j.contains(key))
+            return {};
+        return j[key];
+    } catch(...) {}
+
+    return {};
 }
 
 bool HostConnector::updatePresetMetadataInFile(const char* const filename, const std::string& key, const nlohmann::json& value)
@@ -950,31 +973,26 @@ bool HostConnector::updatePresetMetadataInFile(const char* const filename, const
     assert(filename != nullptr);
     assert(! key.empty());
 
-    // TODO replace with loadPresetFromFile, but with a new option to return json root
-    std::ifstream in(filename);
-    if (! in.good())
-        return false;
-
     nlohmann::json root;
-    try {
-        in >> root;
-    } catch (const std::exception& e) {
-        mod_log_warn("updatePresetMetadataInFile: parse failed: %s", e.what());
+    if (! loadPresetRootFromFile(filename, root))
         return false;
-    }
-    in.close();
-
-    nlohmann::json* preset = nullptr;
-    if (root.is_object() && root.contains("preset") && root["preset"].is_object())
-        preset = &root["preset"];
-    else if (root.is_object())
-        preset = &root;
-    else
+    if (! (root.is_object() && root.contains("preset") && root["preset"].is_object()))
         return false;
 
-    auto& metadata = (*preset)["metadata"];
-    if (! metadata.is_object())
-        metadata = nlohmann::json::object();
+    nlohmann::json& preset = root["preset"];
+    nlohmann::json& metadata = std::invoke([&preset]() -> nlohmann::json& {
+        if (! preset.contains("metadata"))
+        {
+            nlohmann::json& m = preset["metadata"] = nlohmann::json::object();
+            return m;
+        }
+
+        nlohmann::json& m = preset["metadata"];
+        if (! m.is_object())
+            m = nlohmann::json::object();
+        return m;
+    });
+
     metadata[key] = value;
 
     safeJsonSave(root, filename);
@@ -992,29 +1010,14 @@ bool HostConnector::updatePresetNameInFile(const char* const filename, const cha
     assert(filename != nullptr);
     assert(name != nullptr);
 
-    // TODO replace with loadPresetFromFile, but with a new option to return json root
-    std::ifstream in(filename);
-    if (! in.good())
-        return false;
-
     nlohmann::json root;
-    try {
-        in >> root;
-    } catch (const std::exception& e) {
-        mod_log_warn("updatePresetNameInFile: parse failed: %s", e.what());
+    if (! loadPresetRootFromFile(filename, root))
         return false;
-    }
-    in.close();
-
-    nlohmann::json* preset = nullptr;
-    if (root.is_object() && root.contains("preset") && root["preset"].is_object())
-        preset = &root["preset"];
-    else if (root.is_object())
-        preset = &root;
-    else
+    if (! (root.is_object() && root.contains("preset") && root["preset"].is_object()))
         return false;
 
-    (*preset)["name"] = name;
+    nlohmann::json& preset = root["preset"];
+    preset["name"] = name;
 
     safeJsonSave(root, filename);
    #ifndef _WIN32
