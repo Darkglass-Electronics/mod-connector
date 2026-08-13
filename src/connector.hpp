@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <array>
 #include <list>
+#include <optional>
 #include <unordered_map>
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -42,6 +43,8 @@ using MetadataMap = std::unordered_map<std::string, nlohmann::json>;
     public:                                 \
     CLASS() = default;                      \
     CLASS_ONLY_MOVE_NO_COPY(CLASS)
+
+// --------------------------------------------------------------------------------------------------------------------
 
 // handy class to pre-allocate an std::vector to a known size
 template<class T, int numElements>
@@ -568,9 +571,16 @@ public:
     // set current preset dirty state
     void setDirty(bool dirty = true);
 
-    // set preset-specific metadata
+    // set preset-specific metadata of the current preset
     // preset will be marked as dirty
-    void setMetadataValue(const std::string& key, const nlohmann::json& value);
+    void setMetadataValue(const std::string& key, const nlohmann::json& value)
+    {
+        setMetadataValue(_current.preset, key, value);
+    }
+
+    // set preset-specific metadata of a preloaded preset
+    // if current, the preset will be marked as dirty
+    void setMetadataValue(uint8_t preset, const std::string& key, const nlohmann::json& value);
 
     // ----------------------------------------------------------------------------------------------------------------
     // bank handling
@@ -585,6 +595,16 @@ public:
 
     // get the name of an arbitrary preset file
     static std::string getPresetNameFromFile(const char* filename);
+
+    // get metadata of an arbitrary preset file
+    // if key is empty, return the entire metadata (outer object)
+    static std::optional<nlohmann::json> getPresetMetadataFromFile(const char* filename, const std::string& key = {});
+
+    // set metadata of an arbitrary preset file
+    static bool updatePresetMetadataInFile(const char* filename, const std::string& key, const nlohmann::json& value);
+
+    // set the name of an arbitrary preset file
+    static bool updatePresetNameInFile(const char* filename, const char* name);
 
     // load preset from a file, automatically replacing the current preset and optionally the default too
     // returning false means the current chain was unchanged, likely because the file contains invalid state
@@ -621,7 +641,13 @@ public:
     void setPresetFilename(uint8_t preset, const char* filename);
 
     // set the name of the current preset
-    void setCurrentPresetName(const char* name);
+    void setPresetName(uint8_t preset, const char* name);
+
+    // set the name of the current preset
+    void setCurrentPresetName(const char* name)
+    {
+        setPresetName(_current.preset, name);
+    }
 
     // convenience call for setting current preset filename
     void setCurrentPresetFilename(const char* filename)
@@ -893,8 +919,16 @@ public:
                                      const char* toolInSymbolSidechainL = nullptr,
                                      const char* toolInSymbolSidechainR = nullptr);
 
+    // connect 2 arbitrary jack ports together
+    // NOTE only use this if there is no other option!
+    void connectJackPorts(const char* jackPortA, const char* jackPortB);
+
     // disconnect all ports from a tool audio port
     void disconnectToolAudioPort(uint8_t toolIndex, const char* symbol);
+
+    // disconnect all ports from an arbitrary jack port
+    // NOTE only use this if there is no other option!
+    void disconnectJackPort(const char* jackPort);
 
     // map a tool parameter to a specific MIDI CC
     void mapToolParameterToMIDICC(uint8_t toolIndex,

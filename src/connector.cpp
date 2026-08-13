@@ -347,7 +347,7 @@ static bool shouldBlockBeStereo(const HostConnector::ChainRow& chaindata, const 
 
 // --------------------------------------------------------------------------------------------------------------------
 
-static bool loadPresetFromFile(const char* const filename, nlohmann::json& j)
+static bool loadPresetRootFromFile(const char* const filename, nlohmann::json& j)
 {
     std::ifstream f(filename);
     if (f.fail())
@@ -391,6 +391,24 @@ static bool loadPresetFromFile(const char* const filename, nlohmann::json& j)
             return false;
         }
 
+    } catch (const std::exception& e) {
+        mod_log_warn("failed to parse \"%s\": %s", filename, e.what());
+        return false;
+    } catch (...) {
+        mod_log_warn("failed to parse \"%s\": unknown exception", filename);
+        return false;
+    }
+
+    return true;
+}
+
+
+static bool loadPresetFromFile(const char* const filename, nlohmann::json& j)
+{
+    if (! loadPresetRootFromFile(filename, j))
+        return false;
+
+    try {
         j = j["preset"].get<nlohmann::json>();
     } catch (const std::exception& e) {
         mod_log_warn("failed to parse \"%s\": %s", filename, e.what());
@@ -926,6 +944,88 @@ std::string HostConnector::getPresetNameFromFile(const char* const filename)
     return {};
 }
 
+std::optional<nlohmann::json> HostConnector::getPresetMetadataFromFile(const char* const filename, const std::string& key)
+{
+    mod_log_debug("getPresetMetadataFromFile(\"%s\", \"%s\")", filename, key.c_str());
+    nlohmann::json j;
+    if (! loadPresetFromFile(filename, j))
+        return {};
+
+    try {
+        if (! j.contains("metadata"))
+            return {};
+        j = j["metadata"];
+        if (! j.is_object())
+            return {};
+        if (key.empty())
+            return j;
+        if (! j.contains(key))
+            return {};
+        return j[key];
+    } catch(...) {}
+
+    return {};
+}
+
+bool HostConnector::updatePresetMetadataInFile(const char* const filename, const std::string& key, const nlohmann::json& value)
+{
+    mod_log_debug("updatePresetMetadataInFile(\"%s\", \"%s\", ...)", filename, key.c_str());
+    assert(filename != nullptr);
+    assert(! key.empty());
+
+    nlohmann::json root;
+    if (! loadPresetRootFromFile(filename, root))
+        return false;
+    if (! (root.is_object() && root.contains("preset") && root["preset"].is_object()))
+        return false;
+
+    nlohmann::json& preset = root["preset"];
+    nlohmann::json& metadata = std::invoke([&preset]() -> nlohmann::json& {
+        if (! preset.contains("metadata"))
+        {
+            nlohmann::json& m = preset["metadata"] = nlohmann::json::object();
+            return m;
+        }
+
+        nlohmann::json& m = preset["metadata"];
+        if (! m.is_object())
+            m = nlohmann::json::object();
+        return m;
+    });
+
+    metadata[key] = value;
+
+    safeJsonSave(root, filename);
+   #ifndef _WIN32
+    sync();
+   #endif
+    return true;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+bool HostConnector::updatePresetNameInFile(const char* const filename, const char* const name)
+{
+    mod_log_debug("updatePresetNameInFile(\"%s\", \"%s\")", filename, name);
+    assert(filename != nullptr);
+    assert(name != nullptr);
+
+    nlohmann::json root;
+    if (! loadPresetRootFromFile(filename, root))
+        return false;
+    if (! (root.is_object() && root.contains("preset") && root["preset"].is_object()))
+        return false;
+
+    nlohmann::json& preset = root["preset"];
+    preset["name"] = name;
+
+    safeJsonSave(root, filename);
+   #ifndef _WIN32
+    sync();
+   #endif
+    return true;
+}
+
 // --------------------------------------------------------------------------------------------------------------------
 
 bool HostConnector::loadCurrentPresetFromFile(const char* const filename,
@@ -1237,15 +1337,15 @@ void HostConnector::swapPresets(const uint8_t presetA, const uint8_t presetB, co
     {
         _current.preset = presetB;
         _current.defaultScene = _presets[presetB].scene;
-        if (swapFiles)
-            _current.filename = _presets[presetB].filename;
+        // NOTE setting filename used to be under a `if (swapFiles)` which is always `false` for our usecases
+        // leaving a note here in case we get into issues later, perhaps if we ever need `swapFiles` to be `true`
+        _current.filename = _presets[presetB].filename;
     }
     else if (_current.preset == presetB)
     {
         _current.preset = presetA;
         _current.defaultScene = _presets[presetA].scene;
-        if (swapFiles)
-            _current.filename = _presets[presetA].filename;
+        _current.filename = _presets[presetA].filename;
     }
 }
 
@@ -1335,15 +1435,25 @@ void HostConnector::setPresetFilename(const uint8_t preset, const char* const fi
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::setCurrentPresetName(const char* const name)
+void HostConnector::setPresetName(const uint8_t preset, const char* const name)
 {
-    mod_log_debug("setCurrentPresetName(\"%s\")", name);
+    mod_log_debug("setPresetName(%u, \"%s\")", preset, name);
 
-    if (_current.name == name)
+    if (_current.preset == preset)
+    {
+        if (_current.name != name)
+        {
+            _current.name = name;
+            _current.dirty = true;
+        }
         return;
+    }
 
-    _current.name = name;
-    _current.dirty = true;
+    if (_presets[preset].name != name)
+    {
+        _presets[preset].name = name;
+        updatePresetNameInFile(_presets[preset].filename.c_str(), name);
+    }
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -4121,6 +4231,17 @@ void HostConnector::connectBlockAudioInput2Tool(const uint8_t row,
 
 // --------------------------------------------------------------------------------------------------------------------
 
+void HostConnector::connectJackPorts(const char* const jackPortA, const char* jackPortB)
+{
+    mod_log_debug("connectJackPorts(\"%s\", \"%s\")", jackPortA, jackPortB);
+    assert(jackPortA != nullptr && *jackPortA != '\0');
+    assert(jackPortB != nullptr && *jackPortB != '\0');
+
+    _host.connect(jackPortA, jackPortB);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 void HostConnector::disconnectToolAudioPort(const uint8_t toolIndex, const char* const symbol)
 {
     mod_log_debug("disconnectToolAudioInput(%u, \"%s\")", toolIndex, symbol);
@@ -4131,6 +4252,16 @@ void HostConnector::disconnectToolAudioPort(const uint8_t toolIndex, const char*
     _host.disconnect_all(format(MOD_HOST_EFFECT_PREFIX "%d:%s",
                                 MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex,
                                 symbol).c_str());
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::disconnectJackPort(const char* const jackPort)
+{
+    mod_log_debug("disconnectJackPort(\"%s\")", jackPort);
+    assert(jackPort != nullptr && *jackPort != '\0');
+
+    _host.disconnect_all(jackPort);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -6856,10 +6987,20 @@ void HostConnector::setDirty(const bool dirty)
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::setMetadataValue(const std::string& key, const nlohmann::json& value)
+void HostConnector::setMetadataValue(const uint8_t preset, const std::string& key, const nlohmann::json& value)
 {
-    _current.metadata[key] = value;
-    _current.dirty = true;
+    if (_current.preset == preset)
+    {
+        if (_current.metadata[key] != value)
+        {
+            _current.metadata[key] = value;
+            _current.dirty = true;
+        }
+        return;
+    }
+
+    _presets[preset].metadata[key] = value;
+    updatePresetMetadataInFile(_presets[preset].filename.c_str(), key, value);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
