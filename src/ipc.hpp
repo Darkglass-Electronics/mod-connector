@@ -41,6 +41,16 @@ struct IPC
     };
 
     /**
+     * function type used for callback-based IPC.
+     */
+    typedef bool (*SendCallback)(void* ptr, const char* msg);
+
+    /**
+     * function type used for callback-based IPC.
+     */
+    typedef const char* (*RecvCallback)(void* ptr, uint32_t* size);
+
+    /**
      * create IPC using a serial port, specifying path to serial port and baudrate.
      */
     static IPC* createSerialPortIPC(const char* serial, int baudrate);
@@ -57,6 +67,11 @@ struct IPC
     static IPC* createDualSocketIPC(int tcpPort);
 
     /**
+     * create IPC using dual callbacks (one out-going, one receiving).
+     */
+    static IPC* createDualCallbackIPC(SendCallback send, RecvCallback reply, RecvCallback feedback, void* userPtr);
+
+    /**
      * destructor.
      */
     ~IPC();
@@ -66,13 +81,6 @@ struct IPC
      * will also be set during initialization in case of IPC connection failure.
      */
     std::string last_error;
-
-   #ifdef __EMSCRIPTEN__
-    /**
-     * attempt to reconnect without having to recreate the IPC object.
-     */
-    bool reconnect();
-   #endif
 
     /**
      * read a message.
