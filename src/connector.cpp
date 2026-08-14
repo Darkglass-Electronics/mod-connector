@@ -3687,6 +3687,27 @@ void HostConnector::waitAudioCycle()
 
 // --------------------------------------------------------------------------------------------------------------------
 
+std::string HostConnector::serializeCurrentPreset() const
+{
+    nlohmann::json j;
+    jsonPresetSave(_current, j);
+
+    // from Current
+    j["defaultScene"] = _current.defaultScene;
+    j["preset"] = _current.preset;
+    j["numLoadedPlugins"] = _current.numLoadedPlugins;
+    j["dirty"] = _current.dirty;
+
+    // from Preset, not saved to json file
+    j["filename"] = _current.filename;
+
+    // TODO more fields
+
+    return j.dump(-1, ' ', false, nlohmann::detail::error_handler_t::replace);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 void HostConnector::enableCpuLoadUpdates(const bool enable)
 {
     _host.feature_enable(Host::kFeatureCpuLoad, enable ? 1 : 0);

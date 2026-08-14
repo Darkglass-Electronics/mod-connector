@@ -142,6 +142,44 @@ void printStateForDebug(bool withBlocks, bool withParams, bool withBindings)
 }
 
 // --------------------------------------------------------------------------------------------------------------------
+// wasm helpers
+
+__attribute__((used))
+const char* serializeCurrentPreset()
+{
+    static std::string ret;
+    ret = conn->serializeCurrentPreset();
+    return ret.c_str();
+}
+
+__attribute__((used))
+float getBlockParameter(uint8_t row, uint8_t block, uint8_t paramIndex)
+{
+    return conn->current.block(row, block).parameters[paramIndex].value;
+}
+
+__attribute__((used))
+float getBlockParameterBySymbol(uint8_t row, uint8_t block, const char* symbol)
+{
+    const HostBlock& blockdata = conn->current.block(row, block);
+    if (uint8_t paramIndex = blockdata.parameterIndexForSymbol(symbol); paramIndex != UINT8_MAX)
+        return blockdata.parameters[paramIndex].value;
+    return 0.f;
+}
+
+__attribute__((used))
+uint8_t getBlockQuickPotIndex(uint8_t row, uint8_t block)
+{
+    return conn->current.block(row, block).meta.quickPotIndex;
+}
+
+__attribute__((used))
+const char* getBlockQuickPotSymbol(uint8_t row, uint8_t block)
+{
+    return conn->current.block(row, block).quickPotSymbol.c_str();
+}
+
+// --------------------------------------------------------------------------------------------------------------------
 // cpu load handling
 
 __attribute__((used))
@@ -219,7 +257,7 @@ void loadBankFromPresetFiles(const char* filename1,
                              uint8_t initialPresetToLoad = 0)
 {
     const std::array<std::string, NUM_PRESETS_PER_BANK> filenames = { filename1, filename2, filename3 };
-    conn->loadBankFromPresetFiles(filenames);
+    conn->loadBankFromPresetFiles(filenames, initialPresetToLoad);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -314,7 +352,7 @@ bool switchPreset(uint8_t preset)
 __attribute__((used))
 void renamePreset(uint8_t preset, const char* name)
 {
-    return conn->renamePreset(preset, name);
+    conn->renamePreset(preset, name);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -398,7 +436,7 @@ bool reorderScenes(uint8_t orig, uint8_t dest)
 __attribute__((used))
 void swapScenes(uint8_t sceneA, uint8_t sceneB)
 {
-    return conn->swapScenes(sceneA, sceneB);
+    conn->swapScenes(sceneA, sceneB);
 }
 
 __attribute__((used))

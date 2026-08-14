@@ -530,6 +530,11 @@ public:
     void printStateForDebug(bool withBlocks, bool withParams, bool withBindings) const;
 
     // ----------------------------------------------------------------------------------------------------------------
+    // wasm helpers
+
+    [[nodiscard]] std::string serializeCurrentPreset() const;
+
+    // ----------------------------------------------------------------------------------------------------------------
     // cpu load handling
 
     void enableCpuLoadUpdates(bool enable);

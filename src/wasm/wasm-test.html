@@ -52,9 +52,7 @@
                       connector.setBlockParameterBySymbol = (row, block, symbol, value, sceneMode = kSceneModeClear) =>
                           connector.ccall("setBlockParameterBySymbol", "void", ["number", "number", "string", "double", "number"], [row, block, symbol, value, sceneMode], {async: true});
 
-                      // TESTING remove these later
-                      connector.test_string_return = () => connector.ccall("test_string_return", "string", [], []);
-                      connector.test_string_send = (s) => connector.ccall("test_string_send", "void", ["string"], [s]);
+                      connector.serializeCurrentPreset = () => connector.ccall("serializeCurrentPreset", "string", [], []);
 
                       console.log("connector wasm loaded, connecting...");
                       tryConnectingNow();
@@ -103,6 +101,9 @@
                   // and now to control parameters!
                   await connector.setBlockParameterBySymbol(0, 3, "Dry", 4.0);
                   await connector.setBlockParameterBySymbol(0, 3, "Wet", 6.0);
+
+                  // test serializing state
+                  console.log(connector.serializeCurrentPreset());
 
                   console.log("wasm usage testing complete!");
               }
