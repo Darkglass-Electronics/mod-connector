@@ -164,14 +164,25 @@ struct Host::Impl
        #endif
 
         if (ipc == nullptr)
+        {
             ipc.reset(IPC::createDualSocketIPC(portNumber));
+        }
+       #ifdef __EMSCRIPTEN__
+        else
+        {
+            ipc->last_error.clear();
+            ipc->reconnect();
+        }
+       #endif
 
         last_error = ipc->last_error;
 
         if (last_error.empty())
             return true;
 
+       #ifndef __EMSCRIPTEN__
         ipc.reset();
+       #endif
         return false;
     }
 
@@ -1430,6 +1441,11 @@ bool Host::wait_audio_cycle()
 bool Host::poll_feedback() const
 {
     return impl->poll();
+}
+
+void Host::close()
+{
+    impl->close();
 }
 
 bool Host::reconnect()

@@ -481,6 +481,9 @@ public:
     // set callback used for disconnect and feedback events
     void setCallback(Callback* callback);
 
+    // disconnect from host so an alternative remote can take over
+    void disconnect();
+
     // try to reconnect host if it previously failed
     bool reconnect();
 
@@ -525,6 +528,11 @@ public:
 
     // print current state for debugging
     void printStateForDebug(bool withBlocks, bool withParams, bool withBindings) const;
+
+    // ----------------------------------------------------------------------------------------------------------------
+    // wasm helpers
+
+    [[nodiscard]] std::string serializeCurrentPreset() const;
 
     // ----------------------------------------------------------------------------------------------------------------
     // cpu load handling

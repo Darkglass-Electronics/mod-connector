@@ -499,6 +499,14 @@ void HostConnector::setCallback(Callback* const callback)
 
 // --------------------------------------------------------------------------------------------------------------------
 
+void HostConnector::disconnect()
+{
+    ok = false;
+    _host.close();
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 bool HostConnector::reconnect()
 {
     ok = _host.reconnect();
@@ -3675,6 +3683,27 @@ void HostConnector::requestHostUpdates()
 void HostConnector::waitAudioCycle()
 {
     _host.wait_audio_cycle();
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+std::string HostConnector::serializeCurrentPreset() const
+{
+    nlohmann::json j;
+    jsonPresetSave(_current, j);
+
+    // from Current
+    j["defaultScene"] = _current.defaultScene;
+    j["preset"] = _current.preset;
+    j["numLoadedPlugins"] = _current.numLoadedPlugins;
+    j["dirty"] = _current.dirty;
+
+    // from Preset, not saved to json file
+    j["filename"] = _current.filename;
+
+    // TODO more fields
+
+    return j.dump(-1, ' ', false, nlohmann::detail::error_handler_t::replace);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
