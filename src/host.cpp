@@ -1102,6 +1102,18 @@ bool Host::midi_unmap(const int16_t instance_number, const char* const param_sym
     return impl->writeMessageAndWait(format("midi_unmap %d %s", instance_number, param_symbol));
 }
 
+bool Host::midi_out(const uint8_t size, const uint8_t* const data)
+{
+    if (size <= 0 || data == nullptr)
+        return false;
+
+    std::string msg = format("midi_out %d", size);
+    for (int i = 0; i < size; ++i)
+        msg += format(" %u", data[i]);
+
+    return impl->writeMessageAndWait(msg.c_str());
+}
+
 bool Host::monitor_audio_levels(const char* const source_port_name, bool enable)
 {
     VALIDATE_JACK_PORT(source_port_name)

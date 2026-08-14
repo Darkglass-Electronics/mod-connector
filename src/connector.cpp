@@ -347,7 +347,7 @@ static bool shouldBlockBeStereo(const HostConnector::ChainRow& chaindata, const 
 
 // --------------------------------------------------------------------------------------------------------------------
 
-static bool loadPresetFromFile(const char* const filename, nlohmann::json& j)
+static bool loadPresetRootFromFile(const char* const filename, nlohmann::json& j)
 {
     std::ifstream f(filename);
     if (f.fail())
@@ -391,6 +391,24 @@ static bool loadPresetFromFile(const char* const filename, nlohmann::json& j)
             return false;
         }
 
+    } catch (const std::exception& e) {
+        mod_log_warn("failed to parse \"%s\": %s", filename, e.what());
+        return false;
+    } catch (...) {
+        mod_log_warn("failed to parse \"%s\": unknown exception", filename);
+        return false;
+    }
+
+    return true;
+}
+
+
+static bool loadPresetFromFile(const char* const filename, nlohmann::json& j)
+{
+    if (! loadPresetRootFromFile(filename, j))
+        return false;
+
+    try {
         j = j["preset"].get<nlohmann::json>();
     } catch (const std::exception& e) {
         mod_log_warn("failed to parse \"%s\": %s", filename, e.what());
@@ -443,9 +461,15 @@ void HostConnector::Preset::copy(const Preset& other)
     for (uint8_t i = 0; i < NUM_BINDING_ACTUATORS; ++i)
         bindings[i].copy(other.bindings[i]);
     background = other.background;
+    metadata = other.metadata;
     scenes = other.scenes;
     uuid = other.uuid;
     chains = other.chains;
+}
+
+// constructor definition in C++ file because we dont want the big `json.hpp` in public headers
+HostConnector::Preset::~Preset()
+{
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -535,6 +559,14 @@ bool HostConnector::monitorMidiProgram(const uint8_t midiChannel, const bool ena
 {
     return _host.monitor_midi_program(midiChannel, enable);
 }
+
+// --------------------------------------------------------------------------------------------------------------------
+
+bool HostConnector::midiOut(const uint8_t size, const uint8_t* const data)
+{
+    return _host.midi_out(size, data);
+}
+
 
 // --------------------------------------------------------------------------------------------------------------------
 
@@ -875,10 +907,11 @@ bool HostConnector::setJackPorts(const std::array<std::string, 2>& capture, cons
 // --------------------------------------------------------------------------------------------------------------------
 
 void HostConnector::loadBankFromPresetFiles(const std::array<std::string, NUM_PRESETS_PER_BANK>& filenames,
-                                            const uint8_t initialPresetToLoad)
+                                            const uint8_t initialPresetToLoad,
+                                            const bool discardMetadata)
 {
     assert(initialPresetToLoad < NUM_PRESETS_PER_BANK);
-    mod_log_debug("loadBankFromPresetFiles(..., %u)", initialPresetToLoad);
+    mod_log_debug("loadBankFromPresetFiles(..., %u, %s)", initialPresetToLoad, bool2str(discardMetadata));
 
     for (uint8_t pr = 0; pr < NUM_PRESETS_PER_BANK; ++pr)
     {
@@ -886,7 +919,7 @@ void HostConnector::loadBankFromPresetFiles(const std::array<std::string, NUM_PR
 
         nlohmann::json j;
         if (loadPresetFromFile(filenames[pr].c_str(), j))
-            jsonPresetLoad(presetdata, j);
+            jsonPresetLoad(presetdata, j, discardMetadata);
         else
             resetPreset(presetdata);
 
@@ -919,11 +952,96 @@ std::string HostConnector::getPresetNameFromFile(const char* const filename)
     return {};
 }
 
+std::optional<nlohmann::json> HostConnector::getPresetMetadataFromFile(const char* const filename, const std::string& key)
+{
+    mod_log_debug("getPresetMetadataFromFile(\"%s\", \"%s\")", filename, key.c_str());
+    nlohmann::json j;
+    if (! loadPresetFromFile(filename, j))
+        return {};
+
+    try {
+        if (! j.contains("metadata"))
+            return {};
+        j = j["metadata"];
+        if (! j.is_object())
+            return {};
+        if (key.empty())
+            return j;
+        if (! j.contains(key))
+            return {};
+        return j[key];
+    } catch(...) {}
+
+    return {};
+}
+
+bool HostConnector::updatePresetMetadataInFile(const char* const filename, const std::string& key, const nlohmann::json& value)
+{
+    mod_log_debug("updatePresetMetadataInFile(\"%s\", \"%s\", ...)", filename, key.c_str());
+    assert(filename != nullptr);
+    assert(! key.empty());
+
+    nlohmann::json root;
+    if (! loadPresetRootFromFile(filename, root))
+        return false;
+    if (! (root.is_object() && root.contains("preset") && root["preset"].is_object()))
+        return false;
+
+    nlohmann::json& preset = root["preset"];
+    nlohmann::json& metadata = std::invoke([&preset]() -> nlohmann::json& {
+        if (! preset.contains("metadata"))
+        {
+            nlohmann::json& m = preset["metadata"] = nlohmann::json::object();
+            return m;
+        }
+
+        nlohmann::json& m = preset["metadata"];
+        if (! m.is_object())
+            m = nlohmann::json::object();
+        return m;
+    });
+
+    metadata[key] = value;
+
+    safeJsonSave(root, filename);
+   #ifndef _WIN32
+    sync();
+   #endif
+    return true;
+}
+
 // --------------------------------------------------------------------------------------------------------------------
 
-bool HostConnector::loadCurrentPresetFromFile(const char* const filename, const bool replaceDefault)
+bool HostConnector::updatePresetNameInFile(const char* const filename, const char* const name)
 {
-    mod_log_debug("loadCurrentPresetFromFile(\"%s\")", filename);
+    mod_log_debug("updatePresetNameInFile(\"%s\", \"%s\")", filename, name);
+    assert(filename != nullptr);
+    assert(name != nullptr);
+
+    nlohmann::json root;
+    if (! loadPresetRootFromFile(filename, root))
+        return false;
+    if (! (root.is_object() && root.contains("preset") && root["preset"].is_object()))
+        return false;
+
+    nlohmann::json& preset = root["preset"];
+    preset["name"] = name;
+
+    safeJsonSave(root, filename);
+   #ifndef _WIN32
+    sync();
+   #endif
+    return true;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+bool HostConnector::loadCurrentPresetFromFile(const char* const filename,
+                                              const bool replaceDefault,
+                                              const bool discardMetadata)
+{
+    mod_log_debug("loadCurrentPresetFromFile(\"%s\", %s, %s)",
+                  filename, bool2str(replaceDefault), bool2str(discardMetadata));
 
     const Host::NonBlockingScopeWithAudioFades hnbs(_host);
 
@@ -953,7 +1071,7 @@ bool HostConnector::loadCurrentPresetFromFile(const char* const filename, const 
     {
         nlohmann::json j;
         if (loadPresetFromFile(filename, j))
-            jsonPresetLoad(_current, j);
+            jsonPresetLoad(_current, j, discardMetadata);
         else
             resetPreset(_current);
     }
@@ -972,9 +1090,9 @@ bool HostConnector::loadCurrentPresetFromFile(const char* const filename, const 
 
 // --------------------------------------------------------------------------------------------------------------------
 
-bool HostConnector::preloadPresetFromFile(const uint8_t preset, const char* const filename)
+bool HostConnector::preloadPresetFromFile(const uint8_t preset, const char* const filename, const bool discardMetadata)
 {
-    mod_log_debug("preloadPresetFromFile(%u, \"%s\")", preset, filename);
+    mod_log_debug("preloadPresetFromFile(%u, \"%s\", %s)", preset, filename, bool2str(discardMetadata));
     assert(preset < NUM_PRESETS_PER_BANK);
     assert_return(preset != _current.preset, false);
 
@@ -987,7 +1105,7 @@ bool HostConnector::preloadPresetFromFile(const uint8_t preset, const char* cons
     resetPresetPorts(presetdata, false);
 
     if (loaded)
-        jsonPresetLoad(presetdata, j);
+        jsonPresetLoad(presetdata, j, discardMetadata);
     else
         resetPreset(presetdata);
 
@@ -1227,6 +1345,8 @@ void HostConnector::swapPresets(const uint8_t presetA, const uint8_t presetB, co
     {
         _current.preset = presetB;
         _current.defaultScene = _presets[presetB].scene;
+        // NOTE setting filename used to be under a `if (swapFiles)` which is always `false` for our usecases
+        // leaving a note here in case we get into issues later, perhaps if we ever need `swapFiles` to be `true`
         _current.filename = _presets[presetB].filename;
     }
     else if (_current.preset == presetB)
@@ -1323,15 +1443,25 @@ void HostConnector::setPresetFilename(const uint8_t preset, const char* const fi
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::setCurrentPresetName(const char* const name)
+void HostConnector::setPresetName(const uint8_t preset, const char* const name)
 {
-    mod_log_debug("setCurrentPresetName(\"%s\")", name);
+    mod_log_debug("setPresetName(%u, \"%s\")", preset, name);
 
-    if (_current.name == name)
+    if (_current.preset == preset)
+    {
+        if (_current.name != name)
+        {
+            _current.name = name;
+            _current.dirty = true;
+        }
         return;
+    }
 
-    _current.name = name;
-    _current.dirty = true;
+    if (_presets[preset].name != name)
+    {
+        _presets[preset].name = name;
+        updatePresetNameInFile(_presets[preset].filename.c_str(), name);
+    }
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -4109,6 +4239,17 @@ void HostConnector::connectBlockAudioInput2Tool(const uint8_t row,
 
 // --------------------------------------------------------------------------------------------------------------------
 
+void HostConnector::connectJackPorts(const char* const jackPortA, const char* jackPortB)
+{
+    mod_log_debug("connectJackPorts(\"%s\", \"%s\")", jackPortA, jackPortB);
+    assert(jackPortA != nullptr && *jackPortA != '\0');
+    assert(jackPortB != nullptr && *jackPortB != '\0');
+
+    _host.connect(jackPortA, jackPortB);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 void HostConnector::disconnectToolAudioPort(const uint8_t toolIndex, const char* const symbol)
 {
     mod_log_debug("disconnectToolAudioInput(%u, \"%s\")", toolIndex, symbol);
@@ -4119,6 +4260,16 @@ void HostConnector::disconnectToolAudioPort(const uint8_t toolIndex, const char*
     _host.disconnect_all(format(MOD_HOST_EFFECT_PREFIX "%d:%s",
                                 MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex,
                                 symbol).c_str());
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::disconnectJackPort(const char* const jackPort)
+{
+    mod_log_debug("disconnectJackPort(\"%s\")", jackPort);
+    assert(jackPort != nullptr && *jackPort != '\0');
+
+    _host.disconnect_all(jackPort);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -4971,7 +5122,7 @@ void HostConnector::hostRemoveInstanceForBlock(const uint8_t row, const uint8_t 
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpreset) const
+void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpreset, const bool discardMetadata) const
 {
     // ----------------------------------------------------------------------------------------------------------------
     // always do cleanup before anything else, for optional values that might not get set
@@ -5729,6 +5880,26 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
         else
             presetdata.uuid = generateUUID();
     }
+
+    // ----------------------------------------------------------------------------------------------------------------
+    // metadata
+
+    presetdata.metadata.clear();
+
+    if (! discardMetadata && jpreset.contains("metadata"))
+    {
+        const auto& jmetadata = jpreset["metadata"];
+
+        if (jmetadata.is_object())
+        {
+            for (auto it = jmetadata.cbegin(), end = jmetadata.cend(); it != end; ++it)
+                presetdata.metadata[it.key()] = it.value();
+        }
+        else
+        {
+            mod_log_warn("jsonPresetLoad(): preset metadata is not an object");
+        }
+    }
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -5944,6 +6115,17 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann::json& jpr
                 jsceneNames[jsceneid] = presetdata.scenes[s].name;
             }
         }
+    }
+
+    // ----------------------------------------------------------------------------------------------------------------
+    // metadata
+
+    if (! presetdata.metadata.empty())
+    {
+        auto& jmetadata = jpreset["metadata"] = nlohmann::json::object({});
+
+        for (const auto& item : presetdata.metadata)
+            jmetadata[item.first] = item.second;
     }
 }
 
@@ -6813,6 +6995,24 @@ void HostConnector::setDirty(const bool dirty)
 
 // --------------------------------------------------------------------------------------------------------------------
 
+void HostConnector::setMetadataValue(const uint8_t preset, const std::string& key, const nlohmann::json& value)
+{
+    if (_current.preset == preset)
+    {
+        if (_current.metadata[key] != value)
+        {
+            _current.metadata[key] = value;
+            _current.dirty = true;
+        }
+        return;
+    }
+
+    _presets[preset].metadata[key] = value;
+    updatePresetMetadataInFile(_presets[preset].filename.c_str(), key, value);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 void HostConnector::clearAllSceneData()
 {
     bool modified = false;
@@ -7160,6 +7360,7 @@ void HostConnector::resetPreset(Preset& preset)
     preset.name.clear();
     preset.background.color = 0;
     preset.background.style.clear();
+    preset.metadata.clear();
 
     for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
     {

@@ -14,7 +14,18 @@
 #include <algorithm>
 #include <array>
 #include <list>
+#include <optional>
 #include <unordered_map>
+
+// --------------------------------------------------------------------------------------------------------------------
+
+// compatibility with older GCC, fails to build due requiring definition for the value type
+#if defined(__GNUC__) && !defined(__clang__) && __GNUC__ <= 9
+#include <map>
+using MetadataMap = std::map<std::string, nlohmann::json>;
+#else
+using MetadataMap = std::unordered_map<std::string, nlohmann::json>;
+#endif
 
 // --------------------------------------------------------------------------------------------------------------------
 
@@ -32,6 +43,8 @@
     public:                                 \
     CLASS() = default;                      \
     CLASS_ONLY_MOVE_NO_COPY(CLASS)
+
+// --------------------------------------------------------------------------------------------------------------------
 
 // handy class to pre-allocate an std::vector to a known size
 template<class T, int numElements>
@@ -392,8 +405,10 @@ struct HostConnector : Host::Callback {
             uint32_t color;
             std::string style;
         } background;
+        MetadataMap metadata;
         heap_array<Scene, NUM_SCENES_PER_PRESET> scenes;
         std::array<unsigned char, UUID_SIZE> uuid;
+        ~Preset();
     private:
         friend struct HostConnector;
         friend class WebSocketConnector;
@@ -485,6 +500,9 @@ public:
     // listen to MIDI program change messages
     bool monitorMidiProgram(uint8_t midiChannel, bool enable);
 
+    // send out an arbitrary MIDI message
+    bool midiOut(uint8_t size, const uint8_t* data);
+
     // poll for host updates (e.g. MIDI-mapped parameter changes, tempo changes)
     // NOTE make sure to call `requestHostUpdates()` after handling all updates
     void pollHostUpdates();
@@ -556,12 +574,24 @@ public:
     // set current preset dirty state
     void setDirty(bool dirty = true);
 
+    // set preset-specific metadata of the current preset
+    // preset will be marked as dirty
+    void setMetadataValue(const std::string& key, const nlohmann::json& value)
+    {
+        setMetadataValue(_current.preset, key, value);
+    }
+
+    // set preset-specific metadata of a preloaded preset
+    // if current, the preset will be marked as dirty
+    void setMetadataValue(uint8_t preset, const std::string& key, const nlohmann::json& value);
+
     // ----------------------------------------------------------------------------------------------------------------
     // bank handling
 
     // load bank from a set of preset files and activate the first
     void loadBankFromPresetFiles(const std::array<std::string, NUM_PRESETS_PER_BANK>& filenames,
-                                 uint8_t initialPresetToLoad = 0);
+                                 uint8_t initialPresetToLoad = 0,
+                                 bool discardMetadata = false);
 
     // ----------------------------------------------------------------------------------------------------------------
     // preset handling
@@ -569,12 +599,22 @@ public:
     // get the name of an arbitrary preset file
     static std::string getPresetNameFromFile(const char* filename);
 
+    // get metadata of an arbitrary preset file
+    // if key is empty, return the entire metadata (outer object)
+    static std::optional<nlohmann::json> getPresetMetadataFromFile(const char* filename, const std::string& key = {});
+
+    // set metadata of an arbitrary preset file
+    static bool updatePresetMetadataInFile(const char* filename, const std::string& key, const nlohmann::json& value);
+
+    // set the name of an arbitrary preset file
+    static bool updatePresetNameInFile(const char* filename, const char* name);
+
     // load preset from a file, automatically replacing the current preset and optionally the default too
     // returning false means the current chain was unchanged, likely because the file contains invalid state
-    bool loadCurrentPresetFromFile(const char* filename, bool replaceDefault);
+    bool loadCurrentPresetFromFile(const char* filename, bool replaceDefault, bool discardMetadata = false);
 
     // preload a preset from a file, preset **must not be the current one**
-    bool preloadPresetFromFile(uint8_t preset, const char* filename);
+    bool preloadPresetFromFile(uint8_t preset, const char* filename, bool discardMetadata = false);
 
     // save current preset to a file
     bool saveCurrentPresetToFile(const char* filename);
@@ -604,7 +644,13 @@ public:
     void setPresetFilename(uint8_t preset, const char* filename);
 
     // set the name of the current preset
-    void setCurrentPresetName(const char* name);
+    void setPresetName(uint8_t preset, const char* name);
+
+    // set the name of the current preset
+    void setCurrentPresetName(const char* name)
+    {
+        setPresetName(_current.preset, name);
+    }
 
     // convenience call for setting current preset filename
     void setCurrentPresetFilename(const char* filename)
@@ -636,9 +682,9 @@ public:
     // use clearBindingsForReplacementBlock=false only when making sure the new plugin has same control inputs
     // keepCurrentData can only be used if new and old block have the exact same parameters and properties
     // keepCurrentData is ignored if replacing block with itself, block is still cleared
-    bool replaceBlock(uint8_t row, 
-                      uint8_t block, 
-                      const char* uri, 
+    bool replaceBlock(uint8_t row,
+                      uint8_t block,
+                      const char* uri,
                       bool clearBindingsForReplacementBlock = true, 
                       bool keepCurrentData = false);
 
@@ -876,8 +922,16 @@ public:
                                      const char* toolInSymbolSidechainL = nullptr,
                                      const char* toolInSymbolSidechainR = nullptr);
 
+    // connect 2 arbitrary jack ports together
+    // NOTE only use this if there is no other option!
+    void connectJackPorts(const char* jackPortA, const char* jackPortB);
+
     // disconnect all ports from a tool audio port
     void disconnectToolAudioPort(uint8_t toolIndex, const char* symbol);
+
+    // disconnect all ports from an arbitrary jack port
+    // NOTE only use this if there is no other option!
+    void disconnectJackPort(const char* jackPort);
 
     // map a tool parameter to a specific MIDI CC
     void mapToolParameterToMIDICC(uint8_t toolIndex,
@@ -982,7 +1036,7 @@ private:
     void hostDisconnectBlockAction(const Block& blockdata, const HostBlockPair& hbp, bool outputs, bool disconnectSideChains);
 
     // loads preset data, does not trigger host commands
-    void jsonPresetLoad(Preset& presetdata, const nlohmann::json& json) const;
+    void jsonPresetLoad(Preset& presetdata, const nlohmann::json& json, bool discardMetadata) const;
 
     // saves preset data, also no host commands
     static void jsonPresetSave(const Preset& presetdata, nlohmann::json& json);

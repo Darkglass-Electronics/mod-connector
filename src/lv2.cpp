@@ -8,7 +8,8 @@
 #include "sha1/sha1.h"
 
 #include "darkglass-lv2-extensions/dg-custom-styling.lv2/custom-styling.h"
-#include "darkglass-lv2-extensions/dg-properties.lv2/props.h"
+#include "darkglass-lv2-extensions/dg-license.lv2/license.h"
+#include "darkglass-lv2-extensions/dg-properties.lv2/properties.h"
 #include "kxstudio-lv2-extensions/kx-properties.lv2/props.h"
 #include "mod-lv2-extensions/mod.lv2/mod.h"
 #include "mod-lv2-extensions/mod-license.lv2/mod-license.h"
@@ -197,6 +198,7 @@ struct Lv2NamespaceDefinitions {
     LilvNode* const darkglass_abbreviation;
     LilvNode* const darkglass_blockImageOff;
     LilvNode* const darkglass_blockImageOn;
+    LilvNode* const darkglass_license_interface;
     LilvNode* const dgcs_about;
     LilvNode* const dgcs_alignment;
     LilvNode* const dgcs_background;
@@ -265,6 +267,7 @@ struct Lv2NamespaceDefinitions {
         : darkglass_abbreviation(lilv_new_uri(world, LV2_DARKGLASS_PROPERTIES__abbreviation)),
           darkglass_blockImageOff(lilv_new_uri(world, LV2_DARKGLASS_PROPERTIES__blockImageOff)),
           darkglass_blockImageOn(lilv_new_uri(world, LV2_DARKGLASS_PROPERTIES__blockImageOn)),
+          darkglass_license_interface(lilv_new_uri(world, DARKGLASS_LICENSE__interface)),
           dgcs_about(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__about)),
           dgcs_alignment(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__alignment)),
           dgcs_background(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__background)),
@@ -336,6 +339,7 @@ struct Lv2NamespaceDefinitions {
         lilv_node_free(darkglass_abbreviation);
         lilv_node_free(darkglass_blockImageOff);
         lilv_node_free(darkglass_blockImageOn);
+        lilv_node_free(darkglass_license_interface);
         lilv_node_free(dgcs_about);
         lilv_node_free(dgcs_alignment);
         lilv_node_free(dgcs_background);
@@ -1933,6 +1937,11 @@ struct Lv2World::Impl
         }
     }
 
+    void setupMonoStereoCombo(const char* const monoURI, const char* const stereoURI)
+    {
+        stereoToMonoPluginMapping[stereoURI] = monoURI;
+    }
+
     static bool getPluginsInBundle(const char* const path, std::vector<std::string>& pluginsInBundle)
     {
         assert(path != nullptr && *path != '\0');
@@ -1952,6 +1961,7 @@ private:
     Lv2NamespaceDefinitions ns;
     std::list<std::string> bundles;
     std::vector<std::string> pluginURIs;
+    std::unordered_map<std::string, std::string> stereoToMonoPluginMapping;
 
     struct PluginCache {
         std::shared_ptr<const Lv2Plugin> plugin;
@@ -2014,11 +2024,10 @@ private:
    #endif
 
     // NOTE Lv2PluginIsUserRemovable must have already been set, if relevant
-    void updatePluginLicenseFlags(const char* const uri,
-                                  const LilvPlugin* const lilvplugin,
-                                  Lv2Plugin* const plugin) const
+    void updatePluginLicenseFlags(const char* uri, const LilvPlugin* const lilvplugin, Lv2Plugin* const plugin) const
     {
-        if (lilv_plugin_has_extension_data(lilvplugin, ns.modlicense_interface))
+        if (lilv_plugin_has_extension_data(lilvplugin, ns.darkglass_license_interface) ||
+            lilv_plugin_has_extension_data(lilvplugin, ns.modlicense_interface))
         {
             plugin->flags |= Lv2PluginIsCommercial;
 
@@ -2041,6 +2050,9 @@ private:
             else
            #endif
             {
+                if (const auto it = stereoToMonoPluginMapping.find(uri); it != stereoToMonoPluginMapping.cend())
+                    uri = it->second.c_str();
+
                 licensefile = keysdir + _sha1(uri);
             }
 
@@ -2234,7 +2246,12 @@ bool Lv2World::bundleRemove(const char* const path, std::vector<std::string>* pl
 
 void Lv2World::reloadLicenses() const
 {
-    return impl->reloadLicenses();
+    impl->reloadLicenses();
+}
+
+void Lv2World::setupMonoStereoCombo(const char* const monoURI, const char* const stereoURI) const
+{
+    impl->setupMonoStereoCombo(monoURI, stereoURI);
 }
 
 bool Lv2World::getPluginsInBundle(const char* const path, std::vector<std::string>& pluginsInBundle)
