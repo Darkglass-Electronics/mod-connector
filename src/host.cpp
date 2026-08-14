@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2024-2025 Filipe Coelho <falktx@darkglass.com>
+// SPDX-FileCopyrightText: 2024-2026 Filipe Coelho <falktx@darkglass.com>
 // SPDX-License-Identifier: ISC
 
 #define MOD_LOG_GROUP "host"
@@ -129,11 +129,11 @@ struct Host::Impl
     int portNumber = -1;
    #endif
 
-    Impl(Callback* const callback_, std::string& last_error_)
+    Impl(Callback* const callback_, IPC* const ipc_, std::string& last_error_)
         : callback(callback_),
           last_error(last_error_)
     {
-        reconnect();
+        reconnect(ipc_);
     }
 
     ~Impl()
@@ -141,8 +141,14 @@ struct Host::Impl
         close();
     }
 
-    bool reconnect()
+    bool reconnect(IPC* const ipc_ = nullptr)
     {
+        if (ipc != nullptr)
+        {
+            ipc.reset(ipc_);
+            return true;
+        }
+
        #ifndef MOD_DEVICE_HOST_PORT
         if (portNumber == -1)
         {
@@ -164,25 +170,14 @@ struct Host::Impl
        #endif
 
         if (ipc == nullptr)
-        {
             ipc.reset(IPC::createDualSocketIPC(portNumber));
-        }
-       #ifdef __EMSCRIPTEN__
-        else
-        {
-            ipc->last_error.clear();
-            ipc->reconnect();
-        }
-       #endif
 
         last_error = ipc->last_error;
 
         if (last_error.empty())
             return true;
 
-       #ifndef __EMSCRIPTEN__
         ipc.reset();
-       #endif
         return false;
     }
 
@@ -727,7 +722,7 @@ private:
 
 // --------------------------------------------------------------------------------------------------------------------
 
-Host::Host(Callback* const callback) : impl(new Impl(callback, last_error)) {}
+Host::Host(Callback* const callback, IPC* const ipc) : impl(new Impl(callback, ipc, last_error)) {}
 Host::~Host() { delete impl; }
 
 // --------------------------------------------------------------------------------------------------------------------

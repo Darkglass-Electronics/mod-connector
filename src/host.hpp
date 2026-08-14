@@ -1,10 +1,12 @@
-// SPDX-FileCopyrightText: 2024-2025 Filipe Coelho <falktx@darkglass.com>
+// SPDX-FileCopyrightText: 2024-2026 Filipe Coelho <falktx@darkglass.com>
 // SPDX-License-Identifier: ISC
 
 #pragma once
 
 #include <cstdint>
 #include <string>
+
+struct IPC;
 
 struct flushed_param {
     const char* symbol;
@@ -463,7 +465,7 @@ struct Host {
      */
     bool poll_feedback() const;
 
-    Host(Callback* callback);
+    Host(Callback* callback, IPC* ipc = nullptr);
     ~Host();
 
    /**

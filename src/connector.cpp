@@ -474,8 +474,8 @@ HostConnector::Preset::~Preset()
 
 // --------------------------------------------------------------------------------------------------------------------
 
-HostConnector::HostConnector(Callback* const callback)
-    : _host(this),
+HostConnector::HostConnector(Callback* const callback, IPC* const ipc)
+    : _host(this, ipc),
       _callback(callback)
 {
     for (uint8_t p = 0; p < NUM_PRESETS_PER_BANK; ++p)
