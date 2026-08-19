@@ -143,7 +143,7 @@ struct Host::Impl
 
     bool reconnect(IPC* const ipc_ = nullptr)
     {
-        if (ipc != nullptr)
+        if (ipc_ != nullptr)
         {
             ipc.reset(ipc_);
             return true;
