@@ -42,22 +42,26 @@ struct BufferedRecvData {
     uint32_t wrtn = 0;
     uint8_t* data = static_cast<uint8_t*>(std::malloc(size));
 
-    int pop(char* const c, const bool nonBlocking)
+    BufferedRecvData() = default;
+
+    ~BufferedRecvData()
+    {
+        std::free(data);
+    }
+
+    int pop(char* const c, const bool blocking)
     {
         // TODO return ? if disconnected
 
         if (read == wrtn)
         {
-            if (nonBlocking)
-                return 0;
-
             // #ifdef __EMSCRIPTEN__
             // emscripten_pause_main_loop();
             // #endif
 
             for (int i = 0; i < 200 && read == wrtn; ++i)
             {
-                if (idle())
+                if (idle(blocking))
                     break;
 
 #if defined(__EMSCRIPTEN__)
@@ -75,6 +79,9 @@ struct BufferedRecvData {
 
             if (read == wrtn)
             {
+                if (! blocking)
+                    return 0;
+
                 errno = EAGAIN;
                 return -1;
             }
@@ -89,13 +96,13 @@ struct BufferedRecvData {
     }
 
 private:
-    bool idle()
+    bool idle(const bool blocking)
     {
         uint32_t cbsize = 0;
-        const char* const cbdata = callback(callbackPtr, &cbsize);
+        const char* const cbdata = callback(callbackPtr, &cbsize, blocking);
 
         if (cbdata == nullptr || cbsize == 0)
-            return false;
+            return !blocking;
 
         if (data == nullptr || wrtn + cbsize > size)
         {
@@ -103,7 +110,7 @@ private:
             data = static_cast<uint8_t*>(std::realloc(data, size));
         }
 
-        assert_return(data != nullptr,);
+        assert_return(data != nullptr, false);
 
         std::memcpy(data + wrtn, cbdata, cbsize);
         wrtn += cbsize;
@@ -326,12 +333,16 @@ struct IPC::Impl
         {
             assert(nonBlockingWriteMode);
             nonBlockingWriteMode = false;
+            if (! dummyDevMode)
+                iface->setWriteBlocking(true);
             waitResponses();
         }
         else
         {
             assert(! nonBlockingWriteMode);
             nonBlockingWriteMode = true;
+            if (! dummyDevMode)
+                iface->setWriteBlocking(false);
         }
     }
 
@@ -627,6 +638,7 @@ private:
         virtual ~Interface() = default;
         [[nodiscard]] virtual int setReadBlocking() = 0;
         virtual void setReadNonBlocking(int flags) = 0;
+        virtual void setWriteBlocking(bool blocking) = 0;
         [[nodiscard]] virtual int readMessageByte(char* c) = 0;
         [[nodiscard]] virtual int readResponseByte(char* c) = 0;
         [[nodiscard]] virtual bool writeMessage(const std::string& message) = 0;
@@ -638,6 +650,7 @@ private:
         ~Serial() override;
         [[nodiscard]] int setReadBlocking() final;
         void setReadNonBlocking(int flags) final;
+        void setWriteBlocking(bool blocking) final;
         [[nodiscard]] int readMessageByte(char* c) final;
         [[nodiscard]] int readResponseByte(char* c) final;
         [[nodiscard]] bool writeMessage(const std::string& message) final;
@@ -652,6 +665,7 @@ private:
         ~SingleSocketTCP() override;
         [[nodiscard]] int setReadBlocking() final;
         void setReadNonBlocking(int flags) final;
+        void setWriteBlocking(bool blocking) final;
         [[nodiscard]] int readMessageByte(char* c) final;
         [[nodiscard]] int readResponseByte(char* c) final;
         [[nodiscard]] bool writeMessage(const std::string& message) final;
@@ -667,6 +681,7 @@ private:
         ~DualSocketTCP() override;
         [[nodiscard]] int setReadBlocking() final;
         void setReadNonBlocking(int flags) final;
+        void setWriteBlocking(bool blocking) final;
         [[nodiscard]] int readMessageByte(char* c) final;
         [[nodiscard]] int readResponseByte(char* c) final;
         [[nodiscard]] bool writeMessage(const std::string& message) final;
@@ -686,6 +701,7 @@ private:
         ~DualCallback() override = default;
         [[nodiscard]] int setReadBlocking() final;
         void setReadNonBlocking(int flags) final;
+        void setWriteBlocking(bool blocking) final;
         [[nodiscard]] int readMessageByte(char* c) final;
         [[nodiscard]] int readResponseByte(char* c) final;
         [[nodiscard]] bool writeMessage(const std::string& message) final;
@@ -696,7 +712,8 @@ private:
         } buffers;
         SendCallback sendCallback = nullptr;
         void* sendUserPtr = nullptr;
-        bool readIsBlocking = true;
+        bool readIsBlocking = false;
+        bool writeIsBlocking = true;
     };
 
     std::unique_ptr<Interface> iface;
@@ -840,6 +857,10 @@ void IPC::Impl::SingleSocketTCP::setReadNonBlocking(const int flags [[maybe_unus
    #else
     ::fcntl(sockets.outfd, F_SETFL, flags | O_NONBLOCK);
    #endif
+}
+
+void IPC::Impl::SingleSocketTCP::setWriteBlocking(bool)
+{
 }
 
 int IPC::Impl::SingleSocketTCP::readMessageByte(char* const c)
@@ -1000,6 +1021,10 @@ void IPC::Impl::DualSocketTCP::setReadNonBlocking(const int flags [[maybe_unused
    #endif
 }
 
+void IPC::Impl::DualSocketTCP::setWriteBlocking(bool)
+{
+}
+
 int IPC::Impl::DualSocketTCP::readMessageByte(char* const c)
 {
     return recv(sockets.feedback, c, 1, 0);
@@ -1083,6 +1108,10 @@ void IPC::Impl::Serial::setReadNonBlocking(const int flags [[maybe_unused]])
     readIsBlocking = false;
 }
 
+void IPC::Impl::Serial::setWriteBlocking(bool)
+{
+}
+
 int IPC::Impl::Serial::readMessageByte(char* const c)
 {
     return readIsBlocking
@@ -1138,6 +1167,11 @@ void IPC::Impl::DualCallback::setReadNonBlocking(const int flags [[maybe_unused]
     readIsBlocking = false;
 }
 
+void IPC::Impl::DualCallback::setWriteBlocking(const bool blocking)
+{
+    writeIsBlocking = blocking;
+}
+
 int IPC::Impl::DualCallback::readMessageByte(char* const c)
 {
     return buffers.receiver.pop(c, readIsBlocking);
@@ -1150,7 +1184,7 @@ int IPC::Impl::DualCallback::readResponseByte(char* const c)
 
 bool IPC::Impl::DualCallback::writeMessage(const std::string& message)
 {
-    if (sendCallback(sendUserPtr, message.c_str()))
+    if (sendCallback(sendUserPtr, message.c_str(), writeIsBlocking))
         return true;
 
     last_error = "send error";

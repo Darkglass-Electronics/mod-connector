@@ -473,6 +473,7 @@ public:
     std::unordered_map<std::string, std::vector<Lv2Port>> virtualParameters;
 
     // constructor, initializes connection to mod-host and sets `ok` to true if successful
+    // NOTE if custom IPC is used, connector takes ownership of the pointer
     HostConnector(Callback* callback = nullptr, IPC* ipc = nullptr);
 
     // ----------------------------------------------------------------------------------------------------------------

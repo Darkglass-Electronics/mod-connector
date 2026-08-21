@@ -43,12 +43,12 @@ struct IPC
     /**
      * function type used for callback-based IPC.
      */
-    typedef bool (*SendCallback)(void* ptr, const char* msg);
+    typedef bool (*SendCallback)(void* ptr, const char* msg, bool blocking);
 
     /**
      * function type used for callback-based IPC.
      */
-    typedef const char* (*RecvCallback)(void* ptr, uint32_t* size);
+    typedef const char* (*RecvCallback)(void* ptr, uint32_t* size, bool blocking);
 
     /**
      * create IPC using a serial port, specifying path to serial port and baudrate.
