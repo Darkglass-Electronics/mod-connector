@@ -162,6 +162,15 @@ static const char* _realpath_with_terminator(const char* const bundle)
 }
 
 // --------------------------------------------------------------------------------------------------------------------
+// check if resource path is valid (user plugins must be self-contained)
+// NOTE bundlepath must terminate with path separator
+
+bool _is_valid_resource_path(const std::string& path, const std::string& bundlepath)
+{
+    return std::strncmp(path.c_str(), "/usr/lib/lv2", 12) == 0 || path_contains(path, bundlepath);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
 // hash the contents of a string
 
 static std::string _sha1(const char* const cstring)
@@ -1202,7 +1211,7 @@ struct Lv2World::Impl
                     {
                         if (char* const path = _lilv_file_abspath(node))
                         {
-                            if (path_contains(path, bundlepath))
+                            if (_is_valid_resource_path(path, bundlepath))
                                 resourcePathRef = path;
                             std::free(path);
                         }
@@ -1285,7 +1294,7 @@ struct Lv2World::Impl
             {
                 if (char* const path = _lilv_file_abspath(pathNode))
                 {
-                    if (path_contains(path, retplugin->bundlepath))
+                    if (_is_valid_resource_path(path, retplugin->bundlepath))
                         paramRef.path = path;
 
                     std::free(path);
@@ -1341,7 +1350,7 @@ struct Lv2World::Impl
         {
             if (char* const path = _lilv_file_abspath(pathNode))
             {
-                if (path_contains(path, retplugin->bundlepath))
+                if (_is_valid_resource_path(path, retplugin->bundlepath))
                     styling->path = path;
 
                 std::free(path);
@@ -1524,7 +1533,7 @@ struct Lv2World::Impl
                         return;
 
                     char* const path = _lilv_file_abspath(pathNode);
-                    if (path != nullptr && path_contains(path, retplugin->bundlepath))
+                    if (path != nullptr && _is_valid_resource_path(path, retplugin->bundlepath))
                     {
                         pathRef = path;
                     }
@@ -1642,7 +1651,7 @@ struct Lv2World::Impl
             return;
         }
 
-        if (path_contains(path, bundlepath))
+        if (_is_valid_resource_path(path, bundlepath))
         {
             if (LilvNode* const fontSizeNode = lilv_world_get(world, fontNode, ns.dgcs_size, nullptr))
             {
@@ -1686,7 +1695,7 @@ struct Lv2World::Impl
             return;
         }
 
-        if (path_contains(path, bundlepath))
+        if (_is_valid_resource_path(path, bundlepath))
         {
             imageRef.alignment = alignmentDefault;
             imageRef.path = path;
