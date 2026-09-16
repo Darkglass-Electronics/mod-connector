@@ -2057,6 +2057,7 @@ private:
                             break;
                         }
                     }
+                    lilv_nodes_free(uriNodes);
                 }
             }
            #endif
