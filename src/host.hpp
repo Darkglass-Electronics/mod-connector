@@ -467,6 +467,11 @@ struct Host {
     ~Host();
 
    /**
+     * close connection to host
+     */
+    void close();
+
+   /**
      * try to reconnect host if it previously failed
      */
     bool reconnect();

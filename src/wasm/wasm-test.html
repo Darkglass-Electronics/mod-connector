@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="">
+  <head>
+    <meta charset="utf-8">
+    <title>mod-connector wasm test</title>
+    <script>
+        let connector = null;
+        // init wasm in anonymous scope
+        (async function () {
+          try {
+              let resp;
+              resp = await fetch('/mod-connector-wasm.js');
+              if (!resp.ok) {
+                  throw ('Failed to download wasm-js file');
+              }
+              const wasmJs = await resp.text();
+              resp = await fetch('/mod-connector-wasm.wasm');
+              if (!resp.ok) {
+                  throw ('Failed to download wasm-blob file');
+              }
+              const wasmBlob = await resp.arrayBuffer();
+              const wasmJsFn = new Function(wasmJs + 'return connector;');
+              const createModule = wasmJsFn.call();
+              // create the wasm module and instance
+              createModule({
+                  instantiateWasm: (imports, successCallback) => {
+                      WebAssembly.instantiate(wasmBlob, imports)
+                          .then(output => { successCallback(output.instance, output.module); })
+                          // .catch((error) => { wasm.error = '' + error; });
+                      return {};
+                  },
+                  postRun: function (module) {
+                      connector = module;
+
+                      const kSceneModeClear = 1;
+
+                      // setup known functions for easy JS usage
+                      // NOTE some are async and return a Promise
+                      connector.ok = () => connector.ccall("ok", "boolean", [], []);
+                      connector.disconnect = () => connector.ccall("disconnect", "void", [], []);
+                      connector.reconnect = () => connector.ccall("reconnect", "boolean", [], []);
+                      connector.getLastError = () => connector.ccall("getLastError", "string", [], []);
+                      // TODO write them all!
+                      connector.getAverageCpuLoad = () => connector.ccall("getAverageCpuLoad", "number", [], [], {async: true});
+                      connector.getMaximumCpuLoad = () => connector.ccall("getMaximumCpuLoad", "number", [], [], {async: true});
+                      connector.loadBankFromPresetFiles = (f1, f2, f3, init = 0) => connector.ccall("loadBankFromPresetFiles", "boolean", ["string", "string", "string", "number"], [f1, f2, f3, init], {async: true});
+                      connector.clearCurrentPreset = () => connector.ccall("clearCurrentPreset", "void", [], [], {async: true});
+                      connector.switchPreset = (preset) => connector.ccall("switchPreset", "boolean", ["number"], [preset], {async: true});
+                      connector.setJackPorts = (c1, c2, p1, p2) => connector.ccall("setJackPorts", "boolean", ["string", "string", "string", "string"], [c1, c2, p1, p2], {async: true});
+                      connector.replaceBlock = (row, block, uri, clearBindingsForReplacementBlock = true, keepCurrentData = false) =>
+                          connector.ccall("replaceBlock", "boolean", ["number", "number", "string", "boolean", "boolean"], [row, block, uri, clearBindingsForReplacementBlock, keepCurrentData], {async: true});
+                      connector.setBlockParameterBySymbol = (row, block, symbol, value, sceneMode = kSceneModeClear) =>
+                          connector.ccall("setBlockParameterBySymbol", "void", ["number", "number", "string", "double", "number"], [row, block, symbol, value, sceneMode], {async: true});
+
+                      connector.serializeCurrentPreset = () => connector.ccall("serializeCurrentPreset", "string", [], []);
+
+                      console.log("connector wasm loaded, connecting...");
+                      tryConnectingNow();
+                  },
+              });
+          }
+          catch (error) {
+              console.error('wasm init error: ', error);
+          }
+        })();
+
+        const tryConnectingNow = () => {
+            if (connector && (connector._ok() || connector._reconnect())) {
+                connectedCallback();
+                return;
+            }
+            setTimeout(tryConnectingNow, 100);
+        };
+
+        const connectedCallback = async () => {
+              console.log("connector wasm connected!");
+
+              console.log("test calling C function directly, must return true for 'connected ok' ->", connector.ok());
+              console.log("test returning string from C ->", connector.test_string_return());
+              /* test sending string to C */ connector.test_string_send("oi oi oi");
+              console.log("test message with response, getAverageCpuLoad ->", await connector.getAverageCpuLoad());
+              console.log("test message with response, getMaximumCpuLoad ->", await connector.getMaximumCpuLoad());
+
+              // NOTE the code below this line can be used to create a custom chain.
+              // because we lack preset data sync, always clear current bank first so we start from a known state
+              try {
+                  console.log("start wasm usage testing...");
+
+                  // this is required for now, assumes looper in INPUT position
+                  await connector.setJackPorts("effect_9990:output_l", "effect_9990:output_l", "anagram-output:in1", "anagram-output:in2");
+
+                  // simulate a first load, also required for now
+                  await connector.loadBankFromPresetFiles("/tmp/p1.json", "/tmp/p2.json", "/tmp/p3.json");
+
+                  // now we should be with an empty chain, let's try to add some FX
+                  await connector.replaceBlock(0, 0, "urn:darkglass:Suppressor");
+                  await connector.replaceBlock(0, 1, "urn:darkglass:moerfer");
+                  await connector.replaceBlock(0, 2, "urn:darkglass:B3K");
+                  await connector.replaceBlock(0, 3, "urn:darkglass:HallReverb");
+
+                  // and now to control parameters!
+                  await connector.setBlockParameterBySymbol(0, 3, "Dry", 4.0);
+                  await connector.setBlockParameterBySymbol(0, 3, "Wet", 6.0);
+
+                  // test serializing state
+                  console.log(connector.serializeCurrentPreset());
+
+                  console.log("wasm usage testing complete!");
+              }
+              catch (error) {
+                  console.error('wasm test error: ', error);
+              }
+        }
+    </script>
+  </head>
+  <body>
+    <header></header>
+    <main></main>
+    <footer></footer>
+    <script>
+    </script>
+  </body>
+</html>

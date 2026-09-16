@@ -11,7 +11,12 @@
 #include <cstring>
 #include <memory>
 
-#ifdef _WIN32
+#if defined(__EMSCRIPTEN__)
+#include <emscripten/websocket.h>
+#define closesocket emscripten_websocket_delete
+#define INVALID_SOCKET -1
+typedef EMSCRIPTEN_WEBSOCKET_T SOCKET;
+#elif defined(_WIN32)
 #include <winsock2.h>
 #else
 #include <fcntl.h>
@@ -28,6 +33,100 @@ typedef int SOCKET;
 #ifdef HAVE_SERIALPORT
 #include <libserialport.h>
 #define SERIALPORT_BLOCKING_READ_TIMEOUT_MS 40
+#endif
+
+// --------------------------------------------------------------------------------------------------------------------
+//
+
+#ifdef __EMSCRIPTEN__
+struct BufferedRecvData {
+    uint32_t size = 128;
+    uint32_t read = 0;
+    uint32_t wrtn = 0;
+    uint8_t* data = static_cast<uint8_t*>(std::malloc(size));
+
+    int pop(char* const c, const bool nonBlocking)
+    {
+        // TODO return ? if disconnected
+
+        if (read == wrtn)
+        {
+            if (nonBlocking)
+                return 0;
+
+            // emscripten_pause_main_loop();
+
+            for (int i = 0; i < 200 && read == wrtn; ++i)
+                emscripten_sleep(5);
+
+            // emscripten_resume_main_loop();
+
+            if (read == wrtn)
+            {
+                errno = EAGAIN;
+                return -1;
+            }
+        }
+
+        *c = data[read++];
+
+        if (read == wrtn)
+            read = wrtn = 0;
+
+        return 1;
+    }
+
+    void push(const EmscriptenWebSocketMessageEvent* const event)
+    {
+        if (data == nullptr || wrtn + event->numBytes > size)
+        {
+            size = (wrtn + event->numBytes) * 2;
+            data = static_cast<uint8_t*>(std::realloc(data, size));
+        }
+
+        assert_return(data != nullptr,);
+
+        std::memcpy(data + wrtn, event->data, event->numBytes);
+        wrtn += event->numBytes;
+    }
+};
+
+static EMSCRIPTEN_WEBSOCKET_T emSocketConnect(const int port)
+{
+    if (!emscripten_websocket_is_supported()) {
+        return INVALID_SOCKET;
+    }
+
+    printf("emSocketConnect %d\n", port);
+    char url[64];
+    EmscriptenWebSocketCreateAttributes attr = {
+        .url = url,
+        .protocols = nullptr,
+        .createOnMainThread = EM_TRUE,
+    };
+    std::snprintf(url, sizeof(url), "ws://localhost:%d", port);
+
+    const EMSCRIPTEN_WEBSOCKET_T socket = emscripten_websocket_new(&attr);
+    if (socket < 0)
+        return INVALID_SOCKET;
+
+    emscripten_websocket_set_onopen_callback(
+        socket, nullptr, [](const int eventType,
+                          const EmscriptenWebSocketOpenEvent* const event,
+                          void* const userData) -> EM_BOOL
+    {
+        return EM_TRUE;
+    });
+    emscripten_websocket_set_onerror_callback(
+        socket, nullptr, [](const int eventType,
+                          const EmscriptenWebSocketErrorEvent* const event,
+                          void* const userData) -> EM_BOOL
+    {
+        return EM_TRUE;
+    });
+
+    return socket;
+}
 #endif
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -98,11 +197,6 @@ struct IPC::Impl
     Impl(std::string& last_error_)
         : last_error(last_error_)
     {
-       #ifdef __EMSCRIPTEN__
-        dummyDevMode = true;
-        return;
-       #endif
-
         bufferSize = 128;
         buffer = static_cast<char*>(std::malloc(bufferSize));
         assert(buffer != nullptr);
@@ -151,6 +245,11 @@ struct IPC::Impl
         iface.reset();
     }
 
+    bool reconnect()
+    {
+        return iface != nullptr && iface->reconnect();
+    }
+
     char* readMessage(uint32_t* const bytesRead)
     {
         if (dummyDevMode)
@@ -168,7 +267,7 @@ struct IPC::Impl
         {
             // TCP server will return 0 when client is disconnected
             if (server)
-                last_error = format("readMessage fist byte disconnected, error: %d", getLastError());
+                last_error = format("readMessage first byte disconnected, error: %d", getLastError());
             else
                 last_error.clear();
             return nullptr;
@@ -180,7 +279,7 @@ struct IPC::Impl
             if (server && (errno == EAGAIN || errno == EWOULDBLOCK))
                 last_error.clear();
             else
-                last_error = format("readMessage fist byte error, return: %d, error: %d", r, getLastError());
+                last_error = format("readMessage first byte error, return: %d, error: %d", r, getLastError());
             return nullptr;
         }
 
@@ -537,6 +636,7 @@ private:
         std::string& last_error;
         Interface(std::string& last_error_) : last_error(last_error_) {};
         virtual ~Interface() = default;
+        [[nodiscard]] virtual bool reconnect() = 0;
         [[nodiscard]] virtual int setReadBlocking() = 0;
         virtual void setReadNonBlocking(int flags) = 0;
         [[nodiscard]] virtual int readMessageByte(char* c) = 0;
@@ -548,6 +648,7 @@ private:
     struct Serial : Interface {
         Serial(std::string& last_error_, const char* serial, int baudrate);
         ~Serial() override;
+        [[nodiscard]] bool reconnect() final;
         [[nodiscard]] int setReadBlocking() final;
         void setReadNonBlocking(int flags) final;
         [[nodiscard]] int readMessageByte(char* c) final;
@@ -562,6 +663,7 @@ private:
     struct SingleSocketTCP : Interface {
         SingleSocketTCP(std::string& last_error_, int port, bool isServer);
         ~SingleSocketTCP() override;
+        [[nodiscard]] bool reconnect() final;
         [[nodiscard]] int setReadBlocking() final;
         void setReadNonBlocking(int flags) final;
         [[nodiscard]] int readMessageByte(char* c) final;
@@ -571,12 +673,17 @@ private:
         struct {
             SOCKET out = INVALID_SOCKET;
             SOCKET outfd = INVALID_SOCKET;
+           #ifdef __EMSCRIPTEN__
+            BufferedRecvData outbuffer = {};
+            bool nonBlocking = true;
+           #endif
         } sockets;
     };
 
     struct DualSocketTCP : Interface {
         DualSocketTCP(std::string& last_error_, int port);
         ~DualSocketTCP() override;
+        [[nodiscard]] bool reconnect() final;
         [[nodiscard]] int setReadBlocking() final;
         void setReadNonBlocking(int flags) final;
         [[nodiscard]] int readMessageByte(char* c) final;
@@ -586,6 +693,11 @@ private:
         struct {
             SOCKET out = INVALID_SOCKET;
             SOCKET feedback = INVALID_SOCKET;
+           #ifdef __EMSCRIPTEN__
+            BufferedRecvData outbuffer = {};
+            BufferedRecvData fbbuffer = {};
+            bool nonBlocking = true;
+           #endif
         } sockets;
     };
 
@@ -599,19 +711,46 @@ IPC::Impl::SingleSocketTCP::SingleSocketTCP(std::string& last_error_, const int 
 {
     last_error.clear();
 
-   #ifdef _WIN32
+   #if defined(__EMSCRIPTEN__)
+    if (isServer)
+    {
+        last_error = "Socket server not supported in web builds";
+        return;
+    }
+   #elif defined(_WIN32)
     if (! wsaInit(last_error))
         return;
    #endif
 
     SOCKET outsock, outsockfd;
 
+   #ifdef __EMSCRIPTEN__
+    if (outsock = emSocketConnect(port); outsock == INVALID_SOCKET)
+   #else
     if (outsock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP); outsock == INVALID_SOCKET)
+   #endif
     {
         last_error = "output socket error";
         return;
     }
 
+  #ifdef __EMSCRIPTEN__
+    emscripten_websocket_set_onmessage_callback(
+        outsock, this, [](const int eventType,
+                          const EmscriptenWebSocketMessageEvent* const event,
+                          void* const userData) -> EM_BOOL
+    {
+        static_cast<IPC::Impl::SingleSocketTCP*>(userData)->sockets.outbuffer.push(event);
+        return EM_TRUE;
+    });
+
+    unsigned short readyState;
+    if (emscripten_websocket_get_ready_state(outsock, &readyState) != EMSCRIPTEN_RESULT_SUCCESS ||
+        readyState != 1)
+        last_error = "readyState error";
+
+    sockets.outfd = outsock;
+  #else
    #ifndef _WIN32
     int value;
 
@@ -681,6 +820,7 @@ IPC::Impl::SingleSocketTCP::SingleSocketTCP(std::string& last_error_, const int 
 
         sockets.outfd = outsock;
     }
+  #endif
 
     sockets.out = outsock;
 }
@@ -695,9 +835,11 @@ IPC::Impl::SingleSocketTCP::~SingleSocketTCP()
     const SOCKET outsockfd = sockets.outfd;
     sockets.out = sockets.outfd = INVALID_SOCKET;
 
+   #ifndef __EMSCRIPTEN__
     // shutdown connection first
     if (outsock != outsockfd)
         shutdown(outsockfd, SD_BOTH);
+   #endif
 
     // then the socket
     ::closesocket(outsock);
@@ -707,10 +849,30 @@ IPC::Impl::SingleSocketTCP::~SingleSocketTCP()
    #endif
 }
 
+bool IPC::Impl::SingleSocketTCP::reconnect()
+{
+   #ifdef __EMSCRIPTEN__
+    unsigned short readyState;
+    if (emscripten_websocket_get_ready_state(sockets.outfd, &readyState) != EMSCRIPTEN_RESULT_SUCCESS ||
+        readyState != 1)
+    {
+        last_error = "readyState error";
+        return false;
+    }
+    last_error.clear();
+    return true;
+   #else
+    return false;
+   #endif
+}
+
 int IPC::Impl::SingleSocketTCP::setReadBlocking()
 {
     assert(sockets.outfd != INVALID_SOCKET);
-   #ifdef _WIN32
+   #if defined(__EMSCRIPTEN__)
+    sockets.nonBlocking = false;
+    return 0;
+   #elif defined(_WIN32)
     unsigned long nonblocking = 0;
     ::ioctlsocket(sockets.outfd, FIONBIO, &nonblocking);
     return 0;
@@ -721,10 +883,12 @@ int IPC::Impl::SingleSocketTCP::setReadBlocking()
    #endif
 }
 
-void IPC::Impl::SingleSocketTCP::setReadNonBlocking(const int flags)
+void IPC::Impl::SingleSocketTCP::setReadNonBlocking(const int flags [[maybe_unused]])
 {
     assert(sockets.outfd != INVALID_SOCKET);
-   #ifdef _WIN32
+   #if defined(__EMSCRIPTEN__)
+    sockets.nonBlocking = true;
+   #elif defined(_WIN32)
     unsigned long nonblocking = 1;
     ::ioctlsocket(sockets.outfd, FIONBIO, &nonblocking);
    #else
@@ -734,12 +898,20 @@ void IPC::Impl::SingleSocketTCP::setReadNonBlocking(const int flags)
 
 int IPC::Impl::SingleSocketTCP::readMessageByte(char* const c)
 {
+   #ifdef __EMSCRIPTEN__
+    return sockets.outbuffer.pop(c, sockets.nonBlocking);
+   #else
     return recv(sockets.outfd, c, 1, 0);
+   #endif
 }
 
 int IPC::Impl::SingleSocketTCP::readResponseByte(char* const c)
 {
+   #ifdef __EMSCRIPTEN__
+    return sockets.outbuffer.pop(c, false);
+   #else
     return recv(sockets.outfd, c, 1, 0);
+   #endif
 }
 
 bool IPC::Impl::SingleSocketTCP::writeMessage(const std::string& message)
@@ -750,6 +922,13 @@ bool IPC::Impl::SingleSocketTCP::writeMessage(const std::string& message)
         return false;
     }
 
+   #ifdef __EMSCRIPTEN__
+    if (emscripten_websocket_send_utf8_text(sockets.outfd, message.c_str()) != EMSCRIPTEN_RESULT_SUCCESS)
+    {
+        last_error = "send error";
+        return false;
+    }
+   #else
     const char* buffer = message.c_str();
     size_t msgsize = message.size() + 1;
     int ret;
@@ -765,7 +944,8 @@ bool IPC::Impl::SingleSocketTCP::writeMessage(const std::string& message)
 
         msgsize -= ret;
         buffer += ret;
-     }
+    }
+   #endif
 
     return true;
 }
@@ -784,19 +964,52 @@ IPC::Impl::DualSocketTCP::DualSocketTCP(std::string& last_error_, const int port
 
     SOCKET outsock, fbsock;
 
+   #ifdef __EMSCRIPTEN__
+    if (outsock = emSocketConnect(port); outsock == INVALID_SOCKET)
+   #else
     if (outsock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP); outsock == INVALID_SOCKET)
+   #endif
     {
         last_error = "output socket error";
         return;
     }
 
+   #ifdef __EMSCRIPTEN__
+    if (fbsock = emSocketConnect(port + 1); fbsock == INVALID_SOCKET)
+   #else
     if (fbsock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP); fbsock == INVALID_SOCKET)
+   #endif
     {
         last_error = "feedback socket error";
         ::closesocket(outsock);
         return;
     }
 
+  #ifdef __EMSCRIPTEN__
+    emscripten_websocket_set_onmessage_callback(
+        outsock, this, [](const int eventType,
+                          const EmscriptenWebSocketMessageEvent* const event,
+                          void* const userData) -> EM_BOOL
+    {
+        static_cast<IPC::Impl::DualSocketTCP*>(userData)->sockets.outbuffer.push(event);
+        return EM_TRUE;
+    });
+    emscripten_websocket_set_onmessage_callback(
+        fbsock, this, [](const int eventType,
+                         const EmscriptenWebSocketMessageEvent* const event,
+                         void* const userData) -> EM_BOOL
+    {
+        static_cast<IPC::Impl::DualSocketTCP*>(userData)->sockets.fbbuffer.push(event);
+        return EM_TRUE;
+    });
+
+    unsigned short readyState;
+    if (emscripten_websocket_get_ready_state(outsock, &readyState) != EMSCRIPTEN_RESULT_SUCCESS ||
+        readyState != 1 ||
+        emscripten_websocket_get_ready_state(fbsock, &readyState) != EMSCRIPTEN_RESULT_SUCCESS ||
+        readyState != 1)
+        last_error = "readyState error";
+  #else
    #ifndef _WIN32
     int value;
 
@@ -844,6 +1057,7 @@ IPC::Impl::DualSocketTCP::DualSocketTCP(std::string& last_error_, const int port
     const int socketflags = ::fcntl(fbsock, F_GETFL);
     ::fcntl(fbsock, F_SETFL, socketflags | O_NONBLOCK);
    #endif
+  #endif
 
     sockets.out = outsock;
     sockets.feedback = fbsock;
@@ -867,9 +1081,35 @@ IPC::Impl::DualSocketTCP::~DualSocketTCP()
    #endif
 }
 
+bool IPC::Impl::DualSocketTCP::reconnect()
+{
+   #ifdef __EMSCRIPTEN__
+    unsigned short readyState;
+    if (emscripten_websocket_get_ready_state(sockets.out, &readyState) != EMSCRIPTEN_RESULT_SUCCESS ||
+        readyState != 1)
+    {
+        last_error = "readyState error";
+        return false;
+    }
+    if (emscripten_websocket_get_ready_state(sockets.feedback, &readyState) != EMSCRIPTEN_RESULT_SUCCESS ||
+        readyState != 1)
+    {
+        last_error = "readyState error";
+        return false;
+    }
+    last_error.clear();
+    return true;
+   #else
+    return false;
+   #endif
+}
+
 int IPC::Impl::DualSocketTCP::setReadBlocking()
 {
-   #ifdef _WIN32
+   #if defined(__EMSCRIPTEN__)
+    sockets.nonBlocking = false;
+    return 0;
+   #elif defined(_WIN32)
     unsigned long nonblocking = 0;
     ::ioctlsocket(sockets.feedback, FIONBIO, &nonblocking);
     return 0;
@@ -882,7 +1122,9 @@ int IPC::Impl::DualSocketTCP::setReadBlocking()
 
 void IPC::Impl::DualSocketTCP::setReadNonBlocking(const int flags [[maybe_unused]])
 {
-   #ifdef _WIN32
+   #if defined(__EMSCRIPTEN__)
+    sockets.nonBlocking = true;
+   #elif defined(_WIN32)
     unsigned long nonblocking = 1;
     ::ioctlsocket(sockets.feedback, FIONBIO, &nonblocking);
    #else
@@ -892,12 +1134,20 @@ void IPC::Impl::DualSocketTCP::setReadNonBlocking(const int flags [[maybe_unused
 
 int IPC::Impl::DualSocketTCP::readMessageByte(char* const c)
 {
+   #ifdef __EMSCRIPTEN__
+    return sockets.fbbuffer.pop(c, sockets.nonBlocking);
+   #else
     return recv(sockets.feedback, c, 1, 0);
+   #endif
 }
 
 int IPC::Impl::DualSocketTCP::readResponseByte(char* const c)
 {
+   #ifdef __EMSCRIPTEN__
+    return sockets.outbuffer.pop(c, false);
+   #else
     return recv(sockets.out, c, 1, 0);
+   #endif
 }
 
 bool IPC::Impl::DualSocketTCP::writeMessage(const std::string& message)
@@ -908,6 +1158,13 @@ bool IPC::Impl::DualSocketTCP::writeMessage(const std::string& message)
         return false;
     }
 
+   #ifdef __EMSCRIPTEN__
+    if (emscripten_websocket_send_utf8_text(sockets.out, message.c_str()) != EMSCRIPTEN_RESULT_SUCCESS)
+    {
+        last_error = "send error";
+        return false;
+    }
+   #else
     const char* buffer = message.c_str();
     size_t msgsize = message.size() + 1;
     int ret;
@@ -924,6 +1181,7 @@ bool IPC::Impl::DualSocketTCP::writeMessage(const std::string& message)
         msgsize -= ret;
         buffer += ret;
     }
+   #endif
 
     return true;
 }
@@ -960,6 +1218,11 @@ IPC::Impl::Serial::~Serial()
         sp_free_port(serialport);
         serialport = nullptr;
     }
+}
+
+bool IPC::Impl::Serial::reconnect()
+{
+    return false;
 }
 
 int IPC::Impl::Serial::setReadBlocking()
@@ -1039,6 +1302,13 @@ IPC::~IPC()
 {
     delete impl;
 }
+
+#ifdef __EMSCRIPTEN__
+bool IPC::reconnect()
+{
+    return impl->reconnect();
+}
+#endif
 
 char* IPC::readMessage(uint32_t* const bytesRead)
 {
