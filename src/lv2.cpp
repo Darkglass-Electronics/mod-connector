@@ -206,6 +206,7 @@ struct Lv2NamespaceDefinitions {
     LilvNode* const darkglass_blockImageOff;
     LilvNode* const darkglass_blockImageOn;
     LilvNode* const darkglass_license_interface;
+    LilvNode* const darkglass_license_uri;
     LilvNode* const dgcs_about;
     LilvNode* const dgcs_alignment;
     LilvNode* const dgcs_background;
@@ -275,6 +276,7 @@ struct Lv2NamespaceDefinitions {
           darkglass_blockImageOff(lilv_new_uri(world, LV2_DARKGLASS_PROPERTIES__blockImageOff)),
           darkglass_blockImageOn(lilv_new_uri(world, LV2_DARKGLASS_PROPERTIES__blockImageOn)),
           darkglass_license_interface(lilv_new_uri(world, DARKGLASS_LICENSE__interface)),
+          darkglass_license_uri(lilv_new_uri(world, DARKGLASS_LICENSE__uri)),
           dgcs_about(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__about)),
           dgcs_alignment(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__alignment)),
           dgcs_background(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__background)),
@@ -347,6 +349,7 @@ struct Lv2NamespaceDefinitions {
         lilv_node_free(darkglass_blockImageOff);
         lilv_node_free(darkglass_blockImageOn);
         lilv_node_free(darkglass_license_interface);
+        lilv_node_free(darkglass_license_uri);
         lilv_node_free(dgcs_about);
         lilv_node_free(dgcs_alignment);
         lilv_node_free(dgcs_background);
@@ -2009,10 +2012,14 @@ private:
     }
 
     // NOTE Lv2PluginIsUserRemovable must have already been set, if relevant
-    void updatePluginLicenseFlags(const char* uri, const LilvPlugin* const lilvplugin, Lv2Plugin* const plugin) const
+    void updatePluginLicenseFlags(const char* licenseURI,
+                                  const LilvPlugin* const lilvplugin,
+                                  Lv2Plugin* const plugin) const
     {
-        if (lilv_plugin_has_extension_data(lilvplugin, ns.darkglass_license_interface) ||
-            lilv_plugin_has_extension_data(lilvplugin, ns.modlicense_interface))
+        const bool dg_iface = lilv_plugin_has_extension_data(lilvplugin, ns.darkglass_license_interface);
+        const bool mod_iface = lilv_plugin_has_extension_data(lilvplugin, ns.modlicense_interface);
+
+        if (dg_iface || mod_iface)
         {
             plugin->flags |= Lv2PluginIsCommercial;
 
@@ -2029,13 +2036,32 @@ private:
             else
            #endif
             {
-                if (const auto it = stereoToMonoPluginMapping.find(uri); it != stereoToMonoPluginMapping.cend())
-                    uri = it->second.c_str();
+                if (const auto it = stereoToMonoPluginMapping.find(licenseURI); it != stereoToMonoPluginMapping.cend())
+                    licenseURI = it->second.c_str();
 
-                licensefile = keysdir + _sha1(uri);
+                licensefile = keysdir + _sha1(licenseURI);
             }
 
-            if (std::filesystem::exists(licensefile))
+           #ifdef _DARKGLASS_DEVICE_PABLITO
+            if (dg_iface)
+            {
+                if (LilvNodes* const uriNodes = lilv_plugin_get_value(lilvplugin, ns.darkglass_license_uri))
+                {
+                    LILV_FOREACH(nodes, it, uriNodes)
+                    {
+                        const LilvNode* const node = lilv_nodes_get(uriNodes, it);
+
+                        if (lilv_node_is_uri(node) && std::strcmp(lilv_node_as_uri(node), "urn:darkglass:pablito") == 0)
+                        {
+                            plugin->flags &= ~Lv2PluginIsCommercial;
+                            break;
+                        }
+                    }
+                }
+            }
+           #endif
+
+            if ((plugin->flags & Lv2PluginIsCommercial) != 0 && std::filesystem::exists(licensefile))
                 plugin->flags |= Lv2PluginIsLicensed;
             else
                 plugin->flags &= ~Lv2PluginIsLicensed;
