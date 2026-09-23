@@ -391,8 +391,11 @@ struct HostConnector : Host::Callback {
         heap_array<Block, NUM_BLOCKS_PER_PRESET> blocks;
         std::array<std::string, 2> capture;
         std::array<std::string, 2> playback;
+        std::array<std::string, 2> defaultCapture;
+        std::array<std::string, 2> defaultPlayback;
         std::array<uint16_t, 2> captureId;
         std::array<uint16_t, 2> playbackId;
+
         CLASS_ONLY_MOVE_INIT_NO_COPY(ChainRow)
     };
 
@@ -561,6 +564,10 @@ public:
 
     // set new custom ports to be used as chain capture can playback ports
     bool setJackPorts(const std::array<std::string, 2>& capture, const std::array<std::string, 2>& playback);
+
+    bool setJackPortsForRow(uint8_t row,
+            const std::array<std::string, 2>& capture,
+            const std::array<std::string, 2>& playback);
 
     void hostReady();
 

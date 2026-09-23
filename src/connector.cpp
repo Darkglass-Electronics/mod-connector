@@ -799,98 +799,134 @@ bool HostConnector::canAddSidechainOutput(const uint8_t row, const uint8_t block
 
 bool HostConnector::setJackPorts(const std::array<std::string, 2>& capture, const std::array<std::string, 2>& playback)
 {
-    ChainRow& chaindata(_current.chains[0]);
+    return setJackPortsForRow(0, capture, playback);
+}
 
-    if (chaindata.capture[0] == capture[0] && chaindata.capture[1] == capture[1] &&
-        chaindata.playback[0] == playback[0] && chaindata.playback[1] == playback[1])
+bool HostConnector::setJackPortsForRow(const uint8_t row,
+                                       const std::array<std::string, 2>& capture,
+                                       const std::array<std::string, 2>& playback)
+{
+    assert(row < NUM_BLOCK_CHAIN_ROWS);
+
+    ChainRow& chaindata(_current.chains[row]);
+
+    // ports currently taken from a sidechain block must not be overwritten here
+    const bool captureIsDefault = chaindata.capture == chaindata.defaultCapture;
+    const bool playbackIsDefault = chaindata.playback == chaindata.defaultPlayback;
+
+    chaindata.defaultCapture = capture;
+    chaindata.defaultPlayback = playback;
+    for (Preset& presetdata : _presets)
+    {
+        presetdata.chains[row].defaultCapture = capture;
+        presetdata.chains[row].defaultPlayback = playback;
+    }
+
+    if (chaindata.capture == capture && chaindata.playback == playback)
         return false;
 
     // nothing special to do if first preset has not been loaded yet
     if (_firstboot)
     {
-        chaindata.capture = capture;
-        chaindata.playback = playback;
+        if (captureIsDefault)
+            chaindata.capture = capture;
+        if (playbackIsDefault)
+            chaindata.playback = playback;
+
         for (Preset& presetdata : _presets)
         {
-            presetdata.chains[0].capture = capture;
-            presetdata.chains[0].playback = playback;
+            if (captureIsDefault)
+                presetdata.chains[row].capture = capture;
+            if (playbackIsDefault)
+                presetdata.chains[row].playback = playback;
         }
         return true;
     }
 
-    // first first and last blocks
+    // find first and last blocks of this row
     uint8_t firstBlock = UINT8_MAX;
     uint8_t lastBlock = UINT8_MAX;
+    for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
+    {
+        if (!isNullBlock(chaindata.blocks[bl]))
+        {
+            if (firstBlock == UINT8_MAX)
+                firstBlock = bl;
+
+            lastBlock = bl;
+        }
+    }
 
     // disconnect old chain endpoints
-    if (_current.numLoadedPlugins == 0)
+    if (firstBlock == UINT8_MAX)
     {
-        hostDisconnectChainEndpoints(0);
+        hostDisconnectChainEndpoints(row);
     }
     else
     {
-        for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
-        {
-            if (!isNullBlock(chaindata.blocks[bl]))
-            {
-                if (firstBlock == UINT8_MAX)
-                    firstBlock = bl;
-
-                lastBlock = bl;
-            }
-        }
-
-        assert(firstBlock != UINT8_MAX);
-        assert(lastBlock != UINT8_MAX);
-
-        hostDisconnectAllBlockInputs(0, firstBlock);
-        hostDisconnectAllBlockOutputs(0, lastBlock);
+        if (captureIsDefault)
+            hostDisconnectAllBlockInputs(row, firstBlock);
+        if (playbackIsDefault)
+            hostDisconnectAllBlockOutputs(row, lastBlock);
     }
 
 #if MONITOR_AUDIO_LEVELS
-    // unmonitor old ports
-    if constexprstr (std::strcmp(JACK_PLAYBACK_MONITOR_PORT_1, JACK_PLAYBACK_MONITOR_PORT_2) != 0)
-        _host.monitor_audio_levels(JACK_PLAYBACK_MONITOR_PORT_2, false);
+    if (row == 0)
+    {
+        // unmonitor old ports
+        if constexprstr (std::strcmp(JACK_PLAYBACK_MONITOR_PORT_1, JACK_PLAYBACK_MONITOR_PORT_2) != 0)
+            _host.monitor_audio_levels(JACK_PLAYBACK_MONITOR_PORT_2, false);
 
-    _host.monitor_audio_levels(JACK_PLAYBACK_MONITOR_PORT_1, false);
+        _host.monitor_audio_levels(JACK_PLAYBACK_MONITOR_PORT_1, false);
 
-    if (chaindata.capture[0] != chaindata.capture[1])
-        _host.monitor_audio_levels(chaindata.capture[1].c_str(), false);
+        if (chaindata.capture[0] != chaindata.capture[1])
+            _host.monitor_audio_levels(chaindata.capture[1].c_str(), false);
 
-    _host.monitor_audio_levels(chaindata.capture[0].c_str(), false);
+        _host.monitor_audio_levels(chaindata.capture[0].c_str(), false);
+    }
 #endif
 
     // set new ports
-    chaindata.capture = capture;
-    chaindata.playback = playback;
+    if (captureIsDefault)
+        chaindata.capture = capture;
+    if (playbackIsDefault)
+        chaindata.playback = playback;
+
     for (Preset& presetdata : _presets)
     {
-        presetdata.chains[0].capture = capture;
-        presetdata.chains[0].playback = playback;
+        if (captureIsDefault)
+            presetdata.chains[row].capture = capture;
+        if (playbackIsDefault)
+            presetdata.chains[row].playback = playback;
     }
 
     // reconnect endpoints again
-    if (_current.numLoadedPlugins == 0)
+    if (firstBlock == UINT8_MAX)
     {
-        hostConnectChainEndpoints(0);
+        hostConnectChainEndpoints(row);
     }
     else
     {
-        hostConnectBlockToChainInput(0, firstBlock);
-        hostConnectBlockToChainOutput(0, lastBlock);
+        if (captureIsDefault)
+            hostConnectBlockToChainInput(row, firstBlock);
+        if (playbackIsDefault)
+            hostConnectBlockToChainOutput(row, lastBlock);
     }
 
 #if MONITOR_AUDIO_LEVELS
-    // monitor new ports
-    _host.monitor_audio_levels(capture[0].c_str(), true);
+    if (row == 0)
+    {
+        // monitor new ports
+        _host.monitor_audio_levels(capture[0].c_str(), true);
 
-    if (capture[0] != capture[1])
-        _host.monitor_audio_levels(capture[1].c_str(), true);
+        if (capture[0] != capture[1])
+            _host.monitor_audio_levels(capture[1].c_str(), true);
 
-    _host.monitor_audio_levels(JACK_PLAYBACK_MONITOR_PORT_1, true);
+        _host.monitor_audio_levels(JACK_PLAYBACK_MONITOR_PORT_1, true);
 
-    if constexprstr (std::strcmp(JACK_PLAYBACK_MONITOR_PORT_1, JACK_PLAYBACK_MONITOR_PORT_2) != 0)
-        _host.monitor_audio_levels(JACK_PLAYBACK_MONITOR_PORT_2, true);       
+        if constexprstr (std::strcmp(JACK_PLAYBACK_MONITOR_PORT_1, JACK_PLAYBACK_MONITOR_PORT_2) != 0)
+            _host.monitor_audio_levels(JACK_PLAYBACK_MONITOR_PORT_2, true);
+    }
 #endif
 
     return true;
@@ -2013,13 +2049,20 @@ bool HostConnector::replaceBlock(const uint8_t row,
         return false;
     }
 
+    // rows can have their own endpoints, so count per row
+    uint8_t numLoadedInRow = 0;
+    for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
+    {
+        if (!isNullBlock(chaindata.blocks[bl]))
+            ++numLoadedInRow;
+    }
+
     if (!isNullBlock(blockdata))
     {
-        // replace old direct connections if this is the first plugin
-        if (_current.numLoadedPlugins == 1)
+        // replace old direct connections if this is the first plugin of the row
+        if (numLoadedInRow == 1)
         {
-            assert(row == 0);
-            hostDisconnectChainEndpoints(0);
+            hostDisconnectChainEndpoints(row);
             hostConnectBlockToChainInput(row, block);
             hostConnectBlockToChainOutput(row, block);
         }
@@ -2108,10 +2151,10 @@ bool HostConnector::replaceBlock(const uint8_t row,
     }
     else
     {
-        // use direct connections if there are no plugins
-        if (_current.numLoadedPlugins == 0)
+        // use direct connections if there are no plugins left in the row
+        if (numLoadedInRow == 0)
         {
-            hostConnectChainEndpoints(0);
+            hostConnectChainEndpoints(row);
         }
         else
         {
@@ -4617,8 +4660,8 @@ void HostConnector::hostClearAndLoadCurrentBank()
 
     for (uint8_t row = 1; row < NUM_BLOCK_CHAIN_ROWS; ++row)
     {
-        _current.chains[row].capture.fill({});
-        _current.chains[row].playback.fill({});
+        _current.chains[row].capture = _current.chains[row].defaultCapture;
+        _current.chains[row].playback = _current.chains[row].defaultPlayback;
         _current.chains[row].captureId.fill(kMaxHostInstances);
         _current.chains[row].playbackId.fill(kMaxHostInstances);
     }
@@ -5099,13 +5142,13 @@ void HostConnector::hostRemoveInstanceForBlock(const uint8_t row, const uint8_t 
 
         if (blockdata.meta.numSideInputs != 0)
         {
-            _current.chains[row + 1].playback.fill({});
+            _current.chains[row + 1].playback = _current.chains[row + 1].defaultPlayback;
             _current.chains[row + 1].playbackId.fill(kMaxHostInstances);
         }
 
         if (blockdata.meta.numSideOutputs != 0)
         {
-            _current.chains[row + 1].capture.fill({});
+            _current.chains[row + 1].capture = _current.chains[row + 1].defaultCapture;
             _current.chains[row + 1].captureId.fill(kMaxHostInstances);
         }
     }
@@ -5162,8 +5205,8 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
 
             if (row != 0)
             {
-                chaindata.capture.fill({});
-                chaindata.playback.fill({});
+                chaindata.capture = chaindata.defaultCapture;
+                chaindata.playback = chaindata.defaultPlayback;
             }
 
             chaindata.captureId.fill(kMaxHostInstances);
@@ -5501,8 +5544,8 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
 
             if (row != 0)
             {
-                chaindata.capture.fill({});
-                chaindata.playback.fill({});
+                chaindata.capture = chaindata.defaultCapture;
+                chaindata.playback = chaindata.defaultPlayback;
             }
 
             chaindata.captureId.fill(kMaxHostInstances);
@@ -7358,8 +7401,8 @@ void HostConnector::resetPreset(Preset& preset)
     {
         if (row != 0)
         {
-            preset.chains[row].capture.fill({});
-            preset.chains[row].playback.fill({});
+            preset.chains[row].capture = preset.chains[row].defaultCapture;
+            preset.chains[row].playback = preset.chains[row].defaultPlayback;
         }
 
         preset.chains[row].captureId.fill(kMaxHostInstances);
@@ -7390,15 +7433,24 @@ void HostConnector::resetPresetPorts(Preset& preset, const bool usingDefault)
 {
     if (usingDefault)
     {
-        preset.chains[0].capture[0] = JACK_CAPTURE_PORT_1;
-        preset.chains[0].capture[1] = JACK_CAPTURE_PORT_2;
-        preset.chains[0].playback[0] = JACK_PLAYBACK_PORT_1;
-        preset.chains[0].playback[1] = JACK_PLAYBACK_PORT_2;
+        preset.chains[0].defaultCapture[0] = JACK_CAPTURE_PORT_1;
+        preset.chains[0].defaultCapture[1] = JACK_CAPTURE_PORT_2;
+        preset.chains[0].defaultPlayback[0] = JACK_PLAYBACK_PORT_1;
+        preset.chains[0].defaultPlayback[1] = JACK_PLAYBACK_PORT_2;
     }
     else
     {
-        preset.chains[0].capture = _current.chains[0].capture;
-        preset.chains[0].playback = _current.chains[0].playback;
+        for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
+        {
+            preset.chains[row].defaultCapture = _current.chains[row].defaultCapture;
+            preset.chains[row].defaultPlayback = _current.chains[row].defaultPlayback;
+        }
+    }
+
+    for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
+    {
+        preset.chains[row].capture = preset.chains[row].defaultCapture;
+        preset.chains[row].playback = preset.chains[row].defaultPlayback;
     }
 }
 
