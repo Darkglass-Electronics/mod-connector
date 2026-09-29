@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2024-2025 Filipe Coelho <falktx@darkglass.com>
+// SPDX-FileCopyrightText: 2024-2026 Filipe Coelho <falktx@darkglass.com>
 // SPDX-License-Identifier: ISC
 
 #pragma once
@@ -465,6 +465,11 @@ struct Host {
 
     Host(Callback* callback);
     ~Host();
+
+   /**
+     * close connection to host
+     */
+    void close();
 
    /**
      * try to reconnect host if it previously failed
