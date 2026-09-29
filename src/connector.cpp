@@ -499,6 +499,14 @@ void HostConnector::setCallback(Callback* const callback)
 
 // --------------------------------------------------------------------------------------------------------------------
 
+void HostConnector::disconnect()
+{
+    ok = false;
+    _host.close();
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 bool HostConnector::reconnect()
 {
     ok = _host.reconnect();
