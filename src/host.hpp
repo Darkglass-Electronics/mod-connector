@@ -6,6 +6,8 @@
 #include <cstdint>
 #include <string>
 
+struct IPC;
+
 struct flushed_param {
     const char* symbol;
     float value;
@@ -463,7 +465,11 @@ struct Host {
      */
     bool poll_feedback() const;
 
-    Host(Callback* callback);
+   /**
+     * constructor passing a callback for feedback and disconnect messages
+     * NOTE custom IPC is optional, if used the host takes ownership of the pointer
+     */
+    Host(Callback* callback, IPC* ipc = nullptr);
     ~Host();
 
    /**

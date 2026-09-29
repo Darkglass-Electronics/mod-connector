@@ -17,6 +17,8 @@
 #include <optional>
 #include <unordered_map>
 
+struct IPC;
+
 // --------------------------------------------------------------------------------------------------------------------
 
 // compatibility with older GCC, fails to build due requiring definition for the value type
@@ -471,7 +473,8 @@ public:
     std::unordered_map<std::string, std::vector<Lv2Port>> virtualParameters;
 
     // constructor, initializes connection to mod-host and sets `ok` to true if successful
-    HostConnector(Callback* callback = nullptr);
+    // NOTE if custom IPC is used, connector takes ownership of the pointer
+    HostConnector(Callback* callback = nullptr, IPC* ipc = nullptr);
 
     // ----------------------------------------------------------------------------------------------------------------
 
