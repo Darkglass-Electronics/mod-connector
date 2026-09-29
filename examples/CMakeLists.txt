@@ -4,7 +4,7 @@ project(mod-connector-examples)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 
-set(MOD_CONNECTOR_TESTS TRUE)
+set(MOD_CONNECTOR_LIB_ONLY TRUE)
 include(${CMAKE_CURRENT_SOURCE_DIR}/../CMakeLists.txt)
 
 # Import example dependencies
