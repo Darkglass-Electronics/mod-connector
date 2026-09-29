@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2024-2025 Filipe Coelho <falktx@darkglass.com>
+// SPDX-FileCopyrightText: 2024-2026 Filipe Coelho <falktx@darkglass.com>
 // SPDX-License-Identifier: ISC
 
 #define MOD_LOG_GROUP "ipc"
@@ -168,7 +168,7 @@ struct IPC::Impl
         {
             // TCP server will return 0 when client is disconnected
             if (server)
-                last_error = format("readMessage fist byte disconnected, error: %d", getLastError());
+                last_error = format("readMessage first byte disconnected, error: %d", getLastError());
             else
                 last_error.clear();
             return nullptr;
@@ -180,7 +180,7 @@ struct IPC::Impl
             if (server && (errno == EAGAIN || errno == EWOULDBLOCK))
                 last_error.clear();
             else
-                last_error = format("readMessage fist byte error, return: %d, error: %d", r, getLastError());
+                last_error = format("readMessage first byte error, return: %d, error: %d", r, getLastError());
             return nullptr;
         }
 
@@ -721,7 +721,7 @@ int IPC::Impl::SingleSocketTCP::setReadBlocking()
    #endif
 }
 
-void IPC::Impl::SingleSocketTCP::setReadNonBlocking(const int flags)
+void IPC::Impl::SingleSocketTCP::setReadNonBlocking(const int flags [[maybe_unused]])
 {
     assert(sockets.outfd != INVALID_SOCKET);
    #ifdef _WIN32
@@ -765,7 +765,7 @@ bool IPC::Impl::SingleSocketTCP::writeMessage(const std::string& message)
 
         msgsize -= ret;
         buffer += ret;
-     }
+    }
 
     return true;
 }
