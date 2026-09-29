@@ -465,6 +465,10 @@ struct Host {
      */
     bool poll_feedback() const;
 
+   /**
+     * constructor passing a callback for feedback and disconnect messages
+     * NOTE custom IPC is optional, if used the host takes ownership of the pointer
+     */
     Host(Callback* callback, IPC* ipc = nullptr);
     ~Host();
 
