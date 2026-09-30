@@ -48,7 +48,7 @@ struct IPC
     /**
      * function type used for callback-based IPC.
      */
-    typedef const char* (*RecvCallback)(void* ptr, uint32_t* size, bool blocking);
+    typedef const char* (*RecvCallback)(void* ptr, uint32_t* size);
 
     /**
      * create IPC using a serial port, specifying path to serial port and baudrate.

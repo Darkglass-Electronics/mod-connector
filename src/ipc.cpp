@@ -99,7 +99,7 @@ private:
     bool idle(const bool blocking)
     {
         uint32_t cbsize = 0;
-        const char* const cbdata = callback(callbackPtr, &cbsize, blocking);
+        const char* const cbdata = callback(callbackPtr, &cbsize);
 
         if (cbdata == nullptr || cbsize == 0)
             return !blocking;
