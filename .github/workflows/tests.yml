@@ -3,7 +3,7 @@ name: tests
 on: [push, pull_request]
 
 env:
-  CACHE_VERSION: 4
+  CACHE_VERSION: 5
   DEBIAN_FRONTEND: noninteractive
   JACKD_CMD_ARGS: -r -d dummy -r 48000 -p 8192
 
@@ -29,7 +29,7 @@ jobs:
         shell: bash
         run: |
           if [ ! -d ~/mod-host ]; then
-            git clone --depth=1 https://github.com/mod-audio/mod-host.git ~/mod-host
+            git clone --depth=1 https://github.com/Darkglass-Electronics/mod-host.git ~/mod-host
             make -C ~/mod-host -j $(nproc)
           fi
       - name: build test blocks
@@ -43,6 +43,8 @@ jobs:
           cmake --build build -j
       - name: run tests (gdb)
         shell: bash
+        env:
+          LV2_PATH: $GITHUB_WORKSPACE/test-blocks/build
         run: |
           echo $(which jackd) ${{ env.JACKD_CMD_ARGS }} | tee ~/.jackdrc
           echo -e 'r\nbt\nq\ny\n' | gdb ./build/tests
@@ -51,7 +53,7 @@ jobs:
       - name: run tests
         shell: bash
         env:
-          LV2_PATH: $GITHUB_WORKSPACE/test-blocks/build/
+          LV2_PATH: $GITHUB_WORKSPACE/test-blocks/build
         run: |
           echo $(which jackd) ${{ env.JACKD_CMD_ARGS }} | tee ~/.jackdrc
           ./build/tests
@@ -76,7 +78,7 @@ jobs:
   #       shell: bash
   #       run: |
   #         if [ ! -d ~/mod-host ]; then
-  #           git clone --depth=1 https://github.com/mod-audio/mod-host.git ~/mod-host
+  #           git clone --depth=1 https://github.com/Darkglass-Electronics/mod-host.git ~/mod-host
   #           make -C ~/mod-host -j $(sysctl -n hw.logicalcpu)
   #         fi
   #     - name: build test blocks
