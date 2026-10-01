@@ -172,7 +172,7 @@ struct Host::Impl
         if (ipc == nullptr)
             ipc.reset(IPC::createDualSocketIPC(portNumber));
 
-        last_error = ipc->last_error;
+        last_error = ipc != nullptr ? ipc->last_error : "failed to initialize IPC backend";
 
         if (last_error.empty())
             return true;

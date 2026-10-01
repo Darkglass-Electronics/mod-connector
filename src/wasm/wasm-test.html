@@ -40,6 +40,9 @@
                       connector.disconnect = () => connector.ccall("disconnect", "void", [], []);
                       connector.reconnect = () => connector.ccall("reconnect", "boolean", [], []);
                       connector.getLastError = () => connector.ccall("getLastError", "string", [], []);
+                      // TESTING
+                      connector.test_string_return = () => connector.ccall("test_string_return", "string", [], []);
+                      connector.test_string_send = (s) => connector.ccall("test_string_send", "void", ["string"], [s]);
                       // TODO write them all!
                       connector.getAverageCpuLoad = () => connector.ccall("getAverageCpuLoad", "number", [], [], {async: true});
                       connector.getMaximumCpuLoad = () => connector.ccall("getMaximumCpuLoad", "number", [], [], {async: true});

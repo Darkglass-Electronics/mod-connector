@@ -3,6 +3,13 @@
 
 #include "connector.hpp"
 
+#if NUM_BLOCK_CHAIN_ROWS != 2
+#error this code expects NUM_BLOCK_CHAIN_ROWS == 2
+#endif
+#if NUM_PRESETS_PER_BANK != 3
+#error this code expects NUM_PRESETS_PER_BANK == 3
+#endif
+
 #include <emscripten.h>
 
 class HostConnectorExport : public HostConnector,
@@ -25,6 +32,7 @@ private:
 };
 
 static HostConnectorExport* conn = new HostConnectorExport;
+static std::string ret;
 
 // TODO apply "__attribute__((used))" to all functions at once
 
@@ -67,7 +75,6 @@ bool reconnect()
 __attribute__((used))
 const char* getLastError()
 {
-    static std::string ret;
     ret = conn->getLastError();
     return ret.c_str();
 }
@@ -88,6 +95,12 @@ __attribute__((used))
 bool monitorMidiProgram(uint8_t midiChannel, bool enable)
 {
     return conn->monitorMidiProgram(midiChannel, enable);
+}
+
+__attribute__((used))
+bool midiOut(uint8_t size, const uint8_t* data)
+{
+    return conn->midiOut(size, data);
 }
 
 __attribute__((used))
@@ -114,7 +127,6 @@ void waitAudioCycle()
 __attribute__((used))
 const char* getBlockId(uint8_t row, uint8_t block)
 {
-    static std::string ret;
     ret = conn->getBlockId(row, block);
     return ret.c_str();
 }
@@ -122,7 +134,6 @@ const char* getBlockId(uint8_t row, uint8_t block)
 __attribute__((used))
 const char* getBlockIdNoPair(uint8_t row, uint8_t block)
 {
-    static std::string ret;
     ret = conn->getBlockIdNoPair(row, block);
     return ret.c_str();
 }
@@ -130,7 +141,6 @@ const char* getBlockIdNoPair(uint8_t row, uint8_t block)
 __attribute__((used))
 const char* getBlockIdPairOnly(uint8_t row, uint8_t block)
 {
-    static std::string ret;
     ret = conn->getBlockIdPairOnly(row, block);
     return ret.c_str();
 }
@@ -147,7 +157,6 @@ void printStateForDebug(bool withBlocks, bool withParams, bool withBindings)
 __attribute__((used))
 const char* serializeCurrentPreset()
 {
-    static std::string ret;
     ret = conn->serializeCurrentPreset();
     return ret.c_str();
 }
@@ -247,6 +256,17 @@ void setDirty(bool dirty = true)
     conn->setDirty(dirty);
 }
 
+// TODO
+// __attribute__((used))
+// void setMetadataValue(const std::string& key, const nlohmann::json& value)
+// {
+//     setMetadataValue(_current.preset, key, value);
+// }
+
+// TODO
+// __attribute__((used))
+// void setMetadataValue(uint8_t preset, const std::string& key, const nlohmann::json& value);
+
 // --------------------------------------------------------------------------------------------------------------------
 // bank handling
 
@@ -254,10 +274,11 @@ __attribute__((used))
 void loadBankFromPresetFiles(const char* filename1,
                              const char* filename2,
                              const char* filename3,
-                             uint8_t initialPresetToLoad = 0)
+                             uint8_t initialPresetToLoad = 0,
+                             bool discardMetadata = false)
 {
     const std::array<std::string, NUM_PRESETS_PER_BANK> filenames = { filename1, filename2, filename3 };
-    conn->loadBankFromPresetFiles(filenames, initialPresetToLoad);
+    conn->loadBankFromPresetFiles(filenames, initialPresetToLoad, discardMetadata);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -266,9 +287,21 @@ void loadBankFromPresetFiles(const char* filename1,
 __attribute__((used))
 const char* getPresetNameFromFile(const char* filename)
 {
-    static std::string ret;
-    ret = ::getPresetNameFromFile(filename);
+    ret = HostConnector::getPresetNameFromFile(filename);
     return ret.c_str();
+}
+
+// TODO
+// static std::optional<nlohmann::json> getPresetMetadataFromFile(const char* filename, const std::string& key = {});
+
+// TODO
+// static bool updatePresetMetadataInFile(const char* filename, const std::string& key, const nlohmann::json& value);
+
+// TODO
+__attribute__((used))
+bool updatePresetNameInFile(const char* filename, const char* name)
+{
+    return HostConnector::updatePresetNameInFile(filename, name);
 }
 
 __attribute__((used))
@@ -332,16 +365,22 @@ void setPresetFilename(uint8_t preset, const char* filename)
 }
 
 __attribute__((used))
+void setPresetName(uint8_t preset, const char* name)
+{
+    conn->setPresetName(preset, name);
+}
+
+__attribute__((used))
+void setCurrentPresetFilename(const char* filename)
+{
+    conn->setCurrentPresetFilename(filename);
+}
+
+__attribute__((used))
 void setCurrentPresetName(const char* name)
 {
     conn->setCurrentPresetName(name);
 }
-
-// __attribute__((used))
-// void setCurrentPresetFilename(const char* filename)
-// {
-//     setPresetFilename(_current.preset, filename);
-// }
 
 __attribute__((used))
 bool switchPreset(uint8_t preset)
@@ -451,11 +490,11 @@ bool renameScene(uint8_t scene, const char* name)
     return conn->renameScene(scene, name);
 }
 
-// __attribute__((used))
-// inline bool renameCurrentScene(const char* name)
-// {
-//     return renameScene(_current.scene, name);
-// }
+__attribute__((used))
+bool renameCurrentScene(const char* name)
+{
+    return conn->renameCurrentScene(name);
+}
 
 // --------------------------------------------------------------------------------------------------------------------
 // bindings NOTICE WORK-IN-PROGRESS
@@ -480,11 +519,11 @@ bool editBlockBinding(uint8_t hwid, uint8_t row, uint8_t block, bool inverted)
 
 __attribute__((used))
 bool editBlockParameterBinding(uint8_t hwid,
-                                uint8_t row,
-                                uint8_t block,
-                                uint8_t paramIndex,
-                                float min,
-                                float max)
+                               uint8_t row,
+                               uint8_t block,
+                               uint8_t paramIndex,
+                               float min,
+                               float max)
 {
     return conn->editBlockParameterBinding(hwid, row, block, paramIndex, min, max);
 }
@@ -654,9 +693,21 @@ void connectBlockAudioInput2Tool(uint8_t row,
 }
 
 __attribute__((used))
+void connectJackPorts(const char* jackPortA, const char* jackPortB)
+{
+    conn->connectJackPorts(jackPortA, jackPortB);
+}
+
+__attribute__((used))
 void disconnectToolAudioPort(uint8_t toolIndex, const char* symbol)
 {
     conn->disconnectToolAudioPort(toolIndex, symbol);
+}
+
+__attribute__((used))
+void disconnectJackPort(const char* jackPort)
+{
+    conn->disconnectJackPort(jackPort);
 }
 
 __attribute__((used))

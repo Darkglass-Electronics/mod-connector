@@ -651,19 +651,19 @@ public:
     // set the filename of a preset
     void setPresetFilename(uint8_t preset, const char* filename);
 
-    // set the name of the current preset
+    // set the name of a preset
     void setPresetName(uint8_t preset, const char* name);
-
-    // set the name of the current preset
-    void setCurrentPresetName(const char* name)
-    {
-        setPresetName(_current.preset, name);
-    }
 
     // convenience call for setting current preset filename
     void setCurrentPresetFilename(const char* filename)
     {
         setPresetFilename(_current.preset, filename);
+    }
+
+    // convenience call for setting current preset name
+    void setCurrentPresetName(const char* name)
+    {
+        setPresetName(_current.preset, name);
     }
 
     // switch to another preset within the current bank

@@ -11,7 +11,9 @@
 #include <cstring>
 #include <memory>
 
-#ifdef _WIN32
+#if defined(__EMSCRIPTEN__)
+#include <emscripten.h>
+#elif defined(_WIN32)
 #include <winsock2.h>
 #else
 #include <fcntl.h>
@@ -209,6 +211,7 @@ struct IPC::Impl
     }
    #endif
 
+   #ifndef __EMSCRIPTEN__
     void openSingleTCP(const int port, const bool isServer)
     {
         if (dummyDevMode)
@@ -229,6 +232,7 @@ struct IPC::Impl
 
         iface = std::make_unique<DualSocketTCP>(last_error, port);
     }
+   #endif
 
     void openDualCallback(const SendCallback send,
                           const RecvCallback reply,
@@ -660,6 +664,7 @@ private:
     };
    #endif
 
+   #ifndef __EMSCRIPTEN__
     struct SingleSocketTCP : Interface {
         SingleSocketTCP(std::string& last_error_, int port, bool isServer);
         ~SingleSocketTCP() override;
@@ -691,6 +696,7 @@ private:
             SOCKET feedback = INVALID_SOCKET;
         } sockets;
     };
+   #endif
 
     struct DualCallback : Interface {
         DualCallback(std::string& last_error_,
@@ -721,6 +727,7 @@ private:
 
 // --------------------------------------------------------------------------------------------------------------------
 
+#ifndef __EMSCRIPTEN__
 IPC::Impl::SingleSocketTCP::SingleSocketTCP(std::string& last_error_, const int port, const bool isServer)
     : Interface(last_error_)
 {
@@ -900,9 +907,11 @@ bool IPC::Impl::SingleSocketTCP::writeMessage(const std::string& message)
 
     return true;
 }
+#endif
 
 // --------------------------------------------------------------------------------------------------------------------
 
+#ifndef __EMSCRIPTEN__
 IPC::Impl::DualSocketTCP::DualSocketTCP(std::string& last_error_, const int port)
     : Interface(last_error_)
 {
@@ -1062,6 +1071,7 @@ bool IPC::Impl::DualSocketTCP::writeMessage(const std::string& message)
 
     return true;
 }
+#endif
 
 // --------------------------------------------------------------------------------------------------------------------
 
@@ -1195,30 +1205,43 @@ bool IPC::Impl::DualCallback::writeMessage(const std::string& message)
 
 IPC* IPC::createSerialPortIPC(const char* const serial, const int baudrate)
 {
-#ifdef HAVE_SERIALPORT
+   #ifdef HAVE_SERIALPORT
     IPC* const ipc = new IPC();
     ipc->impl->openSerial(serial, baudrate);
     return ipc;
-#else
+   #else
     return nullptr;
     // unused
     (void)serial;
     (void)baudrate;
-#endif
+   #endif
 }
 
 IPC* IPC::createSingleSocketIPC(const int tcpPort, const bool isServer)
 {
+   #ifndef __EMSCRIPTEN__
     IPC* const ipc = new IPC();
     ipc->impl->openSingleTCP(tcpPort, isServer);
     return ipc;
+   #else
+    return nullptr;
+    // unused
+    (void)tcpPort;
+    (void)isServer;
+   #endif
 }
 
 IPC* IPC::createDualSocketIPC(const int tcpPort)
 {
+   #ifndef __EMSCRIPTEN__
     IPC* const ipc = new IPC();
     ipc->impl->openDualTCP(tcpPort);
     return ipc;
+   #else
+    return nullptr;
+    // unused
+    (void)tcpPort;
+   #endif
 }
 
 IPC* IPC::createDualCallbackIPC(const SendCallback send,
