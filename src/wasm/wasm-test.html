@@ -11,8 +11,14 @@
         let connector = null;
 
         // init wasm on click
+        let hid_setup = false;
+        let hid_connected = false;
         document.onclick = async () => {
-          document.onclick = undefined;
+          if (connector != null) {
+            await connector.deinit();
+            return;
+          }
+
           try {
               let resp;
               resp = await fetch('/mod-connector-wasm.js');
@@ -24,6 +30,7 @@
               if (!resp.ok) {
                   throw ('Failed to download wasm-blob file');
               }
+              let pendingFeedbackData = [];
               const wasmBlob = await resp.arrayBuffer();
               const wasmJsFn = new Function(wasmJs + 'return connector;');
               const createModule = wasmJsFn.call();
@@ -41,10 +48,13 @@
                       const kSceneModeClear = 1;
 
                       // setup IPC over WebHID
-                      let connected = false;
                       const backend_data = createDataBackendWebHID();
-                      await backend_data.setup(() => { connected = true; }, () => {});
-                      if (! connected) {
+                      hid_connected = false;
+                      if (! hid_setup) {
+                        hid_setup = true;
+                        await backend_data.setup(() => { hid_connected = true; }, () => {});
+                      }
+                      if (! hid_connected) {
                         await backend_data.connect();
                       }
 
@@ -55,7 +65,8 @@
                         console.error("editor not supported in this build");
                         return;
                       }
-                      console.log(fw_version);
+
+                      await backend.editorOpen();
 
                       connector.init = (send, reply, feedback) => {
                         let _strdupLen = 0;
@@ -74,32 +85,52 @@
                             return _strdupRet;
                         };
 
+                        let nextResponse = '';
                         const sendFn = module.addFunction((_, msg, blocking) => {
-                            const msgL = module.UTF8ToString(msg);
-                            console.log("sendFn", msgL, blocking);
+                            const msgJS = module.UTF8ToString(msg);
                             return module.Asyncify.handleAsync(() => {
-                                console.log("handleAsync", msgL, blocking);
                                 return new Promise((success, reject) => {
-                                    console.log("handleAsync Promise", msgL, blocking);
-                                    success(1);
+                                    backend.editorSend(msgJS).then((reply) => {
+                                        nextResponse = reply.payload.response;
+                                        success(1);
+                                    }).catch(() => success(0));
                                 });
                             });
                         }, 'iiii');
                         const replyFn = module.addFunction((_, size) => {
-                            console.log("replyFn", size);
-                            _strdup("resp 0");
+                            _strdup(nextResponse);
                             module.HEAPU32[size / connector.HEAPU32.BYTES_PER_ELEMENT] = _strdupLen;
                             return _strdupRet;
                         }, 'iii');
                         const feedbackFn = module.addFunction((_, size) => {
-                            module.HEAPU32[size / connector.HEAPU32.BYTES_PER_ELEMENT] = 0;
-                            return 0;
+                            if (pendingFeedbackData.length === 0) {
+                                module.HEAPU32[size / connector.HEAPU32.BYTES_PER_ELEMENT] = 0;
+                                return 0;
+                            }
+                            const data = pendingFeedbackData[0];
+                            pendingFeedbackData = pendingFeedbackData.slice(1);
+                            _strdup(data);
+                            module.HEAPU32[size / connector.HEAPU32.BYTES_PER_ELEMENT] = _strdupLen;
+                            return _strdupRet;
                         }, 'iii');
                         return connector.ccall(
                             "init",
                             "boolean",
                             ["number", "number", "number", "number"],
                             [sendFn, replyFn, feedbackFn, 0]);
+                      };
+                      connector.deinit = async () => {
+                        await backend.editorClose();
+                        connector.disconnect();
+                        connector = null;
+                      };
+                      connector.fetchFeedback = async () => {
+                        await backend.editorSend("output_data_ready");
+                        const data = (await backend.editorPoll()).payload.data;
+                        document.getElementsByTagName('pre')[0].textContent = data.join('\n') + '\n';
+                        pendingFeedbackData = pendingFeedbackData.concat(data);
+
+                        setTimeout(connector.fetchFeedback, 100);
                       };
 
                       // setup known functions for easy JS usage
@@ -193,6 +224,8 @@
                   console.log(connector.serializeCurrentPreset());
 
                   console.log("wasm usage testing complete!");
+
+                  connector.fetchFeedback();
               }
               catch (error) {
                   console.error('wasm test error: ', error);
@@ -202,7 +235,9 @@
   </head>
   <body>
     <header></header>
-    <main></main>
+    <main>
+        <pre></pre>
+    </main>
     <footer></footer>
     <script>
     </script>
