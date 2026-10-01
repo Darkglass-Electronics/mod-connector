@@ -44,13 +44,13 @@ target_link_options(mod-connector-wasm
         -lwebsocket.js
         -sAGGRESSIVE_VARIABLE_ELIMINATION=1
         -sALLOW_MEMORY_GROWTH
-        # -sALLOW_TABLE_GROWTH
+        -sALLOW_TABLE_GROWTH
         # -sASSERTIONS
         -sASYNCIFY
-        -sASYNCIFY_IMPORTS=do_sleep
+        # -sASYNCIFY_IMPORTS=do_sleep
         -sENVIRONMENT=web
         -sEXPORT_NAME="connector"
-        -sEXPORTED_RUNTIME_METHODS=['ccall']
+        -sEXPORTED_RUNTIME_METHODS=['Asyncify','addFunction','ccall','lengthBytesUTF8','stringToUTF8','UTF8ToString']
         -sINITIAL_MEMORY=8Mb
         -sLLD_REPORT_UNDEFINED
         -sMAIN_MODULE=2

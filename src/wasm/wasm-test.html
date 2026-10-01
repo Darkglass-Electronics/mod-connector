@@ -3,10 +3,16 @@
   <head>
     <meta charset="utf-8">
     <title>mod-connector wasm test</title>
+    <script defer src="backend-data.js"></script>
+    <script defer src="web-hid.js"></script>
     <script>
+        const DEVICE_PRODUCT_ID = 0x2500;
+        const DEVICE_VENDOR_ID = 0x2fa6;
         let connector = null;
-        // init wasm in anonymous scope
-        (async function () {
+
+        // init wasm on click
+        document.onclick = async () => {
+          document.onclick = undefined;
           try {
               let resp;
               resp = await fetch('/mod-connector-wasm.js');
@@ -29,10 +35,72 @@
                           // .catch((error) => { wasm.error = '' + error; });
                       return {};
                   },
-                  postRun: function (module) {
+                  postRun: async function (module) {
                       connector = module;
 
                       const kSceneModeClear = 1;
+
+                      // setup IPC over WebHID
+                      let connected = false;
+                      const backend_data = createDataBackendWebHID();
+                      await backend_data.setup(() => { connected = true; }, () => {});
+                      if (! connected) {
+                        await backend_data.connect();
+                      }
+
+                      const backend = initDataBackend(backend_data);
+
+                      const fw_version = await backend.fetchFirmwareVersion();
+                      if (fw_version.payload.data.capabilities.indexOf("editor") < 0) {
+                        console.error("editor not supported in this build");
+                        return;
+                      }
+                      console.log(fw_version);
+
+                      connector.init = (send, reply, feedback) => {
+                        let _strdupLen = 0;
+                        let _strdupRet = 0;
+                        const _strdup = (str) => {
+                            if (_strdupRet != 0) {
+                                module._free(_strdupRet);
+                            }
+                            _strdupLen = module.lengthBytesUTF8(str) + 1;
+                            _strdupRet = module._malloc(_strdupLen);
+                            if (_strdupRet != 0) {
+                                module.stringToUTF8(str, _strdupRet, _strdupLen);
+                            } else {
+                                _strdupLen = 0;
+                            }
+                            return _strdupRet;
+                        };
+
+                        const sendFn = module.addFunction((_, msg, blocking) => {
+                            const msgL = module.UTF8ToString(msg);
+                            console.log("sendFn", msgL, blocking);
+                            return module.Asyncify.handleAsync(() => {
+                                console.log("handleAsync", msgL, blocking);
+                                return new Promise((success, reject) => {
+                                    console.log("handleAsync Promise", msgL, blocking);
+                                    success(1);
+                                });
+                            });
+                        }, 'iiii');
+                        const replyFn = module.addFunction((_, size) => {
+                            console.log("replyFn", size);
+                            _strdup("resp 0");
+                            module.HEAPU32[size / connector.HEAPU32.BYTES_PER_ELEMENT] = _strdupLen;
+                            return _strdupRet;
+                        }, 'iii');
+                        const feedbackFn = module.addFunction((_, size) => {
+                            module.HEAPU32[size / connector.HEAPU32.BYTES_PER_ELEMENT] = 0;
+                            return 0;
+                        }, 'iii');
+                        return connector.ccall(
+                            "init",
+                            "boolean",
+                            ["number", "number", "number", "number"],
+                            [sendFn, replyFn, feedbackFn, 0]);
+                      };
 
                       // setup known functions for easy JS usage
                       // NOTE some are async and return a Promise
@@ -57,7 +125,13 @@
 
                       connector.serializeCurrentPreset = () => connector.ccall("serializeCurrentPreset", "string", [], []);
 
-                      console.log("connector wasm loaded, connecting...");
+                      console.log("connector wasm loaded, initializing...");
+                      if (! connector.init(sendCb, replyCb, feedbackCb)) {
+                        console.error("failed to init, cannot continue");
+                        return;
+                      }
+
+                      console.log("wasm initialized, connecting now...");
                       tryConnectingNow();
                   },
               });
@@ -65,7 +139,17 @@
           catch (error) {
               console.error('wasm init error: ', error);
           }
-        })();
+        };
+
+        const sendCb = () => {
+            console.log("sendCb");
+        };
+        const replyCb = () => {
+            console.log("replyCb");
+        };
+        const feedbackCb = () => {
+            console.log("feedbackCb");
+        };
 
         const tryConnectingNow = () => {
             if (connector && (connector._ok() || connector._reconnect())) {

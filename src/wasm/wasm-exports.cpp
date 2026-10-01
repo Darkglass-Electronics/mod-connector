@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: ISC
 
 #include "connector.hpp"
+#include "ipc.hpp"
 
 #if NUM_BLOCK_CHAIN_ROWS != 2
 #error this code expects NUM_BLOCK_CHAIN_ROWS == 2
@@ -16,8 +17,8 @@ class HostConnectorExport : public HostConnector,
                             private HostConnector::Callback
 {
 public:
-    HostConnectorExport()
-        : HostConnector(this) {}
+    HostConnectorExport(IPC::SendCallback send, IPC::RecvCallback reply, IPC::RecvCallback feedback, void* userPtr)
+        : HostConnector(this, IPC::createDualCallbackIPC(send, reply, feedback, userPtr)) {}
 
 private:
     void hostConnectorCallback(const HostCallbackData& data) final
@@ -31,7 +32,7 @@ private:
     }
 };
 
-static HostConnectorExport* conn = new HostConnectorExport;
+static HostConnectorExport* conn;
 static std::string ret;
 
 // TODO apply "__attribute__((used))" to all functions at once
@@ -55,10 +56,21 @@ void test_string_send(const char* s)
 // --------------------------------------------------------------------------------------------------------------------
 
 __attribute__((used))
+bool init(IPC::SendCallback send, IPC::RecvCallback reply, IPC::RecvCallback feedback, void* userPtr)
+{
+    assert_return(conn == nullptr, false);
+    fprintf(stderr, "init %p %p %p %p\n", send, reply, feedback, userPtr);
+    conn = new HostConnectorExport(send, reply, feedback, userPtr);
+    return true;
+}
+
+__attribute__((used))
 bool ok()
 {
-    return conn->ok;
+    return conn != nullptr && conn->ok;
 }
+
+// --------------------------------------------------------------------------------------------------------------------
 
 __attribute__((used))
 void disconnect()
