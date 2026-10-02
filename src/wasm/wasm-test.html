@@ -3,21 +3,37 @@
   <head>
     <meta charset="utf-8">
     <title>mod-connector wasm test</title>
-    <script defer src="backend-data.js"></script>
-    <script defer src="web-hid.js"></script>
+    <script src="mod-connector.js"></script>
+    <script src="backend-data.js"></script>
+    <script src="web-hid.js"></script>
+  </head>
+  <body>
+    <header></header>
+    <main>
+        <input id="start" type="button" value="Start"/>
+        <input id="stop" type="button" value="Stop"/>
+        <br>
+        <h3>state</h3>
+        <pre id="state"></pre>
+        <h3>feedback</h3>
+        <pre id="feedback"></pre>
+    </main>
+    <footer></footer>
     <script>
         const DEVICE_PRODUCT_ID = 0x2500;
         const DEVICE_VENDOR_ID = 0x2fa6;
         let connector = null;
+        let stopping = false;
 
         // init wasm on click
         let hid_setup = false;
         let hid_connected = false;
-        document.onclick = async () => {
+        document.getElementById('start').onclick = async () => {
           if (connector != null) {
-            await connector.deinit();
             return;
           }
+
+          stopping = false;
 
           try {
               let resp;
@@ -30,7 +46,6 @@
               if (!resp.ok) {
                   throw ('Failed to download wasm-blob file');
               }
-              let pendingFeedbackData = [];
               const wasmBlob = await resp.arrayBuffer();
               const wasmJsFn = new Function(wasmJs + 'return connector;');
               const createModule = wasmJsFn.call();
@@ -43,10 +58,6 @@
                       return {};
                   },
                   postRun: async function (module) {
-                      connector = module;
-
-                      const kSceneModeClear = 1;
-
                       // setup IPC over WebHID
                       const backend_data = createDataBackendWebHID();
                       hid_connected = false;
@@ -66,104 +77,16 @@
                         return;
                       }
 
-                      await backend.editorOpen();
+                      connector = connector_init(backend, module);
+                      const state = await connector.connect(hostCallback);
 
-                      connector.init = (send, reply, feedback) => {
-                        let _strdupLen = 0;
-                        let _strdupRet = 0;
-                        const _strdup = (str) => {
-                            if (_strdupRet != 0) {
-                                module._free(_strdupRet);
-                            }
-                            _strdupLen = module.lengthBytesUTF8(str) + 1;
-                            _strdupRet = module._malloc(_strdupLen);
-                            if (_strdupRet != 0) {
-                                module.stringToUTF8(str, _strdupRet, _strdupLen);
-                            } else {
-                                _strdupLen = 0;
-                            }
-                            return _strdupRet;
-                        };
-
-                        let nextResponse = '';
-                        const sendFn = module.addFunction((_, msg, blocking) => {
-                            const msgJS = module.UTF8ToString(msg);
-                            return module.Asyncify.handleAsync(() => {
-                                return new Promise((success, reject) => {
-                                    backend.editorSend(msgJS).then((reply) => {
-                                        nextResponse = reply.payload.response;
-                                        success(1);
-                                    }).catch(() => success(0));
-                                });
-                            });
-                        }, 'iiii');
-                        const replyFn = module.addFunction((_, size) => {
-                            _strdup(nextResponse);
-                            module.HEAPU32[size / connector.HEAPU32.BYTES_PER_ELEMENT] = _strdupLen;
-                            return _strdupRet;
-                        }, 'iii');
-                        const feedbackFn = module.addFunction((_, size) => {
-                            if (pendingFeedbackData.length === 0) {
-                                module.HEAPU32[size / connector.HEAPU32.BYTES_PER_ELEMENT] = 0;
-                                return 0;
-                            }
-                            const data = pendingFeedbackData[0];
-                            pendingFeedbackData = pendingFeedbackData.slice(1);
-                            _strdup(data);
-                            module.HEAPU32[size / connector.HEAPU32.BYTES_PER_ELEMENT] = _strdupLen;
-                            return _strdupRet;
-                        }, 'iii');
-                        return connector.ccall(
-                            "init",
-                            "boolean",
-                            ["number", "number", "number", "number"],
-                            [sendFn, replyFn, feedbackFn, 0]);
-                      };
-                      connector.deinit = async () => {
-                        await backend.editorClose();
-                        connector.disconnect();
-                        connector = null;
-                      };
-                      connector.fetchFeedback = async () => {
-                        await backend.editorSend("output_data_ready");
-                        const data = (await backend.editorPoll()).payload.data;
-                        document.getElementsByTagName('pre')[0].textContent = data.join('\n') + '\n';
-                        pendingFeedbackData = pendingFeedbackData.concat(data);
-
-                        setTimeout(connector.fetchFeedback, 100);
-                      };
-
-                      // setup known functions for easy JS usage
-                      // NOTE some are async and return a Promise
-                      connector.ok = () => connector.ccall("ok", "boolean", [], []);
-                      connector.disconnect = () => connector.ccall("disconnect", "void", [], []);
-                      connector.reconnect = () => connector.ccall("reconnect", "boolean", [], []);
-                      connector.getLastError = () => connector.ccall("getLastError", "string", [], []);
-                      // TESTING
-                      connector.test_string_return = () => connector.ccall("test_string_return", "string", [], []);
-                      connector.test_string_send = (s) => connector.ccall("test_string_send", "void", ["string"], [s]);
-                      // TODO write them all!
-                      connector.getAverageCpuLoad = () => connector.ccall("getAverageCpuLoad", "number", [], [], {async: true});
-                      connector.getMaximumCpuLoad = () => connector.ccall("getMaximumCpuLoad", "number", [], [], {async: true});
-                      connector.loadBankFromPresetFiles = (f1, f2, f3, init = 0) => connector.ccall("loadBankFromPresetFiles", "boolean", ["string", "string", "string", "number"], [f1, f2, f3, init], {async: true});
-                      connector.clearCurrentPreset = () => connector.ccall("clearCurrentPreset", "void", [], [], {async: true});
-                      connector.switchPreset = (preset) => connector.ccall("switchPreset", "boolean", ["number"], [preset], {async: true});
-                      connector.setJackPorts = (c1, c2, p1, p2) => connector.ccall("setJackPorts", "boolean", ["string", "string", "string", "string"], [c1, c2, p1, p2], {async: true});
-                      connector.replaceBlock = (row, block, uri, clearBindingsForReplacementBlock = true, keepCurrentData = false) =>
-                          connector.ccall("replaceBlock", "boolean", ["number", "number", "string", "boolean", "boolean"], [row, block, uri, clearBindingsForReplacementBlock, keepCurrentData], {async: true});
-                      connector.setBlockParameterBySymbol = (row, block, symbol, value, sceneMode = kSceneModeClear) =>
-                          connector.ccall("setBlockParameterBySymbol", "void", ["number", "number", "string", "double", "number"], [row, block, symbol, value, sceneMode], {async: true});
-
-                      connector.serializeCurrentPreset = () => connector.ccall("serializeCurrentPreset", "string", [], []);
-
-                      console.log("connector wasm loaded, initializing...");
-                      if (! connector.init(sendCb, replyCb, feedbackCb)) {
-                        console.error("failed to init, cannot continue");
+                      if (! state) {
+                        console.error("failed to connect, cannot continue");
                         return;
                       }
 
                       console.log("wasm initialized, connecting now...");
-                      tryConnectingNow();
+                      connectedCallback(state);
                   },
               });
           }
@@ -172,25 +95,17 @@
           }
         };
 
-        const sendCb = () => {
-            console.log("sendCb");
-        };
-        const replyCb = () => {
-            console.log("replyCb");
-        };
-        const feedbackCb = () => {
-            console.log("feedbackCb");
+        document.getElementById('stop').onclick = async () => {
+          if (connector == null) {
+            return;
+          }
+
+          stopping = true;
         };
 
-        const tryConnectingNow = () => {
-            if (connector && (connector._ok() || connector._reconnect())) {
-                connectedCallback();
-                return;
-            }
-            setTimeout(tryConnectingNow, 100);
-        };
+        const connectedCallback = async (state) => {
+              document.getElementById('state').textContent = JSON.stringify(state, null, '  ');
 
-        const connectedCallback = async () => {
               console.log("connector wasm connected!");
 
               console.log("test calling C function directly, must return true for 'connected ok' ->", connector.ok());
@@ -204,42 +119,42 @@
               try {
                   console.log("start wasm usage testing...");
 
-                  // this is required for now, assumes looper in INPUT position
-                  await connector.setJackPorts("effect_9990:output_l", "effect_9990:output_l", "anagram-output:in1", "anagram-output:in2");
-
-                  // simulate a first load, also required for now
-                  await connector.loadBankFromPresetFiles("/tmp/p1.json", "/tmp/p2.json", "/tmp/p3.json");
-
-                  // now we should be with an empty chain, let's try to add some FX
-                  await connector.replaceBlock(0, 0, "urn:darkglass:Suppressor");
-                  await connector.replaceBlock(0, 1, "urn:darkglass:moerfer");
-                  await connector.replaceBlock(0, 2, "urn:darkglass:B3K");
-                  await connector.replaceBlock(0, 3, "urn:darkglass:HallReverb");
-
-                  // and now to control parameters!
-                  await connector.setBlockParameterBySymbol(0, 3, "Dry", 4.0);
-                  await connector.setBlockParameterBySymbol(0, 3, "Wet", 6.0);
-
                   // test serializing state
-                  console.log(connector.serializeCurrentPreset());
-
+                  console.log(JSON.parse(connector.serializeCurrentPreset()));
                   console.log("wasm usage testing complete!");
 
-                  connector.fetchFeedback();
+                  const poll = async () => {
+                    if (stopping) {
+                        await connector.disconnect();
+                        connector = null;
+                        return;
+                    }
+
+                    // fetch updates from host, show them on screen
+                    await connector.pollHostUpdates();
+                    if (! connector.ok()) return;
+
+                    // request more
+                    await connector.requestHostUpdates();
+                    if (! connector.ok()) return;
+                    setTimeout(poll, 100);
+                  };
+
+                  poll();
               }
               catch (error) {
                   console.error('wasm test error: ', error);
               }
-        }
-    </script>
-  </head>
-  <body>
-    <header></header>
-    <main>
-        <pre></pre>
-    </main>
-    <footer></footer>
-    <script>
+        };
+
+        const hostCallback = (data) => {
+            let split = document.getElementById('feedback').textContent.split("\n");
+            if (split.length > 10) {
+                split = split.slice(2);
+            }
+            split.push(JSON.stringify(data));
+            document.getElementById('feedback').textContent = split.join("\n");
+        };
     </script>
   </body>
 </html>

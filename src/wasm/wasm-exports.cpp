@@ -1,8 +1,11 @@
 // SPDX-FileCopyrightText: 2026 Filipe Coelho <falktx@darkglass.com>
 // SPDX-License-Identifier: ISC
 
+#define JSON_NO_IO
+
 #include "connector.hpp"
 #include "ipc.hpp"
+#include "json.hpp"
 
 #if NUM_BLOCK_CHAIN_ROWS != 2
 #error this code expects NUM_BLOCK_CHAIN_ROWS == 2
@@ -13,17 +16,138 @@
 
 #include <emscripten.h>
 
+typedef void (*ExportedHostCallback)(const char* data);
+
 class HostConnectorExport : public HostConnector,
                             private HostConnector::Callback
 {
 public:
-    HostConnectorExport(IPC::SendCallback send, IPC::RecvCallback reply, IPC::RecvCallback feedback, void* userPtr)
-        : HostConnector(this, IPC::createDualCallbackIPC(send, reply, feedback, userPtr)) {}
+    HostConnectorExport(IPC::SendCallback send,
+                        IPC::RecvCallback reply,
+                        IPC::RecvCallback feedback,
+                        ExportedHostCallback callback,
+                        void* userPtr = nullptr)
+        : HostConnector(this, IPC::createDualCallbackIPC(send, reply, feedback, userPtr)),
+          _callback(callback) {}
 
 private:
+    const ExportedHostCallback _callback;
+    std::string _cbdata;
+
+    static nlohmann::json HostPatchDataJSON(const char type, const HostPatchData& data)
+    {
+        nlohmann::json j;
+        switch (type)
+        {
+        case 'b':
+        case 'i':
+            j["value"] = data.i;
+            break;
+        case 'l':
+            j["value"] = data.l;
+            break;
+        case 'f':
+            j["value"] = data.f;
+            break;
+        case 'g':
+            j["value"] = data.g;
+            break;
+        case 's':
+        case 'p':
+        case 'u':
+            j["value"] = data.s;
+            break;
+        case 'v':
+            j["type"] = data.v.type;
+            switch (data.v.type)
+            {
+            case 'b':
+            case 'i':
+                j["value"] = std::vector<int32_t>(data.v.data.i, data.v.data.i + data.v.num);
+                break;
+            case 'l':
+                j["value"] = std::vector<int64_t>(data.v.data.l, data.v.data.l + data.v.num);
+                break;
+            case 'f':
+                j["value"] = std::vector<float>(data.v.data.f, data.v.data.f + data.v.num);
+                break;
+            case 'g':
+                j["value"] = std::vector<double>(data.v.data.g, data.v.data.g + data.v.num);
+                break;
+            }
+            break;
+        }
+        return j;
+    }
+
     void hostConnectorCallback(const HostCallbackData& data) final
     {
-        fprintf(stderr, "hostConnectorCallback %d\n", data.type);
+        nlohmann::json j;
+        j["type"] = data.type;
+        switch (data.type)
+        {
+        case HostCallbackData::kAudioMonitor:
+            j["index"] = data.audioMonitor.index;
+            j["value"] = data.audioMonitor.value;
+            break;
+        case HostCallbackData::kCpuLoad:
+            j["avg"] = data.cpuLoad.avg;
+            j["max"] = data.cpuLoad.max;
+            j["xruns"] = data.cpuLoad.xruns;
+            break;
+        case HostCallbackData::kCpuMonitor:
+            j["row"] = data.cpuMonitor.row;
+            j["block"] = data.cpuMonitor.block;
+            j["cpuLoad"] = data.cpuMonitor.cpuLoad;
+            break;
+        case HostCallbackData::kLog:
+            j["type"] = data.log.type;
+            j["msg"] = data.log.msg;
+            break;
+        case HostCallbackData::kParameterSet:
+            j["row"] = data.parameterSet.row;
+            j["block"] = data.parameterSet.block;
+            j["index"] = data.parameterSet.index;
+            j["symbol"] = data.parameterSet.symbol;
+            j["value"] = data.parameterSet.value;
+            break;
+        case HostCallbackData::kParameterState:
+            j["row"] = data.parameterState.row;
+            j["block"] = data.parameterState.block;
+            j["index"] = data.parameterState.index;
+            j["symbol"] = data.parameterState.symbol;
+            j["state"] = data.parameterState.state;
+            break;
+        case HostCallbackData::kPatchSet:
+            j["row"] = data.patchSet.row;
+            j["block"] = data.patchSet.block;
+            j["key"] = data.patchSet.key;
+            j["type"] = data.patchSet.type;
+            j["data"] = HostPatchDataJSON(data.patchSet.type, data.patchSet.data);
+            break;
+        case HostCallbackData::kToolParameterSet:
+            j["index"] = data.toolParameterSet.index;
+            j["symbol"] = data.toolParameterSet.symbol;
+            j["value"] = data.toolParameterSet.value;
+            break;
+        case HostCallbackData::kToolPatchSet:
+            j["index"] = data.toolPatchSet.index;
+            j["key"] = data.toolPatchSet.key;
+            j["type"] = data.toolPatchSet.type;
+            j["data"] = HostPatchDataJSON(data.toolPatchSet.type, data.toolPatchSet.data);
+            break;
+        case HostCallbackData::kMidiControlChange:
+            j["channel"] = data.midiControlChange.channel;
+            j["control"] = data.midiControlChange.control;
+            j["value"] = data.midiControlChange.value;
+            break;
+        case HostCallbackData::kMidiProgramChange:
+            j["channel"] = data.midiProgramChange.channel;
+            j["program"] = data.midiProgramChange.program;
+            break;
+        }
+        _cbdata = j.dump(-1, ' ', false, nlohmann::detail::error_handler_t::replace);
+        _callback(_cbdata.c_str());
     }
 
     void hostDisconnectedCallback() final
@@ -56,11 +180,10 @@ void test_string_send(const char* s)
 // --------------------------------------------------------------------------------------------------------------------
 
 __attribute__((used))
-bool init(IPC::SendCallback send, IPC::RecvCallback reply, IPC::RecvCallback feedback, void* userPtr)
+bool init(IPC::SendCallback send, IPC::RecvCallback reply, IPC::RecvCallback feedback, ExportedHostCallback callback)
 {
     assert_return(conn == nullptr, false);
-    fprintf(stderr, "init %p %p %p %p\n", send, reply, feedback, userPtr);
-    conn = new HostConnectorExport(send, reply, feedback, userPtr);
+    conn = new HostConnectorExport(send, reply, feedback, callback);
     return true;
 }
 
@@ -76,12 +199,6 @@ __attribute__((used))
 void disconnect()
 {
     conn->disconnect();
-}
-
-__attribute__((used))
-bool reconnect()
-{
-    return conn->reconnect();
 }
 
 __attribute__((used))
@@ -174,30 +291,9 @@ const char* serializeCurrentPreset()
 }
 
 __attribute__((used))
-float getBlockParameter(uint8_t row, uint8_t block, uint8_t paramIndex)
+void deserializeToCurrentPreset(const char* data)
 {
-    return conn->current.block(row, block).parameters[paramIndex].value;
-}
-
-__attribute__((used))
-float getBlockParameterBySymbol(uint8_t row, uint8_t block, const char* symbol)
-{
-    const HostBlock& blockdata = conn->current.block(row, block);
-    if (uint8_t paramIndex = blockdata.parameterIndexForSymbol(symbol); paramIndex != UINT8_MAX)
-        return blockdata.parameters[paramIndex].value;
-    return 0.f;
-}
-
-__attribute__((used))
-uint8_t getBlockQuickPotIndex(uint8_t row, uint8_t block)
-{
-    return conn->current.block(row, block).meta.quickPotIndex;
-}
-
-__attribute__((used))
-const char* getBlockQuickPotSymbol(uint8_t row, uint8_t block)
-{
-    return conn->current.block(row, block).quickPotSymbol.c_str();
+    conn->deserializeToCurrentPreset(nlohmann::json::parse(data));
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -524,6 +620,12 @@ bool addBlockParameterBinding(uint8_t hwid, uint8_t row, uint8_t block, uint8_t 
 }
 
 __attribute__((used))
+bool addBlockParameterBindingBySymbol(uint8_t hwid, uint8_t row, uint8_t block, const char* symbol)
+{
+    return conn->addBlockParameterBinding(hwid, row, block, symbol);
+}
+
+__attribute__((used))
 bool editBlockBinding(uint8_t hwid, uint8_t row, uint8_t block, bool inverted)
 {
     return conn->editBlockBinding(hwid, row, block, inverted);
@@ -538,6 +640,17 @@ bool editBlockParameterBinding(uint8_t hwid,
                                float max)
 {
     return conn->editBlockParameterBinding(hwid, row, block, paramIndex, min, max);
+}
+
+__attribute__((used))
+bool editBlockParameterBindingBySymbol(uint8_t hwid,
+                                       uint8_t row,
+                                       uint8_t block,
+                                       const char* symbol,
+                                       float min,
+                                       float max)
+{
+    return conn->editBlockParameterBinding(hwid, row, block, symbol, min, max);
 }
 
 __attribute__((used))
@@ -556,6 +669,12 @@ __attribute__((used))
 bool removeBlockParameterBinding(uint8_t hwid, uint8_t row, uint8_t block, uint8_t paramIndex)
 {
     return conn->removeBlockParameterBinding(hwid, row, block, paramIndex);
+}
+
+__attribute__((used))
+bool removeBlockParameterBindingBySymbol(uint8_t hwid, uint8_t row, uint8_t block, const char* symbol)
+{
+    return conn->removeBlockParameterBinding(hwid, row, block, symbol);
 }
 
 __attribute__((used))
@@ -580,6 +699,18 @@ bool replaceBlockParameterBinding(uint8_t hwid,
                                   uint8_t paramIndexB)
 {
     return conn->replaceBlockParameterBinding(hwid, row, block, paramIndex, rowB, blockB, paramIndexB);
+}
+
+__attribute__((used))
+bool replaceBlockParameterBindingBySymbol(uint8_t hwid,
+                                          uint8_t row,
+                                          uint8_t block,
+                                          const char* symbol,
+                                          uint8_t rowB,
+                                          uint8_t blockB,
+                                          const char* symbolB)
+{
+    return conn->replaceBlockParameterBinding(hwid, row, block, symbol, rowB, blockB, symbolB);
 }
 
 __attribute__((used))
@@ -618,9 +749,15 @@ void setBlockParameterBySymbol(uint8_t row,
 }
 
 __attribute__((used))
-void setBlockQuickPot(uint8_t row, uint8_t block, uint8_t paramIndex)
+void setBlockQuickpot(uint8_t row, uint8_t block, uint8_t paramIndex)
 {
-    conn->setBlockQuickPot(row, block, paramIndex);
+    conn->setBlockQuickpot(row, block, paramIndex);
+}
+
+__attribute__((used))
+void setBlockQuickpotBySymbol(uint8_t row, uint8_t block, const char* symbol)
+{
+    conn->setBlockQuickpot(row, block, symbol);
 }
 
 __attribute__((used))
@@ -764,6 +901,36 @@ __attribute__((used))
 void setBlockPropertyByURI(uint8_t row, uint8_t block, const char* uri, const char* value)
 {
     conn->setBlockProperty(row, block, uri, value);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+// wasm extras, not part of official API
+
+__attribute__((used))
+float getBlockParameter(uint8_t row, uint8_t block, uint8_t paramIndex)
+{
+    return conn->current.block(row, block).parameters[paramIndex].value;
+}
+
+__attribute__((used))
+float getBlockParameterBySymbol(uint8_t row, uint8_t block, const char* symbol)
+{
+    const HostBlock& blockdata = conn->current.block(row, block);
+    if (uint8_t paramIndex = blockdata.parameterIndexForSymbol(symbol); paramIndex != UINT8_MAX)
+        return blockdata.parameters[paramIndex].value;
+    return 0.f;
+}
+
+__attribute__((used))
+uint8_t getBlockQuickPotIndex(uint8_t row, uint8_t block)
+{
+    return conn->current.block(row, block).meta.quickpotIndex;
+}
+
+__attribute__((used))
+const char* getBlockQuickPotSymbol(uint8_t row, uint8_t block)
+{
+    return conn->current.block(row, block).quickpotSymbol.c_str();
 }
 
 // --------------------------------------------------------------------------------------------------------------------

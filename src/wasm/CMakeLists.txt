@@ -50,7 +50,7 @@ target_link_options(mod-connector-wasm
         # -sASYNCIFY_IMPORTS=do_sleep
         -sENVIRONMENT=web
         -sEXPORT_NAME="connector"
-        -sEXPORTED_RUNTIME_METHODS=['Asyncify','addFunction','ccall','lengthBytesUTF8','stringToUTF8','UTF8ToString']
+        -sEXPORTED_RUNTIME_METHODS=['Asyncify','addFunction','ccall','cwrap','lengthBytesUTF8','stringToUTF8','UTF8ToString']
         -sINITIAL_MEMORY=8Mb
         -sLLD_REPORT_UNDEFINED
         -sMAIN_MODULE=2
