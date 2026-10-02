@@ -37,12 +37,12 @@
 
           try {
               let resp;
-              resp = await fetch('/mod-connector-wasm.js');
+              resp = await fetch('mod-connector-wasm.js');
               if (!resp.ok) {
                   throw ('Failed to download wasm-js file');
               }
               const wasmJs = await resp.text();
-              resp = await fetch('/mod-connector-wasm.wasm');
+              resp = await fetch('mod-connector-wasm.wasm');
               if (!resp.ok) {
                   throw ('Failed to download wasm-blob file');
               }
