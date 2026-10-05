@@ -115,8 +115,7 @@
         };
 
         const connectedCallback = async (state) => {
-              const state_str = JSON.stringify(state, null, '  ');
-              document.getElementById('state').textContent = state_str;
+              document.getElementById('state').textContent = JSON.stringify(state, null, '  ');
 
               console.log("connector wasm connected!");
 
@@ -130,9 +129,6 @@
               // because we lack preset data sync, always clear current bank first so we start from a known state
               try {
                   console.log("start wasm usage testing...");
-
-                  // make wasm host in sync with remote
-                  connector.deserializeToCurrentPreset(state_str);
 
                   // test serializing state
                   console.log(JSON.parse(connector.serializeCurrentPreset()));
