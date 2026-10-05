@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2024-2025 Filipe Coelho <falktx@darkglass.com>
+// SPDX-FileCopyrightText: 2024-2026 Filipe Coelho <falktx@darkglass.com>
 // SPDX-License-Identifier: ISC
 
 #include "instance_mapper.hpp"
@@ -151,6 +151,27 @@ HostInstanceMapper::BlockAndRow HostInstanceMapper::get_block_with_id(const uint
     }
 
     return { NUM_BLOCKS_PER_PRESET, NUM_BLOCK_CHAIN_ROWS };
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostInstanceMapper::deserialize(const uint8_t preset,
+                                     const uint8_t row,
+                                     const uint8_t block,
+                                     const BlockPair& hbp) noexcept
+{
+    assert(preset < NUM_PRESETS_PER_BANK);
+    assert(row < NUM_BLOCK_CHAIN_ROWS);
+    assert(block < NUM_BLOCKS_PER_PRESET);
+    assert(hbp.id != kMaxHostInstances);
+    assert(! used[hbp.id]);
+    assert(hbp.pair == kMaxHostInstances || ! used[hbp.pair]);
+
+    const uint16_t rblock = row * NUM_BLOCKS_PER_PRESET + block;
+    assert(map.presets[preset].blocks[rblock].id == kMaxHostInstances);
+    assert(map.presets[preset].blocks[rblock].pair == kMaxHostInstances);
+
+    map.presets[preset].blocks[rblock] = hbp;
 }
 
 // --------------------------------------------------------------------------------------------------------------------

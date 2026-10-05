@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2024-2025 Filipe Coelho <falktx@darkglass.com>
+// SPDX-FileCopyrightText: 2024-2026 Filipe Coelho <falktx@darkglass.com>
 // SPDX-License-Identifier: ISC
 
 #pragma once
@@ -37,6 +37,7 @@ struct HostInstanceMapper {
     uint16_t remove_pair(uint8_t preset, uint8_t row, uint8_t block) noexcept;
     [[nodiscard]] BlockPair get(uint8_t preset, uint8_t row, uint8_t block) const noexcept;
     [[nodiscard]] BlockAndRow get_block_with_id(uint8_t preset, uint16_t id) const noexcept;
+    void deserialize(uint8_t preset, uint8_t row, uint8_t block, const BlockPair& hbp) noexcept;
     void reset() noexcept;
     void reorder(uint8_t preset, uint8_t row, uint8_t orig, uint8_t dest) noexcept;
     void swapPresets(uint8_t presetA, uint8_t presetB) noexcept;

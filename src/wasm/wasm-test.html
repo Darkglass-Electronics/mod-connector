@@ -13,6 +13,14 @@
         <input id="start" type="button" value="Start"/>
         <input id="stop" type="button" value="Stop"/>
         <br>
+        <h3>control test</h3>
+        <div>
+          <label id="control-label">(not started yet)</label>
+          -
+          <output id="control-output">0</output>
+          <br>
+          <input autocomplete="off" type="range" value="0.5" min="0" max="1" step="0.1"  id="control-input"/>
+        </div>
         <h3>state</h3>
         <pre id="state"></pre>
         <h3>feedback</h3>
@@ -22,11 +30,12 @@
     <script>
         const DEVICE_PRODUCT_ID = 0x2500;
         const DEVICE_VENDOR_ID = 0x2fa6;
+        let backend = null;
         let connector = null;
         let stopping = false;
 
         // init wasm on click
-        let hid_setup = false;
+        // let hid_setup = false;
         let hid_connected = false;
         document.getElementById('start').onclick = async () => {
           if (connector != null) {
@@ -34,6 +43,26 @@
           }
 
           stopping = false;
+
+          if (backend == null) {
+            const backend_data = createDataBackendWebHID();
+            hid_connected = false;
+            // if (! hid_setup) {
+              // hid_setup = true;
+              await backend_data.setup(() => { hid_connected = true; }, () => {});
+            // }
+            if (! hid_connected) {
+              await backend_data.connect();
+            }
+
+            backend = initDataBackend(backend_data);
+          }
+
+          const fw_version = await backend.fetchFirmwareVersion();
+          if (fw_version.payload.data.capabilities.indexOf("editor") < 0) {
+            console.error("editor not supported in this build");
+            return;
+          }
 
           try {
               let resp;
@@ -59,24 +88,6 @@
                   },
                   postRun: async function (module) {
                       // setup IPC over WebHID
-                      const backend_data = createDataBackendWebHID();
-                      hid_connected = false;
-                      if (! hid_setup) {
-                        hid_setup = true;
-                        await backend_data.setup(() => { hid_connected = true; }, () => {});
-                      }
-                      if (! hid_connected) {
-                        await backend_data.connect();
-                      }
-
-                      const backend = initDataBackend(backend_data);
-
-                      const fw_version = await backend.fetchFirmwareVersion();
-                      if (fw_version.payload.data.capabilities.indexOf("editor") < 0) {
-                        console.error("editor not supported in this build");
-                        return;
-                      }
-
                       connector = connector_init(backend, module);
                       const state = await connector.connect(hostCallback);
 
@@ -104,7 +115,8 @@
         };
 
         const connectedCallback = async (state) => {
-              document.getElementById('state').textContent = JSON.stringify(state, null, '  ');
+              const state_str = JSON.stringify(state, null, '  ');
+              document.getElementById('state').textContent = state_str;
 
               console.log("connector wasm connected!");
 
@@ -119,24 +131,79 @@
               try {
                   console.log("start wasm usage testing...");
 
+                  // make wasm host in sync with remote
+                  connector.deserializeToCurrentPreset(state_str);
+
                   // test serializing state
                   console.log(JSON.parse(connector.serializeCurrentPreset()));
                   console.log("wasm usage testing complete!");
 
+                  let controlBlock = null;
+                  let row, block, symbol;
+                  for (row in state.hostInstanceMap) {
+                    for (block in state.hostInstanceMap[row]) {
+                      controlBlock = state.chains[row].blocks[block];
+                      break;
+                    }
+                    if (controlBlock) {
+                      break;
+                    }
+                  }
+
+                  let pendingValueChange = false;
+                  let nextValue = 0.0;
+
+                  if (controlBlock) {
+                    const paramIndex = Object.keys(controlBlock.parameters).reverse()[0];
+                    const controlParam = controlBlock.parameters[paramIndex];
+
+                    row = parseInt(row) - 1;
+                    block = parseInt(block) - 1;
+                    symbol = controlParam.symbol;
+                    console.log("found a parameter in row:", row, "block:", block, "symbol:", controlBlock.symbol);
+
+                    const resp = await backend.getPluginInfo({ uri: controlBlock.uri });
+
+                    for (let port of resp.payload.data.ports) {
+                      if (port.symbol == controlParam.symbol) {
+                        const label = document.getElementById('control-label');
+                        const cin = document.getElementById('control-input');
+                        const cout = document.getElementById('control-output');
+                        label.textContent = port.name
+                        cout.textContent = controlParam.value;
+                        cin.setAttribute("min", port.min);
+                        cin.setAttribute("max", port.max);
+                        cin.setAttribute("step", (port.flags & (1 << 5)) ? 1.0 : 0.1);
+                        cin.setAttribute("value", controlParam.value);
+                        cin.addEventListener('input', function(event) {
+                          pendingValueChange = true;
+                          cout.textContent = nextValue = event.target.value;
+                        });
+                        break;
+                      }
+                    }
+                  }
+
                   const poll = async () => {
                     if (stopping) {
-                        await connector.disconnect();
-                        connector = null;
-                        return;
+                      await connector.disconnect();
+                      connector = null;
+                      return;
                     }
 
                     // fetch updates from host, show them on screen
+                    if (pendingValueChange) {
+                      pendingValueChange = false;
+                      await connector.setBlockParameterBySymbol(row, block, symbol, nextValue);
+                    }
+
                     await connector.pollHostUpdates();
                     if (! connector.ok()) return;
 
                     // request more
                     await connector.requestHostUpdates();
                     if (! connector.ok()) return;
+
                     setTimeout(poll, 100);
                   };
 

@@ -3832,6 +3832,32 @@ std::string HostConnector::serializeCurrentPreset() const
 
     // TODO more fields
 
+    // instance mapping
+    {
+        nlohmann::json& instanceMap = j["hostInstanceMap"] = nlohmann::json::object({});
+
+        for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
+        {
+            nlohmann::json& instanceMapRow = instanceMap[std::to_string(row + 1)] = nlohmann::json::object({});
+
+            for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
+            {
+                if (isNullBlock(_current.chains[row].blocks[bl]))
+                    continue;
+
+                const HostBlockPair hbp = _mapper.get(_current.preset, row, bl);
+                assert_continue(hbp.id != kMaxHostInstances);
+
+                nlohmann::json& instanceMapBlock = instanceMapRow[std::to_string(bl + 1)] = nlohmann::json::object({
+                    { "id", hbp.id },
+                });
+
+                if (hbp.pair != kMaxHostInstances)
+                    instanceMapBlock["pair"] = hbp.pair;
+            }
+        }
+    }
+
     return j.dump(-1, ' ', false, nlohmann::detail::error_handler_t::replace);
 }
 
@@ -3854,6 +3880,45 @@ void HostConnector::deserializeToCurrentPreset(const nlohmann::json& j)
     _current.filename = j["filename"];
 
     // TODO more fields
+
+    // instance mapping
+    _mapper.reset();
+
+    if (j.contains("hostInstanceMap"))
+    {
+        const nlohmann::json& instanceMap = j["hostInstanceMap"];
+        HostBlockPair hbp;
+
+        for (uint8_t row = 0; row < NUM_BLOCK_CHAIN_ROWS; ++row)
+        {
+            const std::string rowkey = std::to_string(row + 1);
+            if (! instanceMap.contains(rowkey))
+                continue;
+            const nlohmann::json& instanceMapRow = instanceMap[rowkey];
+
+            for (uint8_t bl = 0; bl < NUM_BLOCKS_PER_PRESET; ++bl)
+            {
+                if (isNullBlock(_current.chains[row].blocks[bl]))
+                    continue;
+
+                const std::string blkey = std::to_string(bl + 1);
+                assert_continue(instanceMapRow.contains(blkey));
+
+                const nlohmann::json& instanceMapBlock = instanceMapRow[blkey];
+
+                hbp.id = instanceMapBlock["id"].get<uint8_t>();
+                hbp.pair = instanceMapBlock.contains("pair")
+                         ? instanceMapBlock["pair"].get<uint8_t>()
+                         : kMaxHostInstances;
+
+                _mapper.deserialize(_current.preset, row, bl, hbp);
+            }
+        }
+    }
+    else
+    {
+        _current.numLoadedPlugins = 0;
+    }
 }
 
 // --------------------------------------------------------------------------------------------------------------------

@@ -745,7 +745,9 @@ void setBlockParameterBySymbol(uint8_t row,
                                float value,
                                HostSceneMode sceneMode = HostConnector::kSceneModeClear)
 {
+    fprintf(stderr, "sending %u %u %s %f\n", row, block, symbol, value);
     conn->setBlockParameter(row, block, symbol, value, sceneMode);
+    fprintf(stderr, "sending %u %u %s %f -> DONE\n", row, block, symbol, value);
 }
 
 __attribute__((used))
