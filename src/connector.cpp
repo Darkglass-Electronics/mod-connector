@@ -2514,15 +2514,8 @@ void HostConnector::renamePreset(const uint8_t preset, const char* const name)
 
     _presets[preset].name = name;
 
-    // also modify preset file
-    const std::string& filename = _presets[preset].filename;
-
-    nlohmann::json j;
-    if (! loadPresetFromFile(filename.c_str(), j))
-        return;
-
-    j["name"] = name;
-    safeJsonSave(j, filename);
+    // also modify preset file, keeping the root object intact
+    updatePresetNameInFile(_presets[preset].filename.c_str(), name);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
