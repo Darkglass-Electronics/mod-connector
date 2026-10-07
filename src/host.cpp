@@ -170,7 +170,13 @@ struct Host::Impl
        #endif
 
         if (ipc == nullptr)
+        {
+           #ifdef MOD_CONNECTOR_IPC_DUMMY
+            ipc.reset(IPC::createDualCallbackIPC(nullptr, nullptr, nullptr, nullptr));
+           #else
             ipc.reset(IPC::createDualSocketIPC(portNumber));
+           #endif
+        }
 
         last_error = ipc != nullptr ? ipc->last_error : "failed to initialize IPC backend";
 

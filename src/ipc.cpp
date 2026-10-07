@@ -189,6 +189,11 @@ struct IPC::Impl
     Impl(std::string& last_error_)
         : last_error(last_error_)
     {
+       #ifdef MOD_CONNECTOR_IPC_DUMMY
+        dummyDevMode = true;
+        return;
+       #endif
+
         bufferSize = 128;
         buffer = static_cast<char*>(std::malloc(bufferSize));
         assert(buffer != nullptr);
