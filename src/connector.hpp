@@ -289,7 +289,7 @@ struct HostConnector : Host::Callback {
 
     struct Block {
         bool enabled;
-        std::string quickPotSymbol;
+        std::string quickpotSymbol;
         std::string uri;
         struct Meta {
             // convenience meta-data, not stored in json state
@@ -301,7 +301,7 @@ struct HostConnector : Host::Callback {
                 TemporarySceneState tempSceneState;
             } enable;
             uint32_t flags;
-            uint8_t quickPotIndex;
+            uint8_t quickpotIndex;
             uint8_t numParametersInScenes;
             uint8_t numInputs;
             uint8_t numOutputs;
@@ -845,8 +845,11 @@ public:
                            float value,
                            SceneMode sceneMode = kSceneModeClear);
 
-    // set a block quickpot
-    void setBlockQuickPot(uint8_t row, uint8_t block, uint8_t paramIndex);
+    // set a block quickpot, based on parameter index
+    void setBlockQuickpot(uint8_t row, uint8_t block, uint8_t paramIndex);
+
+    // set a block quickpot, based on port symbol
+    void setBlockQuickpot(uint8_t row, uint8_t block, const char* symbol);
 
     // enable monitoring for block output parameter
     bool monitorBlockOutputParameter(uint8_t row, uint8_t block, uint8_t paramIndex, bool enable = true);
