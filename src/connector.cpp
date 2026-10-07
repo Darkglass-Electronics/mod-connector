@@ -3101,6 +3101,33 @@ bool HostConnector::addBlockParameterBinding(const uint8_t hwid,
 
 // --------------------------------------------------------------------------------------------------------------------
 
+bool HostConnector::addBlockParameterBinding(const uint8_t hwid,
+                                             const uint8_t row,
+                                             const uint8_t block,
+                                             const char* const symbol)
+{
+    mod_log_debug("addBlockParameterBinding(%u, %u, %u, %s)", hwid, row, block, symbol);
+    assert(hwid < NUM_BINDING_ACTUATORS);
+    assert(row < NUM_BLOCK_CHAIN_ROWS);
+    assert(block < NUM_BLOCKS_PER_PRESET);
+    assert(symbol != nullptr && *symbol != '\0');
+
+    Block& blockdata(_current.chains[row].blocks[block]);
+    assert_return(!isNullBlock(blockdata), false);
+
+    uint8_t paramIndex;
+    try {
+        paramIndex = blockdata.parameterSymbolToIndexMap[symbol];
+    } catch (...) {
+        mod_log_warn("addBlockParameterBinding(): parameter with '%s' symbol does not exist in plugin", symbol);
+        return false;
+    }
+
+    return addBlockParameterBinding(hwid, row, block, paramIndex);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 bool HostConnector::editBlockBinding(const uint8_t hwid, const uint8_t row, const uint8_t block, const bool inverted)
 {
     mod_log_debug("editBlockBinding(%u, %u, %u, %s)", hwid, row, block, bool2str(inverted));
@@ -3174,6 +3201,35 @@ bool HostConnector::editBlockParameterBinding(const uint8_t hwid,
     }
 
     return false;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+bool HostConnector::editBlockParameterBinding(const uint8_t hwid,
+                                              const uint8_t row,
+                                              const uint8_t block,
+                                              const char* const symbol,
+                                              const float min,
+                                              const float max)
+{
+    mod_log_debug("editBlockParameterBinding(%u, %u, %u, %s, %f, %f)", hwid, row, block, symbol, min, max);
+    assert(hwid < NUM_BINDING_ACTUATORS);
+    assert(row < NUM_BLOCK_CHAIN_ROWS);
+    assert(block < NUM_BLOCKS_PER_PRESET);
+    assert(symbol != nullptr && *symbol != '\0');
+
+    Block& blockdata(_current.chains[row].blocks[block]);
+    assert_return(!isNullBlock(blockdata), false);
+
+    uint8_t paramIndex;
+    try {
+        paramIndex = blockdata.parameterSymbolToIndexMap[symbol];
+    } catch (...) {
+        mod_log_warn("editBlockParameterBinding(): parameter with '%s' symbol does not exist in plugin", symbol);
+        return false;
+    }
+
+    return editBlockParameterBinding(hwid, row, block, paramIndex, min, max);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -3307,6 +3363,33 @@ bool HostConnector::removeBlockParameterBinding(const uint8_t hwid,
     }
 
     return false;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+bool HostConnector::removeBlockParameterBinding(const uint8_t hwid,
+                                                const uint8_t row,
+                                                const uint8_t block,
+                                                const char* const symbol)
+{
+    mod_log_debug("removeBlockParameterBinding(%u, %u, %u, %s)", hwid, row, block, symbol);
+    assert(hwid < NUM_BINDING_ACTUATORS);
+    assert(row < NUM_BLOCK_CHAIN_ROWS);
+    assert(block < NUM_BLOCKS_PER_PRESET);
+    assert(symbol != nullptr && *symbol != '\0');
+
+    Block& blockdata(_current.chains[row].blocks[block]);
+    assert_return(!isNullBlock(blockdata), false);
+
+    uint8_t paramIndex;
+    try {
+        paramIndex = blockdata.parameterSymbolToIndexMap[symbol];
+    } catch (...) {
+        mod_log_warn("removeBlockParameterBinding(): parameter with '%s' symbol does not exist in plugin", symbol);
+        return false;
+    }
+
+    return removeBlockParameterBinding(hwid, row, block, paramIndex);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -3509,6 +3592,52 @@ bool HostConnector::replaceBlockParameterBinding(const uint8_t hwid,
     }
 
     return false;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+bool HostConnector::replaceBlockParameterBinding(const uint8_t hwid,
+                                                 const uint8_t row,
+                                                 const uint8_t block,
+                                                 const char* const symbol,
+                                                 const uint8_t rowB,
+                                                 const uint8_t blockB,
+                                                 const char* const symbolB)
+{
+    mod_log_debug("replaceBlockParameterBinding(%u, %u, %u, %s, %u, %u, %s)",
+                  hwid, row, block, symbol, rowB, blockB, symbolB);
+    assert(hwid < NUM_BINDING_ACTUATORS);
+    assert(row < NUM_BLOCK_CHAIN_ROWS);
+    assert(block < NUM_BLOCKS_PER_PRESET);
+    assert(symbol != nullptr && *symbol != '\0');
+    assert(rowB < NUM_BLOCK_CHAIN_ROWS);
+    assert(blockB < NUM_BLOCKS_PER_PRESET);
+    assert(symbolB != nullptr && *symbolB != '\0');
+
+    if (row == rowB && block == blockB && std::strcmp(symbol, symbolB) == 0)
+        return false;
+
+    Block& blockdata(_current.chains[row].blocks[block]);
+    assert_return(!isNullBlock(blockdata), false);
+
+    Block& blockdataB(_current.chains[rowB].blocks[blockB]);
+    assert_return(!isNullBlock(blockdataB), false);
+
+    uint8_t paramIndex, paramIndexB;
+    try {
+        paramIndex = blockdata.parameterSymbolToIndexMap[symbol];
+    } catch (...) {
+        mod_log_warn("replaceBlockParameterBinding(): parameter with '%s' symbol does not exist in plugin", symbol);
+        return false;
+    }
+    try {
+        paramIndexB = blockdataB.parameterSymbolToIndexMap[symbolB];
+    } catch (...) {
+        mod_log_warn("replaceBlockParameterBinding(): parameter with '%s' symbol does not exist in plugin", symbolB);
+        return false;
+    }
+
+    return replaceBlockParameterBinding(hwid, row, block, paramIndex, rowB, blockB, paramIndexB);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
