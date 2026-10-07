@@ -631,7 +631,7 @@ void HostConnector::printStateForDebug(const bool withBlocks, const bool withPar
 
             if (withBlocks)
             {
-                fprintf(stderr, "\t\tQuick Pot: '%s' | %u\n", blockdata.quickPotSymbol.c_str(), blockdata.meta.quickPotIndex);
+                fprintf(stderr, "\t\tQuick Pot: '%s' | %u\n", blockdata.quickpotSymbol.c_str(), blockdata.meta.quickpotIndex);
                 fprintf(stderr, "\t\tnumParametersInScenes: %u\n", blockdata.meta.numParametersInScenes);
                 fprintf(stderr, "\t\tnumInputs: %u\n", blockdata.meta.numInputs);
                 fprintf(stderr, "\t\tnumOutputs: %u\n", blockdata.meta.numOutputs);
@@ -2333,7 +2333,7 @@ bool HostConnector::saveBlockStateAsDefault(const uint8_t row, const uint8_t blo
 
     // save any extra details in separate file
     nlohmann::json j;
-    j["quickpot"] = blockdata.quickPotSymbol;
+    j["quickpot"] = blockdata.quickpotSymbol;
     safeJsonSave(j, defdir + "/defaults.json");
 
     return true;
@@ -3876,9 +3876,9 @@ void HostConnector::setBlockParameter(const uint8_t row,
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void HostConnector::setBlockQuickPot(const uint8_t row, const uint8_t block, const uint8_t paramIndex)
+void HostConnector::setBlockQuickpot(const uint8_t row, const uint8_t block, const uint8_t paramIndex)
 {
-    mod_log_debug("setBlockQuickPot(%u, %u, %u)", row, block, paramIndex);
+    mod_log_debug("setBlockQuickpot(%u, %u, %u)", row, block, paramIndex);
     assert(row < NUM_BLOCK_CHAIN_ROWS);
     assert(block < NUM_BLOCKS_PER_PRESET);
     assert(paramIndex < MAX_PARAMS_PER_BLOCK);
@@ -3891,8 +3891,35 @@ void HostConnector::setBlockQuickPot(const uint8_t row, const uint8_t block, con
     assert_return(!isNullURI(paramdata.symbol),);
     assert_return((paramdata.meta.flags & Lv2ParameterNotAllowedInQuickPot) == 0,);
 
-    blockdata.quickPotSymbol = paramdata.symbol;
-    blockdata.meta.quickPotIndex = paramIndex;
+    blockdata.quickpotSymbol = paramdata.symbol;
+    blockdata.meta.quickpotIndex = paramIndex;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::setBlockQuickpot(const uint8_t row, const uint8_t block, const char* const symbol)
+{
+    mod_log_debug("setBlockQuickpot(%u, %u, %s)", row, block, symbol);
+    assert(row < NUM_BLOCK_CHAIN_ROWS);
+    assert(block < NUM_BLOCKS_PER_PRESET);
+    assert(symbol != nullptr && *symbol != '\0');
+
+    Block& blockdata(_current.chains[row].blocks[block]);
+    assert_return(!isNullBlock(blockdata),);
+
+    uint8_t paramIndex;
+    try {
+        paramIndex = blockdata.parameterSymbolToIndexMap[symbol];
+    } catch (...) {
+        mod_log_warn("setBlockQuickpot(): parameter with '%s' symbol does not exist in plugin", symbol);
+        return;
+    }
+
+    const Parameter& paramdata(blockdata.parameters[paramIndex]);
+    assert_return((paramdata.meta.flags & Lv2ParameterNotAllowedInQuickPot) == 0,);
+
+    blockdata.quickpotSymbol = symbol;
+    blockdata.meta.quickpotIndex = paramIndex;
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -5274,8 +5301,8 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
                         if (const auto it = blockdata.parameterSymbolToIndexMap.find(quickpot);
                             it != blockdata.parameterSymbolToIndexMap.end())
                         {
-                            blockdata.quickPotSymbol = quickpot;
-                            blockdata.meta.quickPotIndex = it->second;
+                            blockdata.quickpotSymbol = quickpot;
+                            blockdata.meta.quickpotIndex = it->second;
                         }
                     }
                 }
@@ -5986,7 +6013,7 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann::json& jpr
                 auto& jblock = jblocks[jblockid] = nlohmann::json::object({
                     { "parameters", nlohmann::json::object({}) },
                     { "properties", nlohmann::json::object({}) },
-                    { "quickpot", blockdata.quickPotSymbol },
+                    { "quickpot", blockdata.quickpotSymbol },
                     { "scenes", nlohmann::json::object({}) },
                     { "uri", blockdata.uri },
                 });
@@ -7080,7 +7107,7 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
 
     blockdata.enabled = true;
     blockdata.uri = plugin->uri;
-    blockdata.quickPotSymbol.clear();
+    blockdata.quickpotSymbol.clear();
     blockdata.plugin = plugin;
 
     blockdata.meta.enable.changesNotSavedToPreset = false;
@@ -7088,7 +7115,7 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
     blockdata.meta.enable.hwbinding = UINT8_MAX;
     blockdata.meta.enable.tempSceneState = kTemporarySceneNone;
     blockdata.meta.flags = plugin->flags;
-    blockdata.meta.quickPotIndex = 0;
+    blockdata.meta.quickpotIndex = 0;
     blockdata.meta.numParametersInScenes = 0;
     blockdata.meta.numInputs = numInputs;
     blockdata.meta.numOutputs = numOutputs;
@@ -7118,8 +7145,8 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
             // skip parameter
             return;
         case kLv2DesignationQuickPot:
-            blockdata.quickPotSymbol = port.symbol;
-            blockdata.meta.quickPotIndex = numParams;
+            blockdata.quickpotSymbol = port.symbol;
+            blockdata.meta.quickpotIndex = numParams;
             break;
         }
 
@@ -7201,14 +7228,14 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
             break;
     }
 
-    if (blockdata.quickPotSymbol.empty() && numParams != 0)
+    if (blockdata.quickpotSymbol.empty() && numParams != 0)
     {
         for (uint8_t p = 0; p < numParams; ++p)
         {
             if ((blockdata.parameters[p].meta.flags & Lv2ParameterNotAllowedInQuickPot) != 0)
                 continue;
-            blockdata.quickPotSymbol = blockdata.parameters[p].symbol;
-            blockdata.meta.quickPotIndex = p;
+            blockdata.quickpotSymbol = blockdata.parameters[p].symbol;
+            blockdata.meta.quickpotIndex = p;
             break;
         }
     }
@@ -7283,8 +7310,8 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
             {
                 if (blockdata.parameters[p].symbol == jquickpot)
                 {
-                    blockdata.quickPotSymbol = jquickpot;
-                    blockdata.meta.quickPotIndex = p;
+                    blockdata.quickpotSymbol = jquickpot;
+                    blockdata.meta.quickpotIndex = p;
                     break;
                 }
             }
@@ -7309,14 +7336,14 @@ void HostConnector::resetBlock(Block& blockdata)
 {
     blockdata.enabled = false;
     blockdata.uri.clear();
-    blockdata.quickPotSymbol.clear();
+    blockdata.quickpotSymbol.clear();
     blockdata.plugin.reset();
     blockdata.meta.enable.changesNotSavedToPreset = false;
     blockdata.meta.enable.hasScenes = false;
     blockdata.meta.enable.hwbinding = UINT8_MAX;
     blockdata.meta.enable.tempSceneState = kTemporarySceneNone;
     blockdata.meta.flags = 0;
-    blockdata.meta.quickPotIndex = 0;
+    blockdata.meta.quickpotIndex = 0;
     blockdata.meta.numParametersInScenes = 0;
     blockdata.meta.numInputs = 0;
     blockdata.meta.numOutputs = 0;
