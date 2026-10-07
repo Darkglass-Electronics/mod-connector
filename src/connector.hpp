@@ -646,19 +646,19 @@ public:
     // set the filename of a preset
     void setPresetFilename(uint8_t preset, const char* filename);
 
-    // set the name of the current preset
+    // set the name of a preset
     void setPresetName(uint8_t preset, const char* name);
-
-    // set the name of the current preset
-    void setCurrentPresetName(const char* name)
-    {
-        setPresetName(_current.preset, name);
-    }
 
     // convenience call for setting current preset filename
     void setCurrentPresetFilename(const char* filename)
     {
         setPresetFilename(_current.preset, filename);
+    }
+
+    // convenience call for setting current preset name
+    void setCurrentPresetName(const char* name)
+    {
+        setPresetName(_current.preset, name);
     }
 
     // switch to another preset within the current bank
@@ -763,17 +763,28 @@ public:
     // add a block binding (for enable/disable control)
     bool addBlockBinding(uint8_t hwid, uint8_t row, uint8_t block);
 
-    // add a block parameter binding
+    // add a block parameter binding, based on parameter index
     bool addBlockParameterBinding(uint8_t hwid, uint8_t row, uint8_t block, uint8_t paramIndex);
+
+    // add a block parameter binding, based on port symbol
+    bool addBlockParameterBinding(uint8_t hwid, uint8_t row, uint8_t block, const char* symbol);
 
     // edit a block parameter binding (change normal or inverted operation)
     bool editBlockBinding(uint8_t hwid, uint8_t row, uint8_t block, bool inverted);
 
-    // edit a block parameter binding (change min and max range)
+    // edit a block parameter binding (change min and max range), based on parameter index
     bool editBlockParameterBinding(uint8_t hwid,
                                    uint8_t row,
                                    uint8_t block,
                                    uint8_t paramIndex,
+                                   float min,
+                                   float max);
+
+    // edit a block parameter binding (change min and max range), based on port symbol
+    bool editBlockParameterBinding(uint8_t hwid,
+                                   uint8_t row,
+                                   uint8_t block,
+                                   const char* symbol,
                                    float min,
                                    float max);
 
@@ -783,8 +794,11 @@ public:
     // remove a block binding (for enable/disable control)
     bool removeBlockBinding(uint8_t hwid, uint8_t row, uint8_t block);
 
-    // remove a block parameter binding
+    // remove a block parameter binding, based on parameter index
     bool removeBlockParameterBinding(uint8_t hwid, uint8_t row, uint8_t block, uint8_t paramIndex);
+
+    // remove a block parameter binding, based on port symbol
+    bool removeBlockParameterBinding(uint8_t hwid, uint8_t row, uint8_t block, const char* symbol);
 
     // rename a binding
     bool renameBinding(uint8_t hwid, const char* name);
@@ -793,7 +807,7 @@ public:
     // the binding to be replaced must already exist
     bool replaceBlockBinding(uint8_t hwid, uint8_t row, uint8_t block, uint8_t rowB, uint8_t blockB);
 
-    // replace a block parameter binding with another
+    // replace a block parameter binding with another, based on parameter index
     // the binding to be replaced must already exist
     bool replaceBlockParameterBinding(uint8_t hwid,
                                       uint8_t row,
@@ -802,6 +816,16 @@ public:
                                       uint8_t rowB,
                                       uint8_t blockB,
                                       uint8_t paramIndexB);
+
+    // replace a block parameter binding with another, based on port symbol
+    // the binding to be replaced must already exist
+    bool replaceBlockParameterBinding(uint8_t hwid,
+                                      uint8_t row,
+                                      uint8_t block,
+                                      const char* symbol,
+                                      uint8_t rowB,
+                                      uint8_t blockB,
+                                      const char* symbolB);
 
     // reorder bindings
     bool reorderBlockBinding(uint8_t hwid, uint8_t dest);
