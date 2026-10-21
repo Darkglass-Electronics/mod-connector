@@ -2055,7 +2055,11 @@ private:
             // if bundle is not user removable, assume to be a system plugin
             if ((plugin->flags & Lv2PluginIsUserRemovable) == 0)
             {
+               #ifdef _DARKGLASS_DEVICE_ANNIE
+                licensefile = keysdir + "0e56981512d18d9fc0148f55291e8f9ae3cb76d6";
+               #else
                 licensefile = keysdir + "149e897c16e874bea75961557c8fef52567ad3db";
+               #endif
             }
             else
            #endif
@@ -2075,7 +2079,12 @@ private:
                     {
                         const LilvNode* const node = lilv_nodes_get(uriNodes, it);
 
-                        if (lilv_node_is_uri(node) && std::strcmp(lilv_node_as_uri(node), "urn:darkglass:pablito") == 0)
+                       #ifdef _DARKGLASS_DEVICE_ANNIE
+                        static const char devuri[] = "urn:darkglass:annie";
+                       #else
+                        static const char devuri[] = "urn:darkglass:pablito";
+                       #endif
+                        if (lilv_node_is_uri(node) && std::strcmp(lilv_node_as_uri(node), devuri) == 0)
                         {
                             plugin->flags &= ~Lv2PluginIsCommercial;
                             break;
