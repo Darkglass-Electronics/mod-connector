@@ -3916,6 +3916,26 @@ void HostConnector::deserializeToCurrentPreset(const nlohmann::json& j)
 
 // --------------------------------------------------------------------------------------------------------------------
 
+bool HostConnector::deserializeToCurrentPreset(const char* const state)
+{
+    nlohmann::json j;
+
+    try {
+        j = nlohmann::json::parse(state);
+    } catch (const std::exception& e) {
+        mod_log_warn("failed to parse state: %s", e.what());
+        return false;
+    } catch (...) {
+        mod_log_warn("failed to parse state: unknown exception");
+        return false;
+    }
+
+    deserializeToCurrentPreset(j);
+    return true;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 void HostConnector::enableCpuLoadUpdates(const bool enable)
 {
     _host.feature_enable(Host::kFeatureCpuLoad, enable ? 1 : 0);

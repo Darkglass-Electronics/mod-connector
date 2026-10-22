@@ -537,6 +537,7 @@ public:
 
     [[nodiscard]] std::string serializeCurrentPreset() const;
     void deserializeToCurrentPreset(const nlohmann::json& j);
+    bool deserializeToCurrentPreset(const char* state);
 
     // ----------------------------------------------------------------------------------------------------------------
     // cpu load handling
