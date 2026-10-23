@@ -291,9 +291,9 @@ const char* serializeCurrentPreset()
 }
 
 __attribute__((used))
-void deserializeToCurrentPreset(const char* data)
+bool deserializeToCurrentPreset(const char* data)
 {
-    conn->deserializeToCurrentPreset(nlohmann::json::parse(data));
+    return conn->deserializeToCurrentPreset(data);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
