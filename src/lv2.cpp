@@ -42,6 +42,7 @@
 #include <lv2/morph/morph.h>
 #include <lv2/patch/patch.h>
 #include <lv2/port-props/port-props.h>
+#include <lv2/presets/presets.h>
 #include <lv2/state/state.h>
 #include <lv2/time/time.h>
 #include <lv2/units/units.h>
@@ -50,6 +51,7 @@
 #include <lv2/lv2plug.in/ns/ext/morph/morph.h>
 #include <lv2/lv2plug.in/ns/ext/patch/patch.h>
 #include <lv2/lv2plug.in/ns/ext/port-props/port-props.h>
+#include <lv2/lv2plug.in/ns/ext/presets/presets.h>
 #include <lv2/lv2plug.in/ns/ext/state/state.h>
 #include <lv2/lv2plug.in/ns/ext/time/time.h>
 #include <lv2/lv2plug.in/ns/ext/units/units.h>
@@ -244,6 +246,7 @@ struct Lv2NamespaceDefinitions {
     LilvNode* const dgcs_sceneControlAllScenes;
     LilvNode* const dgcs_size;
     LilvNode* const dgcs_style;
+    LilvNode* const dgcs_templatesButton;
     LilvNode* const dgcs_toggle;
     LilvNode* const dgcs_topBar;
     LilvNode* const dgcs_topBarBlockName;
@@ -267,7 +270,9 @@ struct Lv2NamespaceDefinitions {
     LilvNode* const modlicense_interface;
     LilvNode* const patch_readable;
     LilvNode* const patch_writable;
+    LilvNode* const pset_Preset;
     LilvNode* const rdf_type;
+    LilvNode* const rdfs_comment;
     LilvNode* const rdfs_label;
     LilvNode* const rdfs_range;
     LilvNode* const state_state;
@@ -314,6 +319,7 @@ struct Lv2NamespaceDefinitions {
           dgcs_sceneControlAllScenes(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__sceneControlAllScenes)),
           dgcs_size(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__size)),
           dgcs_style(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__style)),
+          dgcs_templatesButton(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__templatesButton)),
           dgcs_toggle(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__toggle)),
           dgcs_topBar(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__topBar)),
           dgcs_topBarBlockName(lilv_new_uri(world, LV2_DARKGLASS_CUSTOM_STYLING__topBarBlockName)),
@@ -337,7 +343,9 @@ struct Lv2NamespaceDefinitions {
           modlicense_interface(lilv_new_uri(world, MOD_LICENSE__interface)),
           patch_readable(lilv_new_uri(world, LV2_PATCH__readable)),
           patch_writable(lilv_new_uri(world, LV2_PATCH__writable)),
+          pset_Preset(lilv_new_uri(world, LV2_PRESETS__Preset)),
           rdf_type(lilv_new_uri(world, LILV_NS_RDF "type")),
+          rdfs_comment(lilv_new_uri(world, LILV_NS_RDFS "comment")),
           rdfs_label(lilv_new_uri(world, LILV_NS_RDFS "label")),
           rdfs_range(lilv_new_uri(world, LILV_NS_RDFS "range")),
           state_state(lilv_new_uri(world, LV2_STATE__state)),
@@ -387,6 +395,7 @@ struct Lv2NamespaceDefinitions {
         lilv_node_free(dgcs_sceneControlAllScenes);
         lilv_node_free(dgcs_size);
         lilv_node_free(dgcs_style);
+        lilv_node_free(dgcs_templatesButton);
         lilv_node_free(dgcs_toggle);
         lilv_node_free(dgcs_topBar);
         lilv_node_free(dgcs_topBarBlockName);
@@ -410,7 +419,9 @@ struct Lv2NamespaceDefinitions {
         lilv_node_free(modlicense_interface);
         lilv_node_free(patch_readable);
         lilv_node_free(patch_writable);
+        lilv_node_free(pset_Preset);
         lilv_node_free(rdf_type);
+        lilv_node_free(rdfs_comment);
         lilv_node_free(rdfs_label);
         lilv_node_free(rdfs_range);
         lilv_node_free(state_state);
@@ -1201,6 +1212,71 @@ struct Lv2World::Impl
         }
 
         // ------------------------------------------------------------------------------------------------------------
+        // presets
+
+        if (LilvNodes* const presetnodes = lilv_plugin_get_related(plugin, ns.pset_Preset))
+        {
+            std::vector<const LilvNode*> loadedPresetResourceNodes;
+            LV2_URID_Map uridMap = { this, _mapfn };
+
+            // put data into an std::map first, so it's automatically ordered by key (URI)
+            std::map<std::string, Lv2Preset> presets;
+
+            LILV_FOREACH(nodes, it, presetnodes)
+            {
+                const LilvNode* const presetnode = lilv_nodes_get(presetnodes, it);
+
+                // always load preset resource, required for preset data; if it fails, skip this preset
+                if (lilv_world_load_resource(world, presetnode) == -1)
+                    continue;
+
+                LilvNode* const pcomment = lilv_world_get(world, presetnode, ns.rdfs_comment, nullptr);
+                LilvNode* const plabel = lilv_world_get(world, presetnode, ns.rdfs_label, nullptr);
+
+                // need to unload later
+                loadedPresetResourceNodes.push_back(presetnode);
+
+                if (plabel != nullptr)
+                {
+                    const std::string preseturi = lilv_node_as_uri(presetnode);
+
+                    presets[preseturi] = {
+                        .uri = preseturi,
+                        .name = lilv_node_as_string(plabel),
+                        .comment = pcomment != nullptr ? lilv_node_as_string(pcomment) : "",
+                    };
+
+                    // load preset values
+                    if (LilvState* const state = lilv_state_new_from_world(world, &uridMap, presetnode))
+                    {
+                        lilv_state_emit_port_values(state, _portfn, &presets[preseturi].ports);
+                        lilv_state_free(state);
+                    }
+                    else
+                    {
+                        fprintf(stderr, "failed to load preset data for %s\n", preseturi.c_str());
+                    }
+
+                    lilv_node_free(plabel);
+                }
+
+                if (pcomment != nullptr)
+                    lilv_node_free(pcomment);
+            }
+
+            for (const LilvNode* presetnode : loadedPresetResourceNodes)
+                lilv_world_unload_resource(world, presetnode);
+
+            lilv_nodes_free(presetnodes);
+
+            // convert the map into a vector
+            retplugin->presets.reserve(presets.size());
+
+            for (const auto &map : presets)
+                retplugin->presets.emplace_back(std::move(map.second));
+        }
+
+        // ------------------------------------------------------------------------------------------------------------
         // block images
 
         {
@@ -1555,6 +1631,7 @@ struct Lv2World::Impl
             }
 
             assignImage(styling->topBar.paginationButton, topBarNode, ns.dgcs_paginationButton, CustomStyling::kAlignNone);
+            assignImage(styling->topBar.templatesButton, topBarNode, ns.dgcs_templatesButton, CustomStyling::kAlignNone);
 
             if (LilvNode* const sceneControlNode = lilv_world_get(world, topBarNode, ns.dgcs_topBarSceneControl, nullptr))
             {

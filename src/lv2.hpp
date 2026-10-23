@@ -127,6 +127,13 @@ struct Lv2Property {
     float max = 1.f;
 };
 
+struct Lv2Preset {
+    std::string uri;
+    std::string name;
+    std::string comment;
+    std::unordered_map<std::string, float> ports;
+};
+
 struct Lv2Plugin {
     std::string uri;
     // NOTE includes path separator as last character
@@ -138,6 +145,7 @@ struct Lv2Plugin {
     Lv2Category category = kLv2CategoryNone;
     std::vector<Lv2Port> ports;
     std::vector<Lv2Property> properties;
+    std::vector<Lv2Preset> presets;
     // NOTE already in absolute path
     std::string blockImageOff;
     std::string blockImageOn;

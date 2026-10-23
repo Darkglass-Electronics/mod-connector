@@ -170,6 +170,9 @@ struct BlockSettings {
                 operator bool() const noexcept { return !allScenes.path.empty() && !activeScene.path.empty(); }
             } withImages;
         } sceneControl;
+
+        // The top-bar templates button, for showing plugin presets (called "templates" on Anagram)
+        Image templatesButton;
     } topBar;
 
     // Bypass control in the top-bar
