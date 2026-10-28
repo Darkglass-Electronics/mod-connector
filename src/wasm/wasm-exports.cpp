@@ -182,7 +182,7 @@ void test_string_send(const char* s)
 __attribute__((used))
 bool init(IPC::SendCallback send, IPC::RecvCallback reply, IPC::RecvCallback feedback, ExportedHostCallback callback)
 {
-    assert_return(conn == nullptr, false);
+    delete conn;
     conn = new HostConnectorExport(send, reply, feedback, callback);
     return true;
 }
@@ -907,6 +907,18 @@ void setBlockPropertyByURI(uint8_t row, uint8_t block, const char* uri, const ch
 
 // --------------------------------------------------------------------------------------------------------------------
 // wasm extras, not part of official API
+
+__attribute__((used))
+bool isDirty()
+{
+    return conn->current.dirty != 0;
+}
+
+__attribute__((used))
+bool isBlockEnabled(uint8_t row, uint8_t block)
+{
+    return conn->current.block(row, block).enabled;
+}
 
 __attribute__((used))
 float getBlockParameter(uint8_t row, uint8_t block, uint8_t paramIndex)
