@@ -92,8 +92,13 @@
 // --------------------------------------------------------------------------------------------------------------------
 // mod-host definitions
 
-#define MAX_MOD_HOST_PLUGIN_INSTANCES 9990
-#define MAX_MOD_HOST_TOOL_INSTANCES   10
+#ifdef _DARKGLASS_DEVICE_PABLITO
+#define MAX_MOD_HOST_PLUGIN_INSTANCES    450
+#define MAX_MOD_HOST_TOOL_INSTANCES      50
+#else
+#define MAX_MOD_HOST_PLUGIN_INSTANCES    9990
+#define MAX_MOD_HOST_TOOL_INSTANCES      10
+#endif
 #define MAX_MOD_HOST_INSTANCES        (MAX_MOD_HOST_PLUGIN_INSTANCES + MAX_MOD_HOST_TOOL_INSTANCES)
 
 #define MOD_HOST_EFFECT_PREFIX "effect_"
