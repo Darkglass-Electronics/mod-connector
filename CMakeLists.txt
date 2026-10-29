@@ -18,13 +18,11 @@ set_property(GLOBAL PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 # Find deps
 
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(lilv REQUIRED IMPORTED_TARGET lilv-0)
-pkg_check_modules(lv2_1_18 QUIET IMPORTED_TARGET lv2>=1.18)
-if (lv2_1_18_FOUND)
-  add_library(PkgConfig::lv2 ALIAS PkgConfig::lv2_1_18)
-else()
-  pkg_check_modules(lv2 REQUIRED IMPORTED_TARGET lv2)
+
+if(NOT MOD_CONNECTOR_SERIALIZED_LV2_DATA)
+  pkg_check_modules(lilv REQUIRED IMPORTED_TARGET lilv-0)
 endif()
+
 pkg_check_modules(serialport IMPORTED_TARGET libserialport)
 
 #######################################################################################################################
@@ -62,9 +60,9 @@ if(PROJECT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR AND NOT MOD_CONNECTOR_LIB_ONLY)
 
   target_compile_definitions(mod-connector
     PRIVATE
-      $<$<BOOL:${lv2_1_18_FOUND}>:HAVE_LV2_1_18>
       $<$<BOOL:${serialport_FOUND}>:HAVE_SERIALPORT>
       $<$<BOOL:${systemd_FOUND}>:HAVE_SYSTEMD>
+      $<$<BOOL:${MOD_CONNECTOR_SERIALIZED_LV2_DATA}>:MOD_CONNECTOR_SERIALIZED_LV2_DATA>
   )
 
   target_compile_options(mod-connector
@@ -78,12 +76,12 @@ if(PROJECT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR AND NOT MOD_CONNECTOR_LIB_ONLY)
   target_include_directories(mod-connector
     PRIVATE
       src
+      src/lv2/include
   )
 
   target_link_libraries(mod-connector
     PRIVATE
-      PkgConfig::lilv
-      PkgConfig::lv2
+      $<$<NOT:$<BOOL:${MOD_CONNECTOR_SERIALIZED_LV2_DATA}>>:PkgConfig::lilv>
       $<$<BOOL:${serialport_FOUND}>:PkgConfig::serialport>
       $<$<BOOL:${systemd_FOUND}>:PkgConfig::systemd>
       Qt::Core
@@ -110,7 +108,6 @@ if(PROJECT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR AND NOT MOD_CONNECTOR_LIB_ONLY)
 
   target_compile_definitions(tests
     PRIVATE
-      $<$<BOOL:${lv2_1_18_FOUND}>:HAVE_LV2_1_18>
       $<$<BOOL:${serialport_FOUND}>:HAVE_SERIALPORT>
       JACK_CAPTURE_PORT_2="system:capture_1" # 1in 2out system for tests
       NUM_BLOCK_CHAIN_ROWS=2
@@ -119,14 +116,14 @@ if(PROJECT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR AND NOT MOD_CONNECTOR_LIB_ONLY)
   target_include_directories(tests
     PRIVATE
       src
+      src/lv2/include
   )
 
   target_link_libraries(tests
     PRIVATE
-      PkgConfig::jack
-      PkgConfig::lilv
-      PkgConfig::lv2
+      $<$<NOT:$<BOOL:${MOD_CONNECTOR_SERIALIZED_LV2_DATA}>>:PkgConfig::lilv>
       $<$<BOOL:${serialport_FOUND}>:PkgConfig::serialport>
+      PkgConfig::jack
       Qt::Core
   )
 
@@ -151,19 +148,19 @@ else()
 
   target_compile_definitions(mod-connector
     INTERFACE
-      $<$<BOOL:${lv2_1_18_FOUND}>:HAVE_LV2_1_18>
       $<$<BOOL:${serialport_FOUND}>:HAVE_SERIALPORT>
+      $<$<BOOL:${MOD_CONNECTOR_SERIALIZED_LV2_DATA}>:MOD_CONNECTOR_SERIALIZED_LV2_DATA>
   )
 
   target_include_directories(mod-connector
     INTERFACE
       ${CMAKE_CURRENT_LIST_DIR}/src
+      ${CMAKE_CURRENT_LIST_DIR}/src/lv2/include
   )
 
   target_link_libraries(mod-connector
     INTERFACE
-      PkgConfig::lilv
-      PkgConfig::lv2
+      $<$<NOT:$<BOOL:${MOD_CONNECTOR_SERIALIZED_LV2_DATA}>>:PkgConfig::lilv>
       $<$<BOOL:${serialport_FOUND}>:PkgConfig::serialport>
       $<$<BOOL:${WIN32}>:ws2_32>
   )

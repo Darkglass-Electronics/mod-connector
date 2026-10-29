@@ -7,3 +7,6 @@
 [submodule "src/mod-lv2-extensions"]
 	path = src/mod-lv2-extensions
 	url = https://github.com/mod-audio/mod-lv2-extensions.git
+[submodule "src/lv2"]
+	path = src/lv2
+	url = https://github.com/lv2/lv2.git

@@ -3,6 +3,8 @@
 
 #define JSON_NO_IO
 
+#define MOD_LOG_GROUP "wasm"
+
 #include "connector.hpp"
 #include "ipc.hpp"
 #include "json.hpp"
@@ -158,6 +160,12 @@ private:
 
 static HostConnectorExport* conn;
 static std::string ret;
+
+const std::array<std::string, NUM_PRESETS_PER_BANK> kBankFilenames = {
+    "/tmp/1.json",
+    "/tmp/2.json",
+    "/tmp/3.json",
+};
 
 // TODO apply "__attribute__((used))" to all functions at once
 
@@ -379,23 +387,19 @@ void setDirty(bool dirty = true)
 // bank handling
 
 __attribute__((used))
-void loadBankFromPresetFiles(const char* filename1,
-                             const char* filename2,
-                             const char* filename3,
-                             uint8_t initialPresetToLoad = 0,
-                             bool discardMetadata = false)
+void loadBankFromPresetFiles(uint8_t initialPresetToLoad = 0, bool discardMetadata = false)
 {
-    const std::array<std::string, NUM_PRESETS_PER_BANK> filenames = { filename1, filename2, filename3 };
-    conn->loadBankFromPresetFiles(filenames, initialPresetToLoad, discardMetadata);
+    conn->loadBankFromPresetFiles(kBankFilenames, initialPresetToLoad, discardMetadata);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
 // preset handling
 
 __attribute__((used))
-const char* getPresetNameFromFile(const char* filename)
+const char* getPresetNameFromFile(uint8_t preset)
 {
-    ret = HostConnector::getPresetNameFromFile(filename);
+    assert_return(preset < NUM_PRESETS_PER_BANK, nullptr);
+    ret = HostConnector::getPresetNameFromFile(kBankFilenames[preset].c_str());
     return ret.c_str();
 }
 
@@ -407,27 +411,31 @@ const char* getPresetNameFromFile(const char* filename)
 
 // TODO
 __attribute__((used))
-bool updatePresetNameInFile(const char* filename, const char* name)
+bool updatePresetNameInFile(uint8_t preset, const char* name)
 {
-    return HostConnector::updatePresetNameInFile(filename, name);
+    assert_return(preset < NUM_PRESETS_PER_BANK, false);
+    return HostConnector::updatePresetNameInFile(kBankFilenames[preset].c_str(), name);
 }
 
 __attribute__((used))
-bool loadCurrentPresetFromFile(const char* filename, bool replaceDefault)
+bool loadCurrentPresetFromFile(uint8_t preset, bool replaceDefault)
 {
-    return conn->loadCurrentPresetFromFile(filename, replaceDefault);
+    assert_return(preset < NUM_PRESETS_PER_BANK, false);
+    return conn->loadCurrentPresetFromFile(kBankFilenames[preset].c_str(), replaceDefault);
 }
 
 __attribute__((used))
-bool preloadPresetFromFile(uint8_t preset, const char* filename)
+bool preloadPresetFromFile(uint8_t preset)
 {
-    return conn->preloadPresetFromFile(preset, filename);
+    assert_return(preset < NUM_PRESETS_PER_BANK, false);
+    return conn->preloadPresetFromFile(preset, kBankFilenames[preset].c_str());
 }
 
 __attribute__((used))
-bool saveCurrentPresetToFile(const char* filename)
+bool saveCurrentPresetToFile(uint8_t preset)
 {
-    return conn->saveCurrentPresetToFile(filename);
+    assert_return(preset < NUM_PRESETS_PER_BANK, false);
+    return conn->saveCurrentPresetToFile(kBankFilenames[preset].c_str());
 }
 
 __attribute__((used))
@@ -469,12 +477,14 @@ void regenUUID()
 __attribute__((used))
 void setPresetFilename(uint8_t preset, const char* filename)
 {
+    assert_return(preset < NUM_PRESETS_PER_BANK,);
     conn->setPresetFilename(preset, filename);
 }
 
 __attribute__((used))
 void setPresetName(uint8_t preset, const char* name)
 {
+    assert_return(preset < NUM_PRESETS_PER_BANK,);
     conn->setPresetName(preset, name);
 }
 
@@ -745,9 +755,7 @@ void setBlockParameterBySymbol(uint8_t row,
                                float value,
                                HostSceneMode sceneMode = HostConnector::kSceneModeClear)
 {
-    fprintf(stderr, "sending %u %u %s %f\n", row, block, symbol, value);
     conn->setBlockParameter(row, block, symbol, value, sceneMode);
-    fprintf(stderr, "sending %u %u %s %f -> DONE\n", row, block, symbol, value);
 }
 
 __attribute__((used))
@@ -905,6 +913,33 @@ void setBlockPropertyByURI(uint8_t row, uint8_t block, const char* uri, const ch
     conn->setBlockProperty(row, block, uri, value);
 }
 
+
+// --------------------------------------------------------------------------------------------------------------------
+
+__attribute__((used))
+bool addPluginFromSerializedData(const char* data)
+{
+    try {
+        conn->addPluginFromSerializedData(nlohmann::json::parse(data));
+    } catch (const std::exception& e) {
+        mod_log_warn("failed to serialize plugin data: %s", e.what());
+        return false;
+    } catch (...) {
+        mod_log_warn("failed to serialize plugin data: unknown exception");
+        return false;
+    }
+
+    return true;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+__attribute__((used))
+void removePlugin(const char* const uri)
+{
+    conn->removePlugin(uri);
+}
+
 // --------------------------------------------------------------------------------------------------------------------
 // wasm extras, not part of official API
 
@@ -945,6 +980,20 @@ __attribute__((used))
 const char* getBlockQuickPotSymbol(uint8_t row, uint8_t block)
 {
     return conn->current.block(row, block).quickpotSymbol.c_str();
+}
+
+__attribute__((used))
+void setPresetFileData(uint8_t preset, const char* data)
+{
+    assert_return(preset < NUM_PRESETS_PER_BANK,);
+
+    FILE* const fd = std::fopen((kBankFilenames[preset] + ".tmp").c_str(), "w");
+    assert_return(fd != nullptr,);
+
+    std::fwrite(data, 1, std::strlen(data), fd);
+    std::fflush(fd);
+    std::fclose(fd);
+    std::rename((kBankFilenames[preset] + ".tmp").c_str(), kBankFilenames[preset].c_str());
 }
 
 // --------------------------------------------------------------------------------------------------------------------

@@ -21,11 +21,11 @@
 #include <list>
 #include <map>
 
-#ifndef __EMSCRIPTEN__
-#include <pthread.h>
-#endif
-
+#ifdef MOD_CONNECTOR_SERIALIZED_LV2_DATA
+#include "json.hpp"
+#else
 #include <lilv/lilv.h>
+#endif
 
 #ifdef _WIN32
 #include <io.h>
@@ -37,7 +37,6 @@
 #include <sys/resource.h>
 #endif
 
-#if defined(HAVE_LV2_1_18) || (defined(__has_include) && __has_include(<lv2/atom/atom.h>))
 #include <lv2/atom/atom.h>
 #include <lv2/morph/morph.h>
 #include <lv2/patch/patch.h>
@@ -46,16 +45,6 @@
 #include <lv2/state/state.h>
 #include <lv2/time/time.h>
 #include <lv2/units/units.h>
-#else
-#include <lv2/lv2plug.in/ns/ext/atom/atom.h>
-#include <lv2/lv2plug.in/ns/ext/morph/morph.h>
-#include <lv2/lv2plug.in/ns/ext/patch/patch.h>
-#include <lv2/lv2plug.in/ns/ext/port-props/port-props.h>
-#include <lv2/lv2plug.in/ns/ext/presets/presets.h>
-#include <lv2/lv2plug.in/ns/ext/state/state.h>
-#include <lv2/lv2plug.in/ns/ext/time/time.h>
-#include <lv2/lv2plug.in/ns/ext/units/units.h>
-#endif
 
 // Fix compatibility with old LV2 versions which don't provide these properties
 #ifndef LV2_CORE__Parameter
@@ -74,9 +63,13 @@
 #define LV2_CORE__shortName LV2_CORE_PREFIX "shortName"
 #endif
 
+#if !(defined(MOD_CONNECTOR_SERIALIZED_LV2_DATA) || defined(__EMSCRIPTEN__))
+#define MOD_CONNECTOR_LV2_BG_LOADING
+#include <pthread.h>
 // time in milliseconds given to background thread between loading iterations
-#ifndef MOD_CONNECTOR_BG_LOADING_IDLE_TIME
-#define MOD_CONNECTOR_BG_LOADING_IDLE_TIME 100
+#ifndef MOD_CONNECTOR_LV2_BG_LOADING_IDLE_TIME
+#define MOD_CONNECTOR_LV2_BG_LOADING_IDLE_TIME 100
+#endif
 #endif
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -117,23 +110,6 @@ static std::string _keysdir()
     }
 
     return homedir() + "keys" PATH_SEP_STR;
-}
-
-// --------------------------------------------------------------------------------------------------------------------
-// proper lilv_file_uri_parse function that returns absolute paths
-
-static char* _lilv_file_abspath(const LilvNode* const node)
-{
-    assert(lilv_node_is_uri(node));
-
-    if (char* const lilvpath = lilv_file_uri_parse(lilv_node_as_uri(node), nullptr))
-    {
-        char* const ret = realpath(lilvpath, nullptr);
-        lilv_free(lilvpath);
-        return ret;
-    }
-
-    return nullptr;
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -201,6 +177,24 @@ static void msleep(const unsigned int time)
    #else
     usleep(time * 1000);
    #endif
+}
+
+#ifndef MOD_CONNECTOR_SERIALIZED_LV2_DATA
+// --------------------------------------------------------------------------------------------------------------------
+// proper lilv_file_uri_parse function that returns absolute paths
+
+static char* _lilv_file_abspath(const LilvNode* const node)
+{
+    assert(lilv_node_is_uri(node));
+
+    if (char* const lilvpath = lilv_file_uri_parse(lilv_node_as_uri(node), nullptr))
+    {
+        char* const ret = realpath(lilvpath, nullptr);
+        lilv_free(lilvpath);
+        return ret;
+    }
+
+    return nullptr;
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -428,10 +422,11 @@ struct Lv2NamespaceDefinitions {
         lilv_node_free(units_unit);
     }
 };
+#endif
 
 // --------------------------------------------------------------------------------------------------------------------
 
-#ifndef __EMSCRIPTEN__
+#ifdef MOD_CONNECTOR_LV2_BG_LOADING
 struct pthread_mutex_guard {
     pthread_mutex_t& mutex;
 
@@ -453,10 +448,9 @@ struct pthread_mutex_guard {
 struct Lv2World::Impl
 {
     Impl(std::string& last_error_)
-        : last_error(last_error_),
-          world(lilv_world_new()),
-          ns(world)
+        : last_error(last_error_)
     {
+      #ifndef MOD_CONNECTOR_SERIALIZED_LV2_DATA
        #ifdef LILV_OPTION_OBJECT_INDEX
         lilv_world_set_option(world, LILV_OPTION_OBJECT_INDEX, nullptr);
        #endif
@@ -486,8 +480,9 @@ struct Lv2World::Impl
                 std::free(lilvparsed);
             }
         }
+      #endif
 
-       #ifndef __EMSCRIPTEN__
+       #ifdef MOD_CONNECTOR_LV2_BG_LOADING
         // create a priority-inversion recursive mutex
         // this way the thread can be low-priority and gets temporarily raised to normal priority as needed
         {
@@ -516,7 +511,7 @@ struct Lv2World::Impl
 
     ~Impl()
     {
-       #ifndef __EMSCRIPTEN__
+       #ifdef MOD_CONNECTOR_LV2_BG_LOADING
         bgLoadingActive = false;
         pthread_mutex_lock(&bgLoadingMutex);
         pthread_join(bgLoadingThread, nullptr);
@@ -526,8 +521,10 @@ struct Lv2World::Impl
 
         pluginsCache.clear();
 
+       #ifndef MOD_CONNECTOR_SERIALIZED_LV2_DATA
         ns.free();
         lilv_world_free(world);
+       #endif
     }
 
     // ----------------------------------------------------------------------------------------------------------------
@@ -559,10 +556,11 @@ struct Lv2World::Impl
                 return cache.plugin;
         }
 
+      #ifndef MOD_CONNECTOR_SERIALIZED_LV2_DATA
         std::string bundlepath;
         const LilvPlugin* plugin;
 
-       #ifndef __EMSCRIPTEN__
+       #ifdef MOD_CONNECTOR_LV2_BG_LOADING
         const pthread_mutex_guard pmg(bgLoadingMutex);
        #endif
 
@@ -1244,6 +1242,7 @@ struct Lv2World::Impl
                         .uri = preseturi,
                         .name = lilv_node_as_string(plabel),
                         .comment = pcomment != nullptr ? lilv_node_as_string(pcomment) : "",
+                        .ports = {},
                     };
 
                     // load preset values
@@ -1309,6 +1308,9 @@ struct Lv2World::Impl
 
         cache.plugin = std::shared_ptr<const Lv2Plugin>(retplugin);
         return cache.plugin;
+      #else
+        return {};
+      #endif
     }
 
     std::shared_ptr<const CustomStyling::BlockImage> getPluginBlockImageStyling(const char* const uri)
@@ -1325,10 +1327,11 @@ struct Lv2World::Impl
         assert_return(retplugin != nullptr, nullptr);
         assert_return(retplugin->flags & Lv2PluginHasBlockImageStyling, nullptr);
 
+      #ifndef MOD_CONNECTOR_SERIALIZED_LV2_DATA
         if (cache.blockImageStyling != nullptr)
             return cache.blockImageStyling;
 
-       #ifndef __EMSCRIPTEN__
+       #ifdef MOD_CONNECTOR_LV2_BG_LOADING
         const pthread_mutex_guard pmg(bgLoadingMutex);
        #endif
 
@@ -1466,6 +1469,7 @@ struct Lv2World::Impl
         lilv_node_free(stylingNode);
 
         cache.blockImageStyling = std::shared_ptr<const CustomStyling::BlockImage>(styling);
+      #endif
         return cache.blockImageStyling;
     }
 
@@ -1480,10 +1484,11 @@ struct Lv2World::Impl
         assert_return(retplugin != nullptr, nullptr);
         assert_return(retplugin->flags & Lv2PluginHasBlockSettingsStyling, nullptr);
 
+      #ifndef MOD_CONNECTOR_SERIALIZED_LV2_DATA
         if (cache.blockSettingsStyling != nullptr)
             return cache.blockSettingsStyling;
 
-       #ifndef __EMSCRIPTEN__
+       #ifdef MOD_CONNECTOR_LV2_BG_LOADING
         const pthread_mutex_guard pmg(bgLoadingMutex);
        #endif
 
@@ -1706,9 +1711,11 @@ struct Lv2World::Impl
         lilv_node_free(stylingNode);
 
         cache.blockSettingsStyling = std::shared_ptr<const CustomStyling::BlockSettings>(styling);
+      #endif
         return cache.blockSettingsStyling;
     }
 
+   #ifndef MOD_CONNECTOR_SERIALIZED_LV2_DATA
     // helpers used for block and block settings
     void _assignFont(CustomStyling::Font& fontRef, const std::string& bundlepath, const LilvNode* const subject)
     {
@@ -1853,6 +1860,7 @@ struct Lv2World::Impl
         lilv_node_free(imagePathNode);
         lilv_node_free(imageNode);
     }
+   #endif
 
     const Lv2Port& getPluginPort(const char* const uri, const char* const symbol)
     {
@@ -1879,11 +1887,107 @@ struct Lv2World::Impl
         return pluginsCache.find(uri) != pluginsCache.end();
     }
 
+    void removePlugin(const char* const uri)
+    {
+        const std::vector<std::string>::const_iterator it = std::find(pluginURIs.cbegin(), pluginURIs.cend(), uri);
+        assert_return(it != pluginURIs.cend(),);
+
+        pluginURIs.erase(it);
+
+        const std::unordered_map<std::string, PluginCache>::const_iterator it2 = pluginsCache.find(uri);
+        assert_return(it2 != pluginsCache.cend(),);
+
+        pluginsCache.erase(it2);
+    }
+
+   #ifdef MOD_CONNECTOR_SERIALIZED_LV2_DATA
+    void addPluginFromSerializedData(const nlohmann::json& j)
+    {
+        const std::string uri = j["uri"].get<std::string>();
+
+        if (pluginsCache.find(uri) == pluginsCache.end())
+            pluginURIs.emplace_back(uri);
+
+        PluginCache& cache = pluginsCache[uri] = {};
+
+        Lv2Plugin* const plugin = new Lv2Plugin;
+
+        plugin->uri = uri;
+        plugin->bundlepath = j["bundlepath"].get<std::string>();
+        plugin->version = j["version"].get<std::string>();
+        plugin->flags = j["flags"].get<uint32_t>();
+        plugin->name = j["name"].get<std::string>();
+        plugin->category = static_cast<Lv2Category>(j["category"].get<int>());
+
+        {
+            const std::vector<nlohmann::json> jports = j["ports"].get<std::vector<nlohmann::json>>();
+            plugin->ports.reserve(jports.size());
+
+            for (const nlohmann::json& jport : jports)
+            {
+                std::vector<Lv2ScalePoint> scalePoints;
+                if (jport.contains("scalePoints"))
+                {
+                    const std::vector<nlohmann::json> jscalePoints = jport["scalePoints"].get<std::vector<nlohmann::json>>();
+                    scalePoints.reserve(jscalePoints.size());
+
+                    Lv2ScalePoint scalePoint = {
+                        .label = jport["label"].get<std::string>(),
+                        .value = jport["value"].get<float>(),
+                    };
+                    scalePoints.emplace_back(std::move(scalePoint));
+                }
+
+                Lv2Port port = {
+                    .symbol = jport["symbol"].get<std::string>(),
+                    .name = jport["name"].get<std::string>(),
+                    .shortname = jport["shortname"].get<std::string>(),
+                    .flags = jport["flags"].get<uint32_t>(),
+                    .designation = jport["designation"].get<uint32_t>(),
+                    .def = jport["def"].get<float>(),
+                    .min = jport["min"].get<float>(),
+                    .max = jport["max"].get<float>(),
+                    .unit = jport["unit"].get<std::string>(),
+                    .scalePoints = std::move(scalePoints),
+                };
+                plugin->ports.emplace_back(std::move(port));
+            }
+        }
+
+        {
+            const std::vector<nlohmann::json> jproperties = j["properties"].get<std::vector<nlohmann::json>>();
+            plugin->properties.reserve(jproperties.size());
+
+            for (const nlohmann::json& jproperty : jproperties)
+            {
+                Lv2Property property = {
+                    .uri = jproperty["uri"].get<std::string>(),
+                    .name = jproperty["name"].get<std::string>(),
+                    .shortname = jproperty["shortname"].get<std::string>(),
+                    .flags = jproperty["flags"].get<uint32_t>(),
+                    .defpath = jproperty["defpath"].get<std::string>(),
+                    .def = jproperty["def"].get<float>(),
+                    .min = jproperty["min"].get<float>(),
+                    .max = jproperty["max"].get<float>(),
+                };
+
+                plugin->properties.emplace_back(std::move(property));
+            }
+        }
+
+        // TODO presets
+
+        plugin->blockImageOff = j["blockImageOff"].get<std::string>();
+        plugin->blockImageOn = j["blockImageOn"].get<std::string>();
+
+        cache.plugin.reset(plugin);
+    }
+   #else
     std::unordered_map<std::string, float> loadPluginState(const char* const path)
     {
         assert(path != nullptr && *path != '\0');
 
-       #ifndef __EMSCRIPTEN__
+       #ifdef MOD_CONNECTOR_LV2_BG_LOADING
         const pthread_mutex_guard pmg(bgLoadingMutex);
        #endif
 
@@ -1915,7 +2019,7 @@ struct Lv2World::Impl
         _pluginsInBundle(pluginsInBundle, path);
         assert_return(! pluginsInBundle.empty(), false);
 
-       #ifndef __EMSCRIPTEN__
+       #ifdef MOD_CONNECTOR_LV2_BG_LOADING
         const pthread_mutex_guard pmg(bgLoadingMutex);
        #endif
 
@@ -1961,7 +2065,7 @@ struct Lv2World::Impl
         _pluginsInBundle(pluginsInBundle, path);
         assert_return(! pluginsInBundle.empty(), false);
 
-       #ifndef __EMSCRIPTEN__
+       #ifdef MOD_CONNECTOR_LV2_BG_LOADING
         const pthread_mutex_guard pmg(bgLoadingMutex);
        #endif
 
@@ -1979,17 +2083,7 @@ struct Lv2World::Impl
         plugins = lilv_world_get_all_plugins(world);
 
         for (const std::string& uri : pluginsInBundle)
-        {
-            const std::vector<std::string>::const_iterator it = std::find(pluginURIs.cbegin(), pluginURIs.cend(), uri);
-            assert_continue(it != pluginURIs.cend());
-
-            pluginURIs.erase(it);
-
-            const std::unordered_map<std::string, PluginCache>::const_iterator it2 = pluginsCache.find(uri);
-            assert_continue(it2 != pluginsCache.cend());
-
-            pluginsCache.erase(it2);
-        }
+           removePlugin(uri.c_str());
 
         return true;
     }
@@ -1998,7 +2092,7 @@ struct Lv2World::Impl
     {
         const LilvPlugin* plugin;
 
-       #ifndef __EMSCRIPTEN__
+       #ifdef MOD_CONNECTOR_LV2_BG_LOADING
         const pthread_mutex_guard pmg(bgLoadingMutex);
        #endif
 
@@ -2026,11 +2120,6 @@ struct Lv2World::Impl
         }
     }
 
-    void setupMonoStereoCombo(const char* const monoURI, const char* const stereoURI)
-    {
-        stereoToMonoPluginMapping[stereoURI] = monoURI;
-    }
-
     static bool getPluginsInBundle(const char* const path, std::vector<std::string>& pluginsInBundle)
     {
         assert(path != nullptr && *path != '\0');
@@ -2040,15 +2129,23 @@ struct Lv2World::Impl
 
         return ! pluginsInBundle.empty();
     }
+   #endif
+
+    void setupMonoStereoCombo(const char* const monoURI, const char* const stereoURI)
+    {
+        stereoToMonoPluginMapping[stereoURI] = monoURI;
+    }
 
 private:
     std::string& last_error;
 
-    LilvWorld* const world = nullptr;
+   #ifndef MOD_CONNECTOR_SERIALIZED_LV2_DATA
+    LilvWorld* const world = lilv_world_new();
     const LilvPlugins* plugins = nullptr;
-
-    Lv2NamespaceDefinitions ns;
+    Lv2NamespaceDefinitions ns { world };
     std::list<std::string> bundles;
+   #endif
+
     std::vector<std::string> pluginURIs;
     std::unordered_map<std::string, std::string> stereoToMonoPluginMapping;
 
@@ -2059,7 +2156,7 @@ private:
     };
     std::unordered_map<std::string, PluginCache> pluginsCache;
 
-   #ifndef __EMSCRIPTEN__
+   #ifdef MOD_CONNECTOR_LV2_BG_LOADING
     bool bgLoadingActive = true;
     pthread_t bgLoadingThread = {};
     pthread_mutex_t bgLoadingMutex;
@@ -2068,7 +2165,7 @@ private:
     {
         while (bgLoadingActive)
         {
-            msleep(MOD_CONNECTOR_BG_LOADING_IDLE_TIME);
+            msleep(MOD_CONNECTOR_LV2_BG_LOADING_IDLE_TIME);
 
             if (pthread_mutex_trylock(&bgLoadingMutex) != 0)
                 continue;
@@ -2112,6 +2209,7 @@ private:
     }
    #endif
 
+   #ifndef MOD_CONNECTOR_SERIALIZED_LV2_DATA
     // NOTE Lv2PluginIsUserRemovable must have already been set, if relevant
     void updatePluginLicenseFlags(const char* licenseURI,
                                   const LilvPlugin* const lilvplugin,
@@ -2123,12 +2221,6 @@ private:
         if (dg_iface || mod_iface)
         {
             plugin->flags |= Lv2PluginIsCommercial;
-
-           #ifdef __EMSCRIPTEN__
-            // assume all plugins are licensed under wasm, just to make things easy
-            plugin->flags |= Lv2PluginIsLicensed;
-            return;
-           #endif
 
             static const std::string keysdir = _keysdir();
 
@@ -2188,6 +2280,7 @@ private:
     static LV2_URID _mapfn(LV2_URID_Map_Handle handle, const char* uri);
     static void _portfn(const char* symbol, void* userData, const void* value, uint32_t size, uint32_t type);
     static void _pluginsInBundle(std::vector<std::string>& pluginsInBundle, const char* bundlepath);
+   #endif
 };
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -2197,6 +2290,7 @@ Lv2World::~Lv2World() { delete impl; }
 
 // --------------------------------------------------------------------------------------------------------------------
 
+#ifndef MOD_CONNECTOR_SERIALIZED_LV2_DATA
 enum {
     k_urid_null,
     k_urid_atom_bool,
@@ -2308,6 +2402,7 @@ void Lv2World::Impl::_pluginsInBundle(std::vector<std::string>& pluginsInBundle,
         lilv_world_free(w);
     }
 }
+#endif
 
 // --------------------------------------------------------------------------------------------------------------------
 
@@ -2351,6 +2446,17 @@ bool Lv2World::isPluginAvailable(const char* const uri) const
     return impl->isPluginAvailable(uri);
 }
 
+#ifdef MOD_CONNECTOR_SERIALIZED_LV2_DATA
+void Lv2World::addPluginFromSerializedData(const nlohmann::json& j)
+{
+    impl->addPluginFromSerializedData(j);
+}
+
+void Lv2World::removePlugin(const char* const uri)
+{
+    impl->removePlugin(uri);
+}
+#else
 std::unordered_map<std::string, float> Lv2World::loadPluginState(const char* const path) const
 {
     return impl->loadPluginState(path);
@@ -2371,14 +2477,15 @@ void Lv2World::reloadLicenses() const
     impl->reloadLicenses();
 }
 
-void Lv2World::setupMonoStereoCombo(const char* const monoURI, const char* const stereoURI) const
-{
-    impl->setupMonoStereoCombo(monoURI, stereoURI);
-}
-
 bool Lv2World::getPluginsInBundle(const char* const path, std::vector<std::string>& pluginsInBundle)
 {
     return Impl::getPluginsInBundle(path, pluginsInBundle);
+}
+#endif
+
+void Lv2World::setupMonoStereoCombo(const char* const monoURI, const char* const stereoURI) const
+{
+    impl->setupMonoStereoCombo(monoURI, stereoURI);
 }
 
 // --------------------------------------------------------------------------------------------------------------------

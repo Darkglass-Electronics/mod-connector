@@ -4,24 +4,37 @@ set -e
 
 cd $(dirname "${0}")/../..
 
+mkdir -p deps
+
 ###############################################################################
-# setup PawPaw (builds extra static libs)
+# setup emscripten
 
-export PAWPAW_FAST_MATH=1
-export PAWPAW_SKIP_FFTW=1
-export PAWPAW_SKIP_FLUIDSYNTH=1
-export PAWPAW_SKIP_GLIB=1
-export PAWPAW_SKIP_SAMPLERATE=1
+# make emscripten quiet
+export EMSDK_QUIET=1
 
-mkdir -p build-wasm
-[ -d build-wasm/PawPaw ] || git -C build-wasm clone https://github.com/DISTRHO/PawPaw.git
+# use a known good emscripten version
+EMSDK_VERSION=6.0.13
 
-./build-wasm/PawPaw/bootstrap-plugins.sh wasm
+# setup emscripten
+if [ ! -e emsdk ]; then
+    git clone --depth=1 https://github.com/emscripten-core/emsdk.git emsdk
+fi
+
+if [ ! -e "emsdk/upstream/bin" ]; then
+    # --build="${CMAKE_BUILD_TYPE}"
+    echo "Installing emsdk..."
+    ./emsdk/emsdk install ${EMSDK_VERSION}
+    echo "Activating emsdk..."
+    ./emsdk/emsdk activate ${EMSDK_VERSION}
+fi
+
+# activate emscripten environment
+source "${PWD}/emsdk/emsdk_env.sh"
 
 ###############################################################################
 # setup build
 
-source build-wasm/PawPaw/local.env wasm
+mkdir -p build-wasm
 
 if [ "$(uname -s)" = "Darwin" ]; then
     NUMJOBS=$(sysctl -n hw.logicalcpu)
@@ -35,6 +48,6 @@ cmake --build build-wasm -j ${NUMJOBS}
 ###############################################################################
 # test build
 
-emrun src/wasm/wasm-test.html
+# emrun src/wasm/wasm-test.html
 
 ###############################################################################

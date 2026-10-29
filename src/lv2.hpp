@@ -5,6 +5,10 @@
 
 #include "custom-styling.hpp"
 
+#ifdef MOD_CONNECTOR_SERIALIZED_LV2_DATA
+#include "json_fwd.hpp"
+#endif
+
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -193,6 +197,15 @@ struct Lv2World {
     */
     [[nodiscard]] bool isPluginAvailable(const char* uri) const;
 
+  #ifdef MOD_CONNECTOR_SERIALIZED_LV2_DATA
+   /* add a plugin to the lv2 world based on serialized data
+    */
+    void addPluginFromSerializedData(const nlohmann::json& j);
+
+    /* remove a plugin from the lv2 world
+     */
+    void removePlugin(const char* uri);
+  #else
    /* load a plugin state from disk and return a symbol -> value map
     */
     [[nodiscard]] std::unordered_map<std::string, float> loadPluginState(const char* path) const;
@@ -218,15 +231,16 @@ struct Lv2World {
     void reloadLicenses() const;
 
    /**
-    * set-up mono/stereo plugin combo relationship.
-    */
-    void setupMonoStereoCombo(const char* monoURI, const char* stereoURI) const;
-
-   /**
     * get the plugin URIs present in an LV2 bundle
     * @note path MUST end with OS-specific path separator (e.g. '/' under Linux)
     */
     static bool getPluginsInBundle(const char* path, std::vector<std::string>& pluginsInBundle);
+  #endif
+
+   /**
+    * set-up mono/stereo plugin combo relationship.
+    */
+    void setupMonoStereoCombo(const char* monoURI, const char* stereoURI) const;
 
     Lv2World();
     ~Lv2World();

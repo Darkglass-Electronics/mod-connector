@@ -1012,6 +1012,13 @@ public:
 
     // WIP details below this point
 
+   #ifdef MOD_CONNECTOR_SERIALIZED_LV2_DATA
+    // add a plugin to the lv2 world based on serialized data
+    void addPluginFromSerializedData(const nlohmann::json& j);
+
+    // remove a plugin from the lv2 world
+    void removePlugin(const char* uri);
+   #else
     // add a bundle to the LV2 world
     // NOTE path must end with OS-specific path separator (e.g. '/' under Linux)
     bool bundleAdd(const char* path);
@@ -1019,6 +1026,7 @@ public:
     // remove a bundle from the LV2 world
     // NOTE path must end with OS-specific path separator (e.g. '/' under Linux)
     bool bundleRemove(const char* path);
+   #endif
 
     // ----------------------------------------------------------------------------------------------------------------
 

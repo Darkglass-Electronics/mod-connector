@@ -4661,9 +4661,32 @@ void HostConnector::setBlockProperty(const uint8_t row,
 
     setBlockProperty(row, block, propIndex, value);
 }
+// --------------------------------------------------------------------------------------------------------------------
+
+#ifdef MOD_CONNECTOR_SERIALIZED_LV2_DATA
+void HostConnector::addPluginFromSerializedData(const nlohmann::json& j)
+{
+    mod_log_debug("addPluginFromSerializedData(...)");
+
+    _lv2world.addPluginFromSerializedData(j);
+}
+#endif
 
 // --------------------------------------------------------------------------------------------------------------------
 
+#ifdef MOD_CONNECTOR_SERIALIZED_LV2_DATA
+void HostConnector::removePlugin(const char* const uri)
+{
+    mod_log_debug("removePlugin(\"%s\")", uri);
+    assert(uri != nullptr && *uri != '\0');
+
+    _lv2world.removePlugin(uri);
+}
+#endif
+
+// --------------------------------------------------------------------------------------------------------------------
+
+#ifndef MOD_CONNECTOR_SERIALIZED_LV2_DATA
 bool HostConnector::bundleAdd(const char* const path)
 {
     mod_log_debug("bundleAdd(\"%s\")", path);
@@ -4672,9 +4695,11 @@ bool HostConnector::bundleAdd(const char* const path)
 
     return _lv2world.bundleAdd(path) && _host.bundle_add(path);
 }
+#endif
 
 // --------------------------------------------------------------------------------------------------------------------
 
+#ifndef MOD_CONNECTOR_SERIALIZED_LV2_DATA
 bool HostConnector::bundleRemove(const char* path)
 {
     mod_log_debug("bundleRemove(\"%s\")", path);
@@ -4683,6 +4708,7 @@ bool HostConnector::bundleRemove(const char* path)
 
     return _lv2world.bundleRemove(path) && _host.bundle_remove(path);
 }
+#endif
 
 // --------------------------------------------------------------------------------------------------------------------
 
@@ -7516,6 +7542,7 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
     // override defaults from user
     const std::string defdir = getDefaultPluginBundleForBlock(blockdata);
 
+   #ifndef MOD_CONNECTOR_SERIALIZED_LV2_DATA
     if (std::filesystem::exists(defdir))
     {
         const std::unordered_map<std::string, float> statemap
@@ -7581,6 +7608,7 @@ void HostConnector::initBlock(HostConnector::Block& blockdata,
             }
         }
     }
+   #endif
 
     blockdata.scenes.enableValues.fill(true);
     blockdata.scenes.lastSavedEnableValues.fill(true);
