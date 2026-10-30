@@ -89,7 +89,22 @@
                   postRun: async function (module) {
                       // setup IPC over WebHID
                       connector = connector_init(backend, module);
-                      const state = await connector.connect(hostCallback);
+
+                      // TODO fetch real plugin data
+                      const plugins = [{
+                          "abbreviation": "",
+                          "blockImageOff": "",
+                          "blockImageOn": "",
+                          "bundlepath": "/usr/lib/lv2/modmeter.lv2/",
+                          "category": 34,
+                          "flags": 0,
+                          "name": "Level Meter",
+                          "ports": [],
+                          "properties": [],
+                          "uri": "http://gareus.org/oss/lv2/modmeter",
+                          "version": "0.0-0"
+                      }];
+                      const state = await connector.connect(plugins, hostCallback);
 
                       if (! state) {
                         console.error("failed to connect, cannot continue");
@@ -125,8 +140,6 @@
               console.log("test message with response, getAverageCpuLoad ->", await connector.getAverageCpuLoad());
               console.log("test message with response, getMaximumCpuLoad ->", await connector.getMaximumCpuLoad());
 
-              // NOTE the code below this line can be used to create a custom chain.
-              // because we lack preset data sync, always clear current bank first so we start from a known state
               try {
                   console.log("start wasm usage testing...");
 

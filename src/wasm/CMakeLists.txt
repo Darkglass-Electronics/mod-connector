@@ -60,10 +60,11 @@ target_link_options(mod-connector-wasm
         -sEXPORT_NAME="connector"
         -sEXPORTED_FUNCTIONS=['_malloc','_free']
         -sEXPORTED_RUNTIME_METHODS=['HEAPU32','Asyncify','addFunction','ccall','cwrap','lengthBytesUTF8','stringToUTF8','UTF8ToString']
-        -sINITIAL_MEMORY=8Mb
+        -sINITIAL_MEMORY=32Mb
         -sLLD_REPORT_UNDEFINED
         -sMAIN_MODULE=2
         -sMODULARIZE=1
+        -sSTACK_SIZE=4Mb
 )
 
 target_sources(mod-connector-wasm

@@ -919,6 +919,8 @@ void setBlockPropertyByURI(uint8_t row, uint8_t block, const char* uri, const ch
 __attribute__((used))
 bool addPluginFromSerializedData(const char* data)
 {
+    assert_return(conn != nullptr, false);
+
     try {
         conn->addPluginFromSerializedData(nlohmann::json::parse(data));
     } catch (const std::exception& e) {

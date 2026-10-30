@@ -23,6 +23,8 @@ const connector_init = (backend, module) => {
         requestHostUpdates: module.cwrap("requestHostUpdates", "void", [], {async: true}),
         waitAudioCycle: module.cwrap("waitAudioCycle", "void", [], {async: true}),
 
+        addPluginFromSerializedData: module.cwrap("addPluginFromSerializedData", "boolean", ["string"]),
+
         getBlockId: module.cwrap("getBlockId", "string", ["number", "number"]),
         getBlockIdNoPair: module.cwrap("getBlockIdNoPair", "string", ["number", "number"]),
         getBlockIdPairOnly: module.cwrap("getBlockIdPairOnly", "string", ["number", "number"]),
@@ -41,7 +43,7 @@ const connector_init = (backend, module) => {
 
         // wasm-specific async call: start connection, leaving remote in blocked state
         // returns remote preset state if successful
-        connect: (hostCallback) => {
+        connect: (plugins, hostCallback) => {
             return new Promise((success, reject) => {
                 backend.editorOpen()
                 .then(reply => {
@@ -165,6 +167,9 @@ const connector_init = (backend, module) => {
                         return;
                     }
 
+                    for (let plugin of plugins)
+                      connector.addPluginFromSerializedData(JSON.stringify(plugin));
+
                     calls.deserializeToCurrentPreset(JSON.stringify(state));
 
                     success(state);
@@ -206,6 +211,8 @@ const connector_init = (backend, module) => {
         printStateForDebug: calls.printStateForDebug,
         serializeCurrentPreset: calls.serializeCurrentPreset,
         deserializeToCurrentPreset: calls.deserializeToCurrentPreset,
+
+        addPluginFromSerializedData: calls.addPluginFromSerializedData,
 
         // TODO write them all!
         getAverageCpuLoad: module.cwrap("getAverageCpuLoad", "number", [], {async: true}),
