@@ -1931,11 +1931,14 @@ struct Lv2World::Impl
                     const std::vector<nlohmann::json> jscalePoints = jport["scalePoints"].get<std::vector<nlohmann::json>>();
                     scalePoints.reserve(jscalePoints.size());
 
-                    Lv2ScalePoint scalePoint = {
-                        .label = jport["label"].get<std::string>(),
-                        .value = jport["value"].get<float>(),
-                    };
-                    scalePoints.emplace_back(std::move(scalePoint));
+                    for (const nlohmann::json& jscalePoint : jscalePoints)
+                    {
+                        Lv2ScalePoint scalePoint = {
+                            .label = jscalePoint["label"].get<std::string>(),
+                            .value = jscalePoint["value"].get<float>(),
+                        };
+                        scalePoints.emplace_back(std::move(scalePoint));
+                    }
                 }
 
                 Lv2Port port = {
