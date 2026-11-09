@@ -4143,6 +4143,17 @@ bool HostConnector::enableTool(const uint8_t toolIndex, const char* const uri, c
 
 // --------------------------------------------------------------------------------------------------------------------
 
+bool HostConnector::bypassTool(const uint8_t toolIndex, const bool bypass)
+{
+    mod_log_debug("bypassTool(%u, %s)", toolIndex, bool2str(bypass));
+    assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
+    assert(toolIndex != MOD_HOST_GLOBAL_EFFECT_ID_TOOL_INDEX);
+
+    return _host.bypass(MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, bypass);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
 void HostConnector::connectToolAudioInput(const uint8_t toolIndex,
                                           const char* const symbol,
                                           const char* const jackPort,
@@ -4461,6 +4472,19 @@ void HostConnector::setToolParameter(const uint8_t toolIndex, const char* const 
     assert(symbol != nullptr && *symbol != '\0');
 
     _host.param_set(MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, symbol, value);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::setToolProperty(const uint8_t toolIndex, const char* const symbol, const char* const value)
+{
+    mod_log_debug("setToolProperty(%u, \"%s\", \"%s\")", toolIndex, symbol, value);
+    assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
+    assert(toolIndex != MOD_HOST_GLOBAL_EFFECT_ID_TOOL_INDEX);
+    assert(symbol != nullptr && *symbol != '\0');
+    assert(value != nullptr);
+
+    _host.patch_set(MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, symbol, value);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
