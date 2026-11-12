@@ -1728,6 +1728,7 @@ bool HostConnector::reorderBlock(const uint8_t row, const uint8_t orig, const ui
 
                 const float min = it->min;
                 const float max = it->max;
+                const BindingType type = it->type;
 
                 if (it->meta.isBypass)
                 {
@@ -1737,6 +1738,7 @@ bool HostConnector::reorderBlock(const uint8_t row, const uint8_t orig, const ui
                         .block = block,
                         .min = min,
                         .max = max,
+                        .type = type,
                         .parameterSymbol = ":bypass",
                         .meta = {
                             .block = blockdata,
@@ -3519,7 +3521,7 @@ bool HostConnector::replaceBlockParameterBinding(const uint8_t hwid,
     assert(paramIndex < MAX_PARAMS_PER_BLOCK);
     assert(rowB < NUM_BLOCK_CHAIN_ROWS);
     assert(blockB < NUM_BLOCKS_PER_PRESET);
-    assert(paramIndexB < NUM_BLOCKS_PER_PRESET);
+    assert(paramIndexB < MAX_PARAMS_PER_BLOCK);
 
     if (row == rowB && block == blockB && paramIndex == paramIndexB)
         return false;
@@ -3530,7 +3532,7 @@ bool HostConnector::replaceBlockParameterBinding(const uint8_t hwid,
 
     Block& blockdataB(_current.chains[rowB].blocks[blockB]);
     assert_return(!isNullBlock(blockdataB), false);
-    assert_return(paramIndex < blockdataB.parameters.size(), false);
+    assert_return(paramIndexB < blockdataB.parameters.size(), false);
 
     Parameter& paramdata(blockdata.parameters[paramIndex]);
     assert_return(!isNullURI(paramdata.symbol), false);
@@ -3552,12 +3554,15 @@ bool HostConnector::replaceBlockParameterBinding(const uint8_t hwid,
         if (it->meta.parameterIndex != paramIndex)
             continue;
 
+        const auto type = it->type;
+
         it = bindings.erase(it);
         it = bindings.insert(it, {
             .row = rowB,
             .block = blockB,
             .min = paramdataB.meta.min,
             .max = paramdataB.meta.max,
+            .type = type,
             .parameterSymbol = paramdataB.symbol,
             .meta = {
                 .block = blockdataB,
@@ -3576,7 +3581,7 @@ bool HostConnector::replaceBlockParameterBinding(const uint8_t hwid,
         if (kBindingActuatorParamChangesNotSaved[hwid])
         {
             setParamChangesNotSavedToPreset(blockdata, paramIndex, false);
-            setParamChangesNotSavedToPreset(blockdata, paramIndexB, true);
+            setParamChangesNotSavedToPreset(blockdataB, paramIndexB, true);
         }
        #endif
 
@@ -5801,6 +5806,17 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
                             } while (false);
                         }
 
+                        BindingType type = kBindingTypeToggle;
+                        if (jbindingparam.contains("type"))
+                        {
+                            try {
+                                if (jbindingparam["type"].get<std::string>() == "hold")
+                                    type = kBindingTypeHold;
+                            } catch (...) {
+                                mod_log_warn("jsonPresetLoad(): binding contains invalid type");
+                            }
+                        }
+
                         Block& blockdata = presetdata.chains[row - 1].blocks[block - 1];
 
                         if (symbol == ":bypass")
@@ -5819,6 +5835,7 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
                                 .block = static_cast<uint8_t>(block - 1),
                                 .min = min,
                                 .max = max,
+                                .type = type,
                                 .parameterSymbol = ":bypass",
                                 .meta = {
                                     .block = blockdata,
@@ -5864,6 +5881,7 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
                                 .block = static_cast<uint8_t>(block - 1),
                                 .min = min,
                                 .max = max,
+                                .type = type,
                                 .parameterSymbol = symbol,
                                 .meta = {
                                     .block = blockdata,
@@ -6109,6 +6127,7 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann::json& jpr
                         { "block", bindingdata.block + 1 },
                         { "min", bindingdata.min },
                         { "max", bindingdata.max },
+                        { "type", bindingdata.type == kBindingTypeHold ? "hold" : "toggle" },
                         { "symbol", bindingdata.parameterSymbol },
                     }));
                 }
@@ -7613,3 +7632,112 @@ HostConnector::NonBlockingScopeWithAudioFades::NonBlockingScopeWithAudioFades(Ho
     : hnbs(hostconn._host) {}
 
 // --------------------------------------------------------------------------------------------------------------------
+
+bool HostConnector::setBlockBindingType(const uint8_t hwid,
+                                        const uint8_t row,
+                                        const uint8_t block,
+                                        const BindingType type)
+{
+    mod_log_debug("setBlockBindingType(%u, %u, %u, %s)", hwid, row, block, BindingType2Str(type));
+    assert(hwid < NUM_BINDING_ACTUATORS);
+    assert(row < NUM_BLOCK_CHAIN_ROWS);
+    assert(block < NUM_BLOCKS_PER_PRESET);
+
+    const Block& blockdata(_current.chains[row].blocks[block]);
+    assert_return(!isNullBlock(blockdata), false);
+
+    std::list<ParameterBinding>& bindings(_current.bindings[hwid].parameters);
+    for (ParameterBindingIterator it = bindings.begin(), end = bindings.end(); it != end; ++it)
+    {
+        if (it->row != row)
+            continue;
+        if (it->block != block)
+            continue;
+        if (! it->meta.isBypass)
+            continue;
+
+        if (it->type == type)
+            return false;
+
+        it->type = type;
+        _current.dirty = true;
+        return true;
+    }
+
+    return false;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+bool HostConnector::setBlockParameterBindingType(const uint8_t hwid,
+                                                 const uint8_t row,
+                                                 const uint8_t block,
+                                                 const uint8_t paramIndex,
+                                                 const BindingType type)
+{
+    mod_log_debug("setBlockParameterBindingType(%u, %u, %u, %u, %s)",
+                  hwid, row, block, paramIndex, BindingType2Str(type));
+    assert(hwid < NUM_BINDING_ACTUATORS);
+    assert(row < NUM_BLOCK_CHAIN_ROWS);
+    assert(block < NUM_BLOCKS_PER_PRESET);
+    assert(paramIndex < MAX_PARAMS_PER_BLOCK);
+
+    const Block& blockdata(_current.chains[row].blocks[block]);
+    assert_return(!isNullBlock(blockdata), false);
+    assert_return(paramIndex < blockdata.parameters.size(), false);
+
+    const Parameter& paramdata(blockdata.parameters[paramIndex]);
+    assert_return(!isNullURI(paramdata.symbol), false);
+    assert_return(paramdata.meta.hwbinding != UINT8_MAX, false);
+
+    std::list<ParameterBinding>& bindings(_current.bindings[hwid].parameters);
+    for (ParameterBindingIterator it = bindings.begin(), end = bindings.end(); it != end; ++it)
+    {
+        if (it->row != row)
+            continue;
+        if (it->block != block)
+            continue;
+        if (it->meta.isBypass)
+            continue;
+        if (it->meta.parameterIndex != paramIndex)
+            continue;
+
+        if (it->type == type)
+            return false;
+
+        it->type = type;
+        _current.dirty = true;
+        return true;
+    }
+
+    return false;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+bool HostConnector::setBlockParameterBindingType(const uint8_t hwid,
+                                                 const uint8_t row,
+                                                 const uint8_t block,
+                                                 const char* const symbol,
+                                                 const BindingType type)
+{
+    mod_log_debug("setBlockParameterBindingType(%u, %u, %u, %s, %s)",
+                  hwid, row, block, symbol, BindingType2Str(type));
+    assert(hwid < NUM_BINDING_ACTUATORS);
+    assert(row < NUM_BLOCK_CHAIN_ROWS);
+    assert(block < NUM_BLOCKS_PER_PRESET);
+    assert(symbol != nullptr && *symbol != '\0');
+
+    Block& blockdata(_current.chains[row].blocks[block]);
+    assert_return(!isNullBlock(blockdata), false);
+
+    uint8_t paramIndex;
+    try {
+        paramIndex = blockdata.parameterSymbolToIndexMap[symbol];
+    } catch (...) {
+        mod_log_warn("setBlockParameterBindingType(): parameter with '%s' symbol does not exist in plugin", symbol);
+        return false;
+    }
+
+    return setBlockParameterBindingType(hwid, row, block, paramIndex, type);
+}

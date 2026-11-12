@@ -350,11 +350,17 @@ struct HostConnector : Host::Callback {
         CLASS_ONLY_MOVE_INIT_NO_COPY(Block)
     };
 
+    enum BindingType : uint8_t {
+        kBindingTypeToggle = 0,
+        kBindingTypeHold,
+    };
+
     struct ParameterBinding {
         uint8_t row;
         uint8_t block;
         float min;
         float max;
+        BindingType type = kBindingTypeToggle;
         const std::string parameterSymbol;
         // convenience data, not stored in json state
         const struct Meta {
@@ -833,6 +839,10 @@ public:
     // set all block and parameter bindings to a normalized value
     void setBindingValue(uint8_t hwid, double value, SceneMode sceneMode, bool updateBindings = true);
 
+    bool setBlockBindingType(uint8_t hwid, uint8_t row, uint8_t block, BindingType type);
+    bool setBlockParameterBindingType(uint8_t hwid, uint8_t row, uint8_t block, uint8_t paramIndex, BindingType type);
+    bool setBlockParameterBindingType(uint8_t hwid, uint8_t row, uint8_t block, const char* symbol, BindingType type);
+
     // convenience calls for single-chain builds
    #if NUM_BLOCK_CHAIN_ROWS == 1
     inline bool addBlockBinding(const uint8_t hwid, const uint8_t block)
@@ -1128,6 +1138,7 @@ private:
 };
 
 using HostBindings = HostConnector::Bindings;
+using HostBindingType = HostConnector::BindingType;
 using HostBlock = HostConnector::Block;
 using HostParameter = HostConnector::Parameter;
 using HostParameterBinding = HostConnector::ParameterBinding;
