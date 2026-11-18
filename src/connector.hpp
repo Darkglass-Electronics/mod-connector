@@ -97,10 +97,10 @@ public:
 // --------------------------------------------------------------------------------------------------------------------
 
 enum ExtraLv2Flags {
-    Lv2ParameterVirtual = 1 << 13,
-    Lv2ParameterInScene = 1 << 14,
-    Lv2ParameterNotInQuickPot = 1 << 15,
-    Lv2ParameterChangesNotSavedToPreset = 1 << 16, // not from lv2, can be added/removed in runtime
+    Lv2ParameterVirtual = 1 << 14,
+    Lv2ParameterInScene = 1 << 15,
+    Lv2ParameterNotInQuickPot = 1 << 16,
+    Lv2ParameterChangesNotSavedToPreset = 1 << 17, // not from lv2, can be added/removed in runtime
 };
 
 enum Lv2ParameterState {
@@ -1197,4 +1197,17 @@ static inline uint8_t getExpressionPedalControl(const HostBlock& blockdata)
     return UINT8_MAX;
 }
 
+
+static inline uint8_t getHoldDesignationControl(const HostBlock& blockdata)
+{
+    for (uint8_t p = 0, size = blockdata.parameters.size(); p < size; ++p)
+    {
+        const HostParameter& paramdata(blockdata.parameters[p]);
+        if (isNullURI(paramdata.symbol))
+            break;
+        if (paramdata.meta.designation == kLv2DesignationHold)
+            return p;
+    }
+    return UINT8_MAX;
+}
 // --------------------------------------------------------------------------------------------------------------------
