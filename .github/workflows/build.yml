@@ -7,9 +7,9 @@ env:
 
 jobs:
   linux-lib:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
       - name: install dependencies
@@ -29,9 +29,9 @@ jobs:
         pkgs:
           - libqt5websockets5-dev
           - libqt5websockets5-dev libsystemd-dev
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
       - name: install dependencies
@@ -51,9 +51,9 @@ jobs:
         pkgs:
           - libqt6websockets6-dev
           - libqt6websockets6-dev libsystemd-dev
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
       - name: install dependencies
@@ -74,7 +74,7 @@ jobs:
           - macos-15
     runs-on: ${{ matrix.target }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
       - name: install dependencies
@@ -96,7 +96,7 @@ jobs:
           - qt@6
     runs-on: ${{ matrix.target }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
       - name: install dependencies
