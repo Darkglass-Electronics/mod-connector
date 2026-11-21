@@ -4127,7 +4127,7 @@ bool HostConnector::enableTool(const uint8_t toolIndex, const char* const uri, c
 {
     mod_log_debug("enableTool(%u, \"%s\")", toolIndex, uri);
     assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
-    assert(toolIndex != 5);
+    assert(toolIndex != MOD_HOST_GLOBAL_EFFECT_ID_TOOL_INDEX);
 
     const uint16_t instance = MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex;
 
@@ -4155,7 +4155,7 @@ void HostConnector::connectToolAudioInput(const uint8_t toolIndex,
 {
     mod_log_debug("connectToolAudioInput(%u, \"%s\", \"%s\", %s)", toolIndex, symbol, jackPort, bool2str(safe));
     assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
-    assert(toolIndex != 5);
+    assert(toolIndex != MOD_HOST_GLOBAL_EFFECT_ID_TOOL_INDEX);
     assert(symbol != nullptr && *symbol != '\0');
     assert(jackPort != nullptr && *jackPort != '\0');
 
@@ -4172,7 +4172,7 @@ void HostConnector::connectToolAudioOutput(const uint8_t toolIndex,
 {
     mod_log_debug("connectToolAudioOutput(%u, \"%s\", \"%s\")", toolIndex, symbol, jackPort);
     assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
-    assert(toolIndex != 5);
+    assert(toolIndex != MOD_HOST_GLOBAL_EFFECT_ID_TOOL_INDEX);
     assert(symbol != nullptr && *symbol != '\0');
     assert(jackPort != nullptr && *jackPort != '\0');
 
@@ -4213,7 +4213,7 @@ void HostConnector::connectBlock2Tool(const uint8_t row,
     assert(row < NUM_BLOCK_CHAIN_ROWS);
     assert(block < NUM_BLOCKS_PER_PRESET);
     assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
-    assert(toolIndex != 5);
+    assert(toolIndex != MOD_HOST_GLOBAL_EFFECT_ID_TOOL_INDEX);
     assert(toolInSymbolL != nullptr && *toolInSymbolL != '\0');
 
     const bool toolStereoIn = toolInSymbolR != nullptr && *toolInSymbolR != '\0';
@@ -4318,7 +4318,7 @@ void HostConnector::connectBlockAudioInput2Tool(const uint8_t row,
     assert(row < NUM_BLOCK_CHAIN_ROWS);
     assert(block < NUM_BLOCKS_PER_PRESET);
     assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
-    assert(toolIndex != 5);
+    assert(toolIndex != MOD_HOST_GLOBAL_EFFECT_ID_TOOL_INDEX);
     assert(toolInSymbolL != nullptr && *toolInSymbolL != '\0');
 
     const Block& blockdata(_current.chains[row].blocks[block]);
@@ -4408,7 +4408,7 @@ void HostConnector::disconnectToolAudioPort(const uint8_t toolIndex, const char*
 {
     mod_log_debug("disconnectToolAudioInput(%u, \"%s\")", toolIndex, symbol);
     assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
-    assert(toolIndex != 5);
+    assert(toolIndex != MOD_HOST_GLOBAL_EFFECT_ID_TOOL_INDEX);
     assert(symbol != nullptr && *symbol != '\0');
 
     _host.disconnect_all(format(MOD_HOST_EFFECT_PREFIX "%d:%s",
@@ -4438,7 +4438,7 @@ void HostConnector::mapToolParameterToMIDICC(const uint8_t toolIndex,
     mod_log_debug("mapToolParameterToMIDICC(%u, \"%s\", %u, %u, %f, %f)",
                   toolIndex, symbol, channel, cc, minimum, maximum);
     assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
-    assert(toolIndex != 5);
+    assert(toolIndex != MOD_HOST_GLOBAL_EFFECT_ID_TOOL_INDEX);
     assert(symbol != nullptr && *symbol != '\0');
 
     _host.midi_map(MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, symbol, channel, cc, minimum, maximum);
@@ -4450,7 +4450,7 @@ void HostConnector::unmapToolParameterFromMIDICC(uint8_t toolIndex, const char* 
 {
     mod_log_debug("unmapToolParameterFromMIDICC(%u, \"%s\")", toolIndex, symbol);
     assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
-    assert(toolIndex != 5);
+    assert(toolIndex != MOD_HOST_GLOBAL_EFFECT_ID_TOOL_INDEX);
     assert(symbol != nullptr && *symbol != '\0');
 
     _host.midi_unmap(MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, symbol);
@@ -4462,7 +4462,7 @@ void HostConnector::setToolParameter(const uint8_t toolIndex, const char* const 
 {
     mod_log_debug("setToolParameter(%u, \"%s\", %f)", toolIndex, symbol, value);
     assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
-    assert(toolIndex != 5);
+    assert(toolIndex != MOD_HOST_GLOBAL_EFFECT_ID_TOOL_INDEX);
     assert(symbol != nullptr && *symbol != '\0');
 
     _host.param_set(MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, symbol, value);
@@ -4474,7 +4474,7 @@ void HostConnector::monitorToolOutputParameter(const uint8_t toolIndex, const ch
 {
     mod_log_debug("monitorToolOutputParameter(%u, \"%s\", %s)", toolIndex, symbol, bool2str(enable));
     assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
-    assert(toolIndex != 5);
+    assert(toolIndex != MOD_HOST_GLOBAL_EFFECT_ID_TOOL_INDEX);
     assert(symbol != nullptr && *symbol != '\0');
 
     _host.monitor_output(MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, symbol, enable);
