@@ -258,6 +258,19 @@ static bool isNullBlock(const HostConnector::Block& blockdata)
 
 // --------------------------------------------------------------------------------------------------------------------
 
+static constexpr const char* BindingType2Str(const HostBindingType btype)
+{
+    switch (btype)
+    {
+    case HostConnector::kBindingTypeToggle:
+        return "kBindingTypeToggle";
+    case HostConnector::kBindingTypeHold:
+        return "kBindingTypeHold";
+    }
+
+    return "";
+}
+
 static constexpr const char* SceneMode2Str(const HostSceneMode sceneMode)
 {
     switch (sceneMode)
