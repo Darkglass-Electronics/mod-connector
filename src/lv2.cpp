@@ -933,6 +933,8 @@ struct Lv2World::Impl
                                 retport.flags |= Lv2ParameterSavedToPreset;
                             else if (std::strcmp(propuri, LV2_DARKGLASS_PROPERTIES__expressionPedalControl) == 0)
                                 retport.flags |= Lv2ParameterExpressionPedalControl;
+                            else if (std::strcmp(propuri, LV2_DARKGLASS_PROPERTIES__hold) == 0)
+                                retport.flags |= Lv2ParameterHold;
                         }
 
                         lilv_nodes_free(nodes);
@@ -950,6 +952,8 @@ struct Lv2World::Impl
                             retport.designation = kLv2DesignationQuickPot;
                         else if (std::strcmp(designation, LV2_KXSTUDIO_PROPERTIES__Reset) == 0)
                             retport.designation = kLv2DesignationReset;
+                        else if (std::strcmp(designation, LV2_DARKGLASS_PROPERTIES__hold) == 0)
+                            retport.designation = kLv2DesignationHold;
 
                         lilv_nodes_free(xdesignation);
                     }
