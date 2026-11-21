@@ -3519,7 +3519,7 @@ bool HostConnector::replaceBlockParameterBinding(const uint8_t hwid,
     assert(paramIndex < MAX_PARAMS_PER_BLOCK);
     assert(rowB < NUM_BLOCK_CHAIN_ROWS);
     assert(blockB < NUM_BLOCKS_PER_PRESET);
-    assert(paramIndexB < NUM_BLOCKS_PER_PRESET);
+    assert(paramIndexB < MAX_PARAMS_PER_BLOCK);
 
     if (row == rowB && block == blockB && paramIndex == paramIndexB)
         return false;
@@ -3530,7 +3530,7 @@ bool HostConnector::replaceBlockParameterBinding(const uint8_t hwid,
 
     Block& blockdataB(_current.chains[rowB].blocks[blockB]);
     assert_return(!isNullBlock(blockdataB), false);
-    assert_return(paramIndex < blockdataB.parameters.size(), false);
+    assert_return(paramIndexB < blockdataB.parameters.size(), false);
 
     Parameter& paramdata(blockdata.parameters[paramIndex]);
     assert_return(!isNullURI(paramdata.symbol), false);
@@ -3576,7 +3576,7 @@ bool HostConnector::replaceBlockParameterBinding(const uint8_t hwid,
         if (kBindingActuatorParamChangesNotSaved[hwid])
         {
             setParamChangesNotSavedToPreset(blockdata, paramIndex, false);
-            setParamChangesNotSavedToPreset(blockdata, paramIndexB, true);
+            setParamChangesNotSavedToPreset(blockdataB, paramIndexB, true);
         }
        #endif
 
