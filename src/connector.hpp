@@ -930,6 +930,8 @@ public:
     // NOTE toolIndex must be < 10 and != 5
     bool enableTool(uint8_t toolIndex, const char* uri, bool prerun = false);
 
+    bool bypassTool(uint8_t toolIndex, bool bypass);
+
     // connect a tool audio input port to an arbitrary jack output port
     void connectToolAudioInput(uint8_t toolIndex, const char* symbol, const char* jackPort, bool safe = false);
 
@@ -987,6 +989,9 @@ public:
     // set a block parameter value
     // NOTE value must already be sanitized!
     void setToolParameter(uint8_t toolIndex, const char* symbol, float value);
+
+    // set a block property value
+    void setToolProperty(uint8_t toolIndex, const char* symbol, const char* value);
 
     // enable monitoring for tool output parameter
     void monitorToolOutputParameter(uint8_t toolIndex, const char* symbol, bool enable = true);
