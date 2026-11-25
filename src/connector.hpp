@@ -97,10 +97,10 @@ public:
 // --------------------------------------------------------------------------------------------------------------------
 
 enum ExtraLv2Flags {
-    Lv2ParameterVirtual = 1 << 13,
-    Lv2ParameterInScene = 1 << 14,
-    Lv2ParameterNotInQuickPot = 1 << 15,
-    Lv2ParameterChangesNotSavedToPreset = 1 << 16, // not from lv2, can be added/removed in runtime
+    Lv2ParameterVirtual = 1 << 14,
+    Lv2ParameterInScene = 1 << 15,
+    Lv2ParameterNotInQuickPot = 1 << 16,
+    Lv2ParameterChangesNotSavedToPreset = 1 << 17, // not from lv2, can be added/removed in runtime
 };
 
 enum Lv2ParameterState {
@@ -350,11 +350,17 @@ struct HostConnector : Host::Callback {
         CLASS_ONLY_MOVE_INIT_NO_COPY(Block)
     };
 
+    enum BindingType : uint8_t {
+        kBindingTypeToggle = 0,
+        kBindingTypeHold,
+    };
+
     struct ParameterBinding {
         uint8_t row;
         uint8_t block;
         float min;
         float max;
+        BindingType type = kBindingTypeToggle;
         const std::string parameterSymbol;
         // convenience data, not stored in json state
         const struct Meta {
@@ -833,6 +839,10 @@ public:
     // set all block and parameter bindings to a normalized value
     void setBindingValue(uint8_t hwid, double value, SceneMode sceneMode, bool updateBindings = true);
 
+    bool setBlockBindingType(uint8_t hwid, uint8_t row, uint8_t block, BindingType type);
+    bool setBlockParameterBindingType(uint8_t hwid, uint8_t row, uint8_t block, uint8_t paramIndex, BindingType type);
+    bool setBlockParameterBindingType(uint8_t hwid, uint8_t row, uint8_t block, const char* symbol, BindingType type);
+
     // convenience calls for single-chain builds
    #if NUM_BLOCK_CHAIN_ROWS == 1
     inline bool addBlockBinding(const uint8_t hwid, const uint8_t block)
@@ -920,6 +930,8 @@ public:
     // NOTE toolIndex must be < 10 and != 5
     bool enableTool(uint8_t toolIndex, const char* uri, bool prerun = false);
 
+    bool bypassTool(uint8_t toolIndex, bool bypass);
+
     // connect a tool audio input port to an arbitrary jack output port
     void connectToolAudioInput(uint8_t toolIndex, const char* symbol, const char* jackPort, bool safe = false);
 
@@ -977,6 +989,9 @@ public:
     // set a block parameter value
     // NOTE value must already be sanitized!
     void setToolParameter(uint8_t toolIndex, const char* symbol, float value);
+
+    // set a block property value
+    void setToolProperty(uint8_t toolIndex, const char* symbol, const char* value);
 
     // enable monitoring for tool output parameter
     void monitorToolOutputParameter(uint8_t toolIndex, const char* symbol, bool enable = true);
@@ -1128,6 +1143,7 @@ private:
 };
 
 using HostBindings = HostConnector::Bindings;
+using HostBindingType = HostConnector::BindingType;
 using HostBlock = HostConnector::Block;
 using HostParameter = HostConnector::Parameter;
 using HostParameterBinding = HostConnector::ParameterBinding;
@@ -1186,4 +1202,17 @@ static inline uint8_t getExpressionPedalControl(const HostBlock& blockdata)
     return UINT8_MAX;
 }
 
+
+static inline uint8_t getHoldDesignationControl(const HostBlock& blockdata)
+{
+    for (uint8_t p = 0, size = blockdata.parameters.size(); p < size; ++p)
+    {
+        const HostParameter& paramdata(blockdata.parameters[p]);
+        if (isNullURI(paramdata.symbol))
+            break;
+        if (paramdata.meta.designation == kLv2DesignationHold)
+            return p;
+    }
+    return UINT8_MAX;
+}
 // --------------------------------------------------------------------------------------------------------------------

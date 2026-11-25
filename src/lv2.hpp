@@ -62,6 +62,7 @@ enum Lv2Designation {
     kLv2DesignationBPM,
     kLv2DesignationReset,
     kLv2DesignationQuickPot,
+    kLv2DesignationHold,
 };
 
 enum Lv2PluginFlags {
@@ -93,6 +94,7 @@ enum Lv2ParameterFlags {
     Lv2ParameterExpressionPedalControl  = 1 << 10,
     Lv2ParameterMayUpdateBlockedState   = 1 << 11,
     Lv2ParameterSavedToPreset           = 1 << 12,
+    Lv2ParameterHold                    = 1 << 13,
     // NOTE: on addition, adjust ExtraLv2Flags in connector.hpp
 };
 

@@ -104,7 +104,7 @@ struct BlockSettings {
             kStyleDefault,
             kStyleFader,
             kStyleListWith2Slots,
-            kStyleListWith3Slots,
+            kStyleListWith3Slots, // TODOHOLD check custom styling later
         } style = kStyleDefault;
         operator bool() const noexcept { return !control.path.empty(); }
     };
@@ -201,6 +201,7 @@ struct BlockSettings {
         ParameterWidget list;
         ParameterWidget meter;
         ParameterWidget toggle;
+        ParameterWidget hold;
     } defaultWidgets;
 
     // Parameter-specific widgets, connected to a control port by symbol

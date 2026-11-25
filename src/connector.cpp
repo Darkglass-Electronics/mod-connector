@@ -47,11 +47,20 @@ static constexpr const uint32_t Lv2ParameterNotAllowedToChange
 static constexpr const uint32_t Lv2ParameterNotAllowedInBindings
     = Lv2PortIsOutput|Lv2ParameterMayUpdateBlockedState;
 
-static constexpr const uint32_t Lv2ParameterNotAllowedInQuickPot
-    = Lv2PortIsOutput|Lv2ParameterHidden|Lv2ParameterNotInQuickPot|Lv2ParameterMayUpdateBlockedState;
+static constexpr const uint32_t Lv2ParameterNotAllowedInQuickPot = 0
+    | Lv2PortIsOutput
+    | Lv2ParameterHidden
+    | Lv2ParameterHold
+    | Lv2ParameterNotInQuickPot
+    | Lv2ParameterMayUpdateBlockedState;
 
-static constexpr const uint32_t Lv2ParameterNotAllowedInScenes
-    = Lv2PortIsOutput|Lv2ParameterVirtual|Lv2ParameterExpensive|Lv2ParameterMayUpdateBlockedState|Lv2ParameterChangesNotSavedToPreset;
+static constexpr const uint32_t Lv2ParameterNotAllowedInScenes = 0
+    | Lv2PortIsOutput
+    | Lv2ParameterVirtual
+    | Lv2ParameterExpensive
+    | Lv2ParameterHold
+    | Lv2ParameterMayUpdateBlockedState
+    | Lv2ParameterChangesNotSavedToPreset;
 
 // --------------------------------------------------------------------------------------------------------------------
 
@@ -257,6 +266,19 @@ static bool isNullBlock(const HostConnector::Block& blockdata)
 }
 
 // --------------------------------------------------------------------------------------------------------------------
+
+static constexpr const char* BindingType2Str(const HostBindingType btype)
+{
+    switch (btype)
+    {
+    case HostConnector::kBindingTypeToggle:
+        return "kBindingTypeToggle";
+    case HostConnector::kBindingTypeHold:
+        return "kBindingTypeHold";
+    }
+
+    return "";
+}
 
 static constexpr const char* SceneMode2Str(const HostSceneMode sceneMode)
 {
@@ -1728,6 +1750,7 @@ bool HostConnector::reorderBlock(const uint8_t row, const uint8_t orig, const ui
 
                 const float min = it->min;
                 const float max = it->max;
+                const BindingType type = it->type;
 
                 if (it->meta.isBypass)
                 {
@@ -1737,6 +1760,7 @@ bool HostConnector::reorderBlock(const uint8_t row, const uint8_t orig, const ui
                         .block = block,
                         .min = min,
                         .max = max,
+                        .type = type,
                         .parameterSymbol = ":bypass",
                         .meta = {
                             .block = blockdata,
@@ -3552,12 +3576,15 @@ bool HostConnector::replaceBlockParameterBinding(const uint8_t hwid,
         if (it->meta.parameterIndex != paramIndex)
             continue;
 
+        const auto type = it->type;
+
         it = bindings.erase(it);
         it = bindings.insert(it, {
             .row = rowB,
             .block = blockB,
             .min = paramdataB.meta.min,
             .max = paramdataB.meta.max,
+            .type = type,
             .parameterSymbol = paramdataB.symbol,
             .meta = {
                 .block = blockdataB,
@@ -3853,7 +3880,7 @@ void HostConnector::setBlockParameter(const uint8_t row,
     if ((paramdata.meta.flags & Lv2ParameterChangesNotSavedToPreset) == 0)
         _current.dirty = true;
 
-    if ((paramdata.meta.flags & (Lv2ParameterExpensive|Lv2ParameterMayUpdateBlockedState|Lv2ParameterChangesNotSavedToPreset)) == 0)
+    if ((paramdata.meta.flags & Lv2ParameterNotAllowedInScenes) == 0)
     {
         switch (sceneMode)
         {
@@ -4139,6 +4166,17 @@ bool HostConnector::enableTool(const uint8_t toolIndex, const char* const uri, c
     }
 
     return _host.add(uri, instance);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+bool HostConnector::bypassTool(const uint8_t toolIndex, const bool bypass)
+{
+    mod_log_debug("bypassTool(%u, %s)", toolIndex, bool2str(bypass));
+    assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
+    assert(toolIndex != MOD_HOST_GLOBAL_EFFECT_ID_TOOL_INDEX);
+
+    return _host.bypass(MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, bypass);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -4461,6 +4499,19 @@ void HostConnector::setToolParameter(const uint8_t toolIndex, const char* const 
     assert(symbol != nullptr && *symbol != '\0');
 
     _host.param_set(MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, symbol, value);
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+void HostConnector::setToolProperty(const uint8_t toolIndex, const char* const symbol, const char* const value)
+{
+    mod_log_debug("setToolProperty(%u, \"%s\", \"%s\")", toolIndex, symbol, value);
+    assert(toolIndex < MAX_MOD_HOST_TOOL_INSTANCES);
+    assert(toolIndex != MOD_HOST_GLOBAL_EFFECT_ID_TOOL_INDEX);
+    assert(symbol != nullptr && *symbol != '\0');
+    assert(value != nullptr);
+
+    _host.patch_set(MAX_MOD_HOST_PLUGIN_INSTANCES + toolIndex, symbol, value);
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -5801,6 +5852,17 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
                             } while (false);
                         }
 
+                        BindingType type = kBindingTypeToggle;
+                        if (jbindingparam.contains("type"))
+                        {
+                            try {
+                                if (jbindingparam["type"].get<std::string>() == "hold")
+                                    type = kBindingTypeHold;
+                            } catch (...) {
+                                mod_log_warn("jsonPresetLoad(): binding contains invalid type");
+                            }
+                        }
+
                         Block& blockdata = presetdata.chains[row - 1].blocks[block - 1];
 
                         if (symbol == ":bypass")
@@ -5819,6 +5881,7 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
                                 .block = static_cast<uint8_t>(block - 1),
                                 .min = min,
                                 .max = max,
+                                .type = type,
                                 .parameterSymbol = ":bypass",
                                 .meta = {
                                     .block = blockdata,
@@ -5864,6 +5927,7 @@ void HostConnector::jsonPresetLoad(Preset& presetdata, const nlohmann::json& jpr
                                 .block = static_cast<uint8_t>(block - 1),
                                 .min = min,
                                 .max = max,
+                                .type = type,
                                 .parameterSymbol = symbol,
                                 .meta = {
                                     .block = blockdata,
@@ -6109,6 +6173,7 @@ void HostConnector::jsonPresetSave(const Preset& presetdata, nlohmann::json& jpr
                         { "block", bindingdata.block + 1 },
                         { "min", bindingdata.min },
                         { "max", bindingdata.max },
+                        { "type", bindingdata.type == kBindingTypeHold ? "hold" : "toggle" },
                         { "symbol", bindingdata.parameterSymbol },
                     }));
                 }
@@ -7613,3 +7678,112 @@ HostConnector::NonBlockingScopeWithAudioFades::NonBlockingScopeWithAudioFades(Ho
     : hnbs(hostconn._host) {}
 
 // --------------------------------------------------------------------------------------------------------------------
+
+bool HostConnector::setBlockBindingType(const uint8_t hwid,
+                                        const uint8_t row,
+                                        const uint8_t block,
+                                        const BindingType type)
+{
+    mod_log_debug("setBlockBindingType(%u, %u, %u, %s)", hwid, row, block, BindingType2Str(type));
+    assert(hwid < NUM_BINDING_ACTUATORS);
+    assert(row < NUM_BLOCK_CHAIN_ROWS);
+    assert(block < NUM_BLOCKS_PER_PRESET);
+
+    const Block& blockdata(_current.chains[row].blocks[block]);
+    assert_return(!isNullBlock(blockdata), false);
+
+    std::list<ParameterBinding>& bindings(_current.bindings[hwid].parameters);
+    for (ParameterBindingIterator it = bindings.begin(), end = bindings.end(); it != end; ++it)
+    {
+        if (it->row != row)
+            continue;
+        if (it->block != block)
+            continue;
+        if (! it->meta.isBypass)
+            continue;
+
+        if (it->type == type)
+            return false;
+
+        it->type = type;
+        _current.dirty = true;
+        return true;
+    }
+
+    return false;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+bool HostConnector::setBlockParameterBindingType(const uint8_t hwid,
+                                                 const uint8_t row,
+                                                 const uint8_t block,
+                                                 const uint8_t paramIndex,
+                                                 const BindingType type)
+{
+    mod_log_debug("setBlockParameterBindingType(%u, %u, %u, %u, %s)",
+                  hwid, row, block, paramIndex, BindingType2Str(type));
+    assert(hwid < NUM_BINDING_ACTUATORS);
+    assert(row < NUM_BLOCK_CHAIN_ROWS);
+    assert(block < NUM_BLOCKS_PER_PRESET);
+    assert(paramIndex < MAX_PARAMS_PER_BLOCK);
+
+    const Block& blockdata(_current.chains[row].blocks[block]);
+    assert_return(!isNullBlock(blockdata), false);
+    assert_return(paramIndex < blockdata.parameters.size(), false);
+
+    const Parameter& paramdata(blockdata.parameters[paramIndex]);
+    assert_return(!isNullURI(paramdata.symbol), false);
+    assert_return(paramdata.meta.hwbinding != UINT8_MAX, false);
+
+    std::list<ParameterBinding>& bindings(_current.bindings[hwid].parameters);
+    for (ParameterBindingIterator it = bindings.begin(), end = bindings.end(); it != end; ++it)
+    {
+        if (it->row != row)
+            continue;
+        if (it->block != block)
+            continue;
+        if (it->meta.isBypass)
+            continue;
+        if (it->meta.parameterIndex != paramIndex)
+            continue;
+
+        if (it->type == type)
+            return false;
+
+        it->type = type;
+        _current.dirty = true;
+        return true;
+    }
+
+    return false;
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+
+bool HostConnector::setBlockParameterBindingType(const uint8_t hwid,
+                                                 const uint8_t row,
+                                                 const uint8_t block,
+                                                 const char* const symbol,
+                                                 const BindingType type)
+{
+    mod_log_debug("setBlockParameterBindingType(%u, %u, %u, %s, %s)",
+                  hwid, row, block, symbol, BindingType2Str(type));
+    assert(hwid < NUM_BINDING_ACTUATORS);
+    assert(row < NUM_BLOCK_CHAIN_ROWS);
+    assert(block < NUM_BLOCKS_PER_PRESET);
+    assert(symbol != nullptr && *symbol != '\0');
+
+    Block& blockdata(_current.chains[row].blocks[block]);
+    assert_return(!isNullBlock(blockdata), false);
+
+    uint8_t paramIndex;
+    try {
+        paramIndex = blockdata.parameterSymbolToIndexMap[symbol];
+    } catch (...) {
+        mod_log_warn("setBlockParameterBindingType(): parameter with '%s' symbol does not exist in plugin", symbol);
+        return false;
+    }
+
+    return setBlockParameterBindingType(hwid, row, block, paramIndex, type);
+}
