@@ -47,11 +47,20 @@ static constexpr const uint32_t Lv2ParameterNotAllowedToChange
 static constexpr const uint32_t Lv2ParameterNotAllowedInBindings
     = Lv2PortIsOutput|Lv2ParameterMayUpdateBlockedState;
 
-static constexpr const uint32_t Lv2ParameterNotAllowedInQuickPot
-    = Lv2PortIsOutput|Lv2ParameterHidden|Lv2ParameterNotInQuickPot|Lv2ParameterMayUpdateBlockedState;
+static constexpr const uint32_t Lv2ParameterNotAllowedInQuickPot = 0
+    | Lv2PortIsOutput
+    | Lv2ParameterHidden
+    | Lv2ParameterHold
+    | Lv2ParameterNotInQuickPot
+    | Lv2ParameterMayUpdateBlockedState;
 
-static constexpr const uint32_t Lv2ParameterNotAllowedInScenes
-    = Lv2PortIsOutput|Lv2ParameterVirtual|Lv2ParameterExpensive|Lv2ParameterMayUpdateBlockedState|Lv2ParameterChangesNotSavedToPreset;
+static constexpr const uint32_t Lv2ParameterNotAllowedInScenes = 0
+    | Lv2PortIsOutput
+    | Lv2ParameterVirtual
+    | Lv2ParameterExpensive
+    | Lv2ParameterHold
+    | Lv2ParameterMayUpdateBlockedState
+    | Lv2ParameterChangesNotSavedToPreset;
 
 // --------------------------------------------------------------------------------------------------------------------
 
@@ -3871,7 +3880,7 @@ void HostConnector::setBlockParameter(const uint8_t row,
     if ((paramdata.meta.flags & Lv2ParameterChangesNotSavedToPreset) == 0)
         _current.dirty = true;
 
-    if ((paramdata.meta.flags & (Lv2ParameterExpensive|Lv2ParameterMayUpdateBlockedState|Lv2ParameterChangesNotSavedToPreset)) == 0)
+    if ((paramdata.meta.flags & Lv2ParameterNotAllowedInScenes) == 0)
     {
         switch (sceneMode)
         {
